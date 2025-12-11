@@ -230,3 +230,69 @@ class Absence(db.Model):
     notes = db.Column(db.String(255), nullable=True)
 
     location = db.relationship("Location")
+
+
+class Employee(db.Model):
+    __tablename__ = "employees"
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(180), nullable=False)
+    role = db.Column(db.String(120), nullable=True)
+    location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=True)
+    email = db.Column(db.String(140), nullable=True)
+    hired_at = db.Column(db.DateTime, default=datetime.utcnow)
+    active = db.Column(db.Boolean, default=True)
+
+    location = db.relationship("Location")
+    attendances = db.relationship("Attendance", back_populates="employee")
+    goals = db.relationship("Goal", back_populates="employee")
+    survey_responses = db.relationship("SurveyResponse", back_populates="employee")
+
+
+class Attendance(db.Model):
+    __tablename__ = "rrhh_attendance"
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id"), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    check_in = db.Column(db.DateTime)
+    check_out = db.Column(db.DateTime)
+    notes = db.Column(db.String(255), nullable=True)
+
+    employee = db.relationship("Employee", back_populates="attendances")
+
+
+class Goal(db.Model):
+    __tablename__ = "goals"
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id"), nullable=False)
+    description = db.Column(db.String(250), nullable=False)
+    period = db.Column(db.String(20))  # e.g. '2025-Q4'
+    target_value = db.Column(db.Float, nullable=False)
+    current_value = db.Column(db.Float, default=0.0)
+    status = db.Column(db.String(40), default="en progreso")
+
+    employee = db.relationship("Employee", back_populates="goals")
+
+
+class Survey(db.Model):
+    __tablename__ = "surveys"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(180), nullable=False)
+    start_date = db.Column(db.Date, nullable=True)
+    end_date = db.Column(db.Date, nullable=True)
+    location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=True)
+
+    location = db.relationship("Location")
+    responses = db.relationship("SurveyResponse", back_populates="survey")
+
+
+class SurveyResponse(db.Model):
+    __tablename__ = "survey_responses"
+    id = db.Column(db.Integer, primary_key=True)
+    survey_id = db.Column(db.Integer, db.ForeignKey("surveys.id"), nullable=False)
+    employee_id = db.Column(db.Integer, db.ForeignKey("employees.id"), nullable=False)
+    score = db.Column(db.Integer, nullable=False)
+    comments = db.Column(db.Text, nullable=True)
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    survey = db.relationship("Survey", back_populates="responses")
+    employee = db.relationship("Employee", back_populates="survey_responses")

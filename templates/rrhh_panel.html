@@ -26,8 +26,48 @@
     </div>
 </div>
 
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card p-3 text-center">
+            <h5>Empleados activos</h5>
+            <p class="display-4">{{ total_employees }}</p>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card p-3 text-center">
+            <h5>Asistencias registradas hoy</h5>
+            <p class="display-4">{{ attendance_today }}</p>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Encuestas y clima</h5>
+                <p class="mb-1">Promedio general de respuestas: {{ survey_avg }}</p>
+                {% if latest_surveys %}
+                <ul class="list-group list-group-flush">
+                    {% for survey in latest_surveys %}
+                    <li class="list-group-item">
+                        {{ survey.name }} · {{ survey.start_date or 'Sin fecha' }} – {{ survey.end_date or 'sin fin' }}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted">Aún no hay encuestas publicadas.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <p class="mt-4">
     Este panel es un resumen global. El detalle se gestiona en las secciones de
-    <a href="/rrhh/dotacion">Dotación</a> y <a href="/rrhh/ausentismo">Ausentismo</a>.
+    <a href="/rrhh/dotacion">Dotación</a>, <a href="/rrhh/ausentismo">Ausentismo</a>,
+    <a href="/rrhh/empleados">Empleados</a>, <a href="/rrhh/asistencia">Asistencia</a>,
+    <a href="/rrhh/objetivos">Objetivos</a> y <a href="/rrhh/clima">Clima</a>.
 </p>
 {% endblock %}

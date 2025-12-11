@@ -22,6 +22,11 @@ from models import (
     Quotation,
     Sale,
     StockReservation,
+    Employee,
+    Attendance,
+    Goal,
+    Survey,
+    SurveyResponse,
 )
 
 
@@ -170,12 +175,67 @@ def seed_demo_lead(units, locations, products, campaign):
         db.session.commit()
 
 
+def seed_rrhh_data(locations):
+    emp = get_or_create(
+        Employee,
+        filters={"email": "maria.comercial@silva360.ar"},
+        defaults={
+            "full_name": "María Gerente Comercial",
+            "role": "Gerente Comercial",
+            "location_id": locations[0].id,
+            "active": True,
+        },
+    )
+
+    get_or_create(
+        Attendance,
+        filters={"employee_id": emp.id, "date": datetime.utcnow().date()},
+        defaults={
+            "check_in": datetime.utcnow() - timedelta(hours=2),
+            "check_out": datetime.utcnow() - timedelta(hours=1),
+        },
+    )
+
+    get_or_create(
+        Goal,
+        filters={"employee_id": emp.id, "description": "Cerrar 3 ventas premium"},
+        defaults={
+            "period": "2025-Q4",
+            "target_value": 3,
+            "current_value": 1,
+            "status": "en progreso",
+        },
+    )
+
+    survey = get_or_create(
+        Survey,
+        filters={"name": "Clima Trimestral"},
+        defaults={
+            "start_date": datetime.utcnow().date() - timedelta(days=10),
+            "end_date": datetime.utcnow().date() + timedelta(days=20),
+            "location_id": locations[0].id,
+        },
+    )
+
+    get_or_create(
+        SurveyResponse,
+        filters={"survey_id": survey.id, "employee_id": emp.id},
+        defaults={
+            "score": 8,
+            "comments": "El equipo comercial se siente alineado.",
+        },
+    )
+
+    db.session.commit()
+
+
 def main():
     app = create_app()
     with app.app_context():
         db.create_all()
         units, locations, products, campaign = seed_business_data()
         seed_demo_lead(units, locations, products, campaign)
+        seed_rrhh_data(locations)
         print("Base comercial sembrada con unidades, productos, campaña y lead demo.")
 
 
