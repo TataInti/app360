@@ -4,6 +4,8 @@
     <title>Silva360</title>
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css">
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 
     <style>
         body {
@@ -17,14 +19,14 @@
         .sidebar {
             width: 230px;
             height: 100vh;
-            background: #1f2937; /* gris oscuro */
+            background: #1f2937;
             color: white;
             position: fixed;
             left: 0;
             top: 0;
             padding: 15px 12px;
-            overflow-y: auto;      /* scroll vertical */
-            scrollbar-width: thin; /* Firefox */
+            overflow-y: auto;
+            scrollbar-width: thin;
             transition: width 0.3s ease;
         }
 
@@ -33,8 +35,7 @@
         }
 
         .sidebar.collapsed .sidebar-section-title,
-        .sidebar.collapsed hr,
-        .sidebar.collapsed .sidebar-section-title + div {
+        .sidebar.collapsed hr {
             display: none;
         }
 
@@ -62,12 +63,58 @@
 
         .link-icon {
             width: 24px;
-            text-align: center;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             font-size: 1.15rem;
+        }
+
+        .link-icon::before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #e5e7eb;
+            display: inline-block;
         }
 
         .sidebar.collapsed .link-text {
             display: none;
+        }
+
+        .sidebar-toggle {
+            background: transparent;
+            border: 1px solid rgba(229, 231, 235, 0.5);
+            padding: 0.35rem;
+            position: relative;
+        }
+
+        .sidebar-toggle-icon {
+            display: block;
+            width: 22px;
+            height: 2px;
+            background: #e5e7eb;
+            position: relative;
+            margin: 0 auto;
+        }
+
+        .sidebar-toggle-icon::before,
+        .sidebar-toggle-icon::after {
+            content: "";
+            position: absolute;
+            width: 22px;
+            height: 2px;
+            background: #e5e7eb;
+            left: 0;
+        }
+
+        .sidebar-toggle-icon::before {
+            top: -6px;
+        }
+
+        .sidebar-toggle-icon::after {
+            top: 6px;
         }
 
         .sidebar a:hover {
@@ -111,8 +158,8 @@
     <div class="sidebar" id="sidebar">
         <h2>Silva360</h2>
 
-        <button id="sidebar-toggle" class="btn btn-outline-light btn-sm mb-3 w-100">
-            Toggle menu
+        <button id="sidebar-toggle" class="btn btn-outline-light btn-sm mb-3 w-100 sidebar-toggle">
+            <span class="sidebar-toggle-icon"></span>
         </button>
 
         {% if current_user %}
@@ -130,27 +177,24 @@
 
         {% if can_access('dashboard') %}
         <a href="/dashboard"
-           class="{% if current.startswith('/dashboard') and not current.startswith('/dashboard-comercial') %}active-link{% endif %}"
-           data-icon="📊">
-            <span class="link-icon">📊</span>
+           class="{% if current.startswith('/dashboard') and not current.startswith('/dashboard-comercial') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-speedometer2"></i></span>
             <span class="link-text">Dashboard Operativo</span>
         </a>
         {% endif %}
 
         {% if can_access('dashboard_comercial') %}
         <a href="/dashboard-comercial"
-           class="{% if current.startswith('/dashboard-comercial') %}active-link{% endif %}"
-           data-icon="📈">
-            <span class="link-icon">📈</span>
+           class="{% if current.startswith('/dashboard-comercial') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-graph-up"></i></span>
             <span class="link-text">Dashboard Comercial</span>
         </a>
         {% endif %}
 
         {% if can_access('panel') %}
         <a href="/panel-ejecutivo"
-           class="{% if current.startswith('/panel-ejecutivo') %}active-link{% endif %}"
-           data-icon="🧭">
-            <span class="link-icon">🧭</span>
+           class="{% if current.startswith('/panel-ejecutivo') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-compass"></i></span>
             <span class="link-text">Panel Ejecutivo</span>
         </a>
         {% endif %}
@@ -164,27 +208,24 @@
 
         {% if can_access('products') %}
         <a href="/products"
-           class="{% if current.startswith('/products') %}active-link{% endif %}"
-           data-icon="🧰">
-            <span class="link-icon">🧰</span>
+           class="{% if current.startswith('/products') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-box-seam"></i></span>
             <span class="link-text">Productos</span>
         </a>
         {% endif %}
 
         {% if can_access('locations') %}
         <a href="/locations"
-           class="{% if current.startswith('/locations') %}active-link{% endif %}"
-           data-icon="📍">
-            <span class="link-icon">📍</span>
+           class="{% if current.startswith('/locations') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-geo-alt"></i></span>
             <span class="link-text">Ubicaciones</span>
         </a>
         {% endif %}
 
         {% if can_access('stock') %}
         <a href="/stock"
-           class="{% if current.startswith('/stock') %}active-link{% endif %}"
-           data-icon="📦">
-            <span class="link-icon">📦</span>
+           class="{% if current.startswith('/stock') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-stack"></i></span>
             <span class="link-text">Stock</span>
         </a>
         {% endif %}
@@ -198,37 +239,32 @@
 
         {% if can_access('crm') %}
         <a href="/leads"
-           class="{% if current.startswith('/leads') %}active-link{% endif %}"
-           data-icon="📋">
-            <span class="link-icon">📋</span>
+           class="{% if current.startswith('/leads') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-person-lines-fill"></i></span>
             <span class="link-text">Leads</span>
         </a>
 
         <a href="/leads/new"
-           class="{% if current == '/leads/new' %}active-link{% endif %}"
-           data-icon="➕">
-            <span class="link-icon">➕</span>
+           class="{% if current == '/leads/new' %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-plus-circle"></i></span>
             <span class="link-text">Nuevo Lead</span>
         </a>
 
         <a href="/ventas"
-           class="{% if current.startswith('/ventas') %}active-link{% endif %}"
-           data-icon="💰">
-            <span class="link-icon">💰</span>
+           class="{% if current.startswith('/ventas') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-receipt"></i></span>
             <span class="link-text">Ventas</span>
         </a>
 
         <a href="/ventas/nuevo"
-           class="{% if current == '/ventas/nuevo' %}active-link{% endif %}"
-           data-icon="✏️">
-            <span class="link-icon">✏️</span>
+           class="{% if current == '/ventas/nuevo' %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-pencil"></i></span>
             <span class="link-text">Nueva Venta</span>
         </a>
 
         <a href="/campaigns"
-           class="{% if current.startswith('/campaigns') %}active-link{% endif %}"
-           data-icon="📣">
-            <span class="link-icon">📣</span>
+           class="{% if current.startswith('/campaigns') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-megaphone"></i></span>
             <span class="link-text">Campañas</span>
         </a>
         {% endif %}
@@ -242,16 +278,14 @@
 
         {% if can_access('compras') %}
         <a href="/compras"
-           class="{% if current.startswith('/compras') and current != '/compras/orden-nueva' %}active-link{% endif %}"
-           data-icon="🗂️">
-            <span class="link-icon">🗂️</span>
+           class="{% if current.startswith('/compras') and current != '/compras/orden-nueva' %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-stack"></i></span>
             <span class="link-text">Panel de Compras</span>
         </a>
 
         <a href="/compras/orden-nueva"
-           class="{% if current == '/compras/orden-nueva' %}active-link{% endif %}"
-           data-icon="📝">
-            <span class="link-icon">📝</span>
+           class="{% if current == '/compras/orden-nueva' %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-file-earmark-plus"></i></span>
             <span class="link-text">Nueva Orden</span>
         </a>
         {% endif %}
@@ -265,51 +299,44 @@
 
         {% if can_access('rrhh') %}
         <a href="/rrhh"
-           class="{% if current == '/rrhh' %}active-link{% endif %}"
-           data-icon="👥">
-            <span class="link-icon">👥</span>
+           class="{% if current == '/rrhh' %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-people"></i></span>
             <span class="link-text">Panel RRHH</span>
         </a>
 
         <a href="/rrhh/ausentismo"
-           class="{% if current.startswith('/rrhh/ausentismo') %}active-link{% endif %}"
-           data-icon="😷">
-            <span class="link-icon">😷</span>
+           class="{% if current.startswith('/rrhh/ausentismo') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-heart-pulse"></i></span>
             <span class="link-text">Ausentismo</span>
         </a>
 
         <a href="/rrhh/dotacion"
-           class="{% if current.startswith('/rrhh/dotacion') %}active-link{% endif %}"
-           data-icon="📊">
-            <span class="link-icon">📊</span>
+           class="{% if current.startswith('/rrhh/dotacion') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-bar-chart"></i></span>
             <span class="link-text">Dotación</span>
         </a>
 
         <a href="/rrhh/empleados"
-           class="{% if current.startswith('/rrhh/empleados') %}active-link{% endif %}"
-           data-icon="🧑‍💼">
-            <span class="link-icon">🧑‍💼</span>
+           class="{% if current.startswith('/rrhh/empleados') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-person-badge"></i></span>
             <span class="link-text">Empleados</span>
         </a>
 
         <a href="/rrhh/asistencia"
-           class="{% if current.startswith('/rrhh/asistencia') %}active-link{% endif %}"
-           data-icon="🕘">
-            <span class="link-icon">🕘</span>
+           class="{% if current.startswith('/rrhh/asistencia') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-clock"></i></span>
             <span class="link-text">Asistencia</span>
         </a>
 
         <a href="/rrhh/objetivos"
-           class="{% if current.startswith('/rrhh/objetivos') %}active-link{% endif %}"
-           data-icon="🎯">
-            <span class="link-icon">🎯</span>
+           class="{% if current.startswith('/rrhh/objetivos') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-bullseye"></i></span>
             <span class="link-text">Objetivos</span>
         </a>
 
         <a href="/rrhh/clima"
-           class="{% if current.startswith('/rrhh/clima') %}active-link{% endif %}"
-           data-icon="☀️">
-            <span class="link-icon">☀️</span>
+           class="{% if current.startswith('/rrhh/clima') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-sun"></i></span>
             <span class="link-text">Clima</span>
         </a>
         {% endif %}
