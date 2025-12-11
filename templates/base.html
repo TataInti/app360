@@ -25,6 +25,17 @@
             padding: 15px 12px;
             overflow-y: auto;      /* scroll vertical */
             scrollbar-width: thin; /* Firefox */
+            transition: width 0.3s ease;
+        }
+
+        .sidebar.collapsed {
+            width: 70px;
+        }
+
+        .sidebar.collapsed .sidebar-section-title,
+        .sidebar.collapsed hr,
+        .sidebar.collapsed .sidebar-section-title + div {
+            display: none;
         }
 
         .sidebar h2 {
@@ -34,13 +45,29 @@
         }
 
         .sidebar a {
-            display: block;
-            padding: 6px 8px;       /* más compacto */
-            margin-bottom: 4px;     /* menos espacio entre botones */
+            display: flex;
+            align-items: center;
+            padding: 6px 8px;
+            gap: 8px;
+            margin-bottom: 4px;
             text-decoration: none;
             color: #e5e7eb;
             border-radius: 4px;
             font-size: 0.90rem;
+        }
+
+        .sidebar.collapsed a {
+            justify-content: center;
+        }
+
+        .link-icon {
+            width: 24px;
+            text-align: center;
+            font-size: 1.15rem;
+        }
+
+        .sidebar.collapsed .link-text {
+            display: none;
         }
 
         .sidebar a:hover {
@@ -81,8 +108,12 @@
 
     {% set current = request.path %}
 
-    <div class="sidebar">
+    <div class="sidebar" id="sidebar">
         <h2>Silva360</h2>
+
+        <button id="sidebar-toggle" class="btn btn-outline-light btn-sm mb-3 w-100">
+            Toggle menu
+        </button>
 
         {% if current_user %}
         <div class="mb-3">
@@ -99,22 +130,28 @@
 
         {% if can_access('dashboard') %}
         <a href="/dashboard"
-           class="{% if current.startswith('/dashboard') and not current.startswith('/dashboard-comercial') %}active-link{% endif %}">
-            Dashboard Operativo
+           class="{% if current.startswith('/dashboard') and not current.startswith('/dashboard-comercial') %}active-link{% endif %}"
+           data-icon="📊">
+            <span class="link-icon">📊</span>
+            <span class="link-text">Dashboard Operativo</span>
         </a>
         {% endif %}
 
         {% if can_access('dashboard_comercial') %}
         <a href="/dashboard-comercial"
-           class="{% if current.startswith('/dashboard-comercial') %}active-link{% endif %}">
-            Dashboard Comercial
+           class="{% if current.startswith('/dashboard-comercial') %}active-link{% endif %}"
+           data-icon="📈">
+            <span class="link-icon">📈</span>
+            <span class="link-text">Dashboard Comercial</span>
         </a>
         {% endif %}
 
         {% if can_access('panel') %}
         <a href="/panel-ejecutivo"
-           class="{% if current.startswith('/panel-ejecutivo') %}active-link{% endif %}">
-            Panel Ejecutivo
+           class="{% if current.startswith('/panel-ejecutivo') %}active-link{% endif %}"
+           data-icon="🧭">
+            <span class="link-icon">🧭</span>
+            <span class="link-text">Panel Ejecutivo</span>
         </a>
         {% endif %}
 
@@ -127,22 +164,28 @@
 
         {% if can_access('products') %}
         <a href="/products"
-           class="{% if current.startswith('/products') %}active-link{% endif %}">
-            Productos
+           class="{% if current.startswith('/products') %}active-link{% endif %}"
+           data-icon="🧰">
+            <span class="link-icon">🧰</span>
+            <span class="link-text">Productos</span>
         </a>
         {% endif %}
 
         {% if can_access('locations') %}
         <a href="/locations"
-           class="{% if current.startswith('/locations') %}active-link{% endif %}">
-            Ubicaciones
+           class="{% if current.startswith('/locations') %}active-link{% endif %}"
+           data-icon="📍">
+            <span class="link-icon">📍</span>
+            <span class="link-text">Ubicaciones</span>
         </a>
         {% endif %}
 
         {% if can_access('stock') %}
         <a href="/stock"
-           class="{% if current.startswith('/stock') %}active-link{% endif %}">
-            Stock
+           class="{% if current.startswith('/stock') %}active-link{% endif %}"
+           data-icon="📦">
+            <span class="link-icon">📦</span>
+            <span class="link-text">Stock</span>
         </a>
         {% endif %}
 
@@ -155,28 +198,38 @@
 
         {% if can_access('crm') %}
         <a href="/leads"
-           class="{% if current.startswith('/leads') %}active-link{% endif %}">
-            Leads
+           class="{% if current.startswith('/leads') %}active-link{% endif %}"
+           data-icon="📋">
+            <span class="link-icon">📋</span>
+            <span class="link-text">Leads</span>
         </a>
 
         <a href="/leads/new"
-           class="{% if current == '/leads/new' %}active-link{% endif %}">
-            Nuevo Lead
+           class="{% if current == '/leads/new' %}active-link{% endif %}"
+           data-icon="➕">
+            <span class="link-icon">➕</span>
+            <span class="link-text">Nuevo Lead</span>
         </a>
 
         <a href="/ventas"
-           class="{% if current.startswith('/ventas') %}active-link{% endif %}">
-            Ventas
+           class="{% if current.startswith('/ventas') %}active-link{% endif %}"
+           data-icon="💰">
+            <span class="link-icon">💰</span>
+            <span class="link-text">Ventas</span>
         </a>
 
         <a href="/ventas/nuevo"
-           class="{% if current == '/ventas/nuevo' %}active-link{% endif %}">
-            Nueva Venta
+           class="{% if current == '/ventas/nuevo' %}active-link{% endif %}"
+           data-icon="✏️">
+            <span class="link-icon">✏️</span>
+            <span class="link-text">Nueva Venta</span>
         </a>
 
         <a href="/campaigns"
-           class="{% if current.startswith('/campaigns') %}active-link{% endif %}">
-            Campañas
+           class="{% if current.startswith('/campaigns') %}active-link{% endif %}"
+           data-icon="📣">
+            <span class="link-icon">📣</span>
+            <span class="link-text">Campañas</span>
         </a>
         {% endif %}
 
@@ -189,13 +242,17 @@
 
         {% if can_access('compras') %}
         <a href="/compras"
-           class="{% if current.startswith('/compras') and current != '/compras/orden-nueva' %}active-link{% endif %}">
-            Panel de Compras
+           class="{% if current.startswith('/compras') and current != '/compras/orden-nueva' %}active-link{% endif %}"
+           data-icon="🗂️">
+            <span class="link-icon">🗂️</span>
+            <span class="link-text">Panel de Compras</span>
         </a>
 
         <a href="/compras/orden-nueva"
-           class="{% if current == '/compras/orden-nueva' %}active-link{% endif %}">
-            Nueva Orden
+           class="{% if current == '/compras/orden-nueva' %}active-link{% endif %}"
+           data-icon="📝">
+            <span class="link-icon">📝</span>
+            <span class="link-text">Nueva Orden</span>
         </a>
         {% endif %}
 
@@ -208,38 +265,52 @@
 
         {% if can_access('rrhh') %}
         <a href="/rrhh"
-           class="{% if current == '/rrhh' %}active-link{% endif %}">
-            Panel RRHH
+           class="{% if current == '/rrhh' %}active-link{% endif %}"
+           data-icon="👥">
+            <span class="link-icon">👥</span>
+            <span class="link-text">Panel RRHH</span>
         </a>
 
         <a href="/rrhh/ausentismo"
-           class="{% if current.startswith('/rrhh/ausentismo') %}active-link{% endif %}">
-            Ausentismo
+           class="{% if current.startswith('/rrhh/ausentismo') %}active-link{% endif %}"
+           data-icon="😷">
+            <span class="link-icon">😷</span>
+            <span class="link-text">Ausentismo</span>
         </a>
 
         <a href="/rrhh/dotacion"
-           class="{% if current.startswith('/rrhh/dotacion') %}active-link{% endif %}">
-            Dotación
+           class="{% if current.startswith('/rrhh/dotacion') %}active-link{% endif %}"
+           data-icon="📊">
+            <span class="link-icon">📊</span>
+            <span class="link-text">Dotación</span>
         </a>
 
         <a href="/rrhh/empleados"
-           class="{% if current.startswith('/rrhh/empleados') %}active-link{% endif %}">
-            Empleados
+           class="{% if current.startswith('/rrhh/empleados') %}active-link{% endif %}"
+           data-icon="🧑‍💼">
+            <span class="link-icon">🧑‍💼</span>
+            <span class="link-text">Empleados</span>
         </a>
 
         <a href="/rrhh/asistencia"
-           class="{% if current.startswith('/rrhh/asistencia') %}active-link{% endif %}">
-            Asistencia
+           class="{% if current.startswith('/rrhh/asistencia') %}active-link{% endif %}"
+           data-icon="🕘">
+            <span class="link-icon">🕘</span>
+            <span class="link-text">Asistencia</span>
         </a>
 
         <a href="/rrhh/objetivos"
-           class="{% if current.startswith('/rrhh/objetivos') %}active-link{% endif %}">
-            Objetivos
+           class="{% if current.startswith('/rrhh/objetivos') %}active-link{% endif %}"
+           data-icon="🎯">
+            <span class="link-icon">🎯</span>
+            <span class="link-text">Objetivos</span>
         </a>
 
         <a href="/rrhh/clima"
-           class="{% if current.startswith('/rrhh/clima') %}active-link{% endif %}">
-            Clima
+           class="{% if current.startswith('/rrhh/clima') %}active-link{% endif %}"
+           data-icon="☀️">
+            <span class="link-icon">☀️</span>
+            <span class="link-text">Clima</span>
         </a>
         {% endif %}
     </div>
@@ -260,6 +331,20 @@
         {% block content %}
         {% endblock %}
     </div>
-
+    <script>
+        (function () {
+            const sidebar = document.getElementById("sidebar");
+            const toggle = document.getElementById("sidebar-toggle");
+            if (!sidebar || !toggle) return;
+            const collapsed = localStorage.getItem("sidebarCollapsed") === "true";
+            if (collapsed) {
+                sidebar.classList.add("collapsed");
+            }
+            toggle.addEventListener("click", function () {
+                sidebar.classList.toggle("collapsed");
+                localStorage.setItem("sidebarCollapsed", sidebar.classList.contains("collapsed"));
+            });
+        })();
+    </script>
 </body>
 </html>
