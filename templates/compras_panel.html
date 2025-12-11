@@ -1,19 +1,21 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>Panel de Compras</h1>
+<div class="d-flex justify-content-between align-items-center">
+    <h1>Panel de Compras</h1>
+    <a href="/compras/orden-nueva" class="btn btn-primary">Nueva Orden de Compra</a>
+</div>
 
-<a href="/compras/orden-nueva" class="btn btn-primary mb-3">Nueva Orden de Compra</a>
-
-<table class="table table-bordered table-striped">
+<table class="table table-bordered table-striped mt-3">
     <thead>
         <tr>
             <th>ID</th>
             <th>Fecha</th>
             <th>Proveedor</th>
-            <th>Sucursal / Nave</th>
+            <th>Ubicación</th>
             <th>Estado</th>
-            <th>Notas</th>
+            <th>Items</th>
+            <th>Acciones</th>
         </tr>
     </thead>
     <tbody>
@@ -21,17 +23,24 @@
         <tr>
             <td>{{ o.id }}</td>
             <td>{{ o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else '' }}</td>
-            <td>{{ o.supplier or '' }}</td>
-            <td>{{ o.location.name if o.location else '' }}</td>
-            <td>{{ o.status }}</td>
-            <td>{{ o.notes or '' }}</td>
+            <td>{{ o.supplier or 'Sin proveedor' }}</td>
+            <td>{{ o.location.name if o.location else 'Sin ubicación' }}</td>
+            <td>
+                <span class="badge bg-{{ 'secondary' if o.status == 'borrador' else 'info' if o.status == 'enviada' else 'warning' if o.status == 'recibida' else 'success' if o.status == 'cerrada' else 'light' }}">
+                    {{ o.status }}
+                </span>
+            </td>
+            <td>{{ o.items|length }}</td>
+            <td>
+                <a href="/compras/{{ o.id }}" class="btn btn-sm btn-outline-secondary">Detalle</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="7" class="text-center text-muted">No hay órdenes de compra registradas.</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
-
-{% if not orders %}
-<p>No hay órdenes de compra registradas.</p>
-{% endif %}
 
 {% endblock %}
