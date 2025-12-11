@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>{{ 'Editar Stock' if stock else 'Nuevo / Actualizar Stock' }}</h1>
+
+<form method="POST">
+    <div class="mb-3">
+        <label>Producto</label>
+        <select name="product_id" class="form-control" required>
+            {% for p in products %}
+                <option value="{{ p.id }}"
+                    {% if stock and stock.product_id == p.id %}selected{% endif %}>
+                    {{ p.sku }} - {{ p.name }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label>Ubicación</label>
+        <select name="location_id" class="form-control" required>
+            {% for l in locations %}
+                <option value="{{ l.id }}"
+                    {% if stock and stock.location_id == l.id %}selected{% endif %}>
+                    {{ l.name }} ({{ l.type }})
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label>Cantidad</label>
+        <input type="number" name="quantity" class="form-control"
+               value="{{ stock.quantity if stock else 0 }}" required>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Guardar</button>
+    <a href="/stock" class="btn btn-secondary">Volver</a>
+</form>
+{% endblock %}

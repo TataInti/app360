@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Silva360</title>
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css">
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 230px;
+            height: 100vh;
+            background: #1f2937; /* gris oscuro */
+            color: white;
+            position: fixed;
+            left: 0;
+            top: 0;
+            padding: 15px 12px;
+            overflow-y: auto;      /* scroll vertical */
+            scrollbar-width: thin; /* Firefox */
+        }
+
+        .sidebar h2 {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .sidebar a {
+            display: block;
+            padding: 6px 8px;       /* más compacto */
+            margin-bottom: 4px;     /* menos espacio entre botones */
+            text-decoration: none;
+            color: #e5e7eb;
+            border-radius: 4px;
+            font-size: 0.90rem;
+        }
+
+        .sidebar a:hover {
+            background: #374151;
+            color: white;
+        }
+
+        .sidebar a.active-link {
+            background: #2563eb;   /* azul */
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .sidebar hr {
+            border-color: #4b5563;
+            margin: 10px 0;
+        }
+
+        .sidebar-section-title {
+            margin-top: 10px;
+            margin-bottom: 4px;
+            color:#9ca3af;
+            font-size:0.70rem;
+            text-transform:uppercase;
+            letter-spacing:0.04rem;
+        }
+
+        /* Contenido principal */
+        .main-content {
+            margin-left: 230px; /* ancho del sidebar */
+            padding: 25px;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+
+    {% set current = request.path %}
+
+    <div class="sidebar">
+        <h2>Silva360</h2>
+
+        <!-- Paneles Estratégicos -->
+        <div class="sidebar-section-title">
+            Paneles Estratégicos
+        </div>
+
+        <a href="/dashboard"
+           class="{% if current.startswith('/dashboard') and not current.startswith('/dashboard-comercial') %}active-link{% endif %}">
+            Dashboard Operativo
+        </a>
+
+        <a href="/dashboard-comercial"
+           class="{% if current.startswith('/dashboard-comercial') %}active-link{% endif %}">
+            Dashboard Comercial
+        </a>
+
+        <a href="/panel-ejecutivo"
+           class="{% if current.startswith('/panel-ejecutivo') %}active-link{% endif %}">
+            Panel Ejecutivo
+        </a>
+
+        <hr>
+
+        <!-- Operaciones -->
+        <div class="sidebar-section-title">
+            Operaciones
+        </div>
+
+        <a href="/products"
+           class="{% if current.startswith('/products') %}active-link{% endif %}">
+            Productos
+        </a>
+
+        <a href="/locations"
+           class="{% if current.startswith('/locations') %}active-link{% endif %}">
+            Ubicaciones
+        </a>
+
+        <a href="/stock"
+           class="{% if current.startswith('/stock') %}active-link{% endif %}">
+            Stock
+        </a>
+
+        <hr>
+
+        <!-- Comercial -->
+        <div class="sidebar-section-title">
+            Comercial
+        </div>
+
+        <a href="/leads"
+           class="{% if current.startswith('/leads') %}active-link{% endif %}">
+            Leads
+        </a>
+
+        <a href="/leads/new"
+           class="{% if current == '/leads/new' %}active-link{% endif %}">
+            Nuevo Lead
+        </a>
+
+        <hr>
+
+        <!-- Compras -->
+        <div class="sidebar-section-title">
+            Compras
+        </div>
+
+        <a href="/compras"
+           class="{% if current.startswith('/compras') and current != '/compras/orden-nueva' %}active-link{% endif %}">
+            Panel de Compras
+        </a>
+
+        <a href="/compras/orden-nueva"
+           class="{% if current == '/compras/orden-nueva' %}active-link{% endif %}">
+            Nueva Orden
+        </a>
+
+        <hr>
+
+        <!-- RRHH -->
+        <div class="sidebar-section-title">
+            RRHH
+        </div>
+
+        <a href="/rrhh"
+           class="{% if current == '/rrhh' %}active-link{% endif %}">
+            Panel RRHH
+        </a>
+
+        <a href="/rrhh/ausentismo"
+           class="{% if current.startswith('/rrhh/ausentismo') %}active-link{% endif %}">
+            Ausentismo
+        </a>
+
+        <a href="/rrhh/dotacion"
+           class="{% if current.startswith('/rrhh/dotacion') %}active-link{% endif %}">
+            Dotación
+        </a>
+    </div>
+
+    <div class="main-content">
+        {% block content %}
+        {% endblock %}
+    </div>
+
+</body>
+</html>

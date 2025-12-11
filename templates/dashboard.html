@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h1>Dashboard General</h1>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card p-3 text-center">
+            <h4>Productos</h4>
+            <p class="display-6">{{ total_products }}</p>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card p-3 text-center">
+            <h4>Ubicaciones</h4>
+            <p class="display-6">{{ total_locations }}</p>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card p-3 text-center">
+            <h4>Registros de Stock</h4>
+            <p class="display-6">{{ total_stock_records }}</p>
+        </div>
+    </div>
+</div>
+
+<hr class="mt-5">
+
+<h3>Stock por Unidad de Negocio</h3>
+
+<canvas id="stockUnitChart" height="120"></canvas>
+
+<script>
+    const labels = [
+        {% for name, qty in stock_per_unit %}
+            "{{ name }}",
+        {% endfor %}
+    ];
+
+    const data = [
+        {% for name, qty in stock_per_unit %}
+            {{ qty }},
+        {% endfor %}
+    ];
+
+    new Chart(document.getElementById("stockUnitChart"), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Cantidad en Stock",
+                data: data,
+                backgroundColor: 'rgba(54, 162, 235, 0.7)'
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+</script>
+
+<hr class="mt-5">
+
+<h3>Stock por Ubicación</h3>
+
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Ubicación</th>
+            <th>Stock Total</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for name, qty in stock_per_location %}
+        <tr>
+            <td>{{ name }}</td>
+            <td>{{ qty }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}

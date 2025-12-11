@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Panel de RRHH</h1>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card p-3 text-center">
+            <h5>Dotación Total (últimos registros)</h5>
+            <p class="display-6">{{ total_headcount }}</p>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card p-3 text-center">
+            <h5>Días Perdidos por Ausentismo</h5>
+            <p class="display-6">{{ total_days_lost }}</p>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card p-3 text-center">
+            <h5>Ratio Días Perdidos / Dotación</h5>
+            <p class="display-6">{{ avg_absence }}</p>
+        </div>
+    </div>
+</div>
+
+<p class="mt-4">
+    Este panel es un resumen global. El detalle se gestiona en las secciones de
+    <a href="/rrhh/dotacion">Dotación</a> y <a href="/rrhh/ausentismo">Ausentismo</a>.
+</p>
+{% endblock %}

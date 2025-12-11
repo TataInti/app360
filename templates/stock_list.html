@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Stock por Ubicación</h1>
+
+<a href="/stock/new" class="btn btn-primary mb-3">Nuevo / Actualizar Stock</a>
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Producto</th>
+            <th>SKU</th>
+            <th>Ubicación</th>
+            <th>Tipo Ubicación</th>
+            <th>Cantidad</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in stock_rows %}
+        <tr>
+            <td>{{ s.id }}</td>
+            <td>{{ products[s.product_id].name }}</td>
+            <td>{{ products[s.product_id].sku }}</td>
+            <td>{{ locations[s.location_id].name }}</td>
+            <td>{{ locations[s.location_id].type }}</td>
+            <td>{{ s.quantity }}</td>
+            <td>
+                <a href="/stock/edit/{{ s.id }}" class="btn btn-sm btn-secondary">
+                    Editar
+                </a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h1>Panel Ejecutivo Global</h1>
+
+<div class="row mt-4">
+
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <h5>Total Leads</h5>
+            <p class="display-6">{{ total_leads }}</p>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <h5>Total Productos</h5>
+            <p class="display-6">{{ total_products }}</p>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <h5>Total Ubicaciones</h5>
+            <p class="display-6">{{ total_locations }}</p>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <h5>Conversión Comercial</h5>
+            <p class="display-6">{{ conversion }} %</p>
+        </div>
+    </div>
+</div>
+
+<hr class="mt-5">
+
+<h3>Leads por Estado</h3>
+<canvas id="estadoChart" height="120"></canvas>
+
+<script>
+new Chart(document.getElementById("estadoChart"), {
+    type: 'bar',
+    data: {
+        labels: {{ leads_por_estado.keys() | list }},
+        datasets: [{
+            label: 'Cantidad',
+            data: {{ leads_por_estado.values() | list }},
+            backgroundColor: 'rgba(75,192,192,0.8)'
+        }]
+    }
+});
+</script>
+
+<hr class="mt-5">
+
+<h3>Stock por Unidad de Negocio</h3>
+<canvas id="stockUnidadChart" height="120"></canvas>
+
+<script>
+new Chart(document.getElementById("stockUnidadChart"), {
+    type: 'pie',
+    data: {
+        labels: [
+            {% for name, qty in stock_por_unidad %}
+            "{{ name }}",
+            {% endfor %}
+        ],
+        datasets: [{
+            data: [
+                {% for name, qty in stock_por_unidad %}
+                {{ qty }},
+                {% endfor %}
+            ],
+            backgroundColor: [
+                'rgba(255,99,132,0.7)',
+                'rgba(54,162,235,0.7)',
+                'rgba(255,206,86,0.7)',
+                'rgba(75,192,192,0.7)'
+            ]
+        }]
+    }
+});
+</script>
+
+<hr class="mt-5">
+
+<h3>Productos con Stock Bajo</h3>
+
+{% if stock_bajo %}
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Producto</th>
+            <th>Cantidad Total</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for name, qty in stock_bajo %}
+        <tr>
+            <td>{{ name }}</td>
+            <td>{{ qty }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No hay productos con stock bajo.</p>
+{% endif %}
+
+{% endblock %}

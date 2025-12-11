@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Panel de Compras</h1>
+
+<a href="/compras/orden-nueva" class="btn btn-primary mb-3">Nueva Orden de Compra</a>
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Fecha</th>
+            <th>Proveedor</th>
+            <th>Sucursal / Nave</th>
+            <th>Estado</th>
+            <th>Notas</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for o in orders %}
+        <tr>
+            <td>{{ o.id }}</td>
+            <td>{{ o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else '' }}</td>
+            <td>{{ o.supplier or '' }}</td>
+            <td>{{ o.location.name if o.location else '' }}</td>
+            <td>{{ o.status }}</td>
+            <td>{{ o.notes or '' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if not orders %}
+<p>No hay órdenes de compra registradas.</p>
+{% endif %}
+
+{% endblock %}

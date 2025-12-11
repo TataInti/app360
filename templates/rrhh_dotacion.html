@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Dotación por Sucursal / Nave</h1>
+
+<form method="POST" class="mb-4">
+
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <label>Ubicación</label>
+            <select name="location_id" class="form-control" required>
+                {% for l in locations %}
+                <option value="{{ l.id }}">{{ l.name }} ({{ l.type }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-4 mb-3">
+            <label>Mes (formato YYYY-MM)</label>
+            <input type="text" name="month" class="form-control" placeholder="2025-12" required>
+        </div>
+
+        <div class="col-md-4 mb-3">
+            <label>Dotación</label>
+            <input type="number" name="headcount" class="form-control" min="0" required>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Guardar / Actualizar</button>
+</form>
+
+<h3>Registros de Dotación</h3>
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>Mes</th>
+            <th>Ubicación</th>
+            <th>Tipo</th>
+            <th>Dotación</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for rec, loc in rows %}
+        <tr>
+            <td>{{ rec.month }}</td>
+            <td>{{ loc.name }}</td>
+            <td>{{ loc.type }}</td>
+            <td>{{ rec.headcount }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if not rows %}
+<p>No hay registros de dotación cargados.</p>
+{% endif %}
+
+{% endblock %}

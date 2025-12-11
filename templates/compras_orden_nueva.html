@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Nueva Orden de Compra</h1>
+
+<form method="POST">
+
+    <div class="mb-3">
+        <label>Proveedor (opcional)</label>
+        <input type="text" name="supplier" class="form-control">
+    </div>
+
+    <div class="mb-3">
+        <label>Ubicación (Sucursal / Nave)</label>
+        <select name="location_id" class="form-control" required>
+            {% for l in locations %}
+            <option value="{{ l.id }}">{{ l.name }} ({{ l.type }})</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label>Producto</label>
+        <select name="product_id" class="form-control" required>
+            {% for p in products %}
+            <option value="{{ p.id }}">{{ p.sku }} - {{ p.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label>Cantidad</label>
+        <input type="number" name="quantity" class="form-control" value="1" min="1" required>
+    </div>
+
+    <div class="mb-3">
+        <label>Notas (opcional)</label>
+        <textarea name="notes" class="form-control" rows="3"></textarea>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Guardar Orden</button>
+    <a href="/compras" class="btn btn-secondary">Volver</a>
+</form>
+
+{% endblock %}
