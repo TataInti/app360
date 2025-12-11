@@ -143,6 +143,16 @@
             Nuevo Lead
         </a>
 
+        <a href="/ventas"
+           class="{% if current.startswith('/ventas') %}active-link{% endif %}">
+            Ventas
+        </a>
+
+        <a href="/ventas/nuevo"
+           class="{% if current == '/ventas/nuevo' %}active-link{% endif %}">
+            Nueva Venta
+        </a>
+
         <a href="/campaigns"
            class="{% if current.startswith('/campaigns') %}active-link{% endif %}">
             Campañas
@@ -189,6 +199,18 @@
     </div>
 
     <div class="main-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="mb-3">
+            {% for category, msg in messages %}
+            <div class="alert alert-{{ 'success' if category == 'success' else 'warning' if category == 'warning' else 'info' }} alert-dismissible fade show" role="alert">
+                {{ msg }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
         {% block content %}
         {% endblock %}
     </div>

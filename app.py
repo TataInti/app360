@@ -39,6 +39,9 @@ def create_app():
     from blueprints.rrhh import rrhh_bp
     app.register_blueprint(rrhh_bp)
 
+    from blueprints.ventas import ventas_bp
+    app.register_blueprint(ventas_bp)
+
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     @app.route("/")

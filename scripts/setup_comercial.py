@@ -20,6 +20,8 @@ from models import (
     LeadInteraction,
     LeadDemo,
     Quotation,
+    Sale,
+    StockReservation,
 )
 
 
@@ -139,6 +141,33 @@ def seed_demo_lead(units, locations, products, campaign):
     )
 
     db.session.commit()
+
+    get_or_create(
+        Sale,
+        filters={"lead_id": lead.id, "product_id": products[0].id},
+        defaults={
+            "location_id": locations[0].id,
+            "quantity": 1,
+            "unit_price": Decimal("1980000"),
+            "currency": "ARS",
+            "status": "reserva",
+            "scheduled_delivery": datetime.utcnow() + timedelta(days=7),
+        },
+    )
+
+    sale = Sale.query.filter_by(lead_id=lead.id).first()
+    if sale:
+        get_or_create(
+            StockReservation,
+            filters={
+                "sale_id": sale.id,
+                "product_id": products[0].id,
+                "location_id": locations[0].id,
+            },
+            defaults={"quantity": sale.quantity},
+        )
+
+        db.session.commit()
 
 
 def main():

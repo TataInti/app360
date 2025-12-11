@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center">
+    <div>
+        <h1>Venta #{{ sale.id }}</h1>
+        <p class="text-muted mb-0">
+            {{ sale.product.name }} — {{ sale.location.name }}
+        </p>
+    </div>
+    <a href="/ventas" class="btn btn-outline-secondary">Volver a ventas</a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Resumen</h5>
+        <dl class="row">
+            <dt class="col-4">Lead</dt>
+            <dd class="col-8">{{ sale.lead.name if sale.lead else 'Sin lead' }}</dd>
+
+            <dt class="col-4">Cantidad</dt>
+            <dd class="col-8">{{ sale.quantity }}</dd>
+
+            <dt class="col-4">Precio unitario</dt>
+            <dd class="col-8">{{ sale.unit_price }} {{ sale.currency }}</dd>
+
+            <dt class="col-4">Estado</dt>
+            <dd class="col-8">{{ sale.status }}</dd>
+
+            <dt class="col-4">Entrega comprometida</dt>
+            <dd class="col-8">
+                {% if sale.scheduled_delivery %}
+                    {{ sale.scheduled_delivery.strftime("%Y-%m-%d %H:%M") }}
+                {% else %}
+                    Sin fecha
+                {% endif %}
+            </dd>
+
+            <dt class="col-4">Stock reservado</dt>
+            <dd class="col-8">{{ sale.reservations|sum(attribute='quantity') }}</dd>
+
+            <dt class="col-4">Stock disponible (ubicación)</dt>
+            <dd class="col-8">{{ stock_level }}</dd>
+        </dl>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Cambiar estado</h5>
+                <form action="{{ url_for('ventas.ventas_update_status', sale_id=sale.id) }}" method="POST">
+                    <div class="mb-3">
+                        <label>Estado</label>
+                        <select name="status" class="form-control">
+                            {% for status in statuses %}
+                            <option value="{{ status }}" {% if sale.status == status %}selected{% endif %}>
+                                {{ status }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button class="btn btn-primary">Actualizar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Nueva reserva de stock</h5>
+                <form action="{{ url_for('ventas.ventas_reservation_new', sale_id=sale.id) }}" method="POST">
+                    <div class="mb-3">
+                        <label>Cantidad</label>
+                        <input type="number" name="quantity" class="form-control" value="1" min="1" required>
+                    </div>
+                    <button class="btn btn-outline-secondary w-100">Reservar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Reservas</h5>
+        {% if sale.reservations %}
+        <ul class="list-group">
+            {% for reservation in sale.reservations %}
+            <li class="list-group-item">
+                {{ reservation.quantity }} unidades — {{ reservation.created_at.strftime("%Y-%m-%d %H:%M") }}
+                <span class="badge bg-secondary float-end">{{ reservation.status }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">Aún no hay reservas registradas.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
