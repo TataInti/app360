@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }}</title>
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at top, #0f172a 0%, #020617 60%);
+            color: #ffffff;
+            margin: 0;
+        }
+
+        .login-shell {
+            width: min(420px, 90vw);
+            padding: 2.5rem;
+            border-radius: 1.5rem;
+            background: rgba(15, 23, 42, 0.85);
+            box-shadow: 0 25px 45px rgba(2, 6, 23, 0.7);
+            text-align: center;
+        }
+
+        .login-shell img {
+            width: 220px;
+            margin-bottom: 1rem;
+            filter: brightness(0.95);
+        }
+
+        .form-control {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            color: #f8fafc;
+        }
+
+        .form-control:focus {
+            box-shadow: none;
+            border-color: #38bdf8;
+        }
+
+        .btn-primary {
+            background: linear-gradient(120deg, #3b82f6, #06b6d4);
+            border: none;
+        }
+
+        .alert {
+            text-align: left;
+            color: #0f172a;
+        }
+    </style>
+</head>
+<body>
+    <main class="login-shell">
+        <img src="{{ logo }}" alt="Grupo Silva">
+        <h1 class="h4 mb-3">{{ title }}</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="mb-3">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ 'success' if category == 'success' else 'warning' if category == 'warning' else 'info' }} mb-2" role="alert">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+            <div class="mb-3 text-start">
+                <label for="username" class="form-label text-white">Usuario</label>
+                <input type="text" class="form-control" id="username" name="username" autofocus required>
+            </div>
+            <div class="mb-4 text-start">
+                <label for="password" class="form-label text-white">Contraseña</label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <button class="btn btn-primary w-100" type="submit">Iniciar sesión</button>
+        </form>
+        <p class="mt-4 text-muted small">
+            Acceso restringido al equipo de Grupo Silva.
+        </p>
+    </main>
+</body>
+</html>

@@ -2,6 +2,7 @@ from decimal import Decimal, InvalidOperation
 from datetime import datetime
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash
+from security import protect_blueprint
 
 from models import (
     db,
@@ -14,6 +15,8 @@ from models import (
 )
 
 ventas_bp = Blueprint("ventas", __name__)
+
+protect_blueprint(ventas_bp, "ventas")
 
 SALE_STATUSES = ["reserva", "en_proceso", "entregada", "cancelada"]
 

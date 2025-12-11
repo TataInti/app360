@@ -9,6 +9,7 @@ if BASE_DIR not in sys.path:
 from decimal import Decimal
 from datetime import datetime, timedelta
 
+from config import Config
 from app import create_app
 from models import (
     db,
@@ -27,6 +28,7 @@ from models import (
     Goal,
     Survey,
     SurveyResponse,
+    User,
 )
 
 
@@ -229,6 +231,23 @@ def seed_rrhh_data(locations):
     db.session.commit()
 
 
+def seed_users():
+    accounts = [
+        (Config.ADMIN_USERNAME, Config.ADMIN_PASSWORD, "gerente"),
+        ("jefe_comercial", "Comercial123!", "comercial"),
+        ("jefe_compras", "Compras123!", "compras"),
+        ("jefe_rrhh", "RRHH123!", "rrhh"),
+        ("jefe_operaciones", "Operaciones123!", "operaciones"),
+    ]
+
+    for username, password, role in accounts:
+        user = get_or_create(User, filters={"username": username})
+        user.role = role
+        user.set_password(password)
+
+    db.session.commit()
+
+
 def main():
     app = create_app()
     with app.app_context():
@@ -236,6 +255,7 @@ def main():
         units, locations, products, campaign = seed_business_data()
         seed_demo_lead(units, locations, products, campaign)
         seed_rrhh_data(locations)
+        seed_users()
         print("Base comercial sembrada con unidades, productos, campaña y lead demo.")
 
 

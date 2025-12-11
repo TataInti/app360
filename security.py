@@ -1,0 +1,44 @@
+from functools import wraps
+
+from flask import session, flash, redirect, url_for
+
+ACCESS_MAP = {
+    "gerente": ["all"],
+    "comercial": ["crm", "ventas", "dashboard_comercial"],
+    "compras": ["compras", "dashboard"],
+    "rrhh": ["rrhh", "asistencia", "objetivos", "clima"],
+    "operaciones": ["compras", "stock", "locations", "products", "dashboard"],
+}
+
+
+def module_allowed(module):
+    if not module:
+        return True
+    role = session.get("role")
+    if not role:
+        return False
+    allowed = ACCESS_MAP.get(role, [])
+    if "all" in allowed:
+        return True
+    return module in allowed
+
+
+def protect_blueprint(bp, module):
+    @bp.before_request
+    def guard():
+        if module_allowed(module):
+            return  # access granted
+        flash("No tenés acceso a este módulo.", "warning")
+        return redirect(url_for("auth.login"))
+
+
+def require_module(module):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            if module_allowed(module):
+                return f(*args, **kwargs)
+            flash("No tenés acceso a esta vista.", "warning")
+            return redirect(url_for("auth.login"))
+        return wrapper
+    return decorator

@@ -1,8 +1,12 @@
 from flask import Blueprint, render_template
-from models import db, Lead, BusinessUnit
 from sqlalchemy import func
 
+from models import db, Lead, BusinessUnit
+from security import protect_blueprint
+
 dashboard_com_bp = Blueprint("dashboard_comercial", __name__)
+
+protect_blueprint(dashboard_com_bp, "dashboard_comercial")
 
 @dashboard_com_bp.route("/dashboard-comercial")
 def dashboard_comercial():

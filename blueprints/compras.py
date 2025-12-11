@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
+from security import protect_blueprint
 from models import (
     db,
     PurchaseOrder,
@@ -10,6 +11,8 @@ from models import (
 )
 
 compras_bp = Blueprint("compras", __name__)
+
+protect_blueprint(compras_bp, "compras")
 
 ORDER_STATUSES = ["borrador", "enviada", "recibida", "cerrada"]
 

@@ -1,8 +1,12 @@
 from flask import Blueprint, render_template
-from models import db, Lead, Product, StockLevel, Location, BusinessUnit
 from sqlalchemy import func
 
+from models import db, Lead, Product, StockLevel, Location, BusinessUnit
+from security import protect_blueprint
+
 panel_bp = Blueprint("panel_ejecutivo", __name__)
+
+protect_blueprint(panel_bp, "panel")
 
 @panel_bp.route("/panel-ejecutivo")
 def panel_ejecutivo():

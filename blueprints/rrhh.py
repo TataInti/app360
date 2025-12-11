@@ -14,8 +14,11 @@ from models import (
     Survey,
     SurveyResponse,
 )
+from security import protect_blueprint
 
 rrhh_bp = Blueprint("rrhh", __name__)
+
+protect_blueprint(rrhh_bp, "rrhh")
 
 def _parse_date(value):
     if not value:

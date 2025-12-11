@@ -2,6 +2,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, render_template, request, redirect, url_for
+from security import protect_blueprint
 
 from models import (
     db,
@@ -16,6 +17,8 @@ from models import (
 )
 
 crm_bp = Blueprint("crm", __name__)
+
+protect_blueprint(crm_bp, "crm")
 
 PIPELINE_STAGES = [
     "nuevo",

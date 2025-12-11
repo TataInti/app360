@@ -1,7 +1,8 @@
-from flask import Flask, render_template
+from flask import Flask, session
 from config import Config
 from models import db
 from werkzeug.middleware.proxy_fix import ProxyFix
+from security import module_allowed
 
 def create_app():
     app = Flask(__name__)
@@ -12,6 +13,15 @@ def create_app():
     from api import api
     app.register_blueprint(api)
 
+    from blueprints.auth import auth_bp
+    app.register_blueprint(auth_bp)
+    @app.context_processor
+    def inject_user_context():
+        return {
+            "current_user": session.get("user"),
+            "current_role": session.get("role"),
+            "can_access": module_allowed,
+        }
     from blueprints.products import products_bp
     app.register_blueprint(products_bp)
 
@@ -43,9 +53,5 @@ def create_app():
     app.register_blueprint(ventas_bp)
 
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
-
-    @app.route("/")
-    def index():
-        return "Silva360 MVP – estructura base OK"
 
     return app
