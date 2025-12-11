@@ -1,6 +1,7 @@
 from flask import Flask, render_template
 from config import Config
 from models import db
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 def create_app():
     app = Flask(__name__)
@@ -37,6 +38,8 @@ def create_app():
 
     from blueprints.rrhh import rrhh_bp
     app.register_blueprint(rrhh_bp)
+
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     @app.route("/")
     def index():

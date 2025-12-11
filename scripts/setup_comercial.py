@@ -1,3 +1,11 @@
+import os
+import sys
+
+# Agregar la carpeta padre (/var/www/silva360) al sys.path
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+
 from decimal import Decimal
 from datetime import datetime, timedelta
 
