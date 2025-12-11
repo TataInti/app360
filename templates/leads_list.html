@@ -10,13 +10,15 @@
         <tr>
             <th>Fecha</th>
             <th>Nombre</th>
+            <th>Etapa</th>
+            <th>Responsable</th>
             <th>Teléfono</th>
             <th>Email</th>
             <th>Origen</th>
-            <th>Unidad</th>
-            <th>Producto</th>
+            <th>Campaña</th>
             <th>Ubicación</th>
             <th>Estado</th>
+            <th>Último contacto</th>
             <th></th>
         </tr>
     </thead>
@@ -24,14 +26,26 @@
         {% for lead in leads %}
         <tr>
             <td>{{ lead.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
-            <td>{{ lead.name }}</td>
+            <td>
+                <a href="/leads/{{ lead.id }}" class="text-decoration-none">
+                    {{ lead.name }}
+                </a>
+            </td>
+            <td>{{ lead.stage }}</td>
+            <td>{{ lead.owner_name or '-' }}</td>
             <td>{{ lead.phone }}</td>
             <td>{{ lead.email }}</td>
             <td>{{ lead.source }}</td>
-            <td>{{ units.get(lead.business_unit_id, '') }}</td>
-            <td>{{ products.get(lead.product_id, '') }}</td>
+            <td>{{ campaigns.get(lead.campaign_id, '') }}</td>
             <td>{{ locations.get(lead.location_id, '') }}</td>
             <td>{{ lead.status }}</td>
+            <td>
+                {% if lead.last_contacted_at %}
+                    {{ lead.last_contacted_at.strftime("%Y-%m-%d %H:%M") }}
+                {% else %}
+                    ---
+                {% endif %}
+            </td>
             <td>
                 <a href="/leads/edit/{{ lead.id }}" class="btn btn-sm btn-secondary">Editar</a>
             </td>

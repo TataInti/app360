@@ -52,9 +52,71 @@ class Lead(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=True)
     location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=True)
 
+    stage = db.Column(db.String(40), default="nuevo")
+    owner_name = db.Column(db.String(120), nullable=True)
+    last_contacted_at = db.Column(db.DateTime, nullable=True)
+    campaign_id = db.Column(db.Integer, db.ForeignKey("campaigns.id"), nullable=True)
+
     business_unit = db.relationship("BusinessUnit")
     product = db.relationship("Product")
     location = db.relationship("Location")
+    campaign = db.relationship("Campaign", back_populates="leads")
+
+
+class Campaign(db.Model):
+    __tablename__ = "campaigns"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(180), nullable=False)
+    channel = db.Column(db.String(120))
+    cost_estimate = db.Column(db.Numeric(12, 2), nullable=True)
+    start_date = db.Column(db.Date, nullable=True)
+    end_date = db.Column(db.Date, nullable=True)
+    active = db.Column(db.Boolean, default=True)
+
+    leads = db.relationship("Lead", back_populates="campaign")
+
+
+class LeadInteraction(db.Model):
+    __tablename__ = "lead_interactions"
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey("leads.id"), nullable=False)
+    contact_date = db.Column(db.DateTime, default=datetime.utcnow)
+    type = db.Column(db.String(60))
+    channel = db.Column(db.String(60))
+    owner_name = db.Column(db.String(120))
+    notes = db.Column(db.Text)
+
+    lead = db.relationship("Lead", backref=db.backref("interactions", order_by=contact_date.desc()))
+
+class LeadDemo(db.Model):
+    __tablename__ = "lead_demos"
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey("leads.id"), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False)
+    location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=True)
+    scheduled_at = db.Column(db.DateTime, nullable=False)
+    responsible = db.Column(db.String(120))
+    status = db.Column(db.String(40), default="programado")
+    notes = db.Column(db.Text)
+
+    lead = db.relationship("Lead", backref="demos")
+    product = db.relationship("Product")
+    location = db.relationship("Location")
+
+
+class Quotation(db.Model):
+    __tablename__ = "quotations"
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey("leads.id"), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False)
+    amount = db.Column(db.Numeric(12, 2), nullable=False)
+    currency = db.Column(db.String(10), default="ARS")
+    status = db.Column(db.String(40), default="borrador")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    notes = db.Column(db.Text)
+
+    lead = db.relationship("Lead", backref="quotations")
+    product = db.relationship("Product")
 
 # ======================
 # MÓDULO COMPRAS

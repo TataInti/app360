@@ -6,6 +6,30 @@
 <form method="POST">
 
     <div class="mb-3">
+        <label>Etapa del pipeline</label>
+        <select name="stage" class="form-control">
+            {% for s in stages %}
+            <option value="{{ s }}"
+                {% if lead and lead.stage == s %}selected{% endif %}>
+                {{ s }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label>Responsable</label>
+        <input type="text" name="owner_name" class="form-control"
+               value="{{ lead.owner_name if lead else '' }}">
+    </div>
+
+    <div class="mb-3">
+        <label>Último contacto</label>
+        <input type="datetime-local" name="last_contacted_at" class="form-control"
+               value="{{ lead.last_contacted_at.strftime('%Y-%m-%dT%H:%M') if lead and lead.last_contacted_at else '' }}">
+    </div>
+
+    <div class="mb-3">
         <label>Nombre</label>
         <input type="text" name="name" class="form-control"
                value="{{ lead.name if lead else '' }}" required>
@@ -75,6 +99,19 @@
             <option value="{{ l.id }}"
                 {% if lead and lead.location_id == l.id %}selected{% endif %}>
                 {{ l.name }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label>Campaña asociada</label>
+        <select name="campaign_id" class="form-control">
+            <option value="">-- Ninguna --</option>
+            {% for campaign in campaigns %}
+            <option value="{{ campaign.id }}"
+                {% if lead and lead.campaign_id == campaign.id %}selected{% endif %}>
+                {{ campaign.name }}
             </option>
             {% endfor %}
         </select>
