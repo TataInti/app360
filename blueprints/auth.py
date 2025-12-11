@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from config import Config
 from models import User
+from security import first_allowed_route
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -8,7 +9,8 @@ auth_bp = Blueprint("auth", __name__)
 @auth_bp.route("/", methods=["GET", "POST"])
 def login():
     if session.get("user"):
-        return redirect(url_for("dashboard.dashboard"))
+        route = first_allowed_route(session.get("role"))
+        return redirect(route)
 
     if request.method == "POST":
         username = request.form.get("username", "")

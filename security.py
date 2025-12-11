@@ -10,6 +10,22 @@ ACCESS_MAP = {
     "operaciones": ["compras", "stock", "locations", "products", "dashboard"],
 }
 
+MODULE_ROUTES = {
+    "dashboard": "/dashboard",
+    "dashboard_comercial": "/dashboard-comercial",
+    "panel": "/panel-ejecutivo",
+    "crm": "/leads",
+    "ventas": "/ventas",
+    "compras": "/compras",
+    "rrhh": "/rrhh",
+    "asistencia": "/rrhh/asistencia",
+    "objetivos": "/rrhh/objetivos",
+    "clima": "/rrhh/clima",
+    "stock": "/stock",
+    "locations": "/locations",
+    "products": "/products",
+}
+
 
 def module_allowed(module):
     if not module:
@@ -42,3 +58,15 @@ def require_module(module):
             return redirect(url_for("auth.login"))
         return wrapper
     return decorator
+
+
+def first_allowed_route(role):
+    allowed = ACCESS_MAP.get(role, [])
+    if not allowed:
+        return "/dashboard"
+    if "all" in allowed:
+        return MODULE_ROUTES.get("dashboard", "/dashboard")
+    for module in allowed:
+        if module in MODULE_ROUTES:
+            return MODULE_ROUTES[module]
+    return "/dashboard"
