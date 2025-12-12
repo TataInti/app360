@@ -151,10 +151,40 @@
         }
 
         .main-content canvas {
-            max-width: 800px;
-            max-height: 400px;
-            width: 100%;
+            width: 100% !important;
             height: auto;
+        }
+
+        .charts-row {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .chart-card {
+            flex: 1;
+            min-width: 260px;
+            max-width: 320px;
+            padding: 0.5rem;
+            background: #0f172a;
+            border-radius: 0.75rem;
+            color: #fff;
+        }
+
+        .panel-charts-row {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .panel-chart-card {
+            flex: 1;
+            min-width: 280px;
+            max-width: 400px;
+            padding: 0.5rem;
+            background: #0f172a;
+            border-radius: 0.75rem;
+            color: #fff;
         }
     </style>
 </head>

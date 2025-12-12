@@ -31,32 +31,41 @@
 
 <hr class="mt-5">
 
-<h3>Leads por Estado</h3>
-<canvas id="estadoChart" width="800" height="400"></canvas>
+<div class="charts-row">
+    <div class="chart-card">
+        <h3>Leads por Estado</h3>
+        <canvas id="estadoChart" width="300" height="300"></canvas>
+    </div>
+    <div class="chart-card">
+        <h3>Leads por Unidad</h3>
+        <canvas id="unidadChart" width="300" height="300"></canvas>
+    </div>
+    <div class="chart-card">
+        <h3>Leads por Origen</h3>
+        <canvas id="origenChart" width="300" height="300"></canvas>
+    </div>
+</div>
 
 <script>
-    new Chart(document.getElementById("estadoChart"), {
+    const estadoCtx = document.getElementById("estadoChart");
+    new Chart(estadoCtx, {
         type: 'bar',
         data: {
-        labels: {{ leads_por_estado.keys() | list | tojson }},
+            labels: {{ leads_por_estado.keys() | list | tojson }},
             datasets: [{
                 label: 'Cantidad',
-            data: {{ leads_por_estado.values() | list | tojson }},
+                data: {{ leads_por_estado.values() | list | tojson }},
                 backgroundColor: 'rgba(75, 192, 192, 0.8)'
             }]
         },
-        options: { responsive: true }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
     });
-</script>
 
-<hr class="mt-5">
-
-<h3>Leads por Unidad de Negocio</h3>
-
-<canvas id="unidadChart" width="800" height="400"></canvas>
-
-<script>
-    new Chart(document.getElementById("unidadChart"), {
+    const unidadCtx = document.getElementById("unidadChart");
+    new Chart(unidadCtx, {
         type: 'bar',
         data: {
             labels: [
@@ -71,23 +80,17 @@
                         {{ qty }},
                     {% endfor %}
                 ],
-                backgroundColor: 'rgba(54,162,235,0.7)'
+                backgroundColor: 'rgba(54, 162, 235, 0.7)'
             }]
         },
         options: {
-            responsive: true
+            responsive: true,
+            maintainAspectRatio: false
         }
     });
-</script>
 
-<hr class="mt-5">
-
-<h3>Leads por Origen</h3>
-
-<canvas id="origenChart" width="800" height="400"></canvas>
-
-<script>
-    new Chart(document.getElementById("origenChart"), {
+    const origenCtx = document.getElementById("origenChart");
+    new Chart(origenCtx, {
         type: 'bar',
         data: {
             labels: [
@@ -104,6 +107,10 @@
                 ],
                 backgroundColor: 'rgba(153, 102, 255, 0.7)'
             }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
         }
     });
 </script>

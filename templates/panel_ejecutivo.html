@@ -37,11 +37,20 @@
 
 <hr class="mt-5">
 
-<h3>Leads por Estado</h3>
-<canvas id="estadoChart" width="800" height="400"></canvas>
+<div class="panel-charts-row">
+    <div class="panel-chart-card">
+        <h3>Leads por Estado</h3>
+        <canvas id="estadoChart" width="400" height="400"></canvas>
+    </div>
+    <div class="panel-chart-card">
+        <h3>Stock por Unidad</h3>
+        <canvas id="stockUnidadChart" width="400" height="400"></canvas>
+    </div>
+</div>
 
 <script>
-new Chart(document.getElementById("estadoChart"), {
+const estadoCtx = document.getElementById("estadoChart");
+new Chart(estadoCtx, {
     type: 'bar',
     data: {
         labels: {{ leads_por_estado.keys() | list | tojson }},
@@ -50,17 +59,15 @@ new Chart(document.getElementById("estadoChart"), {
             data: {{ leads_por_estado.values() | list | tojson }},
             backgroundColor: 'rgba(75,192,192,0.8)'
         }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false
     }
 });
-</script>
 
-<hr class="mt-5">
-
-<h3>Stock por Unidad de Negocio</h3>
-<canvas id="stockUnidadChart" height="120"></canvas>
-
-<script>
-new Chart(document.getElementById("stockUnidadChart"), {
+const stockCtx = document.getElementById("stockUnidadChart");
+new Chart(stockCtx, {
     type: 'bar',
     data: {
         labels: [
@@ -79,7 +86,8 @@ new Chart(document.getElementById("stockUnidadChart"), {
         }]
     },
     options: {
-        responsive: true
+        responsive: true,
+        maintainAspectRatio: false
     }
 });
 </script>
