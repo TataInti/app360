@@ -32,16 +32,16 @@
 <hr class="mt-5">
 
 <h3>Leads por Estado</h3>
-<canvas id="estadoChart" height="120"></canvas>
+<canvas id="estadoChart" width="800" height="400"></canvas>
 
 <script>
     new Chart(document.getElementById("estadoChart"), {
         type: 'bar',
         data: {
-            labels: {{ leads_por_estado.keys() | list }},
+        labels: {{ leads_por_estado.keys() | list | tojson }},
             datasets: [{
                 label: 'Cantidad',
-                data: {{ leads_por_estado.values() | list }},
+            data: {{ leads_por_estado.values() | list | tojson }},
                 backgroundColor: 'rgba(75, 192, 192, 0.8)'
             }]
         },
@@ -53,7 +53,7 @@
 
 <h3>Leads por Unidad de Negocio</h3>
 
-<canvas id="unidadChart" height="120"></canvas>
+<canvas id="unidadChart" width="800" height="400"></canvas>
 
 <script>
     new Chart(document.getElementById("unidadChart"), {
@@ -84,7 +84,7 @@
 
 <h3>Leads por Origen</h3>
 
-<canvas id="origenChart" height="120"></canvas>
+<canvas id="origenChart" width="800" height="400"></canvas>
 
 <script>
     new Chart(document.getElementById("origenChart"), {

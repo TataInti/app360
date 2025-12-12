@@ -38,16 +38,16 @@
 <hr class="mt-5">
 
 <h3>Leads por Estado</h3>
-<canvas id="estadoChart" height="120"></canvas>
+<canvas id="estadoChart" width="800" height="400"></canvas>
 
 <script>
 new Chart(document.getElementById("estadoChart"), {
     type: 'bar',
     data: {
-        labels: {{ leads_por_estado.keys() | list }},
+        labels: {{ leads_por_estado.keys() | list | tojson }},
         datasets: [{
             label: 'Cantidad',
-            data: {{ leads_por_estado.values() | list }},
+            data: {{ leads_por_estado.values() | list | tojson }},
             backgroundColor: 'rgba(75,192,192,0.8)'
         }]
     }
