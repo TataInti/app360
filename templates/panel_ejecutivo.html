@@ -61,7 +61,7 @@ new Chart(document.getElementById("estadoChart"), {
 
 <script>
 new Chart(document.getElementById("stockUnidadChart"), {
-    type: 'pie',
+    type: 'bar',
     data: {
         labels: [
             {% for name, qty in stock_por_unidad %}
@@ -69,18 +69,17 @@ new Chart(document.getElementById("stockUnidadChart"), {
             {% endfor %}
         ],
         datasets: [{
+            label: 'Stock total',
             data: [
                 {% for name, qty in stock_por_unidad %}
                 {{ qty }},
                 {% endfor %}
             ],
-            backgroundColor: [
-                'rgba(255,99,132,0.7)',
-                'rgba(54,162,235,0.7)',
-                'rgba(255,206,86,0.7)',
-                'rgba(75,192,192,0.7)'
-            ]
+            backgroundColor: 'rgba(54,162,235,0.7)'
         }]
+    },
+    options: {
+        responsive: true
     }
 });
 </script>
