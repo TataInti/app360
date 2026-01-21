@@ -1,6 +1,5 @@
 // frontend/src/pages/Dashboard.jsx
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import { Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -10,10 +9,9 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import apiService from '../services/api';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
-
-const API_BASE = "/api";
 
 function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -31,11 +29,11 @@ function Dashboard() {
       try {
         setLoading(true);
         setError("");
-        const res = await axios.get(`${API_BASE}/dashboard`);
-        setData(res.data);
+        const dashboardData = await apiService.getDashboard();
+        setData(dashboardData);
       } catch (err) {
-        console.error(err);
-        setError("No se pudo cargar el dashboard (error API)");
+        console.error('Error loading dashboard:', err);
+        setError("No se pudo cargar el dashboard. Verifica la conexión con el servidor.");
       } finally {
         setLoading(false);
       }
@@ -46,9 +44,19 @@ function Dashboard() {
   const stockUnitLabels = data.stock_per_unit.map(([name]) => name);
   const stockUnitValues = data.stock_per_unit.map(([, qty]) => qty);
 
+  if (loading) {
+    return <div className="loading">Cargando dashboard...</div>;
+  }
+
+  if (error) {
+    return <div className="error">{error}</div>;
+  }
+
   return (
-    <div>
-      <h1>Dashboard General</h1>
+    <div className="dashboard-page">
+      <div className="page-header">
+        <h1>Dashboard General</h1>
+      </div>
 
       <div className="row mt-4">
         <div className="col-md-4">
@@ -77,7 +85,7 @@ function Dashboard() {
 
       <h3>Stock por Unidad de Negocio</h3>
 
-      <div style={{ maxWidth: 600, height: 300 }}>
+      <div className="card" style={{ maxWidth: 600, height: 300, margin: '0 auto' }}>
         <Bar
           data={{
             labels: stockUnitLabels,
@@ -85,6 +93,9 @@ function Dashboard() {
               {
                 label: "Cantidad en Stock",
                 data: stockUnitValues,
+                backgroundColor: 'rgba(37, 99, 235, 0.8)',
+                borderColor: 'rgba(37, 99, 235, 1)',
+                borderWidth: 1,
               },
             ],
           }}
@@ -92,11 +103,34 @@ function Dashboard() {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-              y: { beginAtZero: true },
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  precision: 0
+                }
+              },
             },
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return `Stock: ${context.parsed.y} unidades`;
+                  }
+                }
+              }
+            }
           }}
         />
       </div>
+    </div>
+  );
+}
+
+export default Dashboard;
 
       <hr className="mt-5" />
 

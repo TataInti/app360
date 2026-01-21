@@ -16,19 +16,34 @@ class Location(db.Model):
     __tablename__ = "locations"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)  # Sucursal 1, Nave Central, etc.
+    address = db.Column(db.String(200), nullable=True)
+    city = db.Column(db.String(100), nullable=True)
+    state = db.Column(db.String(100), nullable=True)
+    zip_code = db.Column(db.String(20), nullable=True)
+    country = db.Column(db.String(100), default='México')
+    phone = db.Column(db.String(20), nullable=True)
+    email = db.Column(db.String(140), nullable=True)
+    manager_name = db.Column(db.String(120), nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
     type = db.Column(db.String(50))  # sucursal, nave
 
 
 class Product(db.Model):
     __tablename__ = "products"
     id = db.Column(db.Integer, primary_key=True)
-    sku = db.Column(db.String(80), unique=True, nullable=False)
+    sku = db.Column(db.String(80), unique=True, nullable=True)
     name = db.Column(db.String(200), nullable=False)
-    business_unit_id = db.Column(db.Integer, db.ForeignKey("business_units.id"), nullable=False)
-    category = db.Column(db.String(120))
+    description = db.Column(db.Text, nullable=True)
+    price = db.Column(db.Numeric(10, 2), nullable=True)
+    category = db.Column(db.String(120), nullable=True)
+    stock_quantity = db.Column(db.Integer, default=0)
+    min_stock_level = db.Column(db.Integer, default=0)
+    business_unit_id = db.Column(db.Integer, db.ForeignKey("business_units.id"), nullable=True)
+    location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     business_unit = db.relationship("BusinessUnit", backref="products")
+    location = db.relationship("Location", backref="products")
 
 
 class StockLevel(db.Model):
@@ -37,6 +52,11 @@ class StockLevel(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False)
     location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=False)
     quantity = db.Column(db.Integer, default=0)
+    min_quantity = db.Column(db.Integer, default=0)
+    max_quantity = db.Column(db.Integer, nullable=True)
+    batch_number = db.Column(db.String(50), nullable=True)
+    expiry_date = db.Column(db.Date, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
 
     product = db.relationship("Product", backref="stock")
     location = db.relationship("Location")
@@ -187,16 +207,19 @@ class StockReservation(db.Model):
 class PurchaseOrder(db.Model):
     __tablename__ = "purchase_orders"
     id = db.Column(db.Integer, primary_key=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    supplier = db.Column(db.String(200), nullable=True)
-    location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=False)
-    status = db.Column(db.String(50), default="borrador")  # borrador, enviada, recibida, cerrada
+    supplier_id = db.Column(db.Integer, nullable=True)  # For now, using integer ID for suppliers
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_price = db.Column(db.Numeric(10, 2), nullable=False)
+    total_amount = db.Column(db.Numeric(10, 2), nullable=False)
+    order_date = db.Column(db.Date, nullable=False)
+    expected_delivery_date = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(50), default="pendiente")
     notes = db.Column(db.Text, nullable=True)
+    location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=True)
 
+    product = db.relationship("Product")
     location = db.relationship("Location")
-    items = db.relationship("PurchaseOrderItem", backref="order", cascade="all, delete-orphan")
-    receipts = db.relationship("PurchaseReceipt", backref="order", cascade="all, delete-orphan")
 
 
 class PurchaseOrderItem(db.Model):
@@ -251,12 +274,21 @@ class Absence(db.Model):
 class Employee(db.Model):
     __tablename__ = "employees"
     id = db.Column(db.Integer, primary_key=True)
-    full_name = db.Column(db.String(180), nullable=False)
-    role = db.Column(db.String(120), nullable=True)
-    location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=True)
+    first_name = db.Column(db.String(100), nullable=False)
+    last_name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(140), nullable=True)
-    hired_at = db.Column(db.DateTime, default=datetime.utcnow)
-    active = db.Column(db.Boolean, default=True)
+    phone = db.Column(db.String(20), nullable=True)
+    position = db.Column(db.String(120), nullable=True)
+    department = db.Column(db.String(120), nullable=True)
+    hire_date = db.Column(db.Date, nullable=True)
+    salary = db.Column(db.Numeric(10, 2), nullable=True)
+    location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+
+    # Property for backward compatibility
+    @property
+    def name(self):
+        return f"{self.first_name} {self.last_name}"
 
     location = db.relationship("Location")
     attendances = db.relationship("Attendance", back_populates="employee")

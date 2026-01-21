@@ -181,10 +181,12 @@ def seed_rrhh_data(locations):
         Employee,
         filters={"email": "maria.comercial@silva360.ar"},
         defaults={
-            "full_name": "María Gerente Comercial",
-            "role": "Gerente Comercial",
+            "first_name": "María",
+            "last_name": "Gerente Comercial",
+            "position": "Gerente Comercial",
+            "department": "Comercial",
             "location_id": locations[0].id,
-            "active": True,
+            "is_active": True,
         },
     )
 

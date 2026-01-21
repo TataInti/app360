@@ -1,6 +1,5 @@
 // frontend/src/pages/DashboardComercial.jsx
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import { Bar, Pie } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -11,6 +10,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import apiService from '../services/api';
 
 ChartJS.register(
   BarElement,
@@ -20,8 +20,6 @@ ChartJS.register(
   Tooltip,
   Legend
 );
-
-const API_BASE = "/api";
 
 function DashboardComercial() {
   const [data, setData] = useState({
@@ -39,11 +37,11 @@ function DashboardComercial() {
       try {
         setLoading(true);
         setError("");
-        const res = await axios.get(`${API_BASE}/dashboard-comercial`);
-        setData(res.data);
+        const dashboardData = await apiService.getDashboardComercial();
+        setData(dashboardData);
       } catch (err) {
-        console.error(err);
-        setError("No se pudo cargar el dashboard comercial (error API)");
+        console.error('Error loading commercial dashboard:', err);
+        setError("No se pudo cargar el dashboard comercial. Verifica la conexión con el servidor.");
       } finally {
         setLoading(false);
       }
@@ -54,9 +52,19 @@ function DashboardComercial() {
   const estadoLabels = Object.keys(data.leads_por_estado);
   const estadoValues = Object.values(data.leads_por_estado);
 
+  if (loading) {
+    return <div className="loading">Cargando dashboard comercial...</div>;
+  }
+
+  if (error) {
+    return <div className="error">{error}</div>;
+  }
+
   return (
-    <div>
-      <h1>Dashboard Comercial</h1>
+    <div className="dashboard-comercial-page">
+      <div className="page-header">
+        <h1>Dashboard Comercial</h1>
+      </div>
 
       <div className="row mt-4">
         <div className="col-md-4">
@@ -86,7 +94,7 @@ function DashboardComercial() {
       <hr className="mt-5" />
 
       <h3>Leads por Estado</h3>
-      <div style={{ maxWidth: 600, height: 300 }}>
+      <div className="card" style={{ maxWidth: 600, height: 300, margin: '0 auto' }}>
         <Bar
           data={{
             labels: estadoLabels,
@@ -94,10 +102,39 @@ function DashboardComercial() {
               {
                 label: "Cantidad",
                 data: estadoValues,
+                backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                borderColor: 'rgba(34, 197, 94, 1)',
+                borderWidth: 1,
               },
             ],
           }}
-          options={{ responsive: true, maintainAspectRatio: false }}
+          options={{
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  precision: 0
+                }
+              },
+            },
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return `Leads: ${context.parsed.y}`;
+                  }
+                }
+              }
+            }
+          }}
+        />
+      </div>
         />
       </div>
 

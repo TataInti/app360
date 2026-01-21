@@ -1,4 +1,5 @@
 from flask import Flask, session
+from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import Config
@@ -10,11 +11,18 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    # Enable CORS for all routes
+    CORS(app, origins=["http://localhost:5173"])
+
     db.init_app(app)
 
     from api import api
 
     app.register_blueprint(api)
+
+    from api_rest import api_rest
+
+    app.register_blueprint(api_rest)
 
     from blueprints.auth import auth_bp
 
@@ -71,3 +79,8 @@ def create_app():
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     return app
+
+
+if __name__ == '__main__':
+    app = create_app()
+    app.run(debug=True, host='0.0.0.0', port=5001)
