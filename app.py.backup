@@ -1,0 +1,157 @@
+import os
+from flask import Flask, session, g
+from werkzeug.middleware.proxy_fix import ProxyFix
+from flask.cli import with_appcontext
+import click
+
+from config import get_config
+from models import db
+
+
+def create_app(config=None):
+    """Application factory function."""
+    app = Flask(__name__)
+    
+    # Load configuration
+    if config is None:
+        config = get_config()
+    elif isinstance(config, str):
+        # Handle string config names like 'testing', 'production', etc.
+        os.environ['ENVIRONMENT'] = config
+        config = get_config()
+    app.config.from_object(config)
+    
+    # Initialize database
+    db.init_app(app)
+    
+    # Initialize Celery (async task queue)
+    from tasks import init_celery
+    init_celery(app)
+    
+    # Register error handlers
+    register_error_handlers(app)
+    
+    # Register blueprints (legacy template-based routes)
+    # These will gradually be replaced with REST API endpoints
+    from blueprints.auth import auth_bp
+    app.register_blueprint(auth_bp)
+    
+    from blueprints.products import products_bp
+    app.register_blueprint(products_bp)
+    
+    from blueprints.locations import locations_bp
+    app.register_blueprint(locations_bp)
+    
+    from blueprints.stock import stock_bp
+    app.register_blueprint(stock_bp)
+    
+    from blueprints.dashboard import dashboard_bp
+    app.register_blueprint(dashboard_bp)
+    
+    from blueprints.crm import crm_bp
+    app.register_blueprint(crm_bp)
+    
+    from blueprints.dashboard_comercial import dashboard_com_bp
+    app.register_blueprint(dashboard_com_bp)
+    
+    from blueprints.panel_ejecutivo import panel_bp
+    app.register_blueprint(panel_bp)
+    
+    from blueprints.compras import compras_bp
+    app.register_blueprint(compras_bp)
+    
+    from blueprints.rrhh import rrhh_bp
+    app.register_blueprint(rrhh_bp)
+    
+    from blueprints.ventas import ventas_bp
+    app.register_blueprint(ventas_bp)
+    
+    # Register REST API v1 blueprint (new - multi-tenant JWT-based API)
+    from api.v1 import create_api_v1_blueprint
+    api_v1 = create_api_v1_blueprint()
+    app.register_blueprint(api_v1)
+    
+    # Register Marketing API blueprint (Phase 2)
+    from blueprints.marketing import register_marketing_blueprint
+    register_marketing_blueprint(app)
+    
+    # Register HR API blueprint (Phase 3)
+    from blueprints.hr import hr_bp
+    app.register_blueprint(hr_bp)
+    
+    # Register Finance API blueprint (Phase 4)
+    from blueprints.finance import register_finance_blueprint
+    register_finance_blueprint(app)
+    
+    # Register Inventory API blueprint (Phase 4.2)
+    from blueprints.inventory import register_inventory_blueprint
+    register_inventory_blueprint(app)
+    
+    # Register Project Management API blueprint (Phase 4.3)
+    from blueprints.projects import register_projects_blueprint
+    register_projects_blueprint(app)
+    
+    # Register SPA (Single Page Application) serving React frontend
+    from blueprints.spa import spa_bp
+    # Register SPA at root with low priority so API routes take precedence
+    app.register_blueprint(spa_bp, url_prefix='')
+    
+    # Template context processor (legacy)
+    @app.context_processor
+    def inject_user_context():
+        from security import module_allowed
+        return {
+            "current_user": session.get("user"),
+            "current_role": session.get("role"),
+            "can_access": module_allowed,
+        }
+    
+    # Reverse proxy trust
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+    
+    # Register CLI commands
+    register_cli_commands(app)
+    
+    return app
+
+
+def register_error_handlers(app):
+    """Register error handlers for the application."""
+    
+    @app.errorhandler(404)
+    def page_not_found(e):
+        return {"success": False, "error": "Not found"}, 404
+    
+    @app.errorhandler(500)
+    def internal_error(e):
+        db.session.rollback()
+        return {"success": False, "error": "Internal server error"}, 500
+
+
+def register_cli_commands(app):
+    """Register CLI commands for database management."""
+    
+    @app.cli.command()
+    def init_db():
+        """Initialize the database."""
+        db.create_all()
+        click.echo("✅ Database initialized.")
+    
+    @app.cli.command()
+    def drop_db():
+        """Drop all database tables (dangerous!)."""
+        if click.confirm("⚠️  This will delete all data. Continue?"):
+            db.drop_all()
+            click.echo("✅ Database dropped.")
+    
+    @app.cli.command()
+    def seed_db():
+        """Seed the database with demo data (for development)."""
+        click.echo("Seeding database with demo data...")
+        # TODO: Implement seed_demo_data() function
+        click.echo("✅ Database seeded.")
+
+
+if __name__ == "__main__":
+    app = create_app()
+    app.run(host="0.0.0.0", port=5000, debug=False)
