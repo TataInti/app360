@@ -1,35 +1,34 @@
 import os
 import sys
+from datetime import datetime, timedelta
+from decimal import Decimal
+
+from app import create_app
+from config import Config
+from models import (
+    Attendance,
+    BusinessUnit,
+    Campaign,
+    Employee,
+    Goal,
+    Lead,
+    LeadDemo,
+    LeadInteraction,
+    Location,
+    Product,
+    Quotation,
+    Sale,
+    StockReservation,
+    Survey,
+    SurveyResponse,
+    User,
+    db,
+)
 
 # Agregar la carpeta padre (/var/www/silva360) al sys.path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
-
-from decimal import Decimal
-from datetime import datetime, timedelta
-
-from config import Config
-from app import create_app
-from models import (
-    db,
-    BusinessUnit,
-    Location,
-    Product,
-    Campaign,
-    Lead,
-    LeadInteraction,
-    LeadDemo,
-    Quotation,
-    Sale,
-    StockReservation,
-    Employee,
-    Attendance,
-    Goal,
-    Survey,
-    SurveyResponse,
-    User,
-)
 
 
 def get_or_create(model, filters=None, defaults=None):

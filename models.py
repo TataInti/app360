@@ -1,19 +1,23 @@
-from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-from werkzeug.security import generate_password_hash, check_password_hash
+
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import check_password_hash, generate_password_hash
 
 db = SQLAlchemy()
+
 
 class BusinessUnit(db.Model):
     __tablename__ = "business_units"
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), unique=True, nullable=False)   # Autos, Motos, etc.
+    name = db.Column(db.String(100), unique=True, nullable=False)  # Autos, Motos, etc.
+
 
 class Location(db.Model):
     __tablename__ = "locations"
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), nullable=False)   # Sucursal 1, Nave Central, etc.
-    type = db.Column(db.String(50))                    # sucursal, nave
+    name = db.Column(db.String(120), nullable=False)  # Sucursal 1, Nave Central, etc.
+    type = db.Column(db.String(50))  # sucursal, nave
+
 
 class Product(db.Model):
     __tablename__ = "products"
@@ -25,6 +29,7 @@ class Product(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     business_unit = db.relationship("BusinessUnit", backref="products")
+
 
 class StockLevel(db.Model):
     __tablename__ = "stock_levels"
@@ -53,6 +58,7 @@ class User(db.Model):
             return False
         return check_password_hash(self.password_hash, password)
 
+
 class Lead(db.Model):
     __tablename__ = "leads"
     id = db.Column(db.Integer, primary_key=True)
@@ -63,7 +69,7 @@ class Lead(db.Model):
     email = db.Column(db.String(120))
 
     source = db.Column(db.String(50))  # Meta, Google, Orgánico, referido, etc.
-    status = db.Column(db.String(50), default="nuevo")  
+    status = db.Column(db.String(50), default="nuevo")
     # Estados: nuevo, contactado, propuesta, ganado, perdido
 
     business_unit_id = db.Column(db.Integer, db.ForeignKey("business_units.id"), nullable=False)
@@ -105,6 +111,7 @@ class LeadInteraction(db.Model):
     notes = db.Column(db.Text)
 
     lead = db.relationship("Lead", backref=db.backref("interactions", order_by=contact_date.desc()))
+
 
 class LeadDemo(db.Model):
     __tablename__ = "lead_demos"
@@ -155,11 +162,7 @@ class Sale(db.Model):
     product = db.relationship("Product")
     location = db.relationship("Location")
 
-    reservations = db.relationship(
-        "StockReservation",
-        backref="sale",
-        cascade="all, delete-orphan"
-    )
+    reservations = db.relationship("StockReservation", backref="sale", cascade="all, delete-orphan")
 
 
 class StockReservation(db.Model):
@@ -175,9 +178,11 @@ class StockReservation(db.Model):
     product = db.relationship("Product")
     location = db.relationship("Location")
 
+
 # ======================
 # MÓDULO COMPRAS
 # ======================
+
 
 class PurchaseOrder(db.Model):
     __tablename__ = "purchase_orders"
@@ -190,16 +195,8 @@ class PurchaseOrder(db.Model):
     notes = db.Column(db.Text, nullable=True)
 
     location = db.relationship("Location")
-    items = db.relationship(
-        "PurchaseOrderItem",
-        backref="order",
-        cascade="all, delete-orphan"
-    )
-    receipts = db.relationship(
-        "PurchaseReceipt",
-        backref="order",
-        cascade="all, delete-orphan"
-    )
+    items = db.relationship("PurchaseOrderItem", backref="order", cascade="all, delete-orphan")
+    receipts = db.relationship("PurchaseReceipt", backref="order", cascade="all, delete-orphan")
 
 
 class PurchaseOrderItem(db.Model):
@@ -228,6 +225,7 @@ class PurchaseReceipt(db.Model):
 # ======================
 # MÓDULO RRHH
 # ======================
+
 
 class Headcount(db.Model):
     __tablename__ = "rrhh_headcount"

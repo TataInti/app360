@@ -1,24 +1,25 @@
 from datetime import date, datetime
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, flash, redirect, render_template, request, url_for
 from sqlalchemy import func
 
 from models import (
-    db,
-    Headcount,
     Absence,
-    Location,
-    Employee,
     Attendance,
+    Employee,
     Goal,
+    Headcount,
+    Location,
     Survey,
     SurveyResponse,
+    db,
 )
 from security import protect_blueprint
 
 rrhh_bp = Blueprint("rrhh", __name__)
 
 protect_blueprint(rrhh_bp, "rrhh")
+
 
 def _parse_date(value):
     if not value:
@@ -60,6 +61,7 @@ def rrhh_home():
         latest_surveys=latest_surveys,
     )
 
+
 @rrhh_bp.route("/rrhh/dotacion", methods=["GET", "POST"])
 def rrhh_dotacion():
     locations = Location.query.all()
@@ -88,11 +90,8 @@ def rrhh_dotacion():
         .all()
     )
 
-    return render_template(
-        "rrhh_dotacion.html",
-        rows=rows,
-        locations=locations
-    )
+    return render_template("rrhh_dotacion.html", rows=rows, locations=locations)
+
 
 @rrhh_bp.route("/rrhh/ausentismo", methods=["GET", "POST"])
 def rrhh_ausentismo():
@@ -104,12 +103,7 @@ def rrhh_ausentismo():
         days_lost = float(request.form["days_lost"])
         notes = request.form.get("notes")
 
-        rec = Absence(
-            location_id=location_id,
-            month=month,
-            days_lost=days_lost,
-            notes=notes
-        )
+        rec = Absence(location_id=location_id, month=month, days_lost=days_lost, notes=notes)
         db.session.add(rec)
         db.session.commit()
 
@@ -122,11 +116,7 @@ def rrhh_ausentismo():
         .all()
     )
 
-    return render_template(
-        "rrhh_ausentismo.html",
-        rows=rows,
-        locations=locations
-    )
+    return render_template("rrhh_ausentismo.html", rows=rows, locations=locations)
 
 
 @rrhh_bp.route("/rrhh/empleados", methods=["GET", "POST"])
@@ -140,24 +130,24 @@ def rrhh_empleados():
             role=request.form.get("role"),
             location_id=request.form.get("location_id") or None,
             email=request.form.get("email"),
-            active=request.form.get("active") == "on"
+            active=request.form.get("active") == "on",
         )
         db.session.add(employee)
         db.session.commit()
         flash("Empleado registrado.", "success")
         return redirect(url_for("rrhh.rrhh_empleados"))
 
-    return render_template(
-        "rrhh_empleados.html",
-        employees=employees,
-        locations=locations
-    )
+    return render_template("rrhh_empleados.html", employees=employees, locations=locations)
 
 
 @rrhh_bp.route("/rrhh/asistencia", methods=["GET", "POST"])
 def rrhh_asistencia():
     employees = Employee.query.filter_by(active=True).order_by(Employee.full_name).all()
-    attendances = Attendance.query.order_by(Attendance.date.desc(), Attendance.check_in.desc()).limit(20).all()
+    attendances = (
+        Attendance.query.order_by(Attendance.date.desc(), Attendance.check_in.desc())
+        .limit(20)
+        .all()
+    )
 
     if request.method == "POST":
         employee_id = int(request.form["employee_id"])
@@ -166,18 +156,14 @@ def rrhh_asistencia():
             date=_parse_date(request.form.get("date")),
             check_in=_parse_datetime(request.form.get("check_in")),
             check_out=_parse_datetime(request.form.get("check_out")),
-            notes=request.form.get("notes")
+            notes=request.form.get("notes"),
         )
         db.session.add(attendance)
         db.session.commit()
         flash("Asistencia registrada.", "success")
         return redirect(url_for("rrhh.rrhh_asistencia"))
 
-    return render_template(
-        "rrhh_asistencia.html",
-        employees=employees,
-        attendances=attendances
-    )
+    return render_template("rrhh_asistencia.html", employees=employees, attendances=attendances)
 
 
 @rrhh_bp.route("/rrhh/objetivos", methods=["GET", "POST"])
@@ -192,18 +178,14 @@ def rrhh_objetivos():
             period=request.form.get("period"),
             target_value=float(request.form["target_value"]),
             current_value=float(request.form.get("current_value") or 0.0),
-            status=request.form.get("status") or "en progreso"
+            status=request.form.get("status") or "en progreso",
         )
         db.session.add(goal)
         db.session.commit()
         flash("Objetivo registrado.", "success")
         return redirect(url_for("rrhh.rrhh_objetivos"))
 
-    return render_template(
-        "rrhh_objetivos.html",
-        employees=employees,
-        goals=goals
-    )
+    return render_template("rrhh_objetivos.html", employees=employees, goals=goals)
 
 
 @rrhh_bp.route("/rrhh/clima", methods=["GET", "POST"])
@@ -217,7 +199,7 @@ def rrhh_clima():
                 name=request.form["survey_name"],
                 start_date=_parse_date(request.form.get("start_date")),
                 end_date=_parse_date(request.form.get("end_date")),
-                location_id=request.form.get("location_id") or None
+                location_id=request.form.get("location_id") or None,
             )
             db.session.add(survey)
             db.session.commit()
@@ -228,7 +210,7 @@ def rrhh_clima():
                 survey_id=request.form["survey_id"],
                 employee_id=request.form["employee_id"],
                 score=int(request.form["score"]),
-                comments=request.form.get("comments")
+                comments=request.form.get("comments"),
             )
             db.session.add(response)
             db.session.commit()
@@ -241,5 +223,5 @@ def rrhh_clima():
         surveys=surveys,
         responses=responses,
         employees=employees,
-        locations=Location.query.order_by(Location.name).all()
+        locations=Location.query.order_by(Location.name).all(),
     )

@@ -1,12 +1,13 @@
 from flask import Blueprint, render_template
 from sqlalchemy import func
 
-from models import db, Lead, Product, StockLevel, Location, BusinessUnit
+from models import BusinessUnit, Lead, Location, Product, StockLevel, db
 from security import protect_blueprint
 
 panel_bp = Blueprint("panel_ejecutivo", __name__)
 
 protect_blueprint(panel_bp, "panel")
+
 
 @panel_bp.route("/panel-ejecutivo")
 def panel_ejecutivo():
@@ -18,10 +19,7 @@ def panel_ejecutivo():
 
     # Leads por estado
     estados = ["nuevo", "contactado", "propuesta", "ganado", "perdido"]
-    leads_por_estado = {
-        estado: Lead.query.filter_by(status=estado).count()
-        for estado in estados
-    }
+    leads_por_estado = {estado: Lead.query.filter_by(status=estado).count() for estado in estados}
 
     # Conversión
     ganados = leads_por_estado["ganado"]
@@ -29,10 +27,7 @@ def panel_ejecutivo():
 
     # Stock total por unidad de negocio
     stock_por_unidad = (
-        db.session.query(
-            BusinessUnit.name,
-            func.sum(StockLevel.quantity)
-        )
+        db.session.query(BusinessUnit.name, func.sum(StockLevel.quantity))
         .join(Product, Product.business_unit_id == BusinessUnit.id)
         .join(StockLevel, StockLevel.product_id == Product.id)
         .group_by(BusinessUnit.name)
@@ -56,5 +51,5 @@ def panel_ejecutivo():
         leads_por_estado=leads_por_estado,
         conversion=conversion,
         stock_por_unidad=stock_por_unidad,
-        stock_bajo=stock_bajo
+        stock_bajo=stock_bajo,
     )

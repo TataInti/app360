@@ -2,8 +2,8 @@
 from flask import Blueprint, jsonify
 from sqlalchemy import func
 
-from models import db
 import models as m
+from models import db
 
 api = Blueprint("api", __name__, url_prefix="/api")
 
@@ -63,18 +63,17 @@ def api_dashboard():
             .all()
         )
 
-        stock_per_location = [
-            [name, int(qty or 0)]
-            for name, qty in rows_loc
-        ]
+        stock_per_location = [[name, int(qty or 0)] for name, qty in rows_loc]
 
-    return jsonify({
-        "total_products": int(total_products),
-        "total_locations": int(total_locations),
-        "total_stock_records": int(total_stock_records),
-        "stock_per_unit": stock_per_unit,
-        "stock_per_location": stock_per_location,
-    })
+    return jsonify(
+        {
+            "total_products": int(total_products),
+            "total_locations": int(total_locations),
+            "total_stock_records": int(total_stock_records),
+            "stock_per_unit": stock_per_unit,
+            "stock_per_location": stock_per_location,
+        }
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -90,14 +89,9 @@ def api_dashboard_comercial():
 
         # Leads por estado
         estados_rows = (
-            db.session.query(Lead.status, func.count(Lead.id))
-            .group_by(Lead.status)
-            .all()
+            db.session.query(Lead.status, func.count(Lead.id)).group_by(Lead.status).all()
         )
-        leads_por_estado = {
-            status or "sin_estado": int(qty or 0)
-            for status, qty in estados_rows
-        }
+        leads_por_estado = {status or "sin_estado": int(qty or 0) for status, qty in estados_rows}
 
         # Leads por unidad de negocio
         leads_por_unidad = []
@@ -112,15 +106,8 @@ def api_dashboard_comercial():
                 leads_por_unidad.append([label, int(qty or 0)])
 
         # Leads por origen
-        origen_rows = (
-            db.session.query(Lead.source, func.count(Lead.id))
-            .group_by(Lead.source)
-            .all()
-        )
-        leads_por_origen = [
-            [source or "Sin origen", int(qty or 0)]
-            for source, qty in origen_rows
-        ]
+        origen_rows = db.session.query(Lead.source, func.count(Lead.id)).group_by(Lead.source).all()
+        leads_por_origen = [[source or "Sin origen", int(qty or 0)] for source, qty in origen_rows]
 
     else:
         # Si ni siquiera existe Lead, devolvemos todo en cero
@@ -133,13 +120,15 @@ def api_dashboard_comercial():
     ganados = leads_por_estado.get("ganado", 0)
     conversion = round((ganados / total_leads) * 100, 2) if total_leads else 0.0
 
-    return jsonify({
-        "total_leads": int(total_leads),
-        "leads_por_estado": leads_por_estado,
-        "conversion": float(conversion),
-        "leads_por_unidad": leads_por_unidad,
-        "leads_por_origen": leads_por_origen,
-    })
+    return jsonify(
+        {
+            "total_leads": int(total_leads),
+            "leads_por_estado": leads_por_estado,
+            "conversion": float(conversion),
+            "leads_por_unidad": leads_por_unidad,
+            "leads_por_origen": leads_por_origen,
+        }
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -173,14 +162,9 @@ def api_panel_ejecutivo():
     leads_por_estado = {}
     if Lead:
         estados_rows = (
-            db.session.query(Lead.status, func.count(Lead.id))
-            .group_by(Lead.status)
-            .all()
+            db.session.query(Lead.status, func.count(Lead.id)).group_by(Lead.status).all()
         )
-        leads_por_estado = {
-            status or "sin_estado": int(qty or 0)
-            for status, qty in estados_rows
-        }
+        leads_por_estado = {status or "sin_estado": int(qty or 0) for status, qty in estados_rows}
 
     ganados = leads_por_estado.get("ganado", 0)
     conversion = round((ganados / total_leads) * 100, 2) if total_leads else 0.0
@@ -208,17 +192,16 @@ def api_panel_ejecutivo():
             .having(func.sum(Stock.quantity) < 10)
             .all()
         )
-        stock_bajo = [
-            [name, int(qty or 0)]
-            for name, qty in stock_bajo_rows
-        ]
+        stock_bajo = [[name, int(qty or 0)] for name, qty in stock_bajo_rows]
 
-    return jsonify({
-        "total_leads": int(total_leads),
-        "total_products": int(total_products),
-        "total_locations": int(total_locations),
-        "conversion": float(conversion),
-        "leads_por_estado": leads_por_estado,
-        "stock_por_unidad": stock_por_unidad,
-        "stock_bajo": stock_bajo,
-    })
+    return jsonify(
+        {
+            "total_leads": int(total_leads),
+            "total_products": int(total_products),
+            "total_locations": int(total_locations),
+            "conversion": float(conversion),
+            "leads_por_estado": leads_por_estado,
+            "stock_por_unidad": stock_por_unidad,
+            "stock_bajo": stock_bajo,
+        }
+    )

@@ -1,20 +1,20 @@
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, render_template, request, redirect, url_for
-from security import protect_blueprint
+from flask import Blueprint, redirect, render_template, request, url_for
 
 from models import (
-    db,
-    Lead,
     BusinessUnit,
-    Product,
-    Location,
-    LeadInteraction,
-    LeadDemo,
-    Quotation,
     Campaign,
+    Lead,
+    LeadDemo,
+    LeadInteraction,
+    Location,
+    Product,
+    Quotation,
+    db,
 )
+from security import protect_blueprint
 
 crm_bp = Blueprint("crm", __name__)
 
@@ -62,7 +62,7 @@ def leads_list():
     leads = Lead.query.order_by(Lead.created_at.desc()).all()
     units = {u.id: u.name for u in BusinessUnit.query.all()}
     products = {p.id: p.name for p in Product.query.all()}
-    locations = {l.id: l.name for l in Location.query.all()}
+    locations = {location.id: location.name for location in Location.query.all()}
     campaigns = {c.id: c.name for c in Campaign.query.all()}
     return render_template(
         "leads_list.html",

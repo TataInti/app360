@@ -1,12 +1,13 @@
 from flask import Blueprint, render_template
 from sqlalchemy import func
 
-from models import db, Lead, BusinessUnit
+from models import BusinessUnit, Lead, db
 from security import protect_blueprint
 
 dashboard_com_bp = Blueprint("dashboard_comercial", __name__)
 
 protect_blueprint(dashboard_com_bp, "dashboard_comercial")
+
 
 @dashboard_com_bp.route("/dashboard-comercial")
 def dashboard_comercial():
@@ -15,10 +16,7 @@ def dashboard_comercial():
 
     # Conteo por estado
     estados = ["nuevo", "contactado", "propuesta", "ganado", "perdido"]
-    leads_por_estado = {
-        estado: Lead.query.filter_by(status=estado).count()
-        for estado in estados
-    }
+    leads_por_estado = {estado: Lead.query.filter_by(status=estado).count() for estado in estados}
 
     # Conversión (ganados / totales)
     ganados = leads_por_estado["ganado"]
@@ -34,9 +32,7 @@ def dashboard_comercial():
 
     # Origen de leads
     leads_por_origen = (
-        db.session.query(Lead.source, func.count(Lead.id))
-        .group_by(Lead.source)
-        .all()
+        db.session.query(Lead.source, func.count(Lead.id)).group_by(Lead.source).all()
     )
 
     return render_template(
@@ -45,5 +41,5 @@ def dashboard_comercial():
         leads_por_estado=leads_por_estado,
         conversion=conversion,
         leads_por_unidad=leads_por_unidad,
-        leads_por_origen=leads_por_origen
+        leads_por_origen=leads_por_origen,
     )

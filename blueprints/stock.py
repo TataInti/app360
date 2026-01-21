@@ -1,19 +1,19 @@
-from flask import Blueprint, render_template, request, redirect, url_for
-from models import db, StockLevel, Product, Location
+from flask import Blueprint, redirect, render_template, request, url_for
+
+from models import Location, Product, StockLevel, db
 
 stock_bp = Blueprint("stock", __name__)
+
 
 @stock_bp.route("/stock")
 def stock_list():
     stock_rows = StockLevel.query.all()
     products = {p.id: p for p in Product.query.all()}
-    locations = {l.id: l for l in Location.query.all()}
+    locations = {location.id: location for location in Location.query.all()}
     return render_template(
-        "stock_list.html",
-        stock_rows=stock_rows,
-        products=products,
-        locations=locations
+        "stock_list.html", stock_rows=stock_rows, products=products, locations=locations
     )
+
 
 @stock_bp.route("/stock/new", methods=["GET", "POST"])
 def stock_new():
@@ -27,28 +27,20 @@ def stock_new():
 
         # Ver si ya existe ese registro producto+ubicación
         existing = StockLevel.query.filter_by(
-            product_id=product_id,
-            location_id=location_id
+            product_id=product_id, location_id=location_id
         ).first()
 
         if existing:
             existing.quantity = quantity
         else:
-            sl = StockLevel(
-                product_id=product_id,
-                location_id=location_id,
-                quantity=quantity
-            )
+            sl = StockLevel(product_id=product_id, location_id=location_id, quantity=quantity)
             db.session.add(sl)
 
         db.session.commit()
         return redirect(url_for("stock.stock_list"))
 
-    return render_template(
-        "stock_form.html",
-        products=products,
-        locations=locations
-    )
+    return render_template("stock_form.html", products=products, locations=locations)
+
 
 @stock_bp.route("/stock/edit/<int:stock_id>", methods=["GET", "POST"])
 def stock_edit(stock_id):
@@ -63,9 +55,4 @@ def stock_edit(stock_id):
         db.session.commit()
         return redirect(url_for("stock.stock_list"))
 
-    return render_template(
-        "stock_form.html",
-        stock=stock,
-        products=products,
-        locations=locations
-    )
+    return render_template("stock_form.html", stock=stock, products=products, locations=locations)

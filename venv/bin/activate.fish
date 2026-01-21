@@ -33,7 +33,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV /var/www/silva360/venv
+set -gx VIRTUAL_ENV '/Users/intipalaciofernandez/Library/CloudStorage/OneDrive-ActioBusinessPartners/Actio BP/Presupuestos/Grupo Silva/silva360/venv'
 
 set -gx _OLD_VIRTUAL_PATH $PATH
 set -gx PATH "$VIRTUAL_ENV/"bin $PATH

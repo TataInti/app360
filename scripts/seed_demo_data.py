@@ -1,36 +1,35 @@
 import os
-import sys
 import random
+import sys
 from datetime import datetime, timedelta
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if BASE_DIR not in sys.path:
-    sys.path.append(BASE_DIR)
 
 from app import create_app
 from models import (
-    db,
+    Attendance,
     BusinessUnit,
+    Employee,
+    Goal,
+    Lead,
+    LeadDemo,
+    LeadInteraction,
     Location,
     Product,
-    Lead,
-    LeadInteraction,
-    LeadDemo,
-    Quotation,
-    Sale,
-    StockReservation,
     PurchaseOrder,
     PurchaseOrderItem,
     PurchaseReceipt,
-    Headcount,
-    Absence,
-    Employee,
-    Attendance,
-    Goal,
+    Quotation,
+    Sale,
+    StockLevel,
+    StockReservation,
     Survey,
     SurveyResponse,
-    StockLevel,
+    db,
 )
+
+# Agregar la carpeta padre al sys.path
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
 
 
 def get_or_create(model, filters=None, defaults=None):

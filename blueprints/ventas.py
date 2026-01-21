@@ -1,18 +1,18 @@
-from decimal import Decimal, InvalidOperation
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash
-from security import protect_blueprint
+from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from models import (
-    db,
-    Sale,
     Lead,
-    Product,
     Location,
-    StockReservation,
+    Product,
+    Sale,
     StockLevel,
+    StockReservation,
+    db,
 )
+from security import protect_blueprint
 
 ventas_bp = Blueprint("ventas", __name__)
 

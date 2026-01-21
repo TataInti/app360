@@ -1,20 +1,22 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
-from security import protect_blueprint
+from flask import Blueprint, flash, redirect, render_template, request, url_for
+
 from models import (
-    db,
+    Location,
+    Product,
     PurchaseOrder,
     PurchaseOrderItem,
     PurchaseReceipt,
-    Product,
-    Location,
     StockLevel,
+    db,
 )
+from security import protect_blueprint
 
 compras_bp = Blueprint("compras", __name__)
 
 protect_blueprint(compras_bp, "compras")
 
 ORDER_STATUSES = ["borrador", "enviada", "recibida", "cerrada"]
+
 
 @compras_bp.route("/compras")
 def compras_home():
@@ -25,6 +27,7 @@ def compras_home():
         orders=orders,
         statuses=ORDER_STATUSES,
     )
+
 
 @compras_bp.route("/compras/orden-nueva", methods=["GET", "POST"])
 def compras_nueva():
@@ -40,31 +43,20 @@ def compras_nueva():
 
         # Creamos la orden
         po = PurchaseOrder(
-            supplier=supplier,
-            location_id=location_id,
-            status="borrador",
-            notes=notes
+            supplier=supplier, location_id=location_id, status="borrador", notes=notes
         )
         db.session.add(po)
         db.session.flush()  # para obtener po.id
 
         # Creamos 1 ítem (MVP: una línea por OC)
-        item = PurchaseOrderItem(
-            order_id=po.id,
-            product_id=product_id,
-            quantity=quantity
-        )
+        item = PurchaseOrderItem(order_id=po.id, product_id=product_id, quantity=quantity)
         db.session.add(item)
 
         db.session.commit()
 
         return redirect(url_for("compras.compras_home"))
 
-    return render_template(
-        "compras_orden_nueva.html",
-        products=products,
-        locations=locations
-    )
+    return render_template("compras_orden_nueva.html", products=products, locations=locations)
 
 
 @compras_bp.route("/compras/<int:order_id>")
@@ -103,21 +95,20 @@ def compras_add_receipt(order_id):
 
     receipt = PurchaseReceipt(
         order=order,
-        product_id=request.form.get("product_id") or order.items[0].product_id if order.items else None,
+        product_id=(
+            request.form.get("product_id") or order.items[0].product_id if order.items else None
+        ),
         location_id=order.location_id,
         quantity_received=quantity,
     )
     db.session.add(receipt)
 
     stock = StockLevel.query.filter_by(
-        product_id=receipt.product_id,
-        location_id=receipt.location_id
+        product_id=receipt.product_id, location_id=receipt.location_id
     ).first()
     if not stock:
         stock = StockLevel(
-            product_id=receipt.product_id,
-            location_id=receipt.location_id,
-            quantity=0
+            product_id=receipt.product_id, location_id=receipt.location_id, quantity=0
         )
         db.session.add(stock)
 

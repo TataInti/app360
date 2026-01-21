@@ -1,6 +1,6 @@
 from functools import wraps
 
-from flask import session, flash, redirect, url_for
+from flask import flash, redirect, session, url_for
 
 ACCESS_MAP = {
     "gerente": ["all"],
@@ -56,7 +56,9 @@ def require_module(module):
                 return f(*args, **kwargs)
             flash("No tenés acceso a esta vista.", "warning")
             return redirect(url_for("auth.login"))
+
         return wrapper
+
     return decorator
 
 

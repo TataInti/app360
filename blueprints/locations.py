@@ -1,12 +1,15 @@
-from flask import Blueprint, render_template, request, redirect, url_for
-from models import db, Location
+from flask import Blueprint, redirect, render_template, request, url_for
+
+from models import Location, db
 
 locations_bp = Blueprint("locations", __name__)
+
 
 @locations_bp.route("/locations")
 def list_locations():
     locations = Location.query.all()
     return render_template("locations_list.html", locations=locations)
+
 
 @locations_bp.route("/locations/new", methods=["GET", "POST"])
 def new_location():
@@ -21,6 +24,7 @@ def new_location():
         return redirect(url_for("locations.list_locations"))
 
     return render_template("location_form.html")
+
 
 @locations_bp.route("/locations/edit/<int:location_id>", methods=["GET", "POST"])
 def edit_location(location_id):

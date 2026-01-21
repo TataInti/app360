@@ -9,7 +9,7 @@ alias deactivate 'test $?_OLD_VIRTUAL_PATH != 0 && setenv PATH "$_OLD_VIRTUAL_PA
 # Unset irrelevant variables.
 deactivate nondestructive
 
-setenv VIRTUAL_ENV /var/www/silva360/venv
+setenv VIRTUAL_ENV '/Users/intipalaciofernandez/Library/CloudStorage/OneDrive-ActioBusinessPartners/Actio BP/Presupuestos/Grupo Silva/silva360/venv'
 
 set _OLD_VIRTUAL_PATH="$PATH"
 setenv PATH "$VIRTUAL_ENV/"bin":$PATH"

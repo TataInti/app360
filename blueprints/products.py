@@ -1,13 +1,16 @@
-from flask import Blueprint, render_template, request, redirect, url_for
-from models import db, Product, BusinessUnit
+from flask import Blueprint, redirect, render_template, request, url_for
+
+from models import BusinessUnit, Product, db
 
 products_bp = Blueprint("products", __name__)
+
 
 @products_bp.route("/products")
 def list_products():
     products = Product.query.all()
     units = {u.id: u.name for u in BusinessUnit.query.all()}
     return render_template("products_list.html", products=products, units=units)
+
 
 @products_bp.route("/products/new", methods=["GET", "POST"])
 def new_product():
@@ -19,18 +22,14 @@ def new_product():
         business_unit_id = request.form["business_unit_id"]
         category = request.form.get("category")
 
-        product = Product(
-            sku=sku,
-            name=name,
-            business_unit_id=business_unit_id,
-            category=category
-        )
+        product = Product(sku=sku, name=name, business_unit_id=business_unit_id, category=category)
         db.session.add(product)
         db.session.commit()
 
         return redirect(url_for("products.list_products"))
 
     return render_template("product_form.html", units=units)
+
 
 @products_bp.route("/products/edit/<int:product_id>", methods=["GET", "POST"])
 def edit_product(product_id):
