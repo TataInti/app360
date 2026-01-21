@@ -3,6 +3,11 @@ import sys
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+# Agregar la carpeta padre al sys.path
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+
 from app import create_app
 from config import Config
 from models import (
@@ -24,11 +29,6 @@ from models import (
     User,
     db,
 )
-
-# Agregar la carpeta padre (/var/www/silva360) al sys.path
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if BASE_DIR not in sys.path:
-    sys.path.append(BASE_DIR)
 
 
 def get_or_create(model, filters=None, defaults=None):

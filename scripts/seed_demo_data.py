@@ -3,6 +3,11 @@ import random
 import sys
 from datetime import datetime, timedelta
 
+# Agregar la carpeta padre al sys.path
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+
 from app import create_app
 from models import (
     Attendance,
