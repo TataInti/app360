@@ -52,8 +52,9 @@ ssh_cmd "cd $PROJECT_DIR && git checkout main 2>/dev/null || git checkout -b mai
 ssh_cmd "cd $PROJECT_DIR && git pull origin main"
 
 # Instalar dependencias en entorno virtual
-echo "📦 Verificando dependencias..."
+echo "📦 Instalando dependencias..."
 ssh_cmd "cd $PROJECT_DIR && (test -d venv || python3 -m venv venv)"
+ssh_cmd "cd $PROJECT_DIR && source venv/bin/activate && pip install --upgrade python-dotenv"
 ssh_cmd "cd $PROJECT_DIR && source venv/bin/activate && pip install -r requirements.txt"
 
 # Ejecutar migraciones de base de datos si es necesario

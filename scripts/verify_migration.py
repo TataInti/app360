@@ -6,6 +6,10 @@ Uso: python scripts/verify_migration.py
 
 import os
 import sys
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Agregar el directorio raíz al path de Python
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
