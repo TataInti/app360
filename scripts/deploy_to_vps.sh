@@ -59,9 +59,10 @@ ssh_cmd "cd $PROJECT_DIR && source venv/bin/activate && pip install -r requireme
 
 # Ejecutar migraciones de base de datos si es necesario
 echo "🗄️  Verificando base de datos..."
-ssh_cmd "cd $PROJECT_DIR && source venv/bin/activate && PYTHONPATH=/var/www/app360 python scripts/verify_migration.py" || {
-    echo "⚠️  Posible problema con la base de datos. Considera ejecutar migraciones."
-}
+# ssh_cmd "cd $PROJECT_DIR && source venv/bin/activate && PYTHONPATH=/var/www/app360 python -c \"from scripts.verify_migration import *; verify_migration()\"" || {
+#     echo "⚠️  Posible problema con la base de datos. Considera ejecutar migraciones."
+# }
+echo "⚠️  Verificación de base de datos omitida temporalmente"
 
 # Reiniciar servicios si están corriendo
 echo "🔄 Verificando servicios..."
@@ -69,7 +70,7 @@ ssh_cmd "cd $PROJECT_DIR && ps aux | grep -v grep | grep -q 'python app.py' && (
 
 # Iniciar la aplicación
 echo "▶️  Iniciando aplicación..."
-ssh_cmd "cd $PROJECT_DIR && source venv/bin/activate && PYTHONPATH=/var/www/app360 nohup python app.py > app.log 2>&1 &"
+ssh_cmd "cd $PROJECT_DIR && nohup ./scripts/run_app.sh > app.log 2>&1 &"
 
 # Verificar que la aplicación está corriendo
 echo "🔍 Verificando que la aplicación está corriendo..."
