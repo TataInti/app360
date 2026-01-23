@@ -149,7 +149,197 @@ npx playwright test
 bandit -r .
 ```
 
-## 📁 Estructura del Proyecto
+## � Despliegue
+
+### Despliegue Local
+
+```bash
+# Con Docker (recomendado)
+docker-compose up -d
+
+# O instalación manual
+python scripts/setup_database.py
+python app.py
+```
+
+### Despliegue en VPS
+
+#### Configuración Inicial del VPS
+
+1. **Conectar al VPS:**
+   ```bash
+   ssh root@72.61.47.19
+   # Password: AccesoServerVirtual+7423
+   ```
+
+2. **Instalar dependencias:**
+   ```bash
+   # Actualizar sistema
+   apt update && apt upgrade -y
+
+   # Instalar Python y pip
+   apt install python3 python3-pip python3-venv -y
+
+   # Instalar PostgreSQL
+   apt install postgresql postgresql-contrib -y
+
+   # Instalar git
+   apt install git -y
+
+   # Instalar nginx (opcional para proxy reverso)
+   apt install nginx -y
+   ```
+
+3. **Configurar PostgreSQL:**
+   ```bash
+   # Crear usuario y base de datos
+   sudo -u postgres psql
+   CREATE USER app360 WITH PASSWORD 'secure-password';
+   CREATE DATABASE app360 OWNER app360;
+   ALTER USER app360 CREATEDB;
+   \q
+   ```
+
+4. **Clonar el repositorio:**
+   ```bash
+   mkdir -p /var/www
+   cd /var/www
+   git clone https://github.com/TataInti/app360.git
+   cd app360
+   ```
+
+5. **Configurar la aplicación:**
+   ```bash
+   # Crear entorno virtual
+   python3 -m venv venv
+   source venv/bin/activate
+
+   # Instalar dependencias
+   pip install -r requirements.txt
+
+   # Configurar variables de entorno
+   cp .env.example .env
+   # Editar .env con la configuración correcta
+   nano .env
+   ```
+
+#### Despliegue Automático
+
+```bash
+# Desde tu máquina local
+./scripts/deploy_to_vps.sh
+```
+
+#### Despliegue Manual
+
+```bash
+# Conectar al VPS
+ssh root@72.61.47.19
+
+# Navegar al proyecto
+cd /var/www/app360
+
+# Hacer pull de cambios
+git pull origin main
+
+# Instalar dependencias
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Configurar base de datos
+python scripts/setup_database.py
+
+# Iniciar aplicación
+nohup python app.py > app.log 2>&1 &
+```
+
+#### Verificación del Despliegue
+
+```bash
+# Verificar que la aplicación está corriendo
+curl http://localhost:5000/api/health
+
+# Ver logs
+tail -f /var/www/app360/app.log
+
+# Ver procesos
+ps aux | grep python
+```
+
+### Configuración de Nginx (Opcional)
+
+Para servir la aplicación con Nginx como proxy reverso:
+
+```bash
+# Crear configuración de sitio
+cat > /etc/nginx/sites-available/app360 << EOF
+server {
+    listen 80;
+    server_name vyp.app360.com.ar;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+
+# Habilitar sitio
+ln -s /etc/nginx/sites-available/app360 /etc/nginx/sites-enabled/
+
+# Reiniciar Nginx
+systemctl restart nginx
+```
+### Monitoreo y Mantenimiento
+
+#### Verificación del Estado del Despliegue
+
+```bash
+# Verificación completa del despliegue
+./scripts/check_deployment.sh
+```
+
+#### Monitoreo Continuo
+
+```bash
+# Monitoreo único
+./scripts/monitor_vps.sh
+
+# Monitoreo continuo (cada 60 segundos)
+./scripts/monitor_vps.sh --continuous
+```
+
+#### Comandos Útiles para Mantenimiento
+
+```bash
+# Ver logs en tiempo real
+ssh root@72.61.47.19 "tail -f /var/www/app360/app.log"
+
+# Reiniciar servicios
+ssh root@72.61.47.19 "systemctl restart postgresql"
+ssh root@72.61.47.19 "pkill -f 'python app.py' && cd /var/www/app360 && source venv/bin/activate && nohup python app.py > app.log 2>&1 &"
+
+# Backup de base de datos
+ssh root@72.61.47.19 "pg_dump -U app360 app360 > backup_$(date +%Y%m%d_%H%M%S).sql"
+
+# Verificar uso de disco
+ssh root@72.61.47.19 "df -h"
+```
+#### Backup de Base de Datos
+
+```bash
+# Crear backup automático
+./scripts/backup_database.sh
+
+# Crear backup y descargarlo localmente
+./scripts/backup_database.sh --download
+```
+
+Los backups se almacenan en el VPS en `/var/www/app360/backups/` y se mantienen los últimos 10 backups automáticamente.
+## �📁 Estructura del Proyecto
 
 ```
 app360/
