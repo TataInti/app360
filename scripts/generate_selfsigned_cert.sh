@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Generates a self-signed certificate + key for silva360.actioconsultores.com or
+# Generates a self-signed certificate + key for app360.actioconsultores.com or
 # for the hostname provided via DOMAIN. This is only meant for internal use
 # (staging, demos) because it will not be trusted by browsers without installing
 # the cert.
 
-DOMAIN="${DOMAIN:-silva360.actioconsultores.com}"
+DOMAIN="${DOMAIN:-app360.actioconsultores.com}"
 OUT_DIR="${OUT_DIR:-instance/certs}"
 CRT_PATH="${OUT_DIR}/${DOMAIN}.crt"
 KEY_PATH="${OUT_DIR}/${DOMAIN}.key"

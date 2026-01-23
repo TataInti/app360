@@ -3,6 +3,10 @@ import sys
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+# Cargar variables de entorno
+from dotenv import load_dotenv
+load_dotenv()
+
 # Agregar la carpeta padre al sys.path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:

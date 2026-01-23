@@ -56,7 +56,7 @@
 </head>
 <body>
     <main class="login-shell">
-        <img src="{{ logo }}" alt="Grupo Silva">
+        <h1 class="h2 mb-3 text-primary font-weight-bold">VyP SRL</h1>
         <h1 class="h4 mb-3">{{ title }}</h1>
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -82,7 +82,7 @@
             <button class="btn btn-primary w-100" type="submit">Iniciar sesión</button>
         </form>
         <p class="mt-4 text-muted small">
-            Acceso restringido al equipo de Grupo Silva.
+            Acceso restringido al equipo autorizado.
         </p>
     </main>
 </body>

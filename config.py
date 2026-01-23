@@ -9,7 +9,7 @@ class Config:
         "DATABASE_URL", "postgresql://app360:password@localhost:5432/app360"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SERVER_NAME = os.getenv("SERVER_NAME", "silva360.actioconsultores.com")
+    SERVER_NAME = os.getenv("SERVER_NAME", "app360.actioconsultores.com")
     PREFERRED_URL_SCHEME = os.getenv("PREFERRED_URL_SCHEME", "https")
     SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "True").lower() == "true"
     REMEMBER_COOKIE_SECURE = os.getenv("REMEMBER_COOKIE_SECURE", "True").lower() == "true"
@@ -18,6 +18,6 @@ class Config:
     ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
     if not ADMIN_PASSWORD:
         raise ValueError("ADMIN_PASSWORD environment variable is required")
-    LOGIN_TITLE = os.getenv("LOGIN_TITLE", "Welcome to Silva 360")
+    LOGIN_TITLE = os.getenv("LOGIN_TITLE", "Welcome to APP360")
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 

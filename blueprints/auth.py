@@ -29,7 +29,6 @@ def login():
     return render_template(
         "login.html",
         title=Config.LOGIN_TITLE,
-        logo=url_for("static", filename="images/grupo_silva_logo.svg"),
     )
 
 
