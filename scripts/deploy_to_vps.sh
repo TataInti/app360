@@ -70,7 +70,7 @@ ssh_cmd "cd $PROJECT_DIR && ps aux | grep -v grep | grep -q 'python app.py' && (
 
 # Iniciar la aplicación
 echo "▶️  Iniciando aplicación..."
-ssh_cmd "cd $PROJECT_DIR && nohup ./scripts/run_app.sh > app.log 2>&1 &"
+ssh_cmd "cd $PROJECT_DIR && nohup $PROJECT_DIR/scripts/run_app.sh > app.log 2>&1 &"
 
 # Verificar que la aplicación está corriendo
 echo "🔍 Verificando que la aplicación está corriendo..."
