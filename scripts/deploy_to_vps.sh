@@ -75,7 +75,8 @@ import os
 os.chdir('/var/www/app360')
 from dotenv import load_dotenv
 load_dotenv()
-from app import app
+from app import create_app
+app = create_app()
 app.run(host='0.0.0.0', port=5000, debug=False)
 \" > app.log 2>&1 &"
 
