@@ -23,28 +23,42 @@ ssh_cmd() {
 echo "📡 Verificando conexión al VPS..."
 ssh_cmd "echo '✅ Conexión exitosa al VPS'"
 
-# Verificar que el directorio del proyecto existe
+# Verificar que el directorio del proyecto existe y está configurado correctamente
 echo "📁 Verificando directorio del proyecto..."
-ssh_cmd "test -d $PROJECT_DIR || (echo '❌ Directorio $PROJECT_DIR no existe en el VPS' && exit 1)"
-
-# Verificar que es un repositorio git
-echo "🔧 Verificando repositorio git..."
-ssh_cmd "cd $PROJECT_DIR && git status" || {
-    echo "❌ No es un repositorio git válido en $PROJECT_DIR"
-    exit 1
-}
+if ssh_cmd "test -d $PROJECT_DIR"; then
+    echo "✅ Directorio existe, verificando repositorio git..."
+    if ssh_cmd "cd $PROJECT_DIR && git status" 2>/dev/null; then
+        echo "✅ Repositorio git válido encontrado"
+        # Verificar si tiene remote origin configurado
+        if ssh_cmd "cd $PROJECT_DIR && git remote get-url origin" 2>/dev/null; then
+            echo "✅ Remote origin configurado"
+        else
+            echo "⚠️  Configurando remote origin..."
+            ssh_cmd "cd $PROJECT_DIR && git remote add origin https://github.com/TataInti/app360.git"
+        fi
+    else
+        echo "⚠️  Directorio existe pero no es repositorio git válido. Reclonando..."
+        ssh_cmd "rm -rf $PROJECT_DIR"
+        ssh_cmd "git clone https://github.com/TataInti/app360.git $PROJECT_DIR"
+    fi
+else
+    echo "📥 Clonando repositorio desde GitHub..."
+    ssh_cmd "git clone https://github.com/TataInti/app360.git $PROJECT_DIR"
+fi
 
 # Hacer pull de los cambios
 echo "📥 Haciando pull de cambios..."
+ssh_cmd "cd $PROJECT_DIR && git checkout main 2>/dev/null || git checkout -b main"
 ssh_cmd "cd $PROJECT_DIR && git pull origin main"
 
-# Instalar dependencias si requirements.txt cambió
+# Instalar dependencias en entorno virtual
 echo "📦 Verificando dependencias..."
-ssh_cmd "cd $PROJECT_DIR && pip install -r requirements.txt"
+ssh_cmd "cd $PROJECT_DIR && (test -d venv || python3 -m venv venv)"
+ssh_cmd "cd $PROJECT_DIR && source venv/bin/activate && pip install -r requirements.txt"
 
 # Ejecutar migraciones de base de datos si es necesario
 echo "🗄️  Verificando base de datos..."
-ssh_cmd "cd $PROJECT_DIR && python scripts/verify_migration.py" || {
+ssh_cmd "cd $PROJECT_DIR && source venv/bin/activate && PYTHONPATH=/var/www/app360 python scripts/verify_migration.py" || {
     echo "⚠️  Posible problema con la base de datos. Considera ejecutar migraciones."
 }
 
@@ -54,7 +68,7 @@ ssh_cmd "cd $PROJECT_DIR && ps aux | grep -v grep | grep -q 'python app.py' && (
 
 # Iniciar la aplicación
 echo "▶️  Iniciando aplicación..."
-ssh_cmd "cd $PROJECT_DIR && nohup python app.py > app.log 2>&1 &"
+ssh_cmd "cd $PROJECT_DIR && source venv/bin/activate && PYTHONPATH=/var/www/app360 nohup python app.py > app.log 2>&1 &"
 
 # Verificar que la aplicación está corriendo
 echo "🔍 Verificando que la aplicación está corriendo..."

@@ -3,6 +3,7 @@ from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 import logging
 import os
+from dotenv import load_dotenv
 
 from config import Config
 from models import db
@@ -11,6 +12,9 @@ from exceptions import AppException
 
 
 def create_app():
+    # Load environment variables from .env file
+    load_dotenv()
+    
     app = Flask(__name__)
     app.config.from_object(Config)
 

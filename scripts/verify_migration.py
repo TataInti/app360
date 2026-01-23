@@ -6,6 +6,10 @@ Uso: python scripts/verify_migration.py
 
 import os
 import sys
+
+# Agregar el directorio raíz al path de Python
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from app import create_app
 from models import db
 
