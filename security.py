@@ -3,11 +3,11 @@ from functools import wraps
 from flask import flash, redirect, session, url_for
 
 ACCESS_MAP = {
-    "gerente": ["all"],
-    "comercial": ["crm", "ventas", "dashboard_comercial"],
-    "compras": ["compras", "dashboard"],
-    "rrhh": ["rrhh", "asistencia", "objetivos", "clima"],
-    "operaciones": ["compras", "stock", "locations", "products", "dashboard"],
+    "manager": ["all"],
+    "sales": ["crm", "ventas", "dashboard_comercial"],
+    "purchases": ["compras", "dashboard"],
+    "hr": ["rrhh", "asistencia", "objetivos", "clima"],
+    "operations": ["compras", "stock", "locations", "products", "dashboard"],
 }
 
 MODULE_ROUTES = {
@@ -44,7 +44,7 @@ def protect_blueprint(bp, module):
     def guard():
         if module_allowed(module):
             return  # access granted
-        flash("No tenés acceso a este módulo.", "warning")
+        flash("You do not have access to this module.", "warning")
         return redirect(url_for("auth.login"))
 
 
@@ -54,7 +54,7 @@ def require_module(module):
         def wrapper(*args, **kwargs):
             if module_allowed(module):
                 return f(*args, **kwargs)
-            flash("No tenés acceso a esta vista.", "warning")
+            flash("You do not have access to this view.", "warning")
             return redirect(url_for("auth.login"))
 
         return wrapper

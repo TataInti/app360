@@ -1,18 +1,25 @@
-from flask import Flask, session
+from flask import Flask, session, jsonify
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
+import logging
+import os
 
 from config import Config
 from models import db
 from security import module_allowed
+from exceptions import AppException
 
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    # Configure logging
+    logging.basicConfig(level=logging.INFO)
+    app.logger.setLevel(logging.INFO)
+
     # Enable CORS for all routes
-    CORS(app, origins=["http://localhost:5173"])
+    CORS(app, origins=app.config["CORS_ORIGINS"])
 
     db.init_app(app)
 
@@ -78,9 +85,25 @@ def create_app():
 
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
+    # Register error handlers
+    @app.errorhandler(AppException)
+    def handle_app_exception(e):
+        return jsonify({"error": str(e)}), e.status_code
+
+    @app.errorhandler(404)
+    def handle_not_found(e):
+        return jsonify({"error": "Not found"}), 404
+
+    @app.errorhandler(500)
+    def handle_internal_error(e):
+        app.logger.error(f"Internal error: {e}")
+        db.session.rollback()
+        return jsonify({"error": "Internal server error"}), 500
+
     return app
 
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    debug_mode = os.getenv("FLASK_DEBUG", "False").lower() == "true"
+    app.run(debug=debug_mode, host='0.0.0.0', port=5001)

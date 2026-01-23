@@ -11,13 +11,6 @@ servidor_vps:
     version: 3.12.3
     ubicacion_binario: /usr/bin/python3
   estructura_proyecto:
-    carpeta_principal: /var/www/silva360
+    carpeta_principal: /var/www/app360
 
-domain: silva360.actioconsultores.com
-
-github_repositorio:
-  url: https://github.com/TataInti/silva360.git
-  finegrained_access: true
-  autenticacion:
-    tipo: token_personal_acceso
-    password: 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
+domain: vyp.app360.com.ar

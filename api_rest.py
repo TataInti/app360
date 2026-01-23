@@ -6,10 +6,22 @@ from models import db
 from models import (
     Product, Location, StockLevel, Lead, BusinessUnit,
     PurchaseOrder, PurchaseOrderItem, PurchaseReceipt,
-    Employee, Attendance, Goal, Survey, SurveyResponse
+    Employee, Attendance, Goal, Survey, SurveyResponse, User
 )
 
 api_rest = Blueprint('api_rest', __name__, url_prefix='/api')
+
+# -----------------------------------------------------------------------------
+# AUTH ENDPOINTS
+# -----------------------------------------------------------------------------
+@api_rest.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'version': '1.0.0'
+    }), 200
 
 # -----------------------------------------------------------------------------
 # PRODUCTS ENDPOINTS
