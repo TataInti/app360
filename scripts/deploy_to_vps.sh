@@ -70,7 +70,14 @@ ssh_cmd "cd $PROJECT_DIR && ps aux | grep -v grep | grep -q 'python app.py' && (
 
 # Iniciar la aplicación
 echo "▶️  Iniciando aplicación..."
-ssh_cmd "cd $PROJECT_DIR && nohup $PROJECT_DIR/scripts/run_app.sh > app.log 2>&1 &"
+ssh_cmd "cd $PROJECT_DIR && PYTHONPATH=/var/www/app360 /var/www/app360/venv/bin/python -c \"
+import os
+os.chdir('/var/www/app360')
+from dotenv import load_dotenv
+load_dotenv()
+from app import app
+app.run(host='0.0.0.0', port=5000, debug=False)
+\" > app.log 2>&1 &"
 
 # Verificar que la aplicación está corriendo
 echo "🔍 Verificando que la aplicación está corriendo..."
