@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-arrow-left-right"></i> Movimientos de Caja</h1>
+        <div>
+            <a href="/tesoreria" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver a Tesorería
+            </a>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
+                <i class="bi bi-plus-circle"></i> Registrar Movimiento
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Fecha Desde</label>
+                    <input type="date" id="fechaDesde" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Fecha Hasta</label>
+                    <input type="date" id="fechaHasta" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Tipo</label>
+                    <select id="tipoFiltro" class="form-select">
+                        <option value="">Todos</option>
+                        <option value="ingreso">Ingresos</option>
+                        <option value="egreso">Egresos</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Instrumento</label>
+                    <select id="instrumentoFiltro" class="form-select">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" onclick="cargarMovimientos()">
+                        <i class="bi bi-search"></i> Filtrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumen -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h6>Total Ingresos</h6>
+                    <h3 id="totalIngresos">$0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h6>Total Egresos</h6>
+                    <h3 id="totalEgresos">$0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h6>Balance Neto</h6>
+                    <h3 id="balanceNeto">$0</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Movimientos -->
+    <div class="card">
+        <div class="card-header">
+            <h5><i class="bi bi-table"></i> Listado de Movimientos</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Fecha/Hora</th>
+                            <th>Tipo</th>
+                            <th>Monto</th>
+                            <th>Instrumento</th>
+                            <th>Descripción</th>
+                            <th>Usuario</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaMovimientos">
+                        <tr><td colspan="7" class="text-center">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nuevo Movimiento -->
+<div class="modal fade" id="modalNuevoMovimiento" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Registrar Nuevo Movimiento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formMovimiento">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Tipo *</label>
+                        <select class="form-select" name="tipo" required>
+                            <option value="ingreso">Ingreso</option>
+                            <option value="egreso">Egreso</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Monto *</label>
+                        <input type="number" class="form-control" name="monto" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Instrumento *</label>
+                        <select class="form-select" name="instrumento_id" id="selectInstrumento" required>
+                            <option value="">Seleccionar...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción *</label>
+                        <input type="text" class="form-control" name="descripcion" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const hoy = new Date();
+    const hace30 = new Date(hoy.getTime() - 30*24*60*60*1000);
+    document.getElementById('fechaHasta').value = hoy.toISOString().split('T')[0];
+    document.getElementById('fechaDesde').value = hace30.toISOString().split('T')[0];
+    
+    cargarInstrumentos();
+    cargarMovimientos();
+});
+
+async function cargarInstrumentos() {
+    try {
+        const resp = await fetch('/api/tesoreria/instrumentos');
+        const data = await resp.json();
+        const select = document.getElementById('selectInstrumento');
+        const filtro = document.getElementById('instrumentoFiltro');
+        (data.instrumentos || []).forEach(i => {
+            select.innerHTML += `<option value="${i.id}">${i.nombre}</option>`;
+            filtro.innerHTML += `<option value="${i.id}">${i.nombre}</option>`;
+        });
+    } catch(e) {
+        console.error('Error:', e);
+    }
+}
+
+async function cargarMovimientos() {
+    const desde = document.getElementById('fechaDesde').value;
+    const hasta = document.getElementById('fechaHasta').value;
+    const tipo = document.getElementById('tipoFiltro').value;
+    const instrumento = document.getElementById('instrumentoFiltro').value;
+    
+    let url = `/api/tesoreria/movimientos?fecha_desde=${desde}&fecha_hasta=${hasta}`;
+    if (tipo) url += `&tipo=${tipo}`;
+    if (instrumento) url += `&instrumento_id=${instrumento}`;
+    
+    try {
+        const resp = await fetch(url);
+        const data = await resp.json();
+        const movimientos = data.movimientos || [];
+        
+        let ingresos = 0, egresos = 0;
+        movimientos.forEach(m => {
+            if (m.tipo === 'ingreso') ingresos += parseFloat(m.monto);
+            else egresos += parseFloat(m.monto);
+        });
+        
+        document.getElementById('totalIngresos').textContent = '$' + ingresos.toLocaleString('es-AR');
+        document.getElementById('totalEgresos').textContent = '$' + egresos.toLocaleString('es-AR');
+        document.getElementById('balanceNeto').textContent = '$' + (ingresos - egresos).toLocaleString('es-AR');
+        
+        const tbody = document.getElementById('tablaMovimientos');
+        if (movimientos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay movimientos</td></tr>';
+        } else {
+            tbody.innerHTML = movimientos.map(m => `
+                <tr>
+                    <td>${new Date(m.fecha_hora).toLocaleString('es-AR')}</td>
+                    <td><span class="badge ${m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger'}">${m.tipo}</span></td>
+                    <td>$${parseFloat(m.monto).toLocaleString('es-AR')}</td>
+                    <td>${m.instrumento || '-'}</td>
+                    <td>${m.descripcion}</td>
+                    <td>${m.usuario || '-'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger" onclick="anularMovimiento(${m.id})">
+                            <i class="bi bi-x-circle"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch(e) {
+        console.error('Error:', e);
+        document.getElementById('tablaMovimientos').innerHTML = 
+            '<tr><td colspan="7" class="text-center text-danger">Error al cargar datos</td></tr>';
+    }
+}
+
+document.getElementById('formMovimiento')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const data = {
+        tipo: formData.get('tipo'),
+        monto: parseFloat(formData.get('monto')),
+        instrumento_id: parseInt(formData.get('instrumento_id')),
+        descripcion: formData.get('descripcion')
+    };
+    
+    try {
+        const resp = await fetch('/api/tesoreria/movimientos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        if (resp.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('modalNuevoMovimiento')).hide();
+            this.reset();
+            cargarMovimientos();
+        } else {
+            const err = await resp.json();
+            alert('Error: ' + (err.error || 'No se pudo guardar'));
+        }
+    } catch(e) {
+        alert('Error de conexión');
+    }
+});
+
+function anularMovimiento(id) {
+    if (confirm('¿Anular este movimiento?')) {
+        fetch(`/api/tesoreria/movimientos/${id}`, { method: 'DELETE' })
+            .then(r => {
+                if (r.ok) cargarMovimientos();
+                else alert('Error al anular');
+            });
+    }
+}
+</script>
+{% endblock %}

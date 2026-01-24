@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-calculator"></i> Arqueos de Caja</h1>
+        <div>
+            <a href="/tesoreria" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver a Tesorería
+            </a>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoArqueo">
+                <i class="bi bi-plus-circle"></i> Nuevo Arqueo
+            </button>
+        </div>
+    </div>
+
+    <!-- Resumen -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h6>Arqueos Este Mes</h6>
+                    <h3 id="arqueosMes">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h6>Sin Diferencia</h6>
+                    <h3 id="sinDiferencia">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h6>Con Sobrante</h6>
+                    <h3 id="conSobrante">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h6>Con Faltante</h6>
+                    <h3 id="conFaltante">0</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Arqueos -->
+    <div class="card">
+        <div class="card-header">
+            <h5><i class="bi bi-table"></i> Historial de Arqueos</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Turno</th>
+                            <th>Saldo Inicial</th>
+                            <th>Ingresos</th>
+                            <th>Egresos</th>
+                            <th>Saldo Esperado</th>
+                            <th>Saldo Real</th>
+                            <th>Diferencia</th>
+                            <th>Usuario</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaArqueos">
+                        <tr><td colspan="10" class="text-center">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nuevo Arqueo -->
+<div class="modal fade" id="modalNuevoArqueo" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nuevo Arqueo de Caja</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formArqueo">
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Fecha *</label>
+                            <input type="date" class="form-control" name="fecha" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Turno *</label>
+                            <select class="form-select" name="turno" required>
+                                <option value="mañana">Mañana</option>
+                                <option value="tarde">Tarde</option>
+                                <option value="noche">Noche</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Saldo Inicial *</label>
+                            <input type="number" class="form-control" name="saldo_inicial" step="0.01" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Ingresos del Turno</label>
+                            <input type="number" class="form-control" name="ingresos" step="0.01" value="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Egresos del Turno</label>
+                            <input type="number" class="form-control" name="egresos" step="0.01" value="0">
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Saldo Real (conteo físico) *</label>
+                            <input type="number" class="form-control" name="saldo_real" step="0.01" required id="saldoReal">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Diferencia (calculada)</label>
+                            <input type="text" class="form-control" id="diferenciaCalc" readonly>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Observaciones</label>
+                        <textarea class="form-control" name="observaciones" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Arqueo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelector('input[name="fecha"]').value = new Date().toISOString().split('T')[0];
+    cargarArqueos();
+    
+    // Calcular diferencia automáticamente
+    const form = document.getElementById('formArqueo');
+    ['saldo_inicial', 'ingresos', 'egresos', 'saldo_real'].forEach(name => {
+        form.querySelector(`[name="${name}"]`)?.addEventListener('input', calcularDiferencia);
+    });
+});
+
+function calcularDiferencia() {
+    const form = document.getElementById('formArqueo');
+    const inicial = parseFloat(form.querySelector('[name="saldo_inicial"]').value) || 0;
+    const ingresos = parseFloat(form.querySelector('[name="ingresos"]').value) || 0;
+    const egresos = parseFloat(form.querySelector('[name="egresos"]').value) || 0;
+    const real = parseFloat(form.querySelector('[name="saldo_real"]').value) || 0;
+    
+    const esperado = inicial + ingresos - egresos;
+    const diferencia = real - esperado;
+    
+    const diferenciaEl = document.getElementById('diferenciaCalc');
+    diferenciaEl.value = '$' + diferencia.toLocaleString('es-AR');
+    diferenciaEl.className = 'form-control ' + (diferencia < 0 ? 'text-danger' : diferencia > 0 ? 'text-warning' : 'text-success');
+}
+
+async function cargarArqueos() {
+    try {
+        const resp = await fetch('/api/tesoreria/arqueos');
+        const data = await resp.json();
+        const arqueos = data.arqueos || [];
+        
+        let sinDif = 0, sobrante = 0, faltante = 0;
+        arqueos.forEach(a => {
+            if (a.diferencia === 0) sinDif++;
+            else if (a.diferencia > 0) sobrante++;
+            else faltante++;
+        });
+        
+        document.getElementById('arqueosMes').textContent = arqueos.length;
+        document.getElementById('sinDiferencia').textContent = sinDif;
+        document.getElementById('conSobrante').textContent = sobrante;
+        document.getElementById('conFaltante').textContent = faltante;
+        
+        const tbody = document.getElementById('tablaArqueos');
+        if (arqueos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No hay arqueos registrados</td></tr>';
+        } else {
+            tbody.innerHTML = arqueos.map(a => {
+                const esperado = parseFloat(a.saldo_inicial) + parseFloat(a.ingresos || 0) - parseFloat(a.egresos || 0);
+                const difClass = a.diferencia < 0 ? 'text-danger' : a.diferencia > 0 ? 'text-warning' : 'text-success';
+                return `
+                <tr>
+                    <td>${a.fecha}</td>
+                    <td>${a.turno || '-'}</td>
+                    <td>$${parseFloat(a.saldo_inicial).toLocaleString('es-AR')}</td>
+                    <td class="text-success">$${parseFloat(a.ingresos || 0).toLocaleString('es-AR')}</td>
+                    <td class="text-danger">$${parseFloat(a.egresos || 0).toLocaleString('es-AR')}</td>
+                    <td>$${esperado.toLocaleString('es-AR')}</td>
+                    <td>$${parseFloat(a.saldo_real || 0).toLocaleString('es-AR')}</td>
+                    <td class="${difClass}"><strong>$${parseFloat(a.diferencia || 0).toLocaleString('es-AR')}</strong></td>
+                    <td>${a.usuario || '-'}</td>
+                    <td><span class="badge ${a.cerrado ? 'bg-secondary' : 'bg-success'}">${a.cerrado ? 'Cerrado' : 'Activo'}</span></td>
+                </tr>
+            `}).join('');
+        }
+    } catch(e) {
+        console.error('Error:', e);
+        document.getElementById('tablaArqueos').innerHTML = 
+            '<tr><td colspan="10" class="text-center text-danger">Error al cargar datos</td></tr>';
+    }
+}
+
+document.getElementById('formArqueo')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    
+    const inicial = parseFloat(formData.get('saldo_inicial')) || 0;
+    const ingresos = parseFloat(formData.get('ingresos')) || 0;
+    const egresos = parseFloat(formData.get('egresos')) || 0;
+    const real = parseFloat(formData.get('saldo_real')) || 0;
+    
+    const data = {
+        fecha: formData.get('fecha'),
+        turno: formData.get('turno'),
+        saldo_inicial: inicial,
+        ingresos: ingresos,
+        egresos: egresos,
+        saldo_real: real,
+        diferencia: real - (inicial + ingresos - egresos),
+        observaciones: formData.get('observaciones')
+    };
+    
+    try {
+        const resp = await fetch('/api/tesoreria/arqueos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        if (resp.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('modalNuevoArqueo')).hide();
+            this.reset();
+            document.querySelector('input[name="fecha"]').value = new Date().toISOString().split('T')[0];
+            cargarArqueos();
+        } else {
+            const err = await resp.json();
+            alert('Error: ' + (err.error || 'No se pudo guardar'));
+        }
+    } catch(e) {
+        alert('Error de conexión');
+    }
+});
+</script>
+{% endblock %}

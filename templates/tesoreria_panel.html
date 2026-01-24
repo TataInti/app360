@@ -47,8 +47,11 @@
                 <i class="bi bi-arrow-left-right"></i> Ver Movimientos
             </a>
             <a href="/tesoreria/arqueos" class="btn btn-info">
-                <i class="bi bi-calculator"></i> Nuevo Arqueo
+                <i class="bi bi-calculator"></i> Ver Arqueos
             </a>
+            <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#modalNuevoArqueo">
+                <i class="bi bi-plus-circle"></i> Nuevo Arqueo
+            </button>
             <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
                 <i class="bi bi-plus-circle"></i> Registrar Movimiento
             </button>
@@ -125,19 +128,19 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Tipo</label>
-                        <select class="form-control" name="tipo" required>
-                            <option>ingreso</option>
-                            <option>egreso</option>
+                        <select class="form-select" name="tipo" required>
+                            <option value="ingreso">Ingreso</option>
+                            <option value="egreso">Egreso</option>
                         </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Monto</label>
-                        <input type="number" class="form-control" name="monto" step="0.01" required>
+                        <input type="number" class="form-control" name="monto" step="0.01" min="0.01" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Instrumento</label>
-                        <select class="form-control" name="instrumento_id" required id="select-instrumento">
-                            <option>Cargando...</option>
+                        <select class="form-select" name="instrumento_id" required id="select-instrumento">
+                            <option value="">Cargando...</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -154,8 +157,71 @@
     </div>
 </div>
 
+<!-- Modal Nuevo Arqueo -->
+<div class="modal fade" id="modalNuevoArqueo" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nuevo Arqueo de Caja</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formArqueo">
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Fecha *</label>
+                            <input type="date" class="form-control" name="fecha" id="arqueoFecha" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Turno *</label>
+                            <select class="form-select" name="turno" required>
+                                <option value="mañana">Mañana</option>
+                                <option value="tarde">Tarde</option>
+                                <option value="noche">Noche</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Saldo Inicial *</label>
+                            <input type="number" class="form-control" name="saldo_inicial" step="0.01" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Ingresos del Turno</label>
+                            <input type="number" class="form-control" name="ingresos" step="0.01" value="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Egresos del Turno</label>
+                            <input type="number" class="form-control" name="egresos" step="0.01" value="0">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Saldo Real (conteo físico) *</label>
+                            <input type="number" class="form-control" name="saldo_real" step="0.01" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Observaciones</label>
+                            <input type="text" class="form-control" name="observaciones">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Arqueo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
     let flujoChart, instrumentosChart;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('arqueoFecha').value = new Date().toISOString().split('T')[0];
+        cargarDatos();
+    });
 
     function cargarDatos() {
         // Cargar movimientos
@@ -169,6 +235,12 @@
             .then(r => r.json())
             .then(data => cargarInstrumentos(data.instrumentos || []))
             .catch(e => console.error('Error instrumentos:', e));
+
+        // Cargar arqueos
+        fetch('/api/tesoreria/arqueos?per_page=5')
+            .then(r => r.json())
+            .then(data => actualizarTablaArqueos(data.arqueos || []))
+            .catch(e => console.error('Error arqueos:', e));
     }
 
     function actualizarTablaMov(movimientos) {
@@ -177,11 +249,22 @@
             tbody.innerHTML = '<tr><td colspan="6" class="text-center">Sin movimientos</td></tr>';
             return;
         }
+        
+        let ingresos = 0, egresos = 0;
+        movimientos.forEach(m => {
+            if (m.tipo === 'ingreso') ingresos += parseFloat(m.monto);
+            else egresos += parseFloat(m.monto);
+        });
+        
+        document.getElementById('ingresos-hoy').textContent = '$' + ingresos.toLocaleString('es-AR');
+        document.getElementById('egresos-hoy').textContent = '$' + egresos.toLocaleString('es-AR');
+        document.getElementById('saldo-actual').textContent = '$' + (ingresos - egresos).toLocaleString('es-AR');
+        
         tbody.innerHTML = movimientos.map(m => `
             <tr>
-                <td>${new Date(m.fecha_hora).toLocaleString()}</td>
+                <td>${new Date(m.fecha_hora).toLocaleString('es-AR')}</td>
                 <td><span class="badge ${m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger'}">${m.tipo}</span></td>
-                <td>$${parseFloat(m.monto).toFixed(2)}</td>
+                <td>$${parseFloat(m.monto).toLocaleString('es-AR')}</td>
                 <td>${m.instrumento}</td>
                 <td>${m.descripcion}</td>
                 <td>${m.usuario || 'N/A'}</td>
@@ -189,12 +272,37 @@
         `).join('');
     }
 
-    function cargarInstrumentos(instrumentos) {
-        const select = document.getElementById('select-instrumento');
-        select.innerHTML = instrumentos.map(i => `<option value="${i.id}">${i.nombre}</option>`).join('');
+    function actualizarTablaArqueos(arqueos) {
+        const tbody = document.getElementById('tabla-arqueos');
+        if (!arqueos.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Sin arqueos</td></tr>';
+            return;
+        }
+        tbody.innerHTML = arqueos.map(a => {
+            const difClass = a.diferencia < 0 ? 'text-danger' : a.diferencia > 0 ? 'text-warning' : 'text-success';
+            return `
+            <tr>
+                <td>${a.fecha}</td>
+                <td>${a.turno || '-'}</td>
+                <td>$${parseFloat(a.saldo_inicial).toLocaleString('es-AR')}</td>
+                <td class="text-success">$${parseFloat(a.ingresos || 0).toLocaleString('es-AR')}</td>
+                <td class="text-danger">$${parseFloat(a.egresos || 0).toLocaleString('es-AR')}</td>
+                <td>$${parseFloat(a.saldo_real || 0).toLocaleString('es-AR')}</td>
+                <td class="${difClass}"><strong>$${parseFloat(a.diferencia || 0).toLocaleString('es-AR')}</strong></td>
+            </tr>
+        `}).join('');
     }
 
-    // Enviar formulario
+    function cargarInstrumentos(instrumentos) {
+        const select = document.getElementById('select-instrumento');
+        if (instrumentos.length) {
+            select.innerHTML = instrumentos.map(i => `<option value="${i.id}">${i.nombre}</option>`).join('');
+        } else {
+            select.innerHTML = '<option value="">Sin instrumentos</option>';
+        }
+    }
+
+    // Enviar formulario de movimiento
     document.getElementById('formMovimiento')?.addEventListener('submit', function(e) {
         e.preventDefault();
         const formData = new FormData(this);
@@ -213,15 +321,55 @@
         .then(r => r.json())
         .then(d => {
             if (d.message) {
-                alert('Movimiento guardado');
                 bootstrap.Modal.getInstance(document.getElementById('modalNuevoMovimiento')).hide();
+                this.reset();
                 cargarDatos();
+            } else {
+                alert('Error: ' + (d.error || 'No se pudo guardar'));
             }
         })
         .catch(e => console.error('Error:', e));
     });
 
-    document.addEventListener('DOMContentLoaded', cargarDatos);
+    // Enviar formulario de arqueo
+    document.getElementById('formArqueo')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        
+        const inicial = parseFloat(formData.get('saldo_inicial')) || 0;
+        const ingresos = parseFloat(formData.get('ingresos')) || 0;
+        const egresos = parseFloat(formData.get('egresos')) || 0;
+        const real = parseFloat(formData.get('saldo_real')) || 0;
+        
+        const data = {
+            fecha: formData.get('fecha'),
+            turno: formData.get('turno'),
+            saldo_inicial: inicial,
+            ingresos: ingresos,
+            egresos: egresos,
+            saldo_real: real,
+            diferencia: real - (inicial + ingresos - egresos),
+            observaciones: formData.get('observaciones')
+        };
+        
+        fetch('/api/tesoreria/arqueos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.message) {
+                bootstrap.Modal.getInstance(document.getElementById('modalNuevoArqueo')).hide();
+                this.reset();
+                document.getElementById('arqueoFecha').value = new Date().toISOString().split('T')[0];
+                cargarDatos();
+            } else {
+                alert('Error: ' + (d.error || 'No se pudo guardar'));
+            }
+        })
+        .catch(e => console.error('Error:', e));
+    });
 </script>
 
 <style>

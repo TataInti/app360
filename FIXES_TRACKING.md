@@ -51,18 +51,18 @@ Comercial:
 
 ---
 
-## FASE 3: Tesorería - Funcionalidad ⏳
+## FASE 3: Tesorería - Funcionalidad ✅
 **Tiempo estimado:** 1 hora
 
 ### 3.1 Botones en `tesoreria_panel.html`
-- [ ] Modal "Nuevo Arqueo" funcional
-- [ ] Modal "Registrar Movimiento" funcional
-- [ ] Conectar con API endpoints
+- [x] Modal "Nuevo Arqueo" funcional
+- [x] Modal "Registrar Movimiento" funcional
+- [x] Conectar con API endpoints
 
 ### 3.2 Vistas diferenciadas
-- [ ] Crear `tesoreria_movimientos.html` (filtrado a movimientos)
-- [ ] Crear `tesoreria_arqueos.html` (filtrado a arqueos)
-- [ ] Actualizar rutas en `blueprints/tesoreria.py`
+- [x] Crear `tesoreria_movimientos.html` (filtrado a movimientos)
+- [x] Crear `tesoreria_arqueos.html` (filtrado a arqueos)
+- [x] Actualizar rutas en `blueprints/tesoreria.py`
 
 ---
 
@@ -123,7 +123,7 @@ Comercial:
 |------|--------|------------|
 | Fase 1 | ✅ Completada | 100% |
 | Fase 2 | ✅ Completada | 100% |
-| Fase 3 | ⏳ Pendiente | 0% |
+| Fase 3 | ✅ Completada | 100% |
 | Fase 4 | ⏳ Pendiente | 0% |
 | Fase 5 | ⏳ Pendiente | 0% |
 | Fase 6 | ⏳ Pendiente | 0% |

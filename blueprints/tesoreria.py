@@ -27,13 +27,13 @@ def tesoreria_dashboard():
 @tesoreria_bp.route("/tesoreria/arqueos", methods=["GET"])
 def tesoreria_arqueos():
     """Vista de arqueos de caja"""
-    return render_template("tesoreria_panel.html")
+    return render_template("tesoreria_arqueos.html")
 
 
 @tesoreria_bp.route("/tesoreria/movimientos", methods=["GET"])
 def tesoreria_movimientos():
     """Vista de movimientos"""
-    return render_template("tesoreria_panel.html")
+    return render_template("tesoreria_movimientos.html")
 
 
 # Endpoints para Tesorería Multicanal
