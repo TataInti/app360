@@ -71,6 +71,7 @@
         {% endwith %}
 
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <div class="mb-3 text-start">
                 <label for="username" class="form-label text-white">Usuario</label>
                 <input type="text" class="form-control" id="username" name="username" autofocus required>
