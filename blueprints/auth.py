@@ -1,4 +1,4 @@
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, redirect, render_template, request, session, url_for, current_app
 
 from config import Config
 from models import User
@@ -19,7 +19,19 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "")
         password = request.form.get("password", "")
+        
+        # Debug logging
+        current_app.logger.info(f"Login attempt for username: '{username}'")
+        
         user = User.query.filter_by(username=username, active=True).first()
+        
+        # Debug logging
+        if user:
+            current_app.logger.info(f"User found: {user.username}, active: {user.active}, has_hash: {bool(user.password_hash)}")
+            password_check = user.check_password(password)
+            current_app.logger.info(f"Password check result: {password_check}")
+        else:
+            current_app.logger.warning(f"User not found for username: '{username}'")
 
         if user and user.check_password(password):
             session["user"] = user.username
