@@ -27,10 +27,11 @@ MODULE_ROUTES = {
 }
 
 
-def module_allowed(module):
+def module_allowed(module, role=None):
     if not module:
         return True
-    role = session.get("role")
+    if role is None:
+        role = session.get("role")
     if not role:
         return False
     allowed = ACCESS_MAP.get(role, [])
@@ -44,7 +45,12 @@ def protect_blueprint(bp, module):
     def guard():
         if module_allowed(module):
             return  # access granted
-        flash("You do not have access to this module.", "warning")
+        if session.get("user"):
+            # Usuario logueado pero sin acceso, redirigir a ruta permitida
+            route = first_allowed_route(session.get("role"))
+            flash("No tienes acceso a esta sección.", "warning")
+            return redirect(route)
+        flash("Debes iniciar sesión.", "warning")
         return redirect(url_for("auth.login"))
 
 
@@ -65,7 +71,10 @@ def require_module(module):
 def first_allowed_route(role):
     allowed = ACCESS_MAP.get(role, [])
     if not allowed:
-        return "/dashboard"
+        # Si no hay módulos permitidos, devolver dashboard si tiene acceso, sino nada
+        if module_allowed("dashboard", role):
+            return MODULE_ROUTES.get("dashboard", "/dashboard")
+        return "/"  # O alguna página de error
     if "all" in allowed:
         return MODULE_ROUTES.get("dashboard", "/dashboard")
     for module in allowed:
