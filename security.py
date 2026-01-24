@@ -9,6 +9,7 @@ from flask import flash, redirect, session, url_for, request, jsonify, current_a
 security_logger = logging.getLogger('security')
 
 ACCESS_MAP = {
+    "admin": ["all"],  # Administrador con acceso total
     "manager": ["all"],
     "gerente": ["all"],  # Alias para manager
     "sales": ["crm", "ventas", "dashboard_comercial", "comercial"],
