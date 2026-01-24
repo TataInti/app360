@@ -1,12 +1,14 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, render_template
 
 from models import (
     Client,
     Comision,
     ComisionDetalle,
+    Employee,
+    Goal,
     Product,
     Promocion,
     PromocionAplicada,
@@ -19,6 +21,13 @@ from security import protect_blueprint
 comercial_bp = Blueprint("comercial", __name__)
 
 protect_blueprint(comercial_bp, "comercial")
+
+
+# RUTAS WEB
+@comercial_bp.route("/comercial/objetivos", methods=["GET"])
+def objetivos_ventas():
+    """Panel de Objetivos de Venta por vendedor"""
+    return render_template("objetivos_ventas.html")
 
 
 # Endpoints para Promociones
@@ -362,3 +371,162 @@ def comisiones_pagar(comision_id):
     db.session.commit()
 
     return jsonify({"message": "Comisión marcada como pagada"})
+
+
+# Endpoints para Objetivos de Venta
+
+@comercial_bp.route("/api/comercial/objetivos", methods=["GET"])
+def objetivos_listar():
+    """Listar objetivos de venta con progreso calculado"""
+    periodo = request.args.get("periodo")
+    
+    query = Goal.query.join(Employee)
+    
+    if periodo:
+        query = query.filter(Goal.period == periodo)
+    
+    objetivos = query.order_by(Goal.period.desc(), Employee.full_name).all()
+    
+    # Calcular ventas reales por empleado en el periodo
+    resultado = []
+    for obj in objetivos:
+        # Buscar ventas del empleado en el periodo
+        ventas_empleado = 0
+        if obj.period:
+            # Convertir periodo (ej: 2026-01) a rango de fechas
+            try:
+                año, mes = obj.period.split('-')[:2]
+                fecha_inicio = datetime(int(año), int(mes), 1)
+                if int(mes) == 12:
+                    fecha_fin = datetime(int(año) + 1, 1, 1)
+                else:
+                    fecha_fin = datetime(int(año), int(mes) + 1, 1)
+                
+                # Sumar ventas del vendedor en ese periodo
+                ventas = Venta.query.filter(
+                    Venta.vendedor_id == obj.employee_id,
+                    Venta.fecha >= fecha_inicio,
+                    Venta.fecha < fecha_fin
+                ).all()
+                
+                for v in ventas:
+                    ventas_empleado += float(v.precio_contrato or 0) * float(v.cantidad or 1)
+            except:
+                pass
+        
+        progreso = (obj.current_value / obj.target_value * 100) if obj.target_value else 0
+        progreso_ventas = (ventas_empleado / obj.target_value * 100) if obj.target_value else 0
+        
+        resultado.append({
+            "id": obj.id,
+            "empleado_id": obj.employee_id,
+            "empleado": obj.employee.full_name if obj.employee else "N/A",
+            "descripcion": obj.description,
+            "periodo": obj.period,
+            "meta": float(obj.target_value),
+            "valor_actual": float(obj.current_value or 0),
+            "ventas_reales": ventas_empleado,
+            "progreso": round(progreso, 1),
+            "progreso_ventas": round(progreso_ventas, 1),
+            "estado": obj.status
+        })
+    
+    return jsonify({"objetivos": resultado})
+
+
+@comercial_bp.route("/api/comercial/objetivos", methods=["POST"])
+def objetivos_crear():
+    """Crear nuevo objetivo de venta"""
+    data = request.get_json()
+    
+    required = ["employee_id", "description", "target_value"]
+    for field in required:
+        if field not in data:
+            return jsonify({"error": f"Campo requerido: {field}"}), 400
+    
+    objetivo = Goal(
+        employee_id=data["employee_id"],
+        description=data["description"],
+        period=data.get("period", datetime.now().strftime("%Y-%m")),
+        target_value=float(data["target_value"]),
+        current_value=float(data.get("current_value", 0)),
+        status=data.get("status", "en progreso")
+    )
+    
+    db.session.add(objetivo)
+    db.session.commit()
+    
+    return jsonify({
+        "message": "Objetivo creado exitosamente",
+        "id": objetivo.id
+    }), 201
+
+
+@comercial_bp.route("/api/comercial/objetivos/<int:objetivo_id>", methods=["PUT"])
+def objetivos_actualizar(objetivo_id):
+    """Actualizar objetivo de venta"""
+    objetivo = Goal.query.get_or_404(objetivo_id)
+    data = request.get_json()
+    
+    if "current_value" in data:
+        objetivo.current_value = float(data["current_value"])
+    if "status" in data:
+        objetivo.status = data["status"]
+    if "target_value" in data:
+        objetivo.target_value = float(data["target_value"])
+    if "description" in data:
+        objetivo.description = data["description"]
+    
+    db.session.commit()
+    
+    return jsonify({"message": "Objetivo actualizado"})
+
+
+@comercial_bp.route("/api/comercial/objetivos/<int:objetivo_id>", methods=["DELETE"])
+def objetivos_eliminar(objetivo_id):
+    """Eliminar objetivo"""
+    objetivo = Goal.query.get_or_404(objetivo_id)
+    db.session.delete(objetivo)
+    db.session.commit()
+    
+    return jsonify({"message": "Objetivo eliminado"})
+
+
+@comercial_bp.route("/api/comercial/vendedores", methods=["GET"])
+def vendedores_listar():
+    """Listar empleados que son vendedores"""
+    # Buscar empleados (idealmente filtrar por rol/departamento ventas)
+    empleados = Employee.query.filter(Employee.is_active == True).order_by(Employee.full_name).all()
+    
+    return jsonify({
+        "vendedores": [{
+            "id": e.id,
+            "nombre": e.full_name,
+            "email": e.email
+        } for e in empleados]
+    })
+
+
+@comercial_bp.route("/api/comercial/ranking", methods=["GET"])
+def ranking_vendedores():
+    """Ranking de vendedores por cumplimiento de objetivos"""
+    periodo = request.args.get("periodo", datetime.now().strftime("%Y-%m"))
+    
+    objetivos = Goal.query.filter(Goal.period == periodo).all()
+    
+    ranking = []
+    for obj in objetivos:
+        if obj.target_value and obj.target_value > 0:
+            cumplimiento = (obj.current_value / obj.target_value) * 100
+            ranking.append({
+                "empleado_id": obj.employee_id,
+                "empleado": obj.employee.full_name if obj.employee else "N/A",
+                "meta": float(obj.target_value),
+                "actual": float(obj.current_value or 0),
+                "cumplimiento": round(cumplimiento, 1)
+            })
+    
+    # Ordenar por cumplimiento descendente
+    ranking.sort(key=lambda x: x["cumplimiento"], reverse=True)
+    
+    return jsonify({"ranking": ranking, "periodo": periodo})

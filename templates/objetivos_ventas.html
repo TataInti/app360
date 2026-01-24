@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-bullseye"></i> Objetivos de Venta</h1>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoObjetivo">
+            <i class="bi bi-plus-circle"></i> Nuevo Objetivo
+        </button>
+    </div>
+
+    <!-- Filtro de Periodo -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="input-group">
+                <label class="input-group-text">Periodo</label>
+                <input type="month" id="periodoFiltro" class="form-control">
+                <button class="btn btn-secondary" onclick="cargarDatos()">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h6>Objetivos Activos</h6>
+                    <h2 id="kpiObjetivos">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h6>Cumplidos (100%+)</h6>
+                    <h2 id="kpiCumplidos">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h6>En Progreso</h6>
+                    <h2 id="kpiEnProgreso">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h6>Cumplimiento Promedio</h6>
+                    <h2 id="kpiPromedio">0%</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Ranking de Vendedores -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5><i class="bi bi-trophy"></i> Ranking de Vendedores</h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Vendedor</th>
+                                <th>Cumplimiento</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaRanking">
+                            <tr><td colspan="3" class="text-center">Cargando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista de Objetivos -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-list-check"></i> Objetivos del Periodo</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Vendedor</th>
+                                    <th>Objetivo</th>
+                                    <th>Meta</th>
+                                    <th>Actual</th>
+                                    <th>Progreso</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaObjetivos">
+                                <tr><td colspan="7" class="text-center">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nuevo Objetivo -->
+<div class="modal fade" id="modalNuevoObjetivo" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nuevo Objetivo de Venta</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formObjetivo">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Vendedor *</label>
+                        <select class="form-select" name="employee_id" id="selectVendedor" required>
+                            <option value="">Seleccionar...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción *</label>
+                        <input type="text" class="form-control" name="description" placeholder="Ej: Cuota mensual enero" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Periodo *</label>
+                            <input type="month" class="form-control" name="period" id="periodoNuevo" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Meta ($) *</label>
+                            <input type="number" class="form-control" name="target_value" step="0.01" min="1" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Valor Actual ($)</label>
+                            <input type="number" class="form-control" name="current_value" step="0.01" value="0">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Estado</label>
+                            <select class="form-select" name="status">
+                                <option value="en progreso">En Progreso</option>
+                                <option value="cumplido">Cumplido</option>
+                                <option value="no cumplido">No Cumplido</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Objetivo -->
+<div class="modal fade" id="modalEditarObjetivo" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Actualizar Progreso</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formEditar">
+                <input type="hidden" name="objetivo_id" id="editObjetivoId">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Vendedor</label>
+                        <input type="text" class="form-control" id="editVendedor" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Meta</label>
+                        <input type="text" class="form-control" id="editMeta" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Valor Actual ($) *</label>
+                        <input type="number" class="form-control" name="current_value" id="editActual" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Estado</label>
+                        <select class="form-select" name="status" id="editEstado">
+                            <option value="en progreso">En Progreso</option>
+                            <option value="cumplido">Cumplido</option>
+                            <option value="no cumplido">No Cumplido</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Actualizar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const hoy = new Date();
+    const periodo = hoy.toISOString().slice(0, 7);
+    document.getElementById('periodoFiltro').value = periodo;
+    document.getElementById('periodoNuevo').value = periodo;
+    
+    cargarVendedores();
+    cargarDatos();
+});
+
+async function cargarVendedores() {
+    try {
+        const resp = await fetch('/api/comercial/vendedores');
+        const data = await resp.json();
+        const select = document.getElementById('selectVendedor');
+        (data.vendedores || []).forEach(v => {
+            select.innerHTML += `<option value="${v.id}">${v.nombre}</option>`;
+        });
+    } catch(e) {
+        console.error('Error cargando vendedores:', e);
+    }
+}
+
+async function cargarDatos() {
+    const periodo = document.getElementById('periodoFiltro').value;
+    
+    // Cargar objetivos
+    try {
+        const resp = await fetch(`/api/comercial/objetivos?periodo=${periodo}`);
+        const data = await resp.json();
+        const objetivos = data.objetivos || [];
+        
+        // Calcular KPIs
+        let cumplidos = 0, enProgreso = 0, sumaProg = 0;
+        objetivos.forEach(o => {
+            if (o.progreso >= 100) cumplidos++;
+            else enProgreso++;
+            sumaProg += o.progreso;
+        });
+        
+        document.getElementById('kpiObjetivos').textContent = objetivos.length;
+        document.getElementById('kpiCumplidos').textContent = cumplidos;
+        document.getElementById('kpiEnProgreso').textContent = enProgreso;
+        document.getElementById('kpiPromedio').textContent = objetivos.length ? 
+            Math.round(sumaProg / objetivos.length) + '%' : '0%';
+        
+        // Tabla de objetivos
+        const tbody = document.getElementById('tablaObjetivos');
+        if (objetivos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay objetivos para este periodo</td></tr>';
+        } else {
+            tbody.innerHTML = objetivos.map(o => {
+                const progClass = o.progreso >= 100 ? 'bg-success' : o.progreso >= 50 ? 'bg-warning' : 'bg-danger';
+                return `
+                <tr>
+                    <td>${o.empleado}</td>
+                    <td>${o.descripcion}</td>
+                    <td>$${o.meta.toLocaleString('es-AR')}</td>
+                    <td>$${o.valor_actual.toLocaleString('es-AR')}</td>
+                    <td>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar ${progClass}" style="width: ${Math.min(o.progreso, 100)}%">
+                                ${o.progreso}%
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="badge ${o.estado === 'cumplido' ? 'bg-success' : 'bg-secondary'}">${o.estado}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editarObjetivo(${o.id}, '${o.empleado}', ${o.meta}, ${o.valor_actual}, '${o.estado}')">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="eliminarObjetivo(${o.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `}).join('');
+        }
+    } catch(e) {
+        console.error('Error cargando objetivos:', e);
+    }
+    
+    // Cargar ranking
+    try {
+        const resp = await fetch(`/api/comercial/ranking?periodo=${periodo}`);
+        const data = await resp.json();
+        const ranking = data.ranking || [];
+        
+        const tbody = document.getElementById('tablaRanking');
+        if (ranking.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Sin datos</td></tr>';
+        } else {
+            tbody.innerHTML = ranking.map((r, i) => {
+                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+                const progClass = r.cumplimiento >= 100 ? 'text-success' : r.cumplimiento >= 50 ? 'text-warning' : 'text-danger';
+                return `
+                <tr>
+                    <td>${medal}</td>
+                    <td>${r.empleado}</td>
+                    <td class="${progClass}"><strong>${r.cumplimiento}%</strong></td>
+                </tr>
+            `}).join('');
+        }
+    } catch(e) {
+        console.error('Error cargando ranking:', e);
+    }
+}
+
+function editarObjetivo(id, empleado, meta, actual, estado) {
+    document.getElementById('editObjetivoId').value = id;
+    document.getElementById('editVendedor').value = empleado;
+    document.getElementById('editMeta').value = '$' + meta.toLocaleString('es-AR');
+    document.getElementById('editActual').value = actual;
+    document.getElementById('editEstado').value = estado;
+    
+    new bootstrap.Modal(document.getElementById('modalEditarObjetivo')).show();
+}
+
+async function eliminarObjetivo(id) {
+    if (!confirm('¿Eliminar este objetivo?')) return;
+    
+    try {
+        const resp = await fetch(`/api/comercial/objetivos/${id}`, { method: 'DELETE' });
+        if (resp.ok) {
+            cargarDatos();
+        } else {
+            alert('Error al eliminar');
+        }
+    } catch(e) {
+        alert('Error de conexión');
+    }
+}
+
+// Form nuevo objetivo
+document.getElementById('formObjetivo')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const data = {
+        employee_id: parseInt(formData.get('employee_id')),
+        description: formData.get('description'),
+        period: formData.get('period'),
+        target_value: parseFloat(formData.get('target_value')),
+        current_value: parseFloat(formData.get('current_value') || 0),
+        status: formData.get('status')
+    };
+    
+    try {
+        const resp = await fetch('/api/comercial/objetivos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        if (resp.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('modalNuevoObjetivo')).hide();
+            this.reset();
+            document.getElementById('periodoNuevo').value = document.getElementById('periodoFiltro').value;
+            cargarDatos();
+        } else {
+            const err = await resp.json();
+            alert('Error: ' + (err.error || 'No se pudo guardar'));
+        }
+    } catch(e) {
+        alert('Error de conexión');
+    }
+});
+
+// Form editar objetivo
+document.getElementById('formEditar')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('editObjetivoId').value;
+    const data = {
+        current_value: parseFloat(document.getElementById('editActual').value),
+        status: document.getElementById('editEstado').value
+    };
+    
+    try {
+        const resp = await fetch(`/api/comercial/objetivos/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        if (resp.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('modalEditarObjetivo')).hide();
+            cargarDatos();
+        } else {
+            alert('Error al actualizar');
+        }
+    } catch(e) {
+        alert('Error de conexión');
+    }
+});
+</script>
+{% endblock %}

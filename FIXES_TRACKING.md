@@ -77,19 +77,27 @@ Comercial:
 
 ---
 
-## FASE 5: Objetivos de Venta - Refactoring ⏳
+## FASE 5: Objetivos de Venta - Refactoring ✅
 **Tiempo estimado:** 1.5 horas
 
 ### 5.1 Mover a módulo Comercial
-- [ ] Renombrar `rrhh_objetivos.html` → `objetivos_ventas.html`
-- [ ] Agregar ruta en `blueprints/comercial.py` o `ventas.py`
-- [ ] Adaptar lógica a vendedores
+- [x] Crear `objetivos_ventas.html` con nuevo diseño
+- [x] Agregar ruta web `/comercial/objetivos` en `blueprints/comercial.py`
+- [x] Agregar 6 endpoints API en `blueprints/comercial.py`:
+  - GET/POST `/api/comercial/objetivos`
+  - PUT/DELETE `/api/comercial/objetivos/<id>`
+  - GET `/api/comercial/vendedores`
+  - GET `/api/comercial/ranking`
+- [x] Actualizar enlace menú en `base.html`
+- [x] Actualizar MODULE_ROUTES en `security.py`
 
 ### 5.2 Funcionalidad
-- [ ] Objetivos por vendedor
-- [ ] Cuota mensual
-- [ ] % cumplimiento
-- [ ] Ranking vendedores
+- [x] Objetivos por vendedor (employee_id → Goal)
+- [x] Filtro por periodo (mes/año)
+- [x] % cumplimiento con progress bars
+- [x] Ranking vendedores con medallas (🥇🥈🥉)
+- [x] KPIs: Activos, Cumplidos, En Progreso, Promedio
+- [x] CRUD completo con modales
 
 ---
 
@@ -125,9 +133,11 @@ Comercial:
 | Fase 2 | ✅ Completada | 100% |
 | Fase 3 | ✅ Completada | 100% |
 | Fase 4 | ✅ Completada | 100% |
-| Fase 5 | ⏳ Pendiente | 0% |
+| Fase 5 | ✅ Completada | 100% |
 | Fase 6 | ✅ Completada | 100% |
 | Fase 7 | ✅ Completada | 100% |
+
+**🎉 TODAS LAS FASES COMPLETADAS 🎉**
 
 ---
 

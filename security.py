@@ -31,7 +31,7 @@ MODULE_ROUTES = {
     "dotacion": "/rrhh/dotacion",
     "adelantos": "/rrhh/adelantos",
     "ausentismo": "/rrhh/ausentismo",
-    "objetivos": "/rrhh/objetivos",
+    "objetivos": "/comercial/objetivos",
     "stock": "/stock",
     "locations": "/locations",
     "products": "/products",
