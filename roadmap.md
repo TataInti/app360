@@ -1,283 +1,298 @@
-# Roadmap de Refactorización del Sistema de Gestión Empresarial
+# Roadmap de Desarrollo del Sistema de Gestión Administrativa Complementaria (SGAC)
 
 ## Introducción
 
-Este documento presenta un roadmap detallado para la refactorización del proyecto web de gestión empresarial, compuesto por un backend en Python Flask y un frontend en React. El objetivo es mejorar la mantenibilidad, escalabilidad, seguridad y rendimiento del sistema, abordando problemas identificados en la estructura actual del código.
+Este documento presenta un roadmap detallado para el desarrollo del Sistema de Gestión Administrativa Complementaria (SGAC), un sistema web diseñado para la gestión financiera y administrativa de una distribuidora mayorista de carnes y embutidos. El SGAC integra datos de ventas y stock del ERP legacy vía archivos CSV, permitiendo la gestión de caja real, gastos, promociones, comisiones y reportes automáticos para la gerencia.
+
+El proyecto está compuesto por un backend en Python Flask con SQLAlchemy y un frontend en React con Vite. Tras completar la refactorización de la arquitectura base, este roadmap se enfoca en implementar los módulos funcionales específicos requeridos por el cliente, incluyendo relaciones entre tablas y flujos de trabajo detallados.
 
 ## Estado Actual del Análisis
 
 ### Arquitectura General
-- **Backend**: Aplicación Flask con SQLAlchemy, organizada en blueprints para diferentes módulos (auth, compras, crm, etc.)
-- **Frontend**: Aplicación React con Vite, utilizando Axios para llamadas API
-- **Base de Datos**: SQLite para desarrollo, con planes de migración a PostgreSQL
+- **Backend**: Aplicación Flask refactorizada con SQLAlchemy, organizada en blueprints para diferentes módulos (auth, compras, crm, ventas, rrhh, etc.)
+- **Frontend**: Aplicación React con Vite, utilizando Axios para llamadas API, con componentes reutilizables y gestión de estado global
+- **Base de Datos**: PostgreSQL en desarrollo y producción
 - **Autenticación**: Sistema basado en roles con acceso controlado por módulos
+- **Infraestructura**: Docker, CI/CD con GitHub Actions, tests automatizados, documentación completa
 
-### Problemas Identificados
+### Problemas Identificados y Requerimientos Pendientes
 
-#### Código y Estructura
-- **Duplicación de Código**: Patrones CRUD repetitivos en blueprints y componentes frontend
-- **Falta de Separación de Responsabilidades**: Modelos concentrados en un solo archivo, lógica de negocio mezclada con vistas
-- **Inconsistencia en Nomenclatura**: Mezcla de español e inglés en nombres de variables, funciones y archivos
-- **Ausencia de Tests**: Directorio de tests vacío, sin cobertura de pruebas automatizadas
-- **Falta de Documentación**: Sin documentación técnica o de API
+#### Funcionalidades Específicas del SGAC
+- **Falta de Integración con ERP Legacy**: No existe mecanismo para importar archivos CSV de ventas y stock
+- **Gestión de Caja Real**: Ausencia de registro de ingresos/egresos por múltiples instrumentos de pago
+- **Conciliación Diaria**: No se diferencia ingresos reales versus ventas declaradas
+- **Promociones y Simuladores**: Sin sistema para crear promociones y simular impacto en rentabilidad
+- **Comisiones**: Falta liquidación automática de comisiones por vendedores
+- **Gestión de Gastos**: No hay registro de egresos por categoría ni agenda de vencimientos
+- **Recursos Humanos**: Ausencia de gestión de turnos, asistencia y adelantos
+- **Business Intelligence**: Sin tablero de KPIs ni reportes automáticos por email
 
-#### Dependencias y Seguridad
-- **Dependencias Potencialmente Desactualizadas**: Algunas versiones de paquetes pueden requerir actualización (ej. Flask 3.1.2, React 19.2.0)
-- **Configuración de Seguridad**: Uso de clave secreta de desarrollo en producción, configuración de cookies insegura
-- **Base de Datos**: SQLite en entorno de desarrollo, sin migración clara a PostgreSQL
+#### Relaciones y Flujos de Trabajo
+- **Relaciones entre Tablas**: Necesidad de definir y implementar esquemas de relaciones entre Usuario, Venta, MovimientoCaja, Promocion, Gasto, Turno, etc.
+- **Flujos de Trabajo**: Integración de procesos como importación CSV → registro ventas → conciliación caja → liquidación comisiones → reportes BI
 
-#### Rendimiento y Escalabilidad
-- **Falta de Optimización**: Sin caché, lazy loading o paginación en consultas grandes
-- **Estructura de API**: Endpoints REST básicos sin versionado consistente o documentación OpenAPI
-- **Manejo de Errores**: Tratamiento básico de excepciones sin logging centralizado
+## Roadmap de Desarrollo
 
-#### Frontend Específico
-- **Componentes No Reutilizables**: Lógica duplicada en páginas similares
-- **Manejo de Estado**: Gestión básica sin librerías como Redux o Context API avanzado
-- **Estilos**: CSS básico sin sistema de diseño consistente
-
-## Roadmap de Refactorización
-
-### Fase 1: Evaluación y Planificación (1-2 semanas)
+### Fase 7: Desarrollo del Módulo de Ventas Integrado (2-3 semanas)
 **Prioridad: Alta**
 
 #### Tareas
-1. **Auditoría de Seguridad Completa**
-   - Revisar configuración de CORS, cookies y headers de seguridad
-   - Implementar validación de entrada en todos los endpoints
-   - Configurar logging seguro sin exponer información sensible
+1. **Implementación de Importación CSV**
+   - Crear endpoint `/ventas/importar` (POST) para carga y procesamiento de archivos CSV
+   - Homologar columnas relevantes (fecha, producto, cantidad, precio, cliente)
+   - Validar y procesar datos, diferenciando precio efectivo vs. precio contrato
 
-2. **Análisis de Dependencias**
-   - Actualizar versiones de paquetes críticos (Flask, SQLAlchemy, React)
-   - Identificar y remover dependencias no utilizadas
-   - Configurar dependabot para actualizaciones automáticas
+2. **Gestión de Ventas Reales**
+   - Crear modelos para Venta, Cliente, Producto con relaciones apropiadas
+   - Implementar endpoints para listar ventas filtradas (`/ventas/listar`)
+   - Agregar funcionalidad de exportación a Excel (`/ventas/exportar`)
 
-3. **Configuración de Entorno**
-   - Migrar de SQLite a PostgreSQL en desarrollo
-   - Configurar variables de entorno seguras
-   - Implementar configuración por entorno (dev/staging/prod)
+3. **Relaciones de Datos**
+   - Venta *---1 Cliente
+   - Venta *---1 Producto
+   - Implementar constraints y validaciones en modelos
 
-4. **Documentación Inicial**
-   - Crear README.md con instrucciones de instalación y desarrollo
-   - Documentar arquitectura actual y decisiones técnicas
-
-#### Criterios de Éxito
-- Configuración segura en todos los entornos
-- Base de datos PostgreSQL funcionando
-- Documentación básica disponible
-
-### Fase 2: Mejoras de Infraestructura (2-3 semanas)
-**Prioridad: Alta** ✅ **Completada**
-
-#### Tareas
-1. **Reestructuración de Modelos** ✅
-   - Separar modelos en archivos individuales por módulo (core, crm, sales, purchases, hr)
-   - Implementar repositorios/DAOs para lógica de acceso a datos (BaseRepository, UserRepository)
-   - Agregar validaciones y constraints a nivel de modelo
-
-2. **Sistema de Logging Centralizado** ✅
-   - Implementar logging estructurado con niveles apropiados
-   - Configurar monitoreo de errores y alertas
-   - Agregar tracing para requests
-
-3. **API Versioning y Documentación** 🔄
-   - Implementar versionado de API (v1, v2) - API actual en /api, preparado para versionado
-   - Generar documentación OpenAPI/Swagger automática - pendiente implementación completa
-   - Establecer contratos de API claros
-
-4. **Configuración de CI/CD Básica** ✅
-   - Configurar GitHub Actions para testing básico (linting con flake8, formatting con black)
-   - Implementar linting y formateo automático
-   - Configurar despliegue automatizado - workflow básico creado
+#### Flujo de Trabajo
+1. Usuario sube archivo CSV → Validación → Procesamiento → Almacenamiento en BD
+2. Visualización de historial con filtros → Exportación a Excel
 
 #### Criterios de Éxito
-- Modelos separados y bien estructurados ✅
-- API documentada y versionada 🔄
-- Logging funcional en todos los módulos ✅
+- Importación exitosa de archivos CSV de ejemplo
+- Listado y filtrado de ventas funcionando
+- Exportación a Excel operativa
 
-### Fase 3: Refactorización del Backend (3-4 semanas)
-**Prioridad: Media-Alta** ✅ **Completada**
-
-#### Tareas
-1. **Eliminación de Duplicación en Blueprints** ✅
-   - Crear clases base para operaciones CRUD comunes (BaseCRUD)
-   - Implementar decoradores para validación y autorización - pendiente
-   - Refactorizar blueprints para usar patrones consistentes (products.py actualizado)
-
-2. **Separación de Lógica de Negocio** ✅
-   - Extraer lógica de negocio a servicios independientes (ProductService)
-   - Implementar patrón Service Layer (BaseService)
-   - Crear DTOs para transferencia de datos (ProductDTO)
-
-3. **Optimización de Consultas** ✅
-   - Implementar eager loading donde sea necesario - relationships ya configuradas
-   - Agregar índices a la base de datos (username index en User)
-   - Implementar paginación en endpoints de listas (BaseRepository actualizado)
-
-4. **Manejo de Errores Mejorado** ✅
-   - Crear sistema de excepciones personalizado (AppException, ValidationError, etc.)
-   - Implementar respuestas de error consistentes (error handlers en app.py)
-   - Agregar rollback automático en transacciones fallidas (500 handler con rollback)
-
-#### Criterios de Éxito
-- Reducción del 60% en código duplicado ✅
-- Servicios de negocio independientes ✅
-- Consultas optimizadas con índices apropiados ✅
-
-### Fase 4: Refactorización del Frontend (3-4 semanas)
-**Prioridad: Media-Alta** ✅ **Completada**
-
-#### Tareas
-1. **Sistema de Componentes Reutilizables** ✅
-   - Crear biblioteca de componentes UI (Button, Input, Table, Modal)
-   - Implementar hooks personalizados para lógica común (useApi, useForm)
-   - Establecer sistema de diseño consistente
-
-2. **Gestión de Estado Global** ✅
-   - Implementar Context API para estado global (AuthContext)
-   - Crear stores para datos compartidos (usuario, configuración) - integrado con React Query
-   - Implementar caching de datos del lado cliente (React Query)
-
-3. **Optimización de Rendimiento** ✅
-   - Implementar lazy loading de componentes (React.lazy en App.jsx)
-   - Agregar memoización donde sea necesario - pendiente en componentes específicos
-   - Optimizar re-renders innecesarios - mejorado con hooks y context
-
-4. **Mejora de UX/UI** ✅
-   - Implementar loading states consistentes (LoadingSpinner, loading en Button)
-   - Agregar manejo de errores en UI (error states en hooks)
-   - Mejorar accesibilidad (ARIA labels, navegación por teclado en Modal)
-
-#### Criterios de Éxito
-- Componentes reutilizables en al menos 80% de las páginas ✅
-- Estado global funcionando correctamente ✅
-- Mejora en Core Web Vitals ✅
-
-### Fase 5: Testing y Calidad (2-3 semanas) ✅ COMPLETADA
+### Fase 8: Desarrollo del Módulo de Tesorería Multicanal (3-4 semanas)
 **Prioridad: Alta**
 
-#### Tareas Completadas
-1. **Suite de Tests del Backend** ✅
-   - Implementados tests unitarios para modelos y servicios (10 tests pasando)
-   - Creados tests de integración para endpoints API (login, productos)
-   - Configurado pytest con cobertura y fixtures
+#### Tareas
+1. **Registro de Ingresos y Egresos**
+   - Crear modelos MovimientoCaja, InstrumentoPago, ArqueoCaja
+   - Implementar endpoints `/tesoreria/ingresos` y `/tesoreria/egresos`
+   - Soporte para múltiples instrumentos: efectivo, cheques, tarjetas, transferencias
 
-2. **Suite de Tests del Frontend** ✅
-   - Implementados tests unitarios para componentes React (8 tests pasando)
-   - Configurado Vitest con jsdom y cobertura (54.68% cobertura actual)
-   - Configurado Playwright para E2E (tests creados, requieren servidor corriendo)
+2. **Conciliación y Arqueos**
+   - Endpoint `/tesoreria/arqueo` para arqueos diarios y por turno
+   - Lógica de conciliación: ingresos reales vs. ventas declaradas
+   - Control de saldos por instrumento al cierre del día
 
-3. **Cobertura de Código** ✅
-   - Configurados reportes de cobertura automática con pytest-cov y @vitest/coverage-v8
-   - Tests ejecutándose en pipeline local
+3. **Exportación de Estado de Caja**
+   - Endpoint `/tesoreria/exportar` con filtros por fechas, usuario, instrumento
+   - Generación de reportes en Excel
 
-4. **Testing de Seguridad** ✅
-   - Implementado escaneo con Bandit (vulnerabilidades identificadas y corregidas)
-   - Configurado security scanning en CI/CD pipeline
+#### Relaciones de Datos
+- Usuario 1---* MovimientoCaja
+- MovimientoCaja *---1 InstrumentoPago
+- MovimientoCaja *---1 ArqueoCaja
 
-#### Criterios de Éxito Alcanzados
-- Tests automatizados configurados y ejecutándose
-- Cobertura backend 100% en tests implementados
-- Validación de seguridad implementada con correcciones aplicadas
+#### Flujo de Trabajo
+1. Registro de movimientos → Arqueo diario → Conciliación automática → Exportación de estado
 
-### Fase 6: Documentación y Despliegue (1-2 semanas) ✅ COMPLETADA
-**Prioridad: Media**
+#### Criterios de Éxito
+- Registro completo de movimientos por instrumento
+- Arqueos y conciliación funcionando
+- Exportación de reportes operativa
 
-#### Tareas Completadas
-1. **Documentación Técnica Completa** ✅
-   - README.md actualizado con instalación, configuración y uso
-   - Documentación de API con ejemplos
-   - Estructura del proyecto documentada
-   - Guía de testing incluida
+### Fase 9: Desarrollo del Módulo de Estrategia Comercial y Simuladores (3-4 semanas)
+**Prioridad: Media-Alta**
 
-2. **Configuración de Producción** ✅
-   - Dockerfile para backend y frontend creados
-   - docker-compose.yml para orquestación completa
-   - Variables de entorno documentadas en .env.example
-   - Health check endpoint implementado (/api/health)
+#### Tareas
+1. **Gestión de Promociones**
+   - Crear modelo Promocion con reglas de aplicación
+   - Endpoint `/comercial/promociones` para CRUD de promociones
+   - Soporte para descuentos, combos, liquidación de stock
 
-3. **Optimización Final** ✅
-   - CI/CD pipeline con GitHub Actions configurado
-   - Tests automatizados en pipeline
-   - Cobertura de código integrada
-   - Escaneo de seguridad automatizado
+2. **Simulador de Rentabilidad**
+   - Endpoint `/comercial/simulador` para proyección de impacto
+   - Cálculos de margen neto antes de aplicar promociones
+   - Exportación de resultados a Excel
 
-#### Criterios de Éxito Alcanzados
-- Documentación completa y actualizada
-- Configuración de Docker lista para producción
-- Pipeline CI/CD funcional con tests y seguridad
-- Health checks implementados para monitoreo
+3. **Liquidación de Comisiones**
+   - Modelo Comision vinculado a Usuario
+   - Endpoint `/comercial/comisiones` para liquidación por criterios
+   - Cálculos basados en ventas cobradas, margen por producto
 
-## 🎉 REFACTORIZACIÓN COMPLETA
+#### Relaciones de Datos
+- Promocion *---* Producto
+- Venta 1---* PromocionAplicada
+- Comision 1---1 Usuario
 
-El proyecto App360 ha sido completamente refactorizado siguiendo las mejores prácticas de desarrollo moderno. Todas las fases del roadmap han sido implementadas exitosamente, resultando en un sistema más mantenible, seguro y escalable.
+#### Flujo de Trabajo
+1. Creación de promociones → Simulación de impacto → Aplicación → Liquidación de comisiones
 
-### Logros Principales
-- ✅ Arquitectura limpia con separación de responsabilidades
-- ✅ Cobertura de tests del 100% en componentes implementados
-- ✅ Seguridad OWASP compliant
-- ✅ Documentación completa
-- ✅ Configuración de producción lista
-- ✅ Pipeline CI/CD automatizado
+#### Criterios de Éxito
+- Promociones configurables y aplicables
+- Simulador funcional con proyecciones precisas
+- Comisiones liquidadas correctamente
 
-### Próximos Pasos Recomendados
-- **Migración a PostgreSQL**: Implementada ✅
-- Monitoreo en producción con herramientas como Sentry o DataDog
-- Implementación de caché (Redis) para mejor rendimiento
-- Configuración de CDN para assets estáticos
-- Implementación de logging centralizado
+### Fase 10: Desarrollo del Módulo de Gestión de Gastos e Impuestos (2-3 semanas)
+**Prioridad: Media-Alta**
+
+#### Tareas
+1. **Registro de Gastos**
+   - Crear modelos Gasto, CategoriaGasto, Proveedor
+   - Endpoint `/gastos/registrar` para alta de gastos
+   - Categorías: logística, energía, servicios, mantenimiento, impuestos
+
+2. **Agenda de Vencimientos**
+   - Sistema de recordatorios para pagos a proveedores
+   - Control de retiros de socios y pagos especiales
+
+3. **Exportación de Gastos**
+   - Endpoint `/gastos/exportar` con filtros por fechas, categoría, proveedor
+   - Generación de listados en Excel
+
+#### Relaciones de Datos
+- Gasto *---1 CategoriaGasto
+- Gasto *---1 Proveedor
+
+#### Flujo de Trabajo
+1. Registro de gastos → Agenda de vencimientos → Exportación de reportes
+
+#### Criterios de Éxito
+- Gastos registrados por categoría
+- Agenda de vencimientos operativa
+- Exportación de listados funcional
+
+### Fase 11: Desarrollo del Módulo de Recursos Humanos y Turnos (2-3 semanas)
 **Prioridad: Media**
 
 #### Tareas
-1. **Documentación Técnica Completa**
-   - Crear documentación de arquitectura
-   - Documentar APIs con ejemplos
-   - Guía de desarrollo y contribución
+1. **Gestión de Cuadrantes y Turnos**
+   - Crear modelo Turno vinculado a Usuario
+   - Endpoint `/rrhh/turnos` para gestión de cuadrantes
 
-2. **Configuración de Producción**
-   - Configurar Docker para desarrollo y producción
-   - Implementar health checks
-   - Configurar monitoreo básico (logs, métricas)
+2. **Registro de Asistencia**
+   - Modelo Asistencia relacionado con Turno
+   - Endpoint `/rrhh/asistencia` para registro y consulta
+   - Control de novedades: inasistencias, llegadas tarde
 
-3. **Optimización Final**
-   - Implementar compresión de assets
-   - Configurar CDN para assets estáticos
-   - Optimizar imágenes y bundles
+3. **Adelantos y Pagos**
+   - Vinculación de adelantos con estado de caja
+   - Endpoint `/rrhh/exportar` para exportación de novedades
 
-4. **Plan de Mantenimiento**
-   - Establecer proceso de actualización de dependencias
-   - Crear runbooks para operaciones comunes
-   - Documentar procedimientos de backup y recovery
+#### Relaciones de Datos
+- Turno *---1 Usuario
+- Asistencia *---1 Turno
+
+#### Flujo de Trabajo
+1. Definición de turnos → Registro de asistencia → Control de novedades → Exportación
 
 #### Criterios de Éxito
-- Documentación completa y actualizada
-- Despliegue automatizado funcionando
-- Monitoreo básico implementado
+- Cuadrantes gestionados
+- Asistencia registrada
+- Novedades exportables
+
+### Fase 12: Desarrollo del Módulo de Business Intelligence y Reportes (3-4 semanas)
+**Prioridad: Media-Alta**
+
+#### Tareas
+1. **Tablero de KPIs**
+   - Endpoint `/bi/dashboard` con métricas principales
+   - KPIs: ventas reales, margen neto, gastos, comisiones, saldo de caja
+
+2. **Análisis y Rankings**
+   - Endpoint `/bi/ranking` para análisis por productos y clientes
+
+3. **Reportes Automáticos**
+   - Endpoint `/reportes/resumen-diario` para generación automática
+   - Envío por email a las 21:30hs (`/reportes/email-diario`)
+   - Exportación manual de vistas a Excel
+
+#### Flujo de Trabajo
+1. Recopilación de datos → Cálculo de KPIs → Generación de resumen diario → Envío automático por email
+
+#### Criterios de Éxito
+- Tablero BI operativo con KPIs actualizados
+- Rankings y análisis disponibles
+- Reportes diarios enviados automáticamente
+
+### Fase 13: Integración Final y Testing (2-3 semanas)
+**Prioridad: Alta**
+
+#### Tareas
+1. **Integración de Módulos**
+   - Verificar flujos de trabajo entre módulos (e.g., ventas → tesorería → BI)
+   - Asegurar consistencia de datos entre relaciones
+
+2. **Testing Completo**
+   - Tests de integración para flujos completos
+   - Validación de exportaciones Excel
+   - Testing de seguridad y roles
+
+3. **Optimización y Documentación**
+   - Actualizar documentación con nuevos endpoints
+   - Optimizar consultas para reportes BI
+
+#### Criterios de Éxito
+- Todos los módulos integrados y funcionales
+- Flujos de trabajo completos probados
+- Documentación actualizada
+
+## Esquema de Relaciones entre Tablas
+
+```
+[Usuario] 1---* [MovimientoCaja]
+                 \
+                  *---1 [ArqueoCaja]
+                  *---1 [InstrumentoPago]
+[Venta] *---1 [Cliente]
+[Venta] *---1 [Producto]
+[Venta] 1---* [PromocionAplicada]
+[Promocion] *---* [Producto]
+[Gasto] *---1 [CategoriaGasto]
+[Gasto] *---1 [Proveedor]
+[Turno] *---1 [Usuario]
+[Asistencia] *---1 [Turno]
+[Comision] 1---1 [Usuario]
+```
+
+## Flujos de Trabajo Principales
+
+### Flujo de Ventas y Conciliación
+1. Importación CSV de ERP → Procesamiento de ventas reales
+2. Registro de ingresos en Tesorería → Conciliación diaria
+3. Aplicación de promociones → Cálculo de comisiones
+4. Generación de reportes BI → Envío automático por email
+
+### Flujo de Gastos y RRHH
+1. Registro de gastos → Agenda de vencimientos
+2. Gestión de turnos → Registro de asistencia
+3. Control de adelantos → Vinculación con caja
+
+### Flujo de Reportes
+1. Recopilación automática de datos → Cálculo de KPIs
+2. Generación de resumen diario → Envío por email
+3. Exportaciones manuales por usuario según permisos
 
 ## Métricas de Éxito Globales
 
-- **Reducción de Deuda Técnica**: 70% menos de código duplicado
-- **Cobertura de Tests**: > 80% en código crítico
-- **Tiempo de Respuesta**: Mejora del 50% en endpoints principales
-- **Disponibilidad**: 99.5% uptime en producción
-- **Seguridad**: Cumplimiento de estándares OWASP
+- **Funcionalidades Implementadas**: 100% de módulos requeridos operativos
+- **Integración ERP**: Importación CSV exitosa y validada
+- **Conciliación Diaria**: Automatizada con precisión del 100%
+- **Reportes Automáticos**: Envío diario a las 21:30hs sin fallos
+- **Cobertura de Tests**: > 90% incluyendo nuevos módulos
+- **Tiempo de Respuesta**: < 2s para consultas principales
+- **Disponibilidad**: 99.9% uptime en producción
 
 ## Riesgos y Mitigaciones
 
-- **Riesgo**: Cambios disruptivos afectan funcionalidad existente
-  - **Mitigación**: Desarrollo en ramas separadas, tests exhaustivos
+- **Riesgo**: Errores en importación CSV afectan integridad de datos
+  - **Mitigación**: Validaciones exhaustivas y rollback en caso de error
 
-- **Riesgo**: Dependencias incompatibles durante actualizaciones
-  - **Mitigación**: Actualizaciones graduales, testing en staging
+- **Riesgo**: Conciliación manual sobrecarga operativa
+  - **Mitigación**: Automatización completa con alertas de discrepancias
 
-- **Riesgo**: Sobrecarga de trabajo durante refactorización
-  - **Mitigación**: Fases incrementales, priorización clara
+- **Riesgo**: Dependencias entre módulos causan bloqueos
+  - **Mitigación**: Desarrollo incremental con integración continua
+
+- **Riesgo**: Volumen de datos afecta rendimiento de reportes
+  - **Mitigación**: Optimización de consultas e índices en BD
 
 ## Próximos Pasos
 
-1. Obtener aprobación del roadmap
-2. Asignar recursos y timeline específico
-3. Comenzar con Fase 1: Evaluación y Planificación
-4. Establecer métricas de seguimiento semanal
+1. Obtener aprobación del roadmap actualizado
+2. Asignar recursos y timeline específico por fase
+3. Comenzar con Fase 7: Desarrollo del Módulo de Ventas Integrado
+4. Establecer métricas de seguimiento semanal y revisiones de integración
 
-Este roadmap proporciona una ruta clara y estructurada para transformar el proyecto en un sistema robusto, mantenible y escalable. La ejecución faseada permite minimizar riesgos mientras se maximizan los beneficios.
+Este roadmap proporciona una ruta clara para implementar el SGAC completo, alineado con los requerimientos del cliente y aprovechando la arquitectura refactorizada existente.

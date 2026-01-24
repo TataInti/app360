@@ -1,17 +1,15 @@
-from datetime import date, datetime
+from datetime import datetime, date, timedelta
+from decimal import Decimal
+import io
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
-from sqlalchemy import func
+from flask import Blueprint, request, jsonify, send_file
 
 from models import (
-    Absence,
-    Attendance,
+    Adelanto,
+    Asistencia,
     Employee,
-    Goal,
-    Headcount,
-    Location,
-    Survey,
-    SurveyResponse,
+    Turno,
+    User,
     db,
 )
 from security import protect_blueprint
@@ -21,207 +19,555 @@ rrhh_bp = Blueprint("rrhh", __name__)
 protect_blueprint(rrhh_bp, "rrhh")
 
 
-def _parse_date(value):
-    if not value:
-        return date.today()
+# Endpoints para Turnos
+
+@rrhh_bp.route("/api/rrhh/turnos", methods=["GET"])
+def turnos_listar():
+    """Listar turnos activos"""
+    turnos = Turno.query.filter_by(activo=True).order_by(Turno.hora_inicio).all()
+
+    return jsonify({
+        "turnos": [{
+            "id": t.id,
+            "nombre": t.nombre,
+            "descripcion": t.descripcion,
+            "hora_inicio": t.hora_inicio.strftime("%H:%M"),
+            "hora_fin": t.hora_fin.strftime("%H:%M"),
+            "dias_semana": t.dias_semana
+        } for t in turnos]
+    })
+
+
+@rrhh_bp.route("/api/rrhh/turnos", methods=["POST"])
+def turnos_crear():
+    """Crear nuevo turno"""
+    data = request.get_json()
+
+    required_fields = ["nombre", "hora_inicio", "hora_fin"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Campo requerido: {field}"}), 400
+
+    nombre = data["nombre"].strip()
+    if not nombre:
+        return jsonify({"error": "Nombre no puede estar vacío"}), 400
+
+    # Verificar que no exista
+    existente = Turno.query.filter_by(nombre=nombre).first()
+    if existente:
+        return jsonify({"error": "Ya existe un turno con ese nombre"}), 400
+
     try:
-        return datetime.fromisoformat(value).date()
+        hora_inicio = datetime.strptime(data["hora_inicio"], "%H:%M").time()
+        hora_fin = datetime.strptime(data["hora_fin"], "%H:%M").time()
     except ValueError:
-        return date.today()
+        return jsonify({"error": "Formato de hora inválido (HH:MM)"}), 400
+
+    turno = Turno(
+        nombre=nombre,
+        descripcion=data.get("descripcion", ""),
+        hora_inicio=hora_inicio,
+        hora_fin=hora_fin,
+        dias_semana=data.get("dias_semana", "1,2,3,4,5")  # Lunes a viernes por defecto
+    )
+
+    db.session.add(turno)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Turno creado",
+        "turno": {
+            "id": turno.id,
+            "nombre": turno.nombre,
+            "hora_inicio": turno.hora_inicio.strftime("%H:%M"),
+            "hora_fin": turno.hora_fin.strftime("%H:%M")
+        }
+    }), 201
 
 
-def _parse_datetime(value):
-    if not value:
-        return None
+@rrhh_bp.route("/api/rrhh/turnos/<int:turno_id>", methods=["DELETE"])
+def turnos_eliminar(turno_id):
+    """Desactivar turno"""
+    turno = Turno.query.get_or_404(turno_id)
+    turno.activo = False
+    db.session.commit()
+
+    return jsonify({"message": "Turno desactivado"})
+
+
+# Endpoints para Asistencia
+
+@rrhh_bp.route("/api/rrhh/asistencia", methods=["GET"])
+def asistencia_listar():
+    """Listar asistencia con filtros"""
+    fecha_desde = request.args.get("fecha_desde")
+    fecha_hasta = request.args.get("fecha_hasta")
+    empleado_id = request.args.get("empleado_id")
+    turno_id = request.args.get("turno_id")
+    estado = request.args.get("estado")
+    limite = request.args.get("limite", 100, type=int)
+
+    query = Asistencia.query
+
+    # Aplicar filtros
+    if fecha_desde:
+        try:
+            fecha_desde = datetime.strptime(fecha_desde, "%Y-%m-%d").date()
+            query = query.filter(Asistencia.fecha >= fecha_desde)
+        except ValueError:
+            return jsonify({"error": "Formato de fecha_desde inválido"}), 400
+
+    if fecha_hasta:
+        try:
+            fecha_hasta = datetime.strptime(fecha_hasta, "%Y-%m-%d").date()
+            query = query.filter(Asistencia.fecha <= fecha_hasta)
+        except ValueError:
+            return jsonify({"error": "Formato de fecha_hasta inválido"}), 400
+
+    if empleado_id:
+        query = query.filter(Asistencia.empleado_id == empleado_id)
+
+    if turno_id:
+        query = query.filter(Asistencia.turno_id == turno_id)
+
+    if estado:
+        query = query.filter(Asistencia.estado == estado)
+
+    # Ordenar por fecha descendente
+    asistencias = query.order_by(Asistencia.fecha.desc()).limit(limite).all()
+
+    return jsonify({
+        "asistencia": [{
+            "id": a.id,
+            "fecha": a.fecha.isoformat(),
+            "empleado": {
+                "id": a.empleado.id,
+                "nombre": a.empleado.name
+            },
+            "turno": {
+                "id": a.turno.id,
+                "nombre": a.turno.nombre
+            },
+            "hora_entrada": a.hora_entrada.isoformat() if a.hora_entrada else None,
+            "hora_salida": a.hora_salida.isoformat() if a.hora_salida else None,
+            "horas_trabajadas": float(a.horas_trabajadas) if a.horas_trabajadas else None,
+            "estado": a.estado,
+            "notas": a.notas
+        } for a in asistencias]
+    })
+
+
+@rrhh_bp.route("/api/rrhh/asistencia", methods=["POST"])
+def asistencia_registrar():
+    """Registrar asistencia"""
+    data = request.get_json()
+
+    required_fields = ["empleado_id", "turno_id", "fecha"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Campo requerido: {field}"}), 400
+
+    # Verificar que existan empleado y turno
+    empleado = Employee.query.get(data["empleado_id"])
+    if not empleado or not empleado.is_active:
+        return jsonify({"error": "Empleado no encontrado o inactivo"}), 404
+
+    turno = Turno.query.get(data["turno_id"])
+    if not turno or not turno.activo:
+        return jsonify({"error": "Turno no encontrado o inactivo"}), 404
+
+    # Parsear fecha
     try:
-        return datetime.fromisoformat(value)
+        fecha = datetime.strptime(data["fecha"], "%Y-%m-%d").date()
     except ValueError:
-        return None
+        return jsonify({"error": "Formato de fecha inválido"}), 400
 
+    # Verificar que no exista asistencia para este empleado/fecha
+    existente = Asistencia.query.filter_by(
+        empleado_id=data["empleado_id"],
+        fecha=fecha
+    ).first()
+    if existente:
+        return jsonify({"error": "Ya existe registro de asistencia para este empleado en esta fecha"}), 400
 
-@rrhh_bp.route("/rrhh")
-def rrhh_home():
-    total_headcount = db.session.query(func.sum(Headcount.headcount)).scalar() or 0
-    total_days_lost = db.session.query(func.sum(Absence.days_lost)).scalar() or 0
-    total_employees = Employee.query.filter_by(active=True).count()
-    attendance_today = Attendance.query.filter_by(date=date.today()).count()
-    survey_avg = db.session.query(func.avg(SurveyResponse.score)).scalar() or 0
-    avg_absence = round(total_days_lost / total_headcount, 2) if total_headcount else 0
+    # Parsear horas opcionales
+    hora_entrada = None
+    hora_salida = None
+    horas_trabajadas = None
 
-    latest_surveys = Survey.query.order_by(Survey.start_date.desc()).limit(3).all()
+    if data.get("hora_entrada"):
+        try:
+            hora_entrada = datetime.fromisoformat(data["hora_entrada"])
+        except ValueError:
+            return jsonify({"error": "Formato de hora_entrada inválido"}), 400
 
-    return render_template(
-        "rrhh_panel.html",
-        total_headcount=total_headcount,
-        total_days_lost=total_days_lost,
-        avg_absence=avg_absence,
-        total_employees=total_employees,
-        attendance_today=attendance_today,
-        survey_avg=round(survey_avg, 2) if survey_avg else 0,
-        latest_surveys=latest_surveys,
+    if data.get("hora_salida"):
+        try:
+            hora_salida = datetime.fromisoformat(data["hora_salida"])
+        except ValueError:
+            return jsonify({"error": "Formato de hora_salida inválido"}), 400
+
+    # Calcular horas trabajadas si ambas horas están presentes
+    if hora_entrada and hora_salida:
+        diferencia = hora_salida - hora_entrada
+        horas_trabajadas = round(diferencia.total_seconds() / 3600, 2)
+
+    # Determinar estado
+    estado = data.get("estado", "presente")
+    estados_validos = ["presente", "ausente", "llegada_tarde", "salida_temprana"]
+    if estado not in estados_validos:
+        return jsonify({"error": f"Estado inválido. Valores permitidos: {estados_validos}"}), 400
+
+    asistencia = Asistencia(
+        empleado_id=data["empleado_id"],
+        turno_id=data["turno_id"],
+        fecha=fecha,
+        hora_entrada=hora_entrada,
+        hora_salida=hora_salida,
+        horas_trabajadas=horas_trabajadas,
+        estado=estado,
+        notas=data.get("notas")
     )
 
+    db.session.add(asistencia)
+    db.session.commit()
 
-@rrhh_bp.route("/rrhh/dotacion", methods=["GET", "POST"])
-def rrhh_dotacion():
-    locations = Location.query.all()
+    return jsonify({
+        "message": "Asistencia registrada",
+        "asistencia": {
+            "id": asistencia.id,
+            "fecha": asistencia.fecha.isoformat(),
+            "empleado": asistencia.empleado.name,
+            "turno": asistencia.turno.nombre,
+            "estado": asistencia.estado
+        }
+    }), 201
 
-    if request.method == "POST":
-        location_id = int(request.form["location_id"])
-        month = request.form["month"]  # 'YYYY-MM'
-        headcount = int(request.form["headcount"])
 
-        # Si ya hay registro para esa ubicación y mes, lo actualizamos
-        existing = Headcount.query.filter_by(location_id=location_id, month=month).first()
-        if existing:
-            existing.headcount = headcount
+@rrhh_bp.route("/api/rrhh/asistencia/<int:asistencia_id>", methods=["PUT"])
+def asistencia_actualizar(asistencia_id):
+    """Actualizar registro de asistencia"""
+    asistencia = Asistencia.query.get_or_404(asistencia_id)
+    data = request.get_json()
+
+    # Actualizar campos opcionales
+    if "hora_entrada" in data:
+        if data["hora_entrada"]:
+            try:
+                asistencia.hora_entrada = datetime.fromisoformat(data["hora_entrada"])
+            except ValueError:
+                return jsonify({"error": "Formato de hora_entrada inválido"}), 400
         else:
-            rec = Headcount(location_id=location_id, month=month, headcount=headcount)
-            db.session.add(rec)
+            asistencia.hora_entrada = None
 
-        db.session.commit()
-        return redirect(url_for("rrhh.rrhh_dotacion"))
-
-    # Listado
-    rows = (
-        db.session.query(Headcount, Location)
-        .join(Location, Headcount.location_id == Location.id)
-        .order_by(Headcount.month.desc())
-        .all()
-    )
-
-    return render_template("rrhh_dotacion.html", rows=rows, locations=locations)
-
-
-@rrhh_bp.route("/rrhh/ausentismo", methods=["GET", "POST"])
-def rrhh_ausentismo():
-    locations = Location.query.all()
-
-    if request.method == "POST":
-        location_id = int(request.form["location_id"])
-        month = request.form["month"]
-        days_lost = float(request.form["days_lost"])
-        notes = request.form.get("notes")
-
-        rec = Absence(location_id=location_id, month=month, days_lost=days_lost, notes=notes)
-        db.session.add(rec)
-        db.session.commit()
-
-        return redirect(url_for("rrhh.rrhh_ausentismo"))
-
-    rows = (
-        db.session.query(Absence, Location)
-        .join(Location, Absence.location_id == Location.id)
-        .order_by(Absence.month.desc())
-        .all()
-    )
-
-    return render_template("rrhh_ausentismo.html", rows=rows, locations=locations)
-
-
-@rrhh_bp.route("/rrhh/empleados", methods=["GET", "POST"])
-def rrhh_empleados():
-    locations = Location.query.order_by(Location.name).all()
-    employees = Employee.query.order_by(Employee.full_name).all()
-
-    if request.method == "POST":
-        employee = Employee(
-            full_name=request.form["full_name"],
-            role=request.form.get("role"),
-            location_id=request.form.get("location_id") or None,
-            email=request.form.get("email"),
-            active=request.form.get("active") == "on",
-        )
-        db.session.add(employee)
-        db.session.commit()
-        flash("Empleado registrado.", "success")
-        return redirect(url_for("rrhh.rrhh_empleados"))
-
-    return render_template("rrhh_empleados.html", employees=employees, locations=locations)
-
-
-@rrhh_bp.route("/rrhh/asistencia", methods=["GET", "POST"])
-def rrhh_asistencia():
-    employees = Employee.query.filter_by(active=True).order_by(Employee.full_name).all()
-    attendances = (
-        Attendance.query.order_by(Attendance.date.desc(), Attendance.check_in.desc())
-        .limit(20)
-        .all()
-    )
-
-    if request.method == "POST":
-        employee_id = int(request.form["employee_id"])
-        attendance = Attendance(
-            employee_id=employee_id,
-            date=_parse_date(request.form.get("date")),
-            check_in=_parse_datetime(request.form.get("check_in")),
-            check_out=_parse_datetime(request.form.get("check_out")),
-            notes=request.form.get("notes"),
-        )
-        db.session.add(attendance)
-        db.session.commit()
-        flash("Asistencia registrada.", "success")
-        return redirect(url_for("rrhh.rrhh_asistencia"))
-
-    return render_template("rrhh_asistencia.html", employees=employees, attendances=attendances)
-
-
-@rrhh_bp.route("/rrhh/objetivos", methods=["GET", "POST"])
-def rrhh_objetivos():
-    employees = Employee.query.order_by(Employee.full_name).all()
-    goals = Goal.query.order_by(Goal.period.desc()).all()
-
-    if request.method == "POST":
-        goal = Goal(
-            employee_id=request.form["employee_id"],
-            description=request.form["description"],
-            period=request.form.get("period"),
-            target_value=float(request.form["target_value"]),
-            current_value=float(request.form.get("current_value") or 0.0),
-            status=request.form.get("status") or "en progreso",
-        )
-        db.session.add(goal)
-        db.session.commit()
-        flash("Objetivo registrado.", "success")
-        return redirect(url_for("rrhh.rrhh_objetivos"))
-
-    return render_template("rrhh_objetivos.html", employees=employees, goals=goals)
-
-
-@rrhh_bp.route("/rrhh/clima", methods=["GET", "POST"])
-def rrhh_clima():
-    surveys = Survey.query.order_by(Survey.start_date.desc()).all()
-    responses = SurveyResponse.query.order_by(SurveyResponse.submitted_at.desc()).limit(20).all()
-
-    if request.method == "POST":
-        if "survey_name" in request.form:
-            survey = Survey(
-                name=request.form["survey_name"],
-                start_date=_parse_date(request.form.get("start_date")),
-                end_date=_parse_date(request.form.get("end_date")),
-                location_id=request.form.get("location_id") or None,
-            )
-            db.session.add(survey)
-            db.session.commit()
-            flash("Encuesta creada.", "success")
-            return redirect(url_for("rrhh.rrhh_clima"))
+    if "hora_salida" in data:
+        if data["hora_salida"]:
+            try:
+                asistencia.hora_salida = datetime.fromisoformat(data["hora_salida"])
+            except ValueError:
+                return jsonify({"error": "Formato de hora_salida inválido"}), 400
         else:
-            response = SurveyResponse(
-                survey_id=request.form["survey_id"],
-                employee_id=request.form["employee_id"],
-                score=int(request.form["score"]),
-                comments=request.form.get("comments"),
-            )
-            db.session.add(response)
-            db.session.commit()
-            flash("Respuesta registrada.", "success")
-            return redirect(url_for("rrhh.rrhh_clima"))
+            asistencia.hora_salida = None
 
-    employees = Employee.query.order_by(Employee.full_name).all()
-    return render_template(
-        "rrhh_clima.html",
-        surveys=surveys,
-        responses=responses,
-        employees=employees,
-        locations=Location.query.order_by(Location.name).all(),
+    if "estado" in data:
+        estados_validos = ["presente", "ausente", "llegada_tarde", "salida_temprana"]
+        if data["estado"] not in estados_validos:
+            return jsonify({"error": f"Estado inválido. Valores permitidos: {estados_validos}"}), 400
+        asistencia.estado = data["estado"]
+
+    if "notas" in data:
+        asistencia.notas = data["notas"]
+
+    # Recalcular horas trabajadas
+    if asistencia.hora_entrada and asistencia.hora_salida:
+        diferencia = asistencia.hora_salida - asistencia.hora_entrada
+        asistencia.horas_trabajadas = round(diferencia.total_seconds() / 3600, 2)
+    else:
+        asistencia.horas_trabajadas = None
+
+    db.session.commit()
+
+    return jsonify({"message": "Asistencia actualizada"})
+
+
+# Endpoints para Adelantos
+
+@rrhh_bp.route("/api/rrhh/adelantos", methods=["GET"])
+def adelantos_listar():
+    """Listar adelantos con filtros"""
+    empleado_id = request.args.get("empleado_id")
+    aprobado = request.args.get("aprobado")
+    pagado = request.args.get("pagado")
+    limite = request.args.get("limite", 50, type=int)
+
+    query = Adelanto.query
+
+    # Aplicar filtros
+    if empleado_id:
+        query = query.filter(Adelanto.empleado_id == empleado_id)
+
+    if aprobado is not None:
+        aprobado_bool = aprobado.lower() == "true"
+        query = query.filter(Adelanto.aprobado == aprobado_bool)
+
+    if pagado is not None:
+        pagado_bool = pagado.lower() == "true"
+        query = query.filter(Adelanto.pagado == pagado_bool)
+
+    # Ordenar por fecha descendente
+    adelantos = query.order_by(Adelanto.fecha_solicitud.desc()).limit(limite).all()
+
+    return jsonify({
+        "adelantos": [{
+            "id": a.id,
+            "fecha_solicitud": a.fecha_solicitud.isoformat(),
+            "empleado": {
+                "id": a.empleado.id,
+                "nombre": a.empleado.name
+            },
+            "monto": float(a.monto),
+            "motivo": a.motivo,
+            "aprobado": a.aprobado,
+            "fecha_aprobacion": a.fecha_aprobacion.isoformat() if a.fecha_aprobacion else None,
+            "pagado": a.pagado,
+            "fecha_pago": a.fecha_pago.isoformat() if a.fecha_pago else None,
+            "aprobado_por": a.aprobado_por.username if a.aprobado_por else None
+        } for a in adelantos]
+    })
+
+
+@rrhh_bp.route("/api/rrhh/adelantos", methods=["POST"])
+def adelantos_solicitar():
+    """Solicitar adelanto de sueldo"""
+    data = request.get_json()
+
+    required_fields = ["empleado_id", "monto", "motivo"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Campo requerido: {field}"}), 400
+
+    # Verificar empleado
+    empleado = Employee.query.get(data["empleado_id"])
+    if not empleado or not empleado.is_active:
+        return jsonify({"error": "Empleado no encontrado o inactivo"}), 404
+
+    try:
+        monto = Decimal(str(data["monto"]))
+        if monto <= 0:
+            return jsonify({"error": "Monto debe ser mayor a cero"}), 400
+    except:
+        return jsonify({"error": "Monto inválido"}), 400
+
+    adelanto = Adelanto(
+        empleado_id=data["empleado_id"],
+        monto=monto,
+        motivo=data["motivo"]
+    )
+
+    db.session.add(adelanto)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Adelanto solicitado",
+        "adelanto": {
+            "id": adelanto.id,
+            "monto": float(adelanto.monto),
+            "motivo": adelanto.motivo,
+            "aprobado": adelanto.aprobado
+        }
+    }), 201
+
+
+@rrhh_bp.route("/api/rrhh/adelantos/<int:adelanto_id>/aprobar", methods=["POST"])
+def adelantos_aprobar(adelanto_id):
+    """Aprobar adelanto"""
+    adelanto = Adelanto.query.get_or_404(adelanto_id)
+
+    if adelanto.aprobado:
+        return jsonify({"error": "Adelanto ya está aprobado"}), 400
+
+    data = request.get_json()
+    usuario_id = data.get("usuario_id", 1)  # Default admin
+
+    usuario = User.query.get(usuario_id)
+    if not usuario:
+        return jsonify({"error": "Usuario no encontrado"}), 404
+
+    adelanto.aprobado = True
+    adelanto.fecha_aprobacion = datetime.utcnow()
+    adelanto.aprobado_por_id = usuario_id
+
+    db.session.commit()
+
+    return jsonify({"message": "Adelanto aprobado"})
+
+
+@rrhh_bp.route("/api/rrhh/adelantos/<int:adelanto_id>/pagar", methods=["POST"])
+def adelantos_pagar(adelanto_id):
+    """Marcar adelanto como pagado"""
+    adelanto = Adelanto.query.get_or_404(adelanto_id)
+
+    if not adelanto.aprobado:
+        return jsonify({"error": "Adelanto debe estar aprobado antes de pagar"}), 400
+
+    if adelanto.pagado:
+        return jsonify({"error": "Adelanto ya está pagado"}), 400
+
+    adelanto.pagado = True
+    adelanto.fecha_pago = datetime.utcnow()
+
+    db.session.commit()
+
+    return jsonify({"message": "Adelanto marcado como pagado"})
+
+
+# Endpoints para Reportes y Estadísticas
+
+@rrhh_bp.route("/api/rrhh/reportes/asistencia", methods=["GET"])
+def reportes_asistencia():
+    """Reporte de asistencia por período"""
+    fecha_desde = request.args.get("fecha_desde")
+    fecha_hasta = request.args.get("fecha_hasta")
+
+    if not fecha_desde or not fecha_hasta:
+        return jsonify({"error": "Se requieren fecha_desde y fecha_hasta"}), 400
+
+    try:
+        fecha_desde = datetime.strptime(fecha_desde, "%Y-%m-%d").date()
+        fecha_hasta = datetime.strptime(fecha_hasta, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"error": "Formato de fecha inválido"}), 400
+
+    # Obtener estadísticas
+    total_asistencias = Asistencia.query.filter(
+        Asistencia.fecha >= fecha_desde,
+        Asistencia.fecha <= fecha_hasta
+    ).count()
+
+    presentes = Asistencia.query.filter(
+        Asistencia.fecha >= fecha_desde,
+        Asistencia.fecha <= fecha_hasta,
+        Asistencia.estado == 'presente'
+    ).count()
+
+    ausentes = Asistencia.query.filter(
+        Asistencia.fecha >= fecha_desde,
+        Asistencia.fecha <= fecha_hasta,
+        Asistencia.estado == 'ausente'
+    ).count()
+
+    llegadas_tarde = Asistencia.query.filter(
+        Asistencia.fecha >= fecha_desde,
+        Asistencia.fecha <= fecha_hasta,
+        Asistencia.estado == 'llegada_tarde'
+    ).count()
+
+    # Horas trabajadas totales
+    from sqlalchemy import func
+    result = db.session.query(func.sum(Asistencia.horas_trabajadas)).filter(
+        Asistencia.fecha >= fecha_desde,
+        Asistencia.fecha <= fecha_hasta,
+        Asistencia.horas_trabajadas.isnot(None)
+    ).scalar()
+
+    horas_totales = float(result) if result else 0
+
+    return jsonify({
+        "periodo": {
+            "desde": fecha_desde.isoformat(),
+            "hasta": fecha_hasta.isoformat()
+        },
+        "estadisticas": {
+            "total_asistencias": total_asistencias,
+            "presentes": presentes,
+            "ausentes": ausentes,
+            "llegadas_tarde": llegadas_tarde,
+            "horas_trabajadas_totales": horas_totales,
+            "tasa_asistencia": (presentes / total_asistencias * 100) if total_asistencias > 0 else 0
+        }
+    })
+
+
+@rrhh_bp.route("/api/rrhh/exportar", methods=["GET"])
+def rrhh_exportar():
+    """Exportar datos de RRHH a Excel"""
+    try:
+        import pandas as pd
+    except ImportError:
+        return jsonify({"error": "Pandas no instalado"}), 500
+
+    tipo = request.args.get("tipo", "asistencia")  # asistencia, adelantos
+    fecha_desde = request.args.get("fecha_desde")
+    fecha_hasta = request.args.get("fecha_hasta")
+
+    if tipo == "asistencia":
+        query = Asistencia.query
+        if fecha_desde:
+            fecha_desde = datetime.strptime(fecha_desde, "%Y-%m-%d").date()
+            query = query.filter(Asistencia.fecha >= fecha_desde)
+        if fecha_hasta:
+            fecha_hasta = datetime.strptime(fecha_hasta, "%Y-%m-%d").date()
+            query = query.filter(Asistencia.fecha <= fecha_hasta)
+
+        registros = query.order_by(Asistencia.fecha.desc()).all()
+
+        data = []
+        for a in registros:
+            data.append({
+                "Fecha": a.fecha,
+                "Empleado": a.empleado.name,
+                "Turno": a.turno.nombre,
+                "Hora Entrada": a.hora_entrada,
+                "Hora Salida": a.hora_salida,
+                "Horas Trabajadas": float(a.horas_trabajadas) if a.horas_trabajadas else "",
+                "Estado": a.estado,
+                "Notas": a.notas or ""
+            })
+
+        filename = "asistencia_rrhh.xlsx"
+
+    elif tipo == "adelantos":
+        query = Adelanto.query
+        if fecha_desde:
+            fecha_desde = datetime.strptime(fecha_desde, "%Y-%m-%d").date()
+            query = query.filter(Adelanto.fecha_solicitud >= fecha_desde)
+        if fecha_hasta:
+            fecha_hasta = datetime.strptime(fecha_hasta, "%Y-%m-%d").date()
+            query = query.filter(Adelanto.fecha_solicitud <= fecha_hasta)
+
+        registros = query.order_by(Adelanto.fecha_solicitud.desc()).all()
+
+        data = []
+        for a in registros:
+            data.append({
+                "Fecha Solicitud": a.fecha_solicitud,
+                "Empleado": a.empleado.name,
+                "Monto": float(a.monto),
+                "Motivo": a.motivo or "",
+                "Aprobado": "Sí" if a.aprobado else "No",
+                "Fecha Aprobación": a.fecha_aprobacion,
+                "Pagado": "Sí" if a.pagado else "No",
+                "Fecha Pago": a.fecha_pago,
+                "Aprobado Por": a.aprobado_por.username if a.aprobado_por else ""
+            })
+
+        filename = "adelantos_rrhh.xlsx"
+
+    else:
+        return jsonify({"error": "Tipo de exportación inválido"}), 400
+
+    df = pd.DataFrame(data)
+
+    # Crear archivo Excel en memoria
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='RRHH', index=False)
+
+    output.seek(0)
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
     )

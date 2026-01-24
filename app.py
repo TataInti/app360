@@ -5,16 +5,15 @@ import logging
 import os
 from dotenv import load_dotenv
 
+# Load environment variables from .env file
+load_dotenv()
+
 from config import Config
 from models import db
 from security import module_allowed
 from exceptions import AppException
 
-
 def create_app():
-    # Load environment variables from .env file
-    load_dotenv()
-    
     app = Flask(__name__)
     app.config.from_object(Config)
 
@@ -87,6 +86,22 @@ def create_app():
 
     app.register_blueprint(ventas_bp)
 
+    from blueprints.tesoreria import tesoreria_bp
+
+    app.register_blueprint(tesoreria_bp)
+
+    from blueprints.comercial import comercial_bp
+
+    app.register_blueprint(comercial_bp)
+
+    from blueprints.gastos import gastos_bp
+
+    app.register_blueprint(gastos_bp)
+
+    from blueprints.bi import bi_bp
+
+    app.register_blueprint(bi_bp)
+
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     # Register error handlers
@@ -109,5 +124,5 @@ def create_app():
 
 if __name__ == '__main__':
     app = create_app()
-    debug_mode = os.getenv("FLASK_DEBUG", "False").lower() == "true"
-    app.run(debug=debug_mode, host='0.0.0.0', port=5001)
+    debug_mode = os.getenv("DEBUG", "False").lower() == "true"
+    app.run(debug=debug_mode, host='127.0.0.1', port=5001)

@@ -1,0 +1,364 @@
+from datetime import datetime, timedelta
+from decimal import Decimal
+
+from flask import Blueprint, request, jsonify
+
+from models import (
+    Client,
+    Comision,
+    ComisionDetalle,
+    Product,
+    Promocion,
+    PromocionAplicada,
+    User,
+    Venta,
+    db,
+)
+from security import protect_blueprint
+
+comercial_bp = Blueprint("comercial", __name__)
+
+protect_blueprint(comercial_bp, "comercial")
+
+
+# Endpoints para Promociones
+
+@comercial_bp.route("/api/comercial/promociones", methods=["GET"])
+def promociones_listar():
+    """Listar promociones activas"""
+    fecha_actual = datetime.now().date()
+
+    query = Promocion.query.filter(
+        Promocion.activo == True,
+        Promocion.fecha_inicio <= fecha_actual,
+        Promocion.fecha_fin >= fecha_actual
+    )
+
+    tipo = request.args.get("tipo")
+    if tipo:
+        query = query.filter(Promocion.tipo == tipo)
+
+    promociones = query.order_by(Promocion.fecha_fin).all()
+
+    return jsonify({
+        "promociones": [{
+            "id": p.id,
+            "nombre": p.nombre,
+            "descripcion": p.descripcion,
+            "tipo": p.tipo,
+            "valor": float(p.valor),
+            "fecha_inicio": p.fecha_inicio.isoformat(),
+            "fecha_fin": p.fecha_fin.isoformat(),
+            "producto": p.producto.name if p.producto else None,
+            "cliente": p.cliente.name if p.cliente else None,
+            "cantidad_minima": p.cantidad_minima,
+            "monto_minimo": float(p.monto_minimo)
+        } for p in promociones]
+    })
+
+
+@comercial_bp.route("/api/comercial/promociones", methods=["POST"])
+def promociones_crear():
+    """Crear nueva promoción"""
+    data = request.get_json()
+
+    required_fields = ["nombre", "tipo", "valor", "fecha_inicio", "fecha_fin"]
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"error": f"Campo requerido: {field}"}), 400
+
+    try:
+        fecha_inicio = datetime.strptime(data["fecha_inicio"], "%Y-%m-%d").date()
+        fecha_fin = datetime.strptime(data["fecha_fin"], "%Y-%m-%d").date()
+        valor = Decimal(str(data["valor"]))
+    except:
+        return jsonify({"error": "Datos de fecha o valor inválidos"}), 400
+
+    if fecha_inicio > fecha_fin:
+        return jsonify({"error": "Fecha de inicio no puede ser posterior a fecha fin"}), 400
+
+    # Validar producto si se especifica
+    producto_id = data.get("producto_id")
+    if producto_id and not Product.query.get(producto_id):
+        return jsonify({"error": "Producto no encontrado"}), 404
+
+    # Validar cliente si se especifica
+    cliente_id = data.get("cliente_id")
+    if cliente_id and not Client.query.get(cliente_id):
+        return jsonify({"error": "Cliente no encontrado"}), 404
+
+    promocion = Promocion(
+        nombre=data["nombre"],
+        descripcion=data.get("descripcion", ""),
+        tipo=data["tipo"],
+        valor=valor,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+        producto_id=producto_id,
+        cliente_id=cliente_id,
+        cantidad_minima=data.get("cantidad_minima", 1),
+        monto_minimo=Decimal(str(data.get("monto_minimo", 0)))
+    )
+
+    db.session.add(promocion)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Promoción creada",
+        "promocion": {
+            "id": promocion.id,
+            "nombre": promocion.nombre,
+            "tipo": promocion.tipo,
+            "valor": float(promocion.valor)
+        }
+    }), 201
+
+
+@comercial_bp.route("/api/comercial/promociones/<int:promocion_id>", methods=["DELETE"])
+def promociones_eliminar(promocion_id):
+    """Desactivar promoción"""
+    promocion = Promocion.query.get_or_404(promocion_id)
+    promocion.activo = False
+    db.session.commit()
+
+    return jsonify({"message": "Promoción desactivada"})
+
+
+# Endpoints para Simulador de Rentabilidad
+
+@comercial_bp.route("/api/comercial/simulador", methods=["POST"])
+def simulador_rentabilidad():
+    """Simular impacto de promoción en rentabilidad"""
+    data = request.get_json()
+
+    promocion_data = data.get("promocion", {})
+    periodo_dias = data.get("periodo_dias", 30)
+
+    # Crear promoción temporal para simulación
+    try:
+        valor = Decimal(str(promocion_data.get("valor", 0)))
+        tipo = promocion_data.get("tipo", "descuento")
+    except:
+        return jsonify({"error": "Datos de promoción inválidos"}), 400
+
+    # Obtener ventas del período
+    fecha_fin = datetime.now().date()
+    fecha_inicio = fecha_fin - timedelta(days=periodo_dias)
+
+    query = Venta.query.filter(Venta.fecha >= fecha_inicio, Venta.fecha <= fecha_fin)
+
+    # Aplicar filtros de promoción
+    producto_id = promocion_data.get("producto_id")
+    cliente_id = promocion_data.get("cliente_id")
+    cantidad_minima = promocion_data.get("cantidad_minima", 1)
+    monto_minimo = Decimal(str(promocion_data.get("monto_minimo", 0)))
+
+    if producto_id:
+        query = query.filter(Venta.producto_id == producto_id)
+    if cliente_id:
+        query = query.filter(Venta.cliente_id == cliente_id)
+
+    ventas = query.all()
+
+    # Simular aplicación de promoción
+    ventas_afectadas = []
+    descuento_total = Decimal('0')
+    margen_perdido_total = Decimal('0')
+
+    for venta in ventas:
+        cantidad = venta.cantidad
+        precio_contrato = venta.precio_contrato
+        precio_efectivo = venta.precio_efectivo
+        subtotal = precio_contrato * cantidad
+
+        # Verificar condiciones
+        if cantidad >= cantidad_minima and subtotal >= monto_minimo:
+            # Calcular descuento según tipo
+            if tipo == "descuento":
+                descuento = subtotal * (valor / 100)
+            elif tipo == "monto_fijo":
+                descuento = min(valor, subtotal)
+            else:
+                descuento = Decimal('0')
+
+            margen_actual = precio_efectivo - precio_contrato
+            margen_perdido = min(descuento, margen_actual)
+
+            ventas_afectadas.append({
+                "venta_id": venta.id,
+                "cliente": venta.cliente.name,
+                "producto": venta.producto.name,
+                "subtotal_original": float(subtotal),
+                "descuento": float(descuento),
+                "margen_perdido": float(margen_perdido)
+            })
+
+            descuento_total += descuento
+            margen_perdido_total += margen_perdido
+
+    return jsonify({
+        "simulacion": {
+            "periodo_dias": periodo_dias,
+            "ventas_total": len(ventas),
+            "ventas_afectadas": len(ventas_afectadas),
+            "descuento_total": float(descuento_total),
+            "margen_perdido_total": float(margen_perdido_total),
+            "impacto_porcentual": float((margen_perdido_total / max(sum(v.precio_contrato * v.cantidad for v in ventas), 1)) * 100)
+        },
+        "detalle_ventas": ventas_afectadas[:10]  # Limitar a 10 para no sobrecargar
+    })
+
+
+# Endpoints para Comisiones
+
+@comercial_bp.route("/api/comercial/comisiones", methods=["GET"])
+def comisiones_listar():
+    """Listar comisiones por período"""
+    periodo = request.args.get("periodo")  # YYYY-MM
+    usuario_id = request.args.get("usuario_id")
+    pagada = request.args.get("pagada")
+
+    query = Comision.query
+
+    if periodo:
+        query = query.filter(Comision.periodo == periodo)
+    if usuario_id:
+        query = query.filter(Comision.usuario_id == usuario_id)
+    if pagada is not None:
+        query = query.filter(Comision.pagada == (pagada.lower() == "true"))
+
+    comisiones = query.order_by(Comision.periodo.desc(), Comision.usuario_id).all()
+
+    return jsonify({
+        "comisiones": [{
+            "id": c.id,
+            "usuario": c.usuario.username if c.usuario else None,
+            "periodo": c.periodo,
+            "tipo_periodo": c.tipo_periodo,
+            "ventas_total": float(c.ventas_total),
+            "comision_total": float(c.comision_total),
+            "porcentaje_promedio": float(c.porcentaje_promedio),
+            "pagada": c.pagada,
+            "fecha_pago": c.fecha_pago.isoformat() if c.fecha_pago else None
+        } for c in comisiones]
+    })
+
+
+@comercial_bp.route("/api/comercial/comisiones/calcular", methods=["POST"])
+def comisiones_calcular():
+    """Calcular comisiones para un período"""
+    data = request.get_json()
+
+    periodo = data.get("periodo")  # YYYY-MM
+    tipo_periodo = data.get("tipo_periodo", "mensual")
+    usuario_id = data.get("usuario_id")  # null = todos los usuarios
+
+    if not periodo:
+        return jsonify({"error": "Período requerido"}), 400
+
+    # Determinar rango de fechas
+    try:
+        if tipo_periodo == "mensual":
+            year, month = map(int, periodo.split("-"))
+            fecha_inicio = datetime(year, month, 1).date()
+            if month == 12:
+                fecha_fin = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+            else:
+                fecha_fin = datetime(year, month + 1, 1).date() - timedelta(days=1)
+        else:
+            return jsonify({"error": "Tipo de período no soportado"}), 400
+    except:
+        return jsonify({"error": "Formato de período inválido"}), 400
+
+    # Obtener usuarios vendedores (asumiendo rol específico)
+    if usuario_id:
+        usuarios = User.query.filter(User.id == usuario_id).all()
+    else:
+        # Por ahora todos los usuarios, en producción filtrar por rol de vendedor
+        usuarios = User.query.all()
+
+    comisiones_creadas = []
+
+    for usuario in usuarios:
+        # Verificar si ya existe comisión para este período
+        comision_existente = Comision.query.filter_by(
+            usuario_id=usuario.id,
+            periodo=periodo
+        ).first()
+
+        if comision_existente:
+            continue
+
+        # Obtener ventas del usuario en el período
+        # Nota: Asumiendo que las ventas están asociadas al usuario que las registró
+        # En un sistema real, podría haber una relación más compleja
+        ventas = Venta.query.filter(
+            Venta.fecha >= fecha_inicio,
+            Venta.fecha <= fecha_fin
+            # Aquí iría el filtro por usuario si existiera la relación
+        ).all()
+
+        if not ventas:
+            continue
+
+        # Calcular comisión (lógica simplificada: 5% del margen)
+        ventas_total = sum(v.precio_contrato * v.cantidad for v in ventas)
+        margen_total = sum((v.precio_efectivo - v.precio_contrato) * v.cantidad for v in ventas)
+        comision_total = margen_total * Decimal('0.05')  # 5% del margen
+        porcentaje_promedio = 5.0  # Simplificado
+
+        # Crear comisión
+        comision = Comision(
+            usuario_id=usuario.id,
+            periodo=periodo,
+            tipo_periodo=tipo_periodo,
+            ventas_total=ventas_total,
+            comision_total=comision_total,
+            porcentaje_promedio=porcentaje_promedio
+        )
+
+        db.session.add(comision)
+        db.session.flush()  # Para obtener el ID
+
+        # Crear detalles
+        for venta in ventas:
+            margen_venta = (venta.precio_efectivo - venta.precio_contrato) * venta.cantidad
+            monto_comision = margen_venta * Decimal('0.05')
+
+            detalle = ComisionDetalle(
+                comision_id=comision.id,
+                venta_id=venta.id,
+                monto_venta=venta.precio_contrato * venta.cantidad,
+                porcentaje_comision=5.0,
+                monto_comision=monto_comision
+            )
+            db.session.add(detalle)
+
+        comisiones_creadas.append({
+            "usuario": usuario.username,
+            "periodo": periodo,
+            "ventas_total": float(ventas_total),
+            "comision_total": float(comision_total)
+        })
+
+    db.session.commit()
+
+    return jsonify({
+        "message": f"Comisiones calculadas para {len(comisiones_creadas)} usuarios",
+        "comisiones": comisiones_creadas
+    })
+
+
+@comercial_bp.route("/api/comercial/comisiones/<int:comision_id>/pagar", methods=["POST"])
+def comisiones_pagar(comision_id):
+    """Marcar comisión como pagada"""
+    comision = Comision.query.get_or_404(comision_id)
+
+    if comision.pagada:
+        return jsonify({"error": "Comisión ya está pagada"}), 400
+
+    comision.pagada = True
+    comision.fecha_pago = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({"message": "Comisión marcada como pagada"})

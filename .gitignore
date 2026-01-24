@@ -6,4 +6,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .env
+.env.example
+.env.production.example
 *.swp

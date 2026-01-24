@@ -23,6 +23,23 @@ def health_check():
         'version': '1.0.0'
     }), 200
 
+@api_rest.route('/login', methods=['POST'])
+def login():
+    """Login endpoint for API"""
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    
+    user = User.query.filter_by(username=username, active=True).first()
+    if user and user.check_password(password):
+        # For simplicity, just return success (session handled by frontend)
+        return jsonify({
+            'user': user.username,
+            'role': user.role,
+            'message': 'Login successful'
+        }), 200
+    return jsonify({'error': 'Invalid credentials'}), 401
+
 # -----------------------------------------------------------------------------
 # PRODUCTS ENDPOINTS
 # -----------------------------------------------------------------------------

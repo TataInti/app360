@@ -1,15 +1,19 @@
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+import csv
+import io
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, redirect, render_template, request, url_for, jsonify, send_file
 
 from models import (
+    Client,
     Lead,
     Location,
     Product,
     Sale,
     StockLevel,
     StockReservation,
+    Venta,
     db,
 )
 from security import protect_blueprint
@@ -152,3 +156,191 @@ def ventas_update_status(sale_id):
     else:
         flash("Estado inválido.", "warning")
     return redirect(url_for("ventas.ventas_detail", sale_id=sale.id))
+
+
+# Endpoints para SGAC - Ventas Integradas
+
+@ventas_bp.route("/api/ventas/importar", methods=["POST"])
+def ventas_importar():
+    """Importar ventas desde archivo CSV del ERP legacy"""
+    if "file" not in request.files:
+        return jsonify({"error": "No se encontró archivo"}), 400
+
+    file = request.files["file"]
+    if file.filename == "" or not file.filename.endswith(".csv"):
+        return jsonify({"error": "Archivo CSV requerido"}), 400
+
+    try:
+        # Leer CSV
+        stream = io.StringIO(file.stream.read().decode("utf-8"))
+        csv_reader = csv.DictReader(stream)
+
+        ventas_importadas = 0
+        errores = []
+
+        for row_num, row in enumerate(csv_reader, start=2):
+            try:
+                # Homologar columnas (asumiendo nombres estándar)
+                fecha_str = row.get("fecha", row.get("date", ""))
+                cliente_codigo = row.get("cliente", row.get("client_code", ""))
+                producto_sku = row.get("producto", row.get("product_sku", ""))
+                cantidad_str = row.get("cantidad", row.get("quantity", ""))
+                precio_contrato_str = row.get("precio_contrato", row.get("contract_price", ""))
+                precio_efectivo_str = row.get("precio_efectivo", row.get("effective_price", ""))
+
+                # Validar datos requeridos
+                if not all([fecha_str, cliente_codigo, producto_sku, cantidad_str, precio_contrato_str, precio_efectivo_str]):
+                    errores.append(f"Fila {row_num}: Datos incompletos")
+                    continue
+
+                # Parsear fecha
+                try:
+                    fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+                except ValueError:
+                    errores.append(f"Fila {row_num}: Fecha inválida")
+                    continue
+
+                # Parsear números
+                try:
+                    cantidad = int(cantidad_str)
+                    precio_contrato = Decimal(precio_contrato_str.replace(",", "."))
+                    precio_efectivo = Decimal(precio_efectivo_str.replace(",", "."))
+                except (ValueError, InvalidOperation):
+                    errores.append(f"Fila {row_num}: Valores numéricos inválidos")
+                    continue
+
+                # Buscar o crear cliente
+                cliente = Client.query.filter_by(code=cliente_codigo).first()
+                if not cliente:
+                    cliente = Client(name=cliente_codigo, code=cliente_codigo)
+                    db.session.add(cliente)
+                    db.session.flush()
+
+                # Buscar producto
+                producto = Product.query.filter_by(sku=producto_sku).first()
+                if not producto:
+                    errores.append(f"Fila {row_num}: Producto {producto_sku} no encontrado")
+                    continue
+
+                # Crear venta
+                venta = Venta(
+                    fecha=fecha,
+                    cliente_id=cliente.id,
+                    producto_id=producto.id,
+                    cantidad=cantidad,
+                    precio_contrato=precio_contrato,
+                    precio_efectivo=precio_efectivo
+                )
+                db.session.add(venta)
+                ventas_importadas += 1
+
+            except Exception as e:
+                errores.append(f"Fila {row_num}: {str(e)}")
+
+        db.session.commit()
+
+        return jsonify({
+            "message": f"Importación completada. {ventas_importadas} ventas importadas.",
+            "importadas": ventas_importadas,
+            "errores": errores
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error en importación: {str(e)}"}), 500
+
+
+@ventas_bp.route("/api/ventas/listar", methods=["GET"])
+def ventas_listar():
+    """Listar ventas importadas con filtros"""
+    # Filtros
+    fecha_desde = request.args.get("fecha_desde")
+    fecha_hasta = request.args.get("fecha_hasta")
+    cliente_id = request.args.get("cliente_id")
+    producto_id = request.args.get("producto_id")
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 50))
+
+    query = Venta.query
+
+    if fecha_desde:
+        query = query.filter(Venta.fecha >= datetime.strptime(fecha_desde, "%Y-%m-%d").date())
+    if fecha_hasta:
+        query = query.filter(Venta.fecha <= datetime.strptime(fecha_hasta, "%Y-%m-%d").date())
+    if cliente_id:
+        query = query.filter(Venta.cliente_id == cliente_id)
+    if producto_id:
+        query = query.filter(Venta.producto_id == producto_id)
+
+    # Paginación
+    ventas = query.order_by(Venta.fecha.desc()).paginate(page=page, per_page=per_page, error_out=False)
+
+    return jsonify({
+        "ventas": [{
+            "id": v.id,
+            "fecha": v.fecha.isoformat(),
+            "cliente": v.cliente.name,
+            "producto": v.producto.name,
+            "cantidad": v.cantidad,
+            "precio_contrato": float(v.precio_contrato),
+            "precio_efectivo": float(v.precio_efectivo),
+            "margen": float(v.precio_efectivo - v.precio_contrato)
+        } for v in ventas.items],
+        "total": ventas.total,
+        "pages": ventas.pages,
+        "current_page": ventas.page
+    })
+
+
+@ventas_bp.route("/api/ventas/exportar", methods=["GET"])
+def ventas_exportar():
+    """Exportar ventas filtradas a Excel"""
+    # Aplicar mismos filtros que listar
+    fecha_desde = request.args.get("fecha_desde")
+    fecha_hasta = request.args.get("fecha_hasta")
+    cliente_id = request.args.get("cliente_id")
+    producto_id = request.args.get("producto_id")
+
+    query = Venta.query
+
+    if fecha_desde:
+        query = query.filter(Venta.fecha >= datetime.strptime(fecha_desde, "%Y-%m-%d").date())
+    if fecha_hasta:
+        query = query.filter(Venta.fecha <= datetime.strptime(fecha_hasta, "%Y-%m-%d").date())
+    if cliente_id:
+        query = query.filter(Venta.cliente_id == cliente_id)
+    if producto_id:
+        query = query.filter(Venta.producto_id == producto_id)
+
+    ventas = query.order_by(Venta.fecha.desc()).all()
+
+    # Crear CSV en memoria
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Headers
+    writer.writerow([
+        "Fecha", "Cliente", "Producto", "Cantidad",
+        "Precio Contrato", "Precio Efectivo", "Margen"
+    ])
+
+    # Datos
+    for v in ventas:
+        writer.writerow([
+            v.fecha.isoformat(),
+            v.cliente.name,
+            v.producto.name,
+            v.cantidad,
+            float(v.precio_contrato),
+            float(v.precio_efectivo),
+            float(v.precio_efectivo - v.precio_contrato)
+        ])
+
+    output.seek(0)
+
+    return send_file(
+        io.BytesIO(output.getvalue().encode("utf-8")),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name="ventas_exportadas.csv"
+    )
