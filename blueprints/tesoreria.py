@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, render_template
 
 from models import (
     ArqueoCaja,
@@ -15,6 +15,25 @@ from security import protect_blueprint
 tesoreria_bp = Blueprint("tesoreria", __name__)
 
 protect_blueprint(tesoreria_bp, "tesoreria")
+
+
+# RUTAS WEB
+@tesoreria_bp.route("/tesoreria", methods=["GET"])
+def tesoreria_dashboard():
+    """Dashboard principal de Tesorería"""
+    return render_template("tesoreria_panel.html")
+
+
+@tesoreria_bp.route("/tesoreria/arqueos", methods=["GET"])
+def tesoreria_arqueos():
+    """Vista de arqueos de caja"""
+    return render_template("tesoreria_panel.html")
+
+
+@tesoreria_bp.route("/tesoreria/movimientos", methods=["GET"])
+def tesoreria_movimientos():
+    """Vista de movimientos"""
+    return render_template("tesoreria_panel.html")
 
 
 # Endpoints para Tesorería Multicanal

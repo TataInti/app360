@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 import io
 
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file, render_template
 
 from models import (
     Adelanto,
@@ -17,6 +17,19 @@ from security import protect_blueprint
 rrhh_bp = Blueprint("rrhh", __name__)
 
 protect_blueprint(rrhh_bp, "rrhh")
+
+
+# RUTAS WEB
+@rrhh_bp.route("/rrhh/adelantos", methods=["GET"])
+def rrhh_adelantos():
+    """Vista de adelantos de salario"""
+    return render_template("rrhh_adelantos.html")
+
+
+@rrhh_bp.route("/rrhh/ausentismo", methods=["GET"])
+def rrhh_ausentismo():
+    """Vista de ausentismo"""
+    return render_template("rrhh_ausentismo.html")
 
 
 # Endpoints para Turnos

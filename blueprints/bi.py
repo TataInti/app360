@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 import io
 
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file, render_template
 from sqlalchemy import func, desc, extract
 
 from models import (
@@ -24,6 +24,13 @@ from security import protect_blueprint
 bi_bp = Blueprint("bi", __name__)
 
 protect_blueprint(bi_bp, "panel")  # Usar permisos de panel ejecutivo
+
+
+# RUTAS WEB
+@bi_bp.route("/bi", methods=["GET"])
+def bi_dashboard_web():
+    """Dashboard de Business Intelligence"""
+    return render_template("bi_dashboard.html")
 
 
 # Endpoint principal del dashboard BI
