@@ -14,8 +14,9 @@ ACCESS_MAP = {
     "gerente": ["all"],  # Alias para manager
     "sales": ["crm", "ventas", "dashboard_comercial", "comercial"],
     "purchases": ["compras", "dashboard", "gastos"],
-    "hr": ["rrhh", "asistencia", "objetivos", "clima"],
+    "hr": ["rrhh", "asistencia", "objetivos", "clima", "adelantos", "ausentismo"],
     "operations": ["compras", "stock", "locations", "products", "dashboard"],
+    "finance": ["tesoreria", "arqueos", "movimientos", "gastos", "bi", "panel"],
 }
 
 MODULE_ROUTES = {
@@ -29,11 +30,17 @@ MODULE_ROUTES = {
     "asistencia": "/rrhh/asistencia",
     "objetivos": "/rrhh/objetivos",
     "clima": "/rrhh/clima",
+    "adelantos": "/rrhh/adelantos",
+    "ausentismo": "/rrhh/ausentismo",
     "stock": "/stock",
     "locations": "/locations",
     "products": "/products",
     "comercial": "/comercial",
     "gastos": "/gastos",
+    "tesoreria": "/tesoreria",
+    "arqueos": "/tesoreria/arqueos",
+    "movimientos": "/tesoreria/movimientos",
+    "bi": "/bi",
 }
 
 
