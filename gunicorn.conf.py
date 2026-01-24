@@ -18,8 +18,8 @@ max_requests_jitter = 50
 
 # Logging
 loglevel = "info"
-accesslog = "/Users/intipalaciofernandez/Library/CloudStorage/OneDrive-ActioBusinessPartners/-Software/app360/logs/access.log"
-errorlog = "/Users/intipalaciofernandez/Library/CloudStorage/OneDrive-ActioBusinessPartners/-Software/app360/logs/error.log"
+accesslog = "logs/access.log"
+errorlog = "logs/error.log"
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 
 # Process naming
@@ -27,7 +27,7 @@ proc_name = "app360"
 
 # Server mechanics
 daemon = False
-pidfile = "/Users/intipalaciofernandez/Library/CloudStorage/OneDrive-ActioBusinessPartners/-Software/app360/logs/gunicorn.pid"
+pidfile = "logs/gunicorn.pid"
 user = None
 group = None
 tmp_upload_dir = None
