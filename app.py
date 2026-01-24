@@ -3,6 +3,7 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf.csrf import CSRFProtect
+from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 from pythonjsonlogger import json as jsonlogger
 import logging
@@ -25,6 +26,7 @@ limiter = Limiter(
     storage_uri="memory://",
 )
 csrf = CSRFProtect()
+migrate = Migrate()
 
 
 def setup_logging(app):
@@ -99,6 +101,7 @@ def create_app():
     CORS(app, origins=app.config["CORS_ORIGINS"])
 
     db.init_app(app)
+    migrate.init_app(app, db)
 
     # Security headers middleware
     @app.after_request
