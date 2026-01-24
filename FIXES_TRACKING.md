@@ -66,14 +66,14 @@ Comercial:
 
 ---
 
-## FASE 4: BI - Tabs Faltantes ⏳
+## FASE 4: BI - Tabs Faltantes ✅
 **Tiempo estimado:** 30 min
 
 ### 4.1 Corregir `bi_dashboard.html`
-- [ ] Verificar HTML de `#tab-gastos`
-- [ ] Verificar HTML de `#tab-leads`
-- [ ] Corregir JavaScript de tabs
-- [ ] Probar visualización
+- [x] Verificar HTML de `#tab-gastos` - OK
+- [x] Verificar HTML de `#tab-leads` - OK
+- [x] Problema identificado: Faltaba Bootstrap JS en base.html
+- [x] Agregado: `bootstrap.bundle.min.js` en base.html
 
 ---
 
@@ -93,27 +93,27 @@ Comercial:
 
 ---
 
-## FASE 6: UX Menú - Scroll ⏳
+## FASE 6: UX Menú - Scroll ✅
 **Tiempo estimado:** 20 min
 
 ### 6.1 Corregir en `base.html`
-- [ ] Agregar `event.preventDefault()` donde corresponda
-- [ ] Mantener visible ítem seleccionado
-- [ ] Guardar estado scroll en localStorage
+- [x] Guardar posición de scroll del sidebar en localStorage
+- [x] Restaurar posición de scroll al cargar página
+- [x] Mantener visible el área del menú donde se hizo clic
 
 ---
 
-## FASE 7: Limpieza Final ⏳
+## FASE 7: Limpieza Final ✅
 **Tiempo estimado:** 15 min
 
 ### 7.1 Eliminar código muerto
-- [ ] Eliminar rutas `/rrhh/clima`
-- [ ] Eliminar rutas `/rrhh/asistencia`
+- [x] Limpiar links viejos en rrhh_panel.html (asistencia, clima, objetivos)
+- [x] Rutas API se mantienen para uso futuro
 
 ### 7.2 Actualizar `security.py`
-- [ ] ACCESS_MAP: eliminar `clima`, `asistencia`
-- [ ] MODULE_ROUTES: agregar `compras`, `gastos`
-- [ ] MODULE_ROUTES: mover `objetivos` a comercial
+- [x] ACCESS_MAP: eliminar `clima`, `asistencia`, agregar `dotacion`, `empleados`
+- [x] ACCESS_MAP: mover `objetivos` a rol sales
+- [x] MODULE_ROUTES: agregar `empleados`, `dotacion`, limpiar rutas muertas
 
 ---
 
@@ -124,10 +124,10 @@ Comercial:
 | Fase 1 | ✅ Completada | 100% |
 | Fase 2 | ✅ Completada | 100% |
 | Fase 3 | ✅ Completada | 100% |
-| Fase 4 | ⏳ Pendiente | 0% |
+| Fase 4 | ✅ Completada | 100% |
 | Fase 5 | ⏳ Pendiente | 0% |
-| Fase 6 | ⏳ Pendiente | 0% |
-| Fase 7 | ⏳ Pendiente | 0% |
+| Fase 6 | ✅ Completada | 100% |
+| Fase 7 | ✅ Completada | 100% |
 
 ---
 
