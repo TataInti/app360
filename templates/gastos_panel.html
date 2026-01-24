@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+{% block title %}Panel de Gastos{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-cash-stack"></i> Panel de Gastos</h1>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#nuevoGastoModal">
+            <i class="bi bi-plus-circle"></i> Registrar Gasto
+        </button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Fecha Desde</label>
+                    <input type="date" id="fechaDesde" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Fecha Hasta</label>
+                    <input type="date" id="fechaHasta" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Categoría</label>
+                    <select id="categoriaFiltro" class="form-select">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button class="btn btn-secondary w-100" onclick="cargarGastos()">
+                        <i class="bi bi-search"></i> Filtrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h6>Total Gastos (Período)</h6>
+                    <h2 id="totalGastos">$0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h6>Gastos Pendientes</h6>
+                    <h2 id="gastosPendientes">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h6>Gastos Pagados</h6>
+                    <h2 id="gastosPagados">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h6>Promedio Mensual</h6>
+                    <h2 id="promedioMensual">$0</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráfico -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-bar-chart"></i> Gastos por Categoría</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="chartCategorias" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-pie-chart"></i> Distribución</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="chartDistribucion" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Gastos -->
+    <div class="card">
+        <div class="card-header">
+            <h5><i class="bi bi-table"></i> Listado de Gastos</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Descripción</th>
+                            <th>Categoría</th>
+                            <th>Proveedor</th>
+                            <th>Monto</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaGastos">
+                        <tr>
+                            <td colspan="7" class="text-center">Cargando...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nuevo Gasto -->
+<div class="modal fade" id="nuevoGastoModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Registrar Nuevo Gasto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNuevoGasto">
+                    <div class="mb-3">
+                        <label class="form-label">Descripción *</label>
+                        <input type="text" name="descripcion" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Categoría *</label>
+                        <select name="categoria_id" id="categoriaSelect" class="form-select" required>
+                            <option value="">Seleccionar...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Proveedor</label>
+                        <select name="proveedor_id" id="proveedorSelect" class="form-select">
+                            <option value="">Sin proveedor</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Monto *</label>
+                            <input type="number" name="monto" class="form-control" step="0.01" min="0" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Fecha *</label>
+                            <input type="date" name="fecha" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Estado</label>
+                        <select name="estado" class="form-select">
+                            <option value="pendiente">Pendiente</option>
+                            <option value="pagado">Pagado</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notas</label>
+                        <textarea name="notas" class="form-control" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarGasto()">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let chartCategorias = null;
+let chartDistribucion = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Fechas por defecto (último mes)
+    const hoy = new Date();
+    const hace30 = new Date(hoy.getTime() - 30*24*60*60*1000);
+    document.getElementById('fechaHasta').value = hoy.toISOString().split('T')[0];
+    document.getElementById('fechaDesde').value = hace30.toISOString().split('T')[0];
+    document.querySelector('input[name="fecha"]').value = hoy.toISOString().split('T')[0];
+    
+    cargarCategorias();
+    cargarProveedores();
+    cargarGastos();
+});
+
+async function cargarCategorias() {
+    try {
+        const resp = await fetch('/api/gastos/categorias');
+        const data = await resp.json();
+        const select = document.getElementById('categoriaSelect');
+        const filtro = document.getElementById('categoriaFiltro');
+        data.categorias.forEach(c => {
+            select.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+            filtro.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+        });
+    } catch(e) {
+        console.error('Error cargando categorías:', e);
+    }
+}
+
+async function cargarProveedores() {
+    try {
+        const resp = await fetch('/api/gastos/proveedores');
+        const data = await resp.json();
+        const select = document.getElementById('proveedorSelect');
+        if (data.proveedores) {
+            data.proveedores.forEach(p => {
+                select.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
+            });
+        }
+    } catch(e) {
+        console.error('Error cargando proveedores:', e);
+    }
+}
+
+async function cargarGastos() {
+    const desde = document.getElementById('fechaDesde').value;
+    const hasta = document.getElementById('fechaHasta').value;
+    const categoria = document.getElementById('categoriaFiltro').value;
+    
+    let url = `/api/gastos?fecha_desde=${desde}&fecha_hasta=${hasta}`;
+    if (categoria) url += `&categoria_id=${categoria}`;
+    
+    try {
+        const resp = await fetch(url);
+        const data = await resp.json();
+        
+        // Actualizar KPIs
+        let total = 0, pendientes = 0, pagados = 0;
+        const gastos = data.gastos || [];
+        
+        gastos.forEach(g => {
+            total += parseFloat(g.monto);
+            if (g.estado === 'pendiente') pendientes++;
+            else if (g.estado === 'pagado') pagados++;
+        });
+        
+        document.getElementById('totalGastos').textContent = '$' + total.toLocaleString('es-AR');
+        document.getElementById('gastosPendientes').textContent = pendientes;
+        document.getElementById('gastosPagados').textContent = pagados;
+        document.getElementById('promedioMensual').textContent = '$' + (total / 1).toLocaleString('es-AR');
+        
+        // Actualizar tabla
+        const tbody = document.getElementById('tablaGastos');
+        if (gastos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay gastos registrados</td></tr>';
+        } else {
+            tbody.innerHTML = gastos.map(g => `
+                <tr>
+                    <td>${g.fecha}</td>
+                    <td>${g.descripcion}</td>
+                    <td>${g.categoria || '-'}</td>
+                    <td>${g.proveedor || '-'}</td>
+                    <td>$${parseFloat(g.monto).toLocaleString('es-AR')}</td>
+                    <td><span class="badge ${g.estado === 'pagado' ? 'bg-success' : 'bg-warning'}">${g.estado}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editarGasto(${g.id})">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        // Actualizar gráficos
+        actualizarGraficos(gastos);
+    } catch(e) {
+        console.error('Error cargando gastos:', e);
+        document.getElementById('tablaGastos').innerHTML = 
+            '<tr><td colspan="7" class="text-center text-danger">Error al cargar datos</td></tr>';
+    }
+}
+
+function actualizarGraficos(gastos) {
+    // Agrupar por categoría
+    const porCategoria = {};
+    gastos.forEach(g => {
+        const cat = g.categoria || 'Sin categoría';
+        porCategoria[cat] = (porCategoria[cat] || 0) + parseFloat(g.monto);
+    });
+    
+    const labels = Object.keys(porCategoria);
+    const valores = Object.values(porCategoria);
+    const colores = ['#dc3545', '#fd7e14', '#ffc107', '#28a745', '#17a2b8', '#6f42c1', '#e83e8c'];
+    
+    // Gráfico de barras
+    if (chartCategorias) chartCategorias.destroy();
+    const ctx1 = document.getElementById('chartCategorias').getContext('2d');
+    chartCategorias = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Monto ($)',
+                data: valores,
+                backgroundColor: colores.slice(0, labels.length)
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } }
+        }
+    });
+    
+    // Gráfico de torta
+    if (chartDistribucion) chartDistribucion.destroy();
+    const ctx2 = document.getElementById('chartDistribucion').getContext('2d');
+    chartDistribucion = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: valores,
+                backgroundColor: colores.slice(0, labels.length)
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+}
+
+async function guardarGasto() {
+    const form = document.getElementById('formNuevoGasto');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+    
+    try {
+        const resp = await fetch('/api/gastos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        if (resp.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('nuevoGastoModal')).hide();
+            form.reset();
+            cargarGastos();
+        } else {
+            const err = await resp.json();
+            alert('Error: ' + (err.error || 'No se pudo guardar'));
+        }
+    } catch(e) {
+        alert('Error de conexión');
+    }
+}
+
+function editarGasto(id) {
+    alert('Función editar en desarrollo - ID: ' + id);
+}
+</script>
+{% endblock %}

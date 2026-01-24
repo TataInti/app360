@@ -20,6 +20,24 @@ protect_blueprint(rrhh_bp, "rrhh")
 
 
 # RUTAS WEB
+@rrhh_bp.route("/rrhh", methods=["GET"])
+def rrhh_panel():
+    """Panel principal de RRHH"""
+    return render_template("rrhh_panel.html")
+
+
+@rrhh_bp.route("/rrhh/empleados", methods=["GET"])
+def rrhh_empleados():
+    """Vista de empleados"""
+    return render_template("rrhh_empleados.html")
+
+
+@rrhh_bp.route("/rrhh/dotacion", methods=["GET"])
+def rrhh_dotacion():
+    """Vista de dotación"""
+    return render_template("rrhh_dotacion.html")
+
+
 @rrhh_bp.route("/rrhh/adelantos", methods=["GET"])
 def rrhh_adelantos():
     """Vista de adelantos de salario"""

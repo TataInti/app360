@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import io
 
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file, render_template
 
 from models import (
     CategoriaGasto,
@@ -16,6 +16,13 @@ from security import protect_blueprint
 gastos_bp = Blueprint("gastos", __name__)
 
 protect_blueprint(gastos_bp, "compras")  # Usar rol de compras para gastos
+
+
+# RUTAS WEB
+@gastos_bp.route("/gastos", methods=["GET"])
+def gastos_panel():
+    """Panel principal de gastos"""
+    return render_template("gastos_panel.html")
 
 
 # Endpoints para Categorías de Gastos
