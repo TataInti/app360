@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">Adelantos de Sueldo - RRHH</h1>
+
+    <!-- Filtros -->
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <label class="form-label">Estado</label>
+            <select class="form-control" id="filtro-estado" onchange="cargarAdelantos()">
+                <option value="">Todos</option>
+                <option value="pendiente">Pendientes</option>
+                <option value="aprobado">Aprobados</option>
+                <option value="pagado">Pagados</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Empleado</label>
+            <input type="text" class="form-control" id="filtro-empleado" placeholder="Buscar empleado...">
+        </div>
+        <div class="col-md-4 d-flex align-items-end gap-2">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoAdelanto">
+                <i class="bi bi-plus-circle"></i> Nuevo Adelanto
+            </button>
+        </div>
+    </div>
+
+    <!-- Resumen -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-light">
+                <div class="card-body">
+                    <h6 class="card-title">Total Adelantado</h6>
+                    <h3 id="total-adelantado">$0.00</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning">
+                <div class="card-body">
+                    <h6 class="card-title">Pendientes de Aprobación</h6>
+                    <h3 id="count-pendientes">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Aprobados</h6>
+                    <h3 id="count-aprobados">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Pagados</h6>
+                    <h3 id="count-pagados">0</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Adelantos -->
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Empleado</th>
+                    <th>Monto</th>
+                    <th>Fecha Solicitud</th>
+                    <th>Motivo</th>
+                    <th>Estado Aprobación</th>
+                    <th>Estado Pago</th>
+                    <th>Aprobado por</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-adelantos">
+                <tr><td colspan="8" class="text-center">Cargando...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Nuevo Adelanto -->
+<div class="modal fade" id="modalNuevoAdelanto" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Solicitar Adelanto de Sueldo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formAdelanto">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Empleado</label>
+                        <select class="form-control" name="empleado_id" required id="select-empleado">
+                            <option>Cargando...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Monto</label>
+                        <input type="number" class="form-control" name="monto" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Motivo</label>
+                        <textarea class="form-control" name="motivo" rows="3" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Crear Solicitud</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Aprobar/Rechazar -->
+<div class="modal fade" id="modalAprobar" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Aprobar Adelanto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formAprobar">
+                <div class="modal-body">
+                    <p>¿Confirmar aprobación del adelanto?</p>
+                    <input type="hidden" id="adelanto-id" name="adelanto_id">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">Aprobar</button>
+                    <button type="button" class="btn btn-danger" onclick="rechazarAdelanto()">Rechazar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function cargarAdelantos() {
+        const estado = document.getElementById('filtro-estado').value;
+        const url = estado ? `/api/rrhh/adelantos?estado=${estado}` : '/api/rrhh/adelantos';
+
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                actualizarTabla(data.adelantos || []);
+                actualizarResumen(data.adelantos || []);
+                cargarEmpleados();
+            })
+            .catch(e => console.error('Error:', e));
+    }
+
+    function actualizarTabla(adelantos) {
+        const tbody = document.getElementById('tabla-adelantos');
+        if (!adelantos.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center">Sin adelantos</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = adelantos.map(a => `
+            <tr>
+                <td>${a.empleado}</td>
+                <td>$${parseFloat(a.monto).toFixed(2)}</td>
+                <td>${new Date(a.fecha_solicitud).toLocaleDateString()}</td>
+                <td>${a.motivo.substring(0, 50)}...</td>
+                <td>
+                    <span class="badge ${a.aprobado ? 'bg-success' : 'bg-warning'}">
+                        ${a.aprobado ? 'Aprobado' : 'Pendiente'}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge ${a.pagado ? 'bg-success' : 'bg-secondary'}">
+                        ${a.pagado ? 'Pagado' : 'No Pagado'}
+                    </span>
+                </td>
+                <td>${a.aprobado_por || '-'}</td>
+                <td>
+                    ${!a.aprobado ? `<button class="btn btn-sm btn-warning" onclick="abrirAprobar(${a.id})">Revisar</button>` : ''}
+                    ${a.aprobado && !a.pagado ? `<button class="btn btn-sm btn-success" onclick="marcarPagado(${a.id})">Marcar Pagado</button>` : ''}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function actualizarResumen(adelantos) {
+        const total = adelantos.reduce((sum, a) => sum + parseFloat(a.monto), 0);
+        const pendientes = adelantos.filter(a => !a.aprobado).length;
+        const aprobados = adelantos.filter(a => a.aprobado && !a.pagado).length;
+        const pagados = adelantos.filter(a => a.pagado).length;
+
+        document.getElementById('total-adelantado').textContent = '$' + total.toFixed(2);
+        document.getElementById('count-pendientes').textContent = pendientes;
+        document.getElementById('count-aprobados').textContent = aprobados;
+        document.getElementById('count-pagados').textContent = pagados;
+    }
+
+    function cargarEmpleados() {
+        fetch('/api/rrhh/empleados')
+            .then(r => r.json())
+            .then(data => {
+                const select = document.getElementById('select-empleado');
+                select.innerHTML = (data.empleados || []).map(e => 
+                    `<option value="${e.id}">${e.nombre}</option>`
+                ).join('');
+            })
+            .catch(e => console.error('Error empleados:', e));
+    }
+
+    function abrirAprobar(id) {
+        document.getElementById('adelanto-id').value = id;
+        new bootstrap.Modal(document.getElementById('modalAprobar')).show();
+    }
+
+    document.getElementById('formAdelanto')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const data = {
+            empleado_id: parseInt(formData.get('empleado_id')),
+            monto: parseFloat(formData.get('monto')),
+            motivo: formData.get('motivo')
+        };
+
+        fetch('/api/rrhh/adelantos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.message) {
+                alert('Adelanto creado');
+                bootstrap.Modal.getInstance(document.getElementById('modalNuevoAdelanto')).hide();
+                cargarAdelantos();
+            }
+        })
+        .catch(e => console.error('Error:', e));
+    });
+
+    document.getElementById('formAprobar')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const id = document.getElementById('adelanto-id').value;
+        
+        fetch(`/api/rrhh/adelantos/${id}/aprobar`, { method: 'POST' })
+            .then(r => r.json())
+            .then(d => {
+                if (d.message) {
+                    alert('Adelanto aprobado');
+                    bootstrap.Modal.getInstance(document.getElementById('modalAprobar')).hide();
+                    cargarAdelantos();
+                }
+            })
+            .catch(e => console.error('Error:', e));
+    });
+
+    function marcarPagado(id) {
+        if (confirm('¿Confirmar pago del adelanto?')) {
+            fetch(`/api/rrhh/adelantos/${id}/pagar`, { method: 'POST' })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.message) {
+                        alert('Adelanto marcado como pagado');
+                        cargarAdelantos();
+                    }
+                })
+                .catch(e => console.error('Error:', e));
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', cargarAdelantos);
+</script>
+{% endblock %}

@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">BI / Inteligencia de Negocios</h1>
+
+    <!-- KPIs Principales -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Ventas Total (30 días)</h6>
+                    <h3 id="kpi-ventas">Cargando...</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Gasto Total (30 días)</h6>
+                    <h3 id="kpi-gastos">Cargando...</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Leads Generados</h6>
+                    <h3 id="kpi-leads">Cargando...</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <h6 class="card-title">Margen Neto</h6>
+                    <h3 id="kpi-margen">Cargando...</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros de Fecha -->
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <div class="input-group">
+                <label class="input-group-text">Desde:</label>
+                <input type="date" id="fecha-desde" class="form-control" value="2026-01-01">
+                <label class="input-group-text">Hasta:</label>
+                <input type="date" id="fecha-hasta" class="form-control" value="2026-01-24">
+                <button class="btn btn-primary" onclick="cargarDatos()">Actualizar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="charts-row">
+        <div class="chart-card">
+            <h6 class="text-white mb-3">Ventas Diarias (últimos 30 días)</h6>
+            <canvas id="ventasChart"></canvas>
+        </div>
+        <div class="chart-card">
+            <h6 class="text-white mb-3">Distribución por Categoría</h6>
+            <canvas id="categoriasChart"></canvas>
+        </div>
+    </div>
+
+    <div class="charts-row mt-4">
+        <div class="chart-card">
+            <h6 class="text-white mb-3">Tendencia de Gastos</h6>
+            <canvas id="gastosChart"></canvas>
+        </div>
+        <div class="chart-card">
+            <h6 class="text-white mb-3">Conversión de Leads</h6>
+            <canvas id="conversionChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Tabla de Datos -->
+    <div class="mt-5">
+        <h5>Análisis Detallado</h5>
+        <ul class="nav nav-tabs">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#tab-ventas">Ventas Top</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#tab-gastos">Gastos Top</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#tab-leads">Leads Activos</a>
+            </li>
+        </ul>
+
+        <div class="tab-content border p-3 bg-light">
+            <div id="tab-ventas" class="tab-pane fade show active">
+                <table class="table table-sm" id="tabla-ventas">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Monto</th>
+                            <th>Fecha</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-ventas">
+                        <tr><td colspan="3">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="tab-gastos" class="tab-pane fade">
+                <table class="table table-sm" id="tabla-gastos">
+                    <thead>
+                        <tr>
+                            <th>Concepto</th>
+                            <th>Monto</th>
+                            <th>Categoría</th>
+                            <th>Fecha</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-gastos">
+                        <tr><td colspan="4">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="tab-leads" class="tab-pane fade">
+                <table class="table table-sm" id="tabla-leads">
+                    <thead>
+                        <tr>
+                            <th>Empresa</th>
+                            <th>Contacto</th>
+                            <th>Estado</th>
+                            <th>Valor Potencial</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-leads">
+                        <tr><td colspan="4">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let ventasChart, categoriasChart, gastosChart, conversionChart;
+
+    function cargarDatos() {
+        const fechaDesde = document.getElementById('fecha-desde').value;
+        const fechaHasta = document.getElementById('fecha-hasta').value;
+
+        fetch(`/api/bi/dashboard?fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}`)
+            .then(r => r.json())
+            .then(data => {
+                // KPIs
+                document.getElementById('kpi-ventas').textContent = '$' + (data.kpis?.ventas_total || 0).toFixed(2);
+                document.getElementById('kpi-gastos').textContent = '$' + (data.kpis?.gastos_total || 0).toFixed(2);
+                document.getElementById('kpi-leads').textContent = data.kpis?.leads_generados || 0;
+                document.getElementById('kpi-margen').textContent = ((data.kpis?.margen_neto || 0) * 100).toFixed(1) + '%';
+
+                // Gráficos de ventas
+                actualizarGraficoVentas(data.ventas_diarias || {});
+                actualizarGraficoCategorias(data.ventas_por_categoria || {});
+                actualizarGraficoGastos(data.gastos_diarios || {});
+                actualizarGraficoConversion(data.conversion_leads || {});
+
+                // Tablas
+                actualizarTablaVentas(data.ventas_top || []);
+                actualizarTablaGastos(data.gastos_top || []);
+                actualizarTablaLeads(data.leads_activos || []);
+            })
+            .catch(e => console.error('Error cargando datos:', e));
+    }
+
+    function actualizarGraficoVentas(datos) {
+        const ctx = document.getElementById('ventasChart').getContext('2d');
+        if (ventasChart) ventasChart.destroy();
+        ventasChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Object.keys(datos),
+                datasets: [{
+                    label: 'Ventas Diarias',
+                    data: Object.values(datos),
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                    tension: 0.4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: true }
+        });
+    }
+
+    function actualizarGraficoCategorias(datos) {
+        const ctx = document.getElementById('categoriasChart').getContext('2d');
+        if (categoriasChart) categoriasChart.destroy();
+        categoriasChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(datos),
+                datasets: [{
+                    data: Object.values(datos),
+                    backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: true }
+        });
+    }
+
+    function actualizarGraficoGastos(datos) {
+        const ctx = document.getElementById('gastosChart').getContext('2d');
+        if (gastosChart) gastosChart.destroy();
+        gastosChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(datos),
+                datasets: [{
+                    label: 'Gastos Diarios',
+                    data: Object.values(datos),
+                    backgroundColor: '#ef4444'
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: true }
+        });
+    }
+
+    function actualizarGraficoConversion(datos) {
+        const ctx = document.getElementById('conversionChart').getContext('2d');
+        if (conversionChart) conversionChart.destroy();
+        conversionChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(datos),
+                datasets: [{
+                    label: 'Conversión (%)',
+                    data: Object.values(datos),
+                    backgroundColor: '#10b981'
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: true }
+        });
+    }
+
+    function actualizarTablaVentas(ventas) {
+        const tbody = document.getElementById('tbody-ventas');
+        tbody.innerHTML = ventas.map(v => `
+            <tr>
+                <td>${v.cliente || 'N/A'}</td>
+                <td>$${(v.monto || 0).toFixed(2)}</td>
+                <td>${v.fecha || 'N/A'}</td>
+            </tr>
+        `).join('') || '<tr><td colspan="3">Sin datos</td></tr>';
+    }
+
+    function actualizarTablaGastos(gastos) {
+        const tbody = document.getElementById('tbody-gastos');
+        tbody.innerHTML = gastos.map(g => `
+            <tr>
+                <td>${g.descripcion || 'N/A'}</td>
+                <td>$${(g.monto || 0).toFixed(2)}</td>
+                <td>${g.categoria || 'N/A'}</td>
+                <td>${g.fecha || 'N/A'}</td>
+            </tr>
+        `).join('') || '<tr><td colspan="4">Sin datos</td></tr>';
+    }
+
+    function actualizarTablaLeads(leads) {
+        const tbody = document.getElementById('tbody-leads');
+        tbody.innerHTML = leads.map(l => `
+            <tr>
+                <td>${l.empresa || 'N/A'}</td>
+                <td>${l.contacto || 'N/A'}</td>
+                <td><span class="badge bg-info">${l.estado || 'Pendiente'}</span></td>
+                <td>$${(l.valor_potencial || 0).toFixed(2)}</td>
+            </tr>
+        `).join('') || '<tr><td colspan="4">Sin datos</td></tr>';
+    }
+
+    // Cargar datos al iniciar
+    document.addEventListener('DOMContentLoaded', cargarDatos);
+</script>
+
+<style>
+    .chart-card h6 {
+        font-weight: 600;
+    }
+    .tab-content {
+        border-top: none;
+    }
+</style>
+{% endblock %}

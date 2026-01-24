@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">Tesorería - Panel de Control</h1>
+
+    <!-- KPIs de Caja -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-left-primary">
+                <div class="card-body">
+                    <h6 class="card-title">Saldo Actual</h6>
+                    <h3 class="text-primary" id="saldo-actual">$0.00</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-left-success">
+                <div class="card-body">
+                    <h6 class="card-title">Ingresos Hoy</h6>
+                    <h3 class="text-success" id="ingresos-hoy">$0.00</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-left-danger">
+                <div class="card-body">
+                    <h6 class="card-title">Egresos Hoy</h6>
+                    <h3 class="text-danger" id="egresos-hoy">$0.00</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-left-warning">
+                <div class="card-body">
+                    <h6 class="card-title">Diferencia (Arqueo)</h6>
+                    <h3 class="text-warning" id="diferencia">$0.00</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones Rápidas -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <a href="/tesoreria/movimientos" class="btn btn-primary">
+                <i class="bi bi-arrow-left-right"></i> Ver Movimientos
+            </a>
+            <a href="/tesoreria/arqueos" class="btn btn-info">
+                <i class="bi bi-calculator"></i> Nuevo Arqueo
+            </a>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
+                <i class="bi bi-plus-circle"></i> Registrar Movimiento
+            </button>
+        </div>
+    </div>
+
+    <!-- Gráfico de Flujo -->
+    <div class="charts-row">
+        <div class="chart-card">
+            <h6 class="text-white mb-3">Flujo de Caja (últimos 7 días)</h6>
+            <canvas id="flujoChart"></canvas>
+        </div>
+        <div class="chart-card">
+            <h6 class="text-white mb-3">Distribución por Instrumento</h6>
+            <canvas id="instrumentosChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Movimientos Recientes -->
+    <div class="mt-4">
+        <h5>Últimos Movimientos</h5>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Fecha/Hora</th>
+                        <th>Tipo</th>
+                        <th>Monto</th>
+                        <th>Instrumento</th>
+                        <th>Descripción</th>
+                        <th>Usuario</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-movimientos">
+                    <tr><td colspan="6" class="text-center">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Arqueos Pendientes -->
+    <div class="mt-4">
+        <h5>Arqueos Recientes</h5>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Turno</th>
+                        <th>Saldo Inicial</th>
+                        <th>Ingresos</th>
+                        <th>Egresos</th>
+                        <th>Saldo Final</th>
+                        <th>Diferencia</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-arqueos">
+                    <tr><td colspan="7" class="text-center">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Nuevo Movimiento -->
+<div class="modal fade" id="modalNuevoMovimiento" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Registrar Nuevo Movimiento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formMovimiento">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Tipo</label>
+                        <select class="form-control" name="tipo" required>
+                            <option>ingreso</option>
+                            <option>egreso</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Monto</label>
+                        <input type="number" class="form-control" name="monto" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Instrumento</label>
+                        <select class="form-control" name="instrumento_id" required id="select-instrumento">
+                            <option>Cargando...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <input type="text" class="form-control" name="descripcion" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Movimiento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    let flujoChart, instrumentosChart;
+
+    function cargarDatos() {
+        // Cargar movimientos
+        fetch('/api/tesoreria/movimientos?per_page=10')
+            .then(r => r.json())
+            .then(data => actualizarTablaMov(data.movimientos || []))
+            .catch(e => console.error('Error movimientos:', e));
+
+        // Cargar instrumentos
+        fetch('/api/tesoreria/instrumentos')
+            .then(r => r.json())
+            .then(data => cargarInstrumentos(data.instrumentos || []))
+            .catch(e => console.error('Error instrumentos:', e));
+    }
+
+    function actualizarTablaMov(movimientos) {
+        const tbody = document.getElementById('tabla-movimientos');
+        if (!movimientos.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center">Sin movimientos</td></tr>';
+            return;
+        }
+        tbody.innerHTML = movimientos.map(m => `
+            <tr>
+                <td>${new Date(m.fecha_hora).toLocaleString()}</td>
+                <td><span class="badge ${m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger'}">${m.tipo}</span></td>
+                <td>$${parseFloat(m.monto).toFixed(2)}</td>
+                <td>${m.instrumento}</td>
+                <td>${m.descripcion}</td>
+                <td>${m.usuario || 'N/A'}</td>
+            </tr>
+        `).join('');
+    }
+
+    function cargarInstrumentos(instrumentos) {
+        const select = document.getElementById('select-instrumento');
+        select.innerHTML = instrumentos.map(i => `<option value="${i.id}">${i.nombre}</option>`).join('');
+    }
+
+    // Enviar formulario
+    document.getElementById('formMovimiento')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const data = {
+            tipo: formData.get('tipo'),
+            monto: parseFloat(formData.get('monto')),
+            instrumento_id: parseInt(formData.get('instrumento_id')),
+            descripcion: formData.get('descripcion')
+        };
+        
+        fetch('/api/tesoreria/movimientos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(r => r.json())
+        .then(d => {
+            if (d.message) {
+                alert('Movimiento guardado');
+                bootstrap.Modal.getInstance(document.getElementById('modalNuevoMovimiento')).hide();
+                cargarDatos();
+            }
+        })
+        .catch(e => console.error('Error:', e));
+    });
+
+    document.addEventListener('DOMContentLoaded', cargarDatos);
+</script>
+
+<style>
+    .border-left-primary { border-left: 4px solid #2563eb; }
+    .border-left-success { border-left: 4px solid #10b981; }
+    .border-left-danger { border-left: 4px solid #ef4444; }
+    .border-left-warning { border-left: 4px solid #f59e0b; }
+</style>
+{% endblock %}
