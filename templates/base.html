@@ -318,6 +318,12 @@
             <span class="link-icon"><i class="bi bi-megaphone"></i></span>
             <span class="link-text">Campañas</span>
         </a>
+
+        <a href="/rrhh/objetivos"
+           class="{% if current.startswith('/rrhh/objetivos') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-bullseye"></i></span>
+            <span class="link-text">Objetivos de Venta</span>
+        </a>
         {% endif %}
 
         <hr>
@@ -355,40 +361,16 @@
             <span class="link-text">Panel RRHH</span>
         </a>
 
-        <a href="/rrhh/ausentismo"
-           class="{% if current.startswith('/rrhh/ausentismo') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-heart-pulse"></i></span>
-            <span class="link-text">Ausentismo</span>
-        </a>
-
-        <a href="/rrhh/dotacion"
-           class="{% if current.startswith('/rrhh/dotacion') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-bar-chart"></i></span>
-            <span class="link-text">Dotación</span>
-        </a>
-
         <a href="/rrhh/empleados"
            class="{% if current.startswith('/rrhh/empleados') %}active-link{% endif %}">
             <span class="link-icon"><i class="bi bi-person-badge"></i></span>
             <span class="link-text">Empleados</span>
         </a>
 
-        <a href="/rrhh/asistencia"
-           class="{% if current.startswith('/rrhh/asistencia') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-clock"></i></span>
-            <span class="link-text">Asistencia</span>
-        </a>
-
-        <a href="/rrhh/objetivos"
-           class="{% if current.startswith('/rrhh/objetivos') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-bullseye"></i></span>
-            <span class="link-text">Objetivos</span>
-        </a>
-
-        <a href="/rrhh/clima"
-           class="{% if current.startswith('/rrhh/clima') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-sun"></i></span>
-            <span class="link-text">Clima</span>
+        <a href="/rrhh/dotacion"
+           class="{% if current.startswith('/rrhh/dotacion') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-bar-chart"></i></span>
+            <span class="link-text">Dotación</span>
         </a>
 
         <a href="/rrhh/adelantos"

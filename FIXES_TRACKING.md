@@ -22,16 +22,16 @@
 
 ---
 
-## FASE 2: Limpiar Menú de Navegación ⏳
+## FASE 2: Limpiar Menú de Navegación ✅
 **Tiempo estimado:** 30 min
 
 ### 2.1 Cambios en `templates/base.html`
-- [ ] Eliminar "Ausentismo" duplicado
-- [ ] Eliminar "Asistencia" (redundante)
-- [ ] Eliminar "Clima" 
-- [ ] Mover "Objetivos" a sección Comercial
+- [x] Eliminar "Ausentismo" duplicado
+- [x] Eliminar "Asistencia" (redundante)
+- [x] Eliminar "Clima" 
+- [x] Mover "Objetivos" a sección Comercial
 
-### 2.2 Estructura final esperada
+### 2.2 Estructura final implementada
 ```
 RRHH:
 ├── Panel RRHH
@@ -41,10 +41,12 @@ RRHH:
 └── Ausentismo
 
 Comercial:
-├── Dashboard Comercial
+├── Leads
+├── Nuevo Lead
 ├── Ventas
-├── Leads/CRM
-└── Objetivos de Venta
+├── Nueva Venta
+├── Campañas
+└── Objetivos de Venta  ← (movido desde RRHH)
 ```
 
 ---
@@ -120,7 +122,7 @@ Comercial:
 | Fase | Estado | Completado |
 |------|--------|------------|
 | Fase 1 | ✅ Completada | 100% |
-| Fase 2 | ⏳ Pendiente | 0% |
+| Fase 2 | ✅ Completada | 100% |
 | Fase 3 | ⏳ Pendiente | 0% |
 | Fase 4 | ⏳ Pendiente | 0% |
 | Fase 5 | ⏳ Pendiente | 0% |
