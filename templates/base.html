@@ -390,6 +390,68 @@
             <span class="link-icon"><i class="bi bi-sun"></i></span>
             <span class="link-text">Clima</span>
         </a>
+
+        <a href="/rrhh/adelantos"
+           class="{% if current.startswith('/rrhh/adelantos') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-cash-coin"></i></span>
+            <span class="link-text">Adelantos</span>
+        </a>
+
+        <a href="/rrhh/ausentismo"
+           class="{% if current.startswith('/rrhh/ausentismo') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-calendar-x"></i></span>
+            <span class="link-text">Ausentismo</span>
+        </a>
+        {% endif %}
+
+        <hr>
+
+        <!-- Finanzas -->
+        <div class="sidebar-section-title">
+            Finanzas
+        </div>
+
+        {% if can_access('tesoreria') %}
+        <a href="/tesoreria"
+           class="{% if current.startswith('/tesoreria') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-safe"></i></span>
+            <span class="link-text">Tesorería</span>
+        </a>
+
+        <a href="/tesoreria/arqueos"
+           class="{% if current == '/tesoreria/arqueos' %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-calculator"></i></span>
+            <span class="link-text">Arqueos de Caja</span>
+        </a>
+
+        <a href="/tesoreria/movimientos"
+           class="{% if current.startswith('/tesoreria/movimientos') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-arrow-left-right"></i></span>
+            <span class="link-text">Movimientos</span>
+        </a>
+        {% endif %}
+
+        {% if can_access('gastos') %}
+        <a href="/gastos"
+           class="{% if current.startswith('/gastos') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-credit-card"></i></span>
+            <span class="link-text">Gastos</span>
+        </a>
+        {% endif %}
+
+        <hr>
+
+        <!-- Inteligencia de Negocios -->
+        <div class="sidebar-section-title">
+            Inteligencia
+        </div>
+
+        {% if can_access('panel') or can_access('bi') %}
+        <a href="/bi"
+           class="{% if current.startswith('/bi') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-bar-chart-line"></i></span>
+            <span class="link-text">BI / Análisis</span>
+        </a>
         {% endif %}
     </div>
 
