@@ -22,7 +22,8 @@ def login():
             session["user"] = user.username
             session["role"] = user.role
             flash("Sesión iniciada correctamente.", "success")
-            return redirect(url_for("dashboard.dashboard"))
+            route = first_allowed_route(user.role)
+            return redirect(route)
 
         flash("Usuario o contraseña incorrectos.", "warning")
 
