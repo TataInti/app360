@@ -312,10 +312,12 @@ def bi_exportar():
         for v in ventas:
             data.append({
                 "Fecha": v.fecha,
+                "Cliente": v.cliente.name if v.cliente else "",
                 "Producto": v.producto.name if v.producto else "",
                 "Cantidad": v.cantidad,
-                "Precio Unitario": float(v.precio_unitario),
-                "Total": float(v.total)
+                "Precio Contrato": float(v.precio_contrato),
+                "Precio Efectivo": float(v.precio_efectivo),
+                "Total": float(v.precio_efectivo * v.cantidad)
             })
 
         filename = "ventas_resumen.xlsx"

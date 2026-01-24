@@ -23,11 +23,11 @@ COPY . .
 # Crear directorio para base de datos
 RUN mkdir -p instance
 
-# Variables de entorno
+# Variables de entorno - valores seguros deben pasarse en runtime
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
-ENV SECRET_KEY=change-this-in-production
-ENV ADMIN_PASSWORD=admin
+# SECRET_KEY y ADMIN_PASSWORD deben configurarse via docker-compose o variables de entorno
+# NO definir valores por defecto aquí por seguridad
 
 # Puerto
 EXPOSE 5000
@@ -36,5 +36,5 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/api/health || exit 1
 
-# Comando para ejecutar
-CMD ["python", "app.py"]
+# Usar gunicorn para producción (más seguro y eficiente que app.run())
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "30", "app:create_app()"]

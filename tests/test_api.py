@@ -1,6 +1,7 @@
 import pytest
 import json
 import io
+from datetime import date
 from models import db
 from models.core import User, Product
 from models.crm import Client
@@ -102,7 +103,7 @@ class TestVentasAPI:
         db.session.commit()
 
         venta = Venta(
-            fecha="2026-01-20",
+            fecha=date(2026, 1, 20),
             cliente_id=cliente.id,
             producto_id=product.id,
             cantidad=5,
@@ -140,7 +141,7 @@ class TestVentasAPI:
         db.session.commit()
 
         venta = Venta(
-            fecha="2026-01-20",
+            fecha=date(2026, 1, 20),
             cliente_id=cliente.id,
             producto_id=product.id,
             cantidad=5,

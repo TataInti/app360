@@ -8,6 +8,10 @@ from models import (
     PurchaseOrder, PurchaseOrderItem, PurchaseReceipt,
     Employee, Attendance, Goal, Survey, SurveyResponse, User
 )
+from security import (
+    generate_access_token, generate_refresh_token, decode_token,
+    jwt_required, jwt_optional, log_login_attempt, log_security_event
+)
 
 api_rest = Blueprint('api_rest', __name__, url_prefix='/api')
 
@@ -23,27 +27,88 @@ def health_check():
         'version': '1.0.0'
     }), 200
 
+
 @api_rest.route('/login', methods=['POST'])
 def login():
-    """Login endpoint for API"""
+    """Login endpoint for API - returns JWT tokens"""
+    # Apply rate limiting for login
+    from app import limiter
+    
     data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid request body'}), 400
+        
     username = data.get('username')
     password = data.get('password')
     
+    if not username or not password:
+        return jsonify({'error': 'Username and password required'}), 400
+    
     user = User.query.filter_by(username=username, active=True).first()
     if user and user.check_password(password):
-        # For simplicity, just return success (session handled by frontend)
+        # Generate JWT tokens
+        access_token = generate_access_token(user.id, user.username, user.role)
+        refresh_token = generate_refresh_token(user.id, user.username)
+        
+        log_login_attempt(username, success=True, ip=request.remote_addr)
+        
         return jsonify({
             'user': user.username,
             'role': user.role,
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'token_type': 'Bearer',
+            'expires_in': 900,  # 15 minutes
             'message': 'Login successful'
         }), 200
+    
+    log_login_attempt(username, success=False, ip=request.remote_addr)
     return jsonify({'error': 'Invalid credentials'}), 401
+
+
+@api_rest.route('/refresh', methods=['POST'])
+def refresh_token():
+    """Refresh access token using refresh token"""
+    data = request.get_json()
+    if not data or 'refresh_token' not in data:
+        return jsonify({'error': 'Refresh token required'}), 400
+    
+    payload = decode_token(data['refresh_token'])
+    if not payload or payload.get('type') != 'refresh':
+        log_security_event('REFRESH_TOKEN_INVALID', 'Invalid refresh token used')
+        return jsonify({'error': 'Invalid or expired refresh token'}), 401
+    
+    # Get user to ensure they're still active
+    user = User.query.filter_by(username=payload['username'], active=True).first()
+    if not user:
+        return jsonify({'error': 'User not found or inactive'}), 401
+    
+    # Generate new access token
+    access_token = generate_access_token(user.id, user.username, user.role)
+    
+    return jsonify({
+        'access_token': access_token,
+        'token_type': 'Bearer',
+        'expires_in': 900
+    }), 200
+
+
+@api_rest.route('/me', methods=['GET'])
+@jwt_required
+def get_current_user():
+    """Get current authenticated user info"""
+    return jsonify({
+        'user_id': request.current_user['user_id'],
+        'username': request.current_user['username'],
+        'role': request.current_user['role']
+    }), 200
+
 
 # -----------------------------------------------------------------------------
 # PRODUCTS ENDPOINTS
 # -----------------------------------------------------------------------------
 @api_rest.route('/products', methods=['GET'])
+@jwt_optional
 def get_products():
     """Get all products with their business unit information"""
     try:
@@ -64,6 +129,7 @@ def get_products():
         return jsonify({'error': str(e)}), 500
 
 @api_rest.route('/products', methods=['POST'])
+@jwt_required
 def create_product():
     """Create a new product"""
     try:

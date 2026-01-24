@@ -1,5 +1,17 @@
 import pytest
 import os
+
+# Configurar variables de entorno ANTES de importar la app
+os.environ['SECRET_KEY'] = 'test-secret-key-for-testing-only'
+os.environ['JWT_SECRET_KEY'] = 'test-jwt-secret-key-for-testing-only'
+os.environ['ADMIN_PASSWORD'] = 'testpassword123'
+os.environ['DATABASE_URL'] = 'sqlite:///:memory:'
+os.environ['SERVER_NAME'] = 'localhost'
+os.environ['SESSION_COOKIE_SECURE'] = 'False'
+os.environ['REMEMBER_COOKIE_SECURE'] = 'False'
+os.environ['RATELIMIT_ENABLED'] = 'False'
+os.environ['WTF_CSRF_ENABLED'] = 'False'
+
 from app import create_app
 from models import db
 
@@ -9,8 +21,12 @@ def app():
     """Create and configure a test app instance."""
     app = create_app()
     app.config['TESTING'] = True
-    # Override database URI for testing BEFORE loading other config
+    # Override database URI for testing
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+    app.config['SERVER_NAME'] = None  # Permite rutas sin dominio
+    app.config['RATELIMIT_ENABLED'] = False
+    app.config['WTF_CSRF_ENABLED'] = False
+    
     return app
 
 
@@ -49,12 +65,11 @@ def auth_headers(client, init_database):
         db.session.add(user)
         db.session.commit()
 
-    # Login to get token
+    # Login usando session (la API no usa JWT tokens)
     response = client.post('/api/login', json={
         'username': 'testadmin',
         'password': 'testpass'
     })
     data = response.get_json()
-    token = data['token']
-
-    return {'Authorization': f'Bearer {token}'}
+    # La API usa sesiones, no tokens JWT
+    return {'Content-Type': 'application/json'}

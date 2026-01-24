@@ -162,17 +162,11 @@ python scripts/setup_database.py
 python app.py
 ```
 
-### Despliegue en VPS
+### Despliegue Local
 
-#### Configuración Inicial del VPS
+#### Configuración Inicial
 
-1. **Conectar al VPS:**
-   ```bash
-   ssh root@72.61.47.19
-   # Password: AccesoServerVirtual+7423
-   ```
-
-2. **Instalar dependencias:**
+1. **Instalar dependencias:**
    ```bash
    # Actualizar sistema
    apt update && apt upgrade -y
@@ -226,26 +220,15 @@ python app.py
 
 ### Configuración de Nginx con SSL
 
-```bash
-# Desde tu máquina local
-./scripts/deploy_to_vps.sh
-```
-
 #### Despliegue Manual
 
 ```bash
-# Conectar al VPS
-ssh root@72.61.47.19
-
 # Navegar al proyecto
-cd /var/www/app360
+cd /path/to/app360
 
-# Hacer pull de cambios
-git pull origin main
-
-# Configurar entorno de producción
-cp .env.production.example .env
-# Editar .env con credenciales reales
+# Configurar entorno local
+cp .env.example .env
+# Editar .env con credenciales locales
 nano .env
 
 # Instalar dependencias
@@ -256,8 +239,8 @@ pip install -r requirements.txt
 python scripts/setup_comercial.py
 
 # Reiniciar aplicación
-pkill -f 'python.*app.py'
-nohup python -c "import os; os.chdir('/var/www/app360'); from dotenv import load_dotenv; load_dotenv(); from app import create_app; app = create_app(); app.run(host='0.0.0.0', port=5000, debug=False)" > app.log 2>&1 &
+pkill -f 'gunicorn'
+cd /var/www/app360 && source venv/bin/activate && gunicorn --config gunicorn.conf.py app:create_app --daemon
 ```
 
 #### Verificación del Despliegue
@@ -322,9 +305,9 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     
-    # Proxy a Flask app (puerto 5000)
+    # Proxy a Gunicorn (puerto 8000)
     location / {
-        proxy_pass http://127.0.0.1:5000;
+        proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -365,45 +348,42 @@ crontab -l | { cat; echo "0 12 * * * /usr/bin/certbot renew --quiet"; } | cronta
 
 #### Verificación del Estado del Despliegue
 
+Para verificar el estado local, puedes usar comandos como:
+
 ```bash
-# Verificación completa del despliegue
-./scripts/check_deployment.sh
+# Verificar si la aplicación está corriendo
+ps aux | grep gunicorn
+
+# Verificar la base de datos
+# (depende de tu configuración local)
 ```
 
 #### Monitoreo Continuo
 
-```bash
-# Monitoreo único
-./scripts/monitor_vps.sh
-
-# Monitoreo continuo (cada 60 segundos)
-./scripts/monitor_vps.sh --continuous
-```
+Para monitoreo local, usa herramientas del sistema como `top`, `htop`, etc.
 
 #### Comandos Útiles para Mantenimiento
 
 ```bash
 # Ver logs en tiempo real
-ssh root@72.61.47.19 "tail -f /var/www/app360/app.log"
+tail -f logs/gunicorn.log
 
 # Reiniciar servicios
-ssh root@72.61.47.19 "systemctl restart postgresql"
-ssh root@72.61.47.19 "pkill -f 'python app.py' && cd /var/www/app360 && source venv/bin/activate && nohup python app.py > app.log 2>&1 &"
+# Reinicia PostgreSQL si es necesario (depende de tu configuración local)
+# pkill -f 'gunicorn' && source venv/bin/activate && gunicorn --config gunicorn.conf.py app:create_app --daemon
 
 # Backup de base de datos
-ssh root@72.61.47.19 "pg_dump -U app360 app360 > backup_$(date +%Y%m%d_%H%M%S).sql"
+# Usa pg_dump localmente
+pg_dump -U app360 app360 > backup_$(date +%Y%m%d_%H%M%S).sql
 
 # Verificar uso de disco
-ssh root@72.61.47.19 "df -h"
+df -h
 ```
 #### Backup de Base de Datos
 
 ```bash
-# Crear backup automático
-./scripts/backup_database.sh
-
-# Crear backup y descargarlo localmente
-./scripts/backup_database.sh --download
+# Crear backup local
+pg_dump -U app360 app360 > backup_$(date +%Y%m%d_%H%M%S).sql
 ```
 
 Los backups se almacenan en el VPS en `/var/www/app360/backups/` y se mantienen los últimos 10 backups automáticamente.

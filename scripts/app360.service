@@ -1,0 +1,31 @@
+[Unit]
+Description=App360 Gunicorn Service
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+RuntimeDirectory=gunicorn
+WorkingDirectory=/var/www/app360
+Environment="PATH=/var/www/app360/venv/bin"
+EnvironmentFile=/var/www/app360/.env
+ExecStart=/var/www/app360/venv/bin/gunicorn \
+    --bind 127.0.0.1:5000 \
+    --workers 4 \
+    --timeout 30 \
+    --access-logfile /var/www/app360/logs/access.log \
+    --error-logfile /var/www/app360/logs/error.log \
+    --capture-output \
+    --enable-stdio-inheritance \
+    'app:create_app()'
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

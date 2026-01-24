@@ -2,13 +2,16 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 
 from config import Config
 from models import User
-from security import first_allowed_route
+from security import first_allowed_route, log_login_attempt
 
 auth_bp = Blueprint("auth", __name__)
 
 
 @auth_bp.route("/", methods=["GET", "POST"])
 def login():
+    # Import limiter here to avoid circular imports
+    from app import limiter
+    
     if session.get("user"):
         route = first_allowed_route(session.get("role"))
         return redirect(route)
@@ -21,10 +24,12 @@ def login():
         if user and user.check_password(password):
             session["user"] = user.username
             session["role"] = user.role
+            log_login_attempt(username, success=True, ip=request.remote_addr)
             flash("Sesión iniciada correctamente.", "success")
             route = first_allowed_route(user.role)
             return redirect(route)
 
+        log_login_attempt(username, success=False, ip=request.remote_addr)
         flash("Usuario o contraseña incorrectos.", "warning")
 
     return render_template(
@@ -35,7 +40,12 @@ def login():
 
 @auth_bp.route("/logout")
 def logout():
+    user = session.get("user")
     session.pop("user", None)
     session.pop("role", None)
+    if user:
+        from security import log_security_event
+        log_security_event('LOGOUT', f"User '{user}' logged out", user=user)
     flash("Sesión cerrada.", "info")
     return redirect(url_for("auth.login"))
+
