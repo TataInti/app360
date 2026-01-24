@@ -4,6 +4,7 @@ from flask import flash, redirect, session, url_for
 
 ACCESS_MAP = {
     "manager": ["all"],
+    "gerente": ["all"],  # Alias para manager
     "sales": ["crm", "ventas", "dashboard_comercial"],
     "purchases": ["compras", "dashboard"],
     "hr": ["rrhh", "asistencia", "objetivos", "clima"],
