@@ -9,48 +9,42 @@ from flask import current_app
 from alembic import context
 
 # this is the Alembic Config object, which provides
-# the values of the alembic.ini file, and in addition
-# to consuming what's in the alembic.ini file, provides
-# programmatic access so we can think of the values
-# at runtime.
+# access to the values within the .ini file in use.
 config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
-# Note: Flask-Migrate doesn't need alembic.ini
+# Note: Flask-Migrate doesn't need alembic.ini for logging
 # fileConfig(config.config_file_name)
 logger = logging.getLogger('alembic.env')
 
 
 def get_engine():
+    """Get the SQLAlchemy engine from Flask-SQLAlchemy 3.x"""
     try:
-        # this works with Flask-SQLAlchemy<3 and Alchemical
+        # Flask-SQLAlchemy 3.x
         return current_app.extensions['sqlalchemy'].engine
-    except TypeError:
-        # this works with Flask-SQLAlchemy>=3
-        return current_app.extensions['sqlalchemy'].get_engine()
+    except (KeyError, AttributeError):
+        # Fallback for older versions
+        return current_app.extensions['sqlalchemy'].db.engine
 
 
 def get_engine_url():
+    """Get database URL from the engine"""
     try:
-        return get_engine().url.render_as_string(hide_password=False).replace(
-            '%', '%%'
-        )
+        return get_engine().url.render_as_string(hide_password=False).replace('%', '%%')
     except AttributeError:
         return str(get_engine().url).replace('%', '%%')
 
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-config.set_main_option('sqlalchemy.url', get_engine_url())
-target_db = current_app.extensions['sqlalchemy'].model
+# Import the db instance to access metadata
+from models import db
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+# Set the sqlalchemy.url for Alembic
+config.set_main_option('sqlalchemy.url', get_engine_url())
+
+# Target metadata for autogenerate support
+target_metadata = db.metadata
 
 
 def run_migrations_offline():
@@ -63,10 +57,14 @@ def run_migrations_offline():
 
     Calls to context.execute() here emit the given string to the
     script output.
-
     """
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url, target_metadata=target_db.metadata, literal_binds=True)
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        compare_type=True
+    )
 
     with context.begin_transaction():
         context.run_migrations()
@@ -77,27 +75,25 @@ def run_migrations_online():
 
     In this scenario we need to create an Engine
     and associate a connection with the context.
-
     """
 
-    # this callback is used to prevent an auto-migration from being generated
-    # when there are no changes to the schema
-    # reference: http://alembic.sqlalchemy.org/en/latest/cookbook.html
-    # ... deleted ...
     def process_revision_directives(context, revision, directives):
+        """Prevent generating empty migrations"""
         if getattr(config.cmd_opts, 'autogenerate', False):
             script = directives[0]
             if script.upgrade_ops.is_empty():
                 directives[:] = []
                 logger.info('No changes in schema detected.')
 
+    # Get engine from Flask-SQLAlchemy
     connectable = get_engine()
 
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
-            target_metadata=target_db.metadata,
+            target_metadata=target_metadata,
             process_revision_directives=process_revision_directives,
+            compare_type=True,
             **current_app.extensions['migrate'].configure_args
         )
 
