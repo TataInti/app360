@@ -208,22 +208,23 @@ python app.py
    cd app360
    ```
 
-5. **Configurar la aplicación:**
+5. **Configurar variables de entorno para producción:**
    ```bash
-   # Crear entorno virtual
-   python3 -m venv venv
-   source venv/bin/activate
-
-   # Instalar dependencias
-   pip install -r requirements.txt
-
-   # Configurar variables de entorno
-   cp .env.example .env
-   # Editar .env con la configuración correcta
+   # Copiar configuración de producción
+   cp .env.production.example .env
+   
+   # Editar .env con configuración específica del servidor
    nano .env
+   
+   # Variables críticas para producción:
+   # - SERVER_NAME=vyp.app360.com.ar
+   # - PREFERRED_URL_SCHEME=https
+   # - SESSION_COOKIE_SECURE=True
+   # - REMEMBER_COOKIE_SECURE=True
+   # - DATABASE_URL=postgresql://app360user:app360_secure@localhost:5432/app360
    ```
 
-#### Despliegue Automático
+### Configuración de Nginx con SSL
 
 ```bash
 # Desde tu máquina local
@@ -242,15 +243,21 @@ cd /var/www/app360
 # Hacer pull de cambios
 git pull origin main
 
+# Configurar entorno de producción
+cp .env.production.example .env
+# Editar .env con credenciales reales
+nano .env
+
 # Instalar dependencias
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Configurar base de datos
-python scripts/setup_database.py
+# Configurar base de datos (primera vez)
+python scripts/setup_comercial.py
 
-# Iniciar aplicación
-nohup python app.py > app.log 2>&1 &
+# Reiniciar aplicación
+pkill -f 'python.*app.py'
+nohup python -c "import os; os.chdir('/var/www/app360'); from dotenv import load_dotenv; load_dotenv(); from app import create_app; app = create_app(); app.run(host='0.0.0.0', port=5000, debug=False)" > app.log 2>&1 &
 ```
 
 #### Verificación del Despliegue
@@ -266,32 +273,93 @@ tail -f /var/www/app360/app.log
 ps aux | grep python
 ```
 
-### Configuración de Nginx (Opcional)
+### Configuración de Nginx con SSL
 
-Para servir la aplicación con Nginx como proxy reverso:
+Para servir la aplicación con Nginx como proxy reverso con HTTPS:
 
 ```bash
+# Instalar certbot para Let's Encrypt
+apt install snapd -y
+snap install core; snap refresh core
+snap install --classic certbot
+ln -s /snap/bin/certbot /usr/bin/certbot
+
 # Crear configuración de sitio
-cat > /etc/nginx/sites-available/app360 << EOF
+cat > /etc/nginx/sites-available/app360 << 'EOF'
+# HTTP redirect a HTTPS
 server {
     listen 80;
     server_name vyp.app360.com.ar;
+    
+    # Directorio para Let's Encrypt challenges
+    location /.well-known/acme-challenge/ {
+        root /var/www/app360;
+        try_files $uri =404;
+    }
+    
+    # Redirect all other traffic to HTTPS
+    location / {
+        return 301 https://$server_name$request_uri;
+    }
+}
 
+# HTTPS server
+server {
+    listen 443 ssl http2;
+    server_name vyp.app360.com.ar;
+    
+    # Certificado SSL (se configurará después de obtenerlo)
+    ssl_certificate /etc/letsencrypt/live/vyp.app360.com.ar/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/vyp.app360.com.ar/privkey.pem;
+    
+    # Configuración SSL
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    
+    # Headers de seguridad
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    
+    # Proxy a Flask app (puerto 5000)
     location / {
         proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+    
+    # Static files
+    location /static/ {
+        alias /var/www/app360/static/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
     }
 }
 EOF
 
 # Habilitar sitio
-ln -s /etc/nginx/sites-available/app360 /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/app360 /etc/nginx/sites-enabled/
+
+# Probar configuración
+nginx -t
 
 # Reiniciar Nginx
-systemctl restart nginx
+systemctl reload nginx
+
+# Obtener certificado SSL
+certbot certonly --webroot -w /var/www/app360 -d vyp.app360.com.ar --agree-tos --email admin@vyp.app360.com.ar --non-interactive
+
+# Configurar renovación automática
+crontab -l | { cat; echo "0 12 * * * /usr/bin/certbot renew --quiet"; } | crontab -
 ```
 ### Monitoreo y Mantenimiento
 

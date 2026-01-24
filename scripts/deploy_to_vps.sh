@@ -57,12 +57,16 @@ ssh_cmd "cd $PROJECT_DIR && (test -d venv || python3 -m venv venv)"
 ssh_cmd "cd $PROJECT_DIR && source venv/bin/activate && pip install --upgrade python-dotenv"
 ssh_cmd "cd $PROJECT_DIR && source venv/bin/activate && pip install -r requirements.txt"
 
-# Ejecutar migraciones de base de datos si es necesario
-echo "🗄️  Verificando base de datos..."
-# ssh_cmd "cd $PROJECT_DIR && source venv/bin/activate && PYTHONPATH=/var/www/app360 python -c \"from scripts.verify_migration import *; verify_migration()\"" || {
-#     echo "⚠️  Posible problema con la base de datos. Considera ejecutar migraciones."
-# }
-echo "⚠️  Verificación de base de datos omitida temporalmente"
+# Configurar variables de entorno para producción
+echo "⚙️  Configurando entorno de producción..."
+if ssh_cmd "cd $PROJECT_DIR && test ! -f .env"; then
+    echo "📋 Creando archivo .env desde plantilla de producción..."
+    ssh_cmd "cd $PROJECT_DIR && cp .env.production.example .env"
+    echo "⚠️  IMPORTANTE: Edita el archivo .env en el servidor con las credenciales correctas:"
+    echo "   - Base de datos PostgreSQL"
+    echo "   - Claves secretas"
+    echo "   - Configuración de dominio"
+fi
 
 # Reiniciar servicios si están corriendo
 echo "🔄 Verificando servicios..."
