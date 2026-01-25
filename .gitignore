@@ -129,3 +129,5 @@ vps_access.md
 *_secrets*
 *.pem
 *.key
+__pycache__/
+*.pyc
