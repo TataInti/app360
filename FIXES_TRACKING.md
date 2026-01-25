@@ -141,13 +141,160 @@ Comercial:
 
 ---
 
-## Commits Realizados
-| Fecha | Commit | Descripción |
-|-------|--------|-------------|
-| - | - | - |
+# ═══════════════════════════════════════════════════════════════════════
+# SPRINT 2 - Administración de Variables por Módulo
+# ═══════════════════════════════════════════════════════════════════════
+
+**Fecha inicio:** 24 enero 2026  
+**Estado:** En progreso
+
+## Resumen de Correcciones y Nuevas Funcionalidades
+
+### Correcciones
+- Panel de Compras no visible (verificar link en menú)
+
+### Nuevas Funcionalidades
+- Menú de administración de catálogos/variables por módulo
+- Solo accesible para usuarios con rol `admin`
+- Excepto módulo BI (solo visualización)
 
 ---
 
-## Notas
-- Orden de ejecución: 1 → 2 → 3 → 4 → 6 → 7 → 5
-- Fase 5 es refactoring complejo, puede dejarse para el final
+## FASE 8: Verificar Panel de Compras ✅
+**Tiempo estimado:** 15 min
+
+### 8.1 Diagnóstico
+- [x] Error: modelo `PurchaseOrder` no tenía campo `created_at`
+- [x] Modelo corregido: agregado `created_at`, `supplier`, relaciones `items` y `receipts`
+- [x] Modelo `PurchaseReceipt` corregido: `order_id` en lugar de `purchase_order_id`
+- [x] Migración aplicada
+
+### 8.2 Verificación
+- [x] Panel de compras funciona correctamente (status 200)
+- [x] Template renderiza sin errores
+
+---
+
+## FASE 9-10: Blueprint Admin + APIs ✅
+**Tiempo estimado:** 2 horas
+
+### 9.1 Arquitectura Implementada
+- [x] Blueprint `admin.py` creado con rutas `/admin/<modulo>`
+- [x] Decorador `@admin_required` verificando rol admin/manager/gerente
+- [x] Estructura API REST genérica para CRUD de catálogos
+
+### 9.2 Catálogos Implementados
+
+| Módulo | Catálogos | Estado |
+|--------|-----------|--------|
+| **Gastos** | Categorías, Proveedores | ✅ |
+| **Tesorería** | Instrumentos de Pago | ✅ |
+| **RRHH** | Turnos | ✅ |
+| **Stock/Core** | Ubicaciones, Productos, Unidades | ✅ |
+
+### 9.3 APIs CRUD Genéricas
+- [x] `GET /api/admin/<modulo>/<entidad>` → Listar
+- [x] `POST /api/admin/<modulo>/<entidad>` → Crear
+- [x] `PUT /api/admin/<modulo>/<entidad>/<id>` → Editar
+- [x] `DELETE /api/admin/<modulo>/<entidad>/<id>` → Eliminar
+- [x] `PATCH /api/admin/<modulo>/<entidad>/<id>/toggle` → Activar/Desactivar
+
+---
+
+## FASE 11: Templates de Administración ✅
+**Tiempo estimado:** 2 horas
+
+### 11.1 Templates Creados
+- [x] `templates/admin/admin_dashboard.html` - Panel con KPIs por módulo
+- [x] `templates/admin/admin_modulo.html` - Vista genérica con tabs por entidad
+
+### 11.2 Características
+- [x] Tabs dinámicos para cada entidad del módulo
+- [x] Tabla CRUD con contador de registros
+- [x] Modal genérico para crear/editar (campos dinámicos)
+- [x] Botones de toggle activo/inactivo
+- [x] Confirmación de eliminación
+
+---
+
+## FASE 12: Integración en Menú Principal ✅
+**Tiempo estimado:** 30 min
+
+### 12.1 Cambios en base.html
+- [x] Sección "Configuración" visible solo para rol admin/manager/gerente
+- [x] Link a `/admin` con icono engranaje
+- [x] Estilo active-link cuando está en /admin/*
+
+### 12.2 Actualizar security.py
+- [x] MODULE_ROUTES: agregada ruta `admin: /admin`
+
+---
+
+## FASE 13: Testing y Validación ✅
+**Tiempo estimado:** 45 min
+
+### 13.1 Tests Ejecutados
+- [x] Admin Dashboard: 200 ✅
+- [x] Admin Gastos: 200 ✅
+- [x] Admin Tesorería: 200 ✅
+- [x] Admin RRHH: 200 ✅
+- [x] Admin Stock: 200 ✅
+- [x] Panel Compras: 200 ✅
+
+---
+
+## Progreso General Sprint 2
+
+| Fase | Estado | Completado |
+|------|--------|------------|
+| Fase 8 | ✅ Completada | 100% |
+| Fase 9-10 | ✅ Completada | 100% |
+| Fase 11 | ✅ Completada | 100% |
+| Fase 12 | ✅ Completada | 100% |
+| Fase 13 | ✅ Completada | 100% |
+
+**🎉 SPRINT 2 COMPLETADO 🎉**
+
+---
+
+## Catálogos Implementados
+
+### Gastos
+| Entidad | Campos | Tabla DB |
+|---------|--------|----------|
+| CategoriaGasto | nombre, descripcion, activo | categoria_gasto |
+| Proveedor | nombre, cuit, email, telefono, direccion, activo | proveedor |
+
+### Tesorería
+| Entidad | Campos | Tabla DB |
+|---------|--------|----------|
+| InstrumentoPago | nombre, descripcion, activo | instrumentos_pago |
+
+### RRHH
+| Entidad | Campos | Tabla DB |
+|---------|--------|----------|
+| Turno | nombre, descripcion, hora_inicio, hora_fin, dias_semana, activo | turnos |
+
+### Stock/Core
+| Entidad | Campos | Tabla DB |
+|---------|--------|----------|
+| Location | name, address | locations |
+| Product | name, sku, price, category | products |
+| BusinessUnit | name, code | business_units |
+
+---
+
+## Orden de Ejecución Sugerido
+1. **Fase 8** → Verificar/corregir Panel Compras
+2. **Fase 9** → Diseño arquitectura
+3. **Fase 10** → Blueprint admin.py + APIs
+4. **Fase 11** → Templates
+5. **Fase 12** → Integración menú
+6. **Fase 13** → Testing
+
+---
+
+## Commits Realizados Sprint 2
+| Fecha | Commit | Descripción |
+|-------|--------|-------------|
+| - | - | - |

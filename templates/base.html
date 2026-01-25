@@ -435,6 +435,19 @@
             <span class="link-text">BI / Análisis</span>
         </a>
         {% endif %}
+
+        <!-- Administración (solo admin) -->
+        {% if session.get('role') in ['admin', 'manager', 'gerente'] %}
+        <hr>
+        <div class="sidebar-section-title">
+            Configuración
+        </div>
+        <a href="/admin"
+           class="{% if current.startswith('/admin') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-gear-fill"></i></span>
+            <span class="link-text">Administración</span>
+        </a>
+        {% endif %}
     </div>
 
     <div class="main-content">

@@ -1,19 +1,23 @@
+from datetime import datetime
+
 from .. import db
 
 
 class PurchaseOrder(db.Model):
     __tablename__ = "purchase_orders"
     id = db.Column(db.Integer, primary_key=True)
-    supplier_id = db.Column(db.Integer, nullable=True)  # For now, using integer ID for suppliers
-    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False)
-    quantity = db.Column(db.Integer, nullable=False)
-    unit_price = db.Column(db.Numeric(10, 2), nullable=False)
-    total_amount = db.Column(db.Numeric(10, 2), nullable=False)
-    order_date = db.Column(db.Date, nullable=False)
-    expected_delivery_date = db.Column(db.Date, nullable=True)
-    status = db.Column(db.String(50), default="pendiente")
+    supplier = db.Column(db.String(200), nullable=True)  # Nombre del proveedor
+    supplier_id = db.Column(db.Integer, nullable=True)  # ID opcional para futuro FK
+    status = db.Column(db.String(50), default="borrador")
     notes = db.Column(db.Text, nullable=True)
     location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=True)
+    
+    # Fechas
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    order_date = db.Column(db.Date, nullable=True)
+    expected_delivery_date = db.Column(db.Date, nullable=True)
 
-    product = db.relationship("Product")
+    # Relaciones
     location = db.relationship("Location")
+    items = db.relationship("PurchaseOrderItem", backref="order", cascade="all, delete-orphan")
+    receipts = db.relationship("PurchaseReceipt", backref="order", cascade="all, delete-orphan")

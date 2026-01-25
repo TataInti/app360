@@ -41,6 +41,7 @@ MODULE_ROUTES = {
     "arqueos": "/tesoreria/arqueos",
     "movimientos": "/tesoreria/movimientos",
     "bi": "/bi",
+    "admin": "/admin",
 }
 
 
