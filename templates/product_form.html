@@ -4,6 +4,7 @@
 <h1>{{ 'Editar Producto' if product else 'Nuevo Producto' }}</h1>
 
 <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="mb-3">
         <label>SKU</label>
         <input type="text" name="sku" class="form-control" value="{{ product.sku if product else '' }}" required>

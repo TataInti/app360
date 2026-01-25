@@ -4,6 +4,7 @@
 <h1>{{ 'Editar Ubicación' if location else 'Nueva Ubicación' }}</h1>
 
 <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="mb-3">
         <label>Nombre</label>
         <input type="text" name="name" class="form-control"

@@ -55,6 +55,7 @@
             <div class="card-body">
                 <h5 class="card-title">Crear campaña</h5>
                 <form action="{{ url_for('crm.campaigns_new') }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label>Nombre</label>
                         <input type="text" name="name" class="form-control" required>

@@ -223,6 +223,7 @@ async function cargarArqueos() {
 document.getElementById('formArqueo')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     const formData = new FormData(this);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     
     const inicial = parseFloat(formData.get('saldo_inicial')) || 0;
     const ingresos = parseFloat(formData.get('ingresos')) || 0;
@@ -243,7 +244,7 @@ document.getElementById('formArqueo')?.addEventListener('submit', async function
     try {
         const resp = await fetch('/api/tesoreria/arqueos', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify(data)
         });
         

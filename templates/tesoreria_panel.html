@@ -302,6 +302,8 @@
         }
     }
 
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+
     // Enviar formulario de movimiento
     document.getElementById('formMovimiento')?.addEventListener('submit', function(e) {
         e.preventDefault();
@@ -315,7 +317,7 @@
         
         fetch('/api/tesoreria/movimientos', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify(data)
         })
         .then(r => r.json())
@@ -354,7 +356,7 @@
         
         fetch('/api/tesoreria/arqueos', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify(data)
         })
         .then(r => r.json())

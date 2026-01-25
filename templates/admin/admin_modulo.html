@@ -137,6 +137,7 @@
 
 <script>
 const MODULO = '{{ modulo }}';
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
 function abrirModalNuevo(entidad, fields, required) {
     document.getElementById('modalTitulo').textContent = 'Nuevo Registro';
@@ -227,7 +228,10 @@ async function editarItem(entidad, id, fields) {
 
 async function toggleItem(entidad, id) {
     try {
-        const resp = await fetch(`/api/admin/${MODULO}/${entidad}/${id}/toggle`, { method: 'PATCH' });
+        const resp = await fetch(`/api/admin/${MODULO}/${entidad}/${id}/toggle`, { 
+            method: 'PATCH',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
         const data = await resp.json();
         if (data.success) {
             location.reload();
@@ -243,7 +247,10 @@ async function eliminarItem(entidad, id) {
     if (!confirm('¿Está seguro de eliminar este registro?')) return;
     
     try {
-        const resp = await fetch(`/api/admin/${MODULO}/${entidad}/${id}`, { method: 'DELETE' });
+        const resp = await fetch(`/api/admin/${MODULO}/${entidad}/${id}`, { 
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
         const data = await resp.json();
         if (data.success) {
             location.reload();
@@ -280,7 +287,7 @@ document.getElementById('formEntidad')?.addEventListener('submit', async functio
     try {
         const resp = await fetch(url, {
             method: method,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify(data)
         });
         const result = await resp.json();

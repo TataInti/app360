@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 import io
 
-from flask import Blueprint, request, jsonify, send_file, render_template
+from flask import Blueprint, request, jsonify, send_file, render_template, flash, redirect, url_for
 
 from models import (
     Adelanto,
@@ -26,9 +26,29 @@ def rrhh_panel():
     return render_template("rrhh_panel.html")
 
 
-@rrhh_bp.route("/rrhh/empleados", methods=["GET"])
+@rrhh_bp.route("/rrhh/empleados", methods=["GET", "POST"])
 def rrhh_empleados():
     """Vista de empleados"""
+    if request.method == "POST":
+        # Procesar creación de empleado
+        from models.hr.employee import Employee
+        try:
+            data = request.form
+            nuevo_empleado = Employee(
+                nombre=data.get("nombre"),
+                cargo=data.get("cargo"),
+                departamento=data.get("departamento"),
+                email=data.get("email"),
+                telefono=data.get("telefono"),
+                fecha_ingreso=data.get("fecha_ingreso") or None
+            )
+            db.session.add(nuevo_empleado)
+            db.session.commit()
+            flash("Empleado creado exitosamente", "success")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error al crear empleado: {str(e)}", "danger")
+        return redirect(url_for("rrhh.rrhh_empleados"))
     return render_template("rrhh_empleados.html")
 
 

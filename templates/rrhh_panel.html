@@ -44,24 +44,7 @@
 
 <div class="row mt-4">
     <div class="col-md-8">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Encuestas y clima</h5>
-                <p class="mb-1">Promedio general de respuestas: {{ survey_avg }}</p>
-                {% if latest_surveys %}
-                <ul class="list-group list-group-flush">
-                    {% for survey in latest_surveys %}
-                    <li class="list-group-item">
-                        {{ survey.name }} · {{ survey.start_date or 'Sin fecha' }} – {{ survey.end_date or 'sin fin' }}
-                    </li>
-                    {% endfor %}
-                </ul>
-                {% else %}
-                <p class="text-muted">Aún no hay encuestas publicadas.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
+        <!-- Tarjeta de encuestas removida - módulo aún no implementado -->
 </div>
 
 <p class="mt-4">
