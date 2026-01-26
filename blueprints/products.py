@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, request, redirect, url_for
 
 from models import BusinessUnit
 from services.product_service import ProductService
@@ -17,4 +17,29 @@ def list_products():
     units = {u.id: u.name for u in BusinessUnit.query.all()}
     return render_template("products_list.html", products=products, units=units)
 
-# Keep custom new and edit for now, but can refactor later
+
+# Override new to include business units
+@products_bp.route("/products/new", methods=["GET", "POST"])
+def new_product():
+    units = BusinessUnit.query.all()
+    if request.method == "POST":
+        kwargs = {key: value for key, value in request.form.items() if key != "csrf_token"}
+        crud.service.create(**kwargs)
+        return redirect(url_for("products.list_products"))
+    return render_template("product_form.html", units=units)
+
+
+# Override edit to include business units
+@products_bp.route("/products/edit/<int:item_id>", methods=["GET", "POST"])
+def edit_product(item_id):
+    units = BusinessUnit.query.all()
+    product = crud.service.get_by_id(item_id)
+    if not product:
+        return "Producto no encontrado", 404
+    
+    if request.method == "POST":
+        kwargs = {key: value for key, value in request.form.items() if key != "csrf_token"}
+        crud.service.update(item_id, **kwargs)
+        return redirect(url_for("products.list_products"))
+    
+    return render_template("product_form.html", product=product, units=units)

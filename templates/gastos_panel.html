@@ -343,11 +343,12 @@ async function guardarGasto() {
     const form = document.getElementById('formNuevoGasto');
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     
     try {
-        const resp = await fetch('/api/gastos', {
+        const resp = await fetch('/api/gastos/registrar', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify(data)
         });
         

@@ -29,18 +29,25 @@ def rrhh_panel():
 @rrhh_bp.route("/rrhh/empleados", methods=["GET", "POST"])
 def rrhh_empleados():
     """Vista de empleados"""
+    from models.hr.employee import Employee
+    from models.core import Location
+    
     if request.method == "POST":
-        # Procesar creación de empleado
-        from models.hr.employee import Employee
         try:
             data = request.form
+            full_name = data.get("full_name", "").strip()
+            # Separar nombre completo en first_name y last_name
+            parts = full_name.split(" ", 1)
+            first_name = parts[0] if parts else ""
+            last_name = parts[1] if len(parts) > 1 else ""
+            
             nuevo_empleado = Employee(
-                nombre=data.get("nombre"),
-                cargo=data.get("cargo"),
-                departamento=data.get("departamento"),
+                first_name=first_name,
+                last_name=last_name,
+                position=data.get("role"),
                 email=data.get("email"),
-                telefono=data.get("telefono"),
-                fecha_ingreso=data.get("fecha_ingreso") or None
+                location_id=int(data.get("location_id")) if data.get("location_id") else None,
+                is_active=data.get("active") == "on"
             )
             db.session.add(nuevo_empleado)
             db.session.commit()
@@ -49,7 +56,11 @@ def rrhh_empleados():
             db.session.rollback()
             flash(f"Error al crear empleado: {str(e)}", "danger")
         return redirect(url_for("rrhh.rrhh_empleados"))
-    return render_template("rrhh_empleados.html")
+    
+    # GET: cargar empleados y ubicaciones
+    employees = Employee.query.all()
+    locations = Location.query.all()
+    return render_template("rrhh_empleados.html", employees=employees, locations=locations)
 
 
 @rrhh_bp.route("/rrhh/dotacion", methods=["GET"])

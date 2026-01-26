@@ -51,7 +51,7 @@
                     <thead>
                         <tr>
                             <th>Nombre</th>
-                            <th>Rol</th>
+                            <th>Cargo</th>
                             <th>Ubicación</th>
                             <th>Email</th>
                             <th>Estado</th>
@@ -60,11 +60,11 @@
                     <tbody>
                         {% for emp in employees %}
                         <tr>
-                            <td>{{ emp.full_name }}</td>
-                            <td>{{ emp.role or '-' }}</td>
+                            <td>{{ emp.name }}</td>
+                            <td>{{ emp.position or '-' }}</td>
                             <td>{{ emp.location.name if emp.location else '-' }}</td>
                             <td>{{ emp.email or '-' }}</td>
-                            <td>{{ 'Activo' if emp.active else 'Inactivo' }}</td>
+                            <td>{{ 'Activo' if emp.is_active else 'Inactivo' }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
