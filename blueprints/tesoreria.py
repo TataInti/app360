@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from decimal import Decimal
 
 from flask import Blueprint, request, jsonify, render_template
@@ -213,69 +213,84 @@ def arqueos_crear():
     turno = data.get("turno")
     saldo_inicial = data.get("saldo_inicial", 0)
     saldo_final = data.get("saldo_final")
-    usuario_id = data.get("usuario_id", 1)
+    
+    # Obtener usuario de la sesión o usar default
+    from flask_login import current_user
+    if current_user and current_user.is_authenticated:
+        usuario_id = current_user.id
+    else:
+        usuario_id = data.get("usuario_id", 1)
 
     if not fecha_str or not turno or saldo_final is None:
         return jsonify({"error": "Fecha, turno y saldo final requeridos"}), 400
 
     try:
         fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
-        saldo_inicial = Decimal(str(saldo_inicial))
+        saldo_inicial = Decimal(str(saldo_inicial)) if saldo_inicial else Decimal("0")
         saldo_final = Decimal(str(saldo_final))
-    except:
-        return jsonify({"error": "Datos numéricos inválidos"}), 400
+    except Exception as e:
+        return jsonify({"error": f"Datos numéricos inválidos: {str(e)}"}), 400
 
     # Verificar que no exista arqueo para esa fecha y turno
     if ArqueoCaja.query.filter_by(fecha=fecha, turno=turno).first():
         return jsonify({"error": "Ya existe arqueo para esa fecha y turno"}), 400
 
-    # Calcular ingresos y egresos del día/turno
-    fecha_inicio = datetime.combine(fecha, datetime.min.time())
-    if turno == "mañana":
-        fecha_fin = datetime.combine(fecha, datetime(23, 59, 59).time().replace(hour=13, minute=59, second=59))
-    elif turno == "tarde":
-        fecha_inicio = datetime.combine(fecha, datetime.min.time().replace(hour=14))
-        fecha_fin = datetime.combine(fecha, datetime(23, 59, 59).time().replace(hour=21, minute=59, second=59))
-    else:  # noche
-        fecha_inicio = datetime.combine(fecha, datetime.min.time().replace(hour=22))
-        fecha_fin = datetime.combine(fecha + timedelta(days=1), datetime.min.time().replace(hour=5, minute=59, second=59))
+    # Verificar que el usuario exista
+    usuario = User.query.get(usuario_id)
+    if not usuario:
+        return jsonify({"error": "Usuario no encontrado"}), 404
 
-    ingresos = db.session.query(db.func.sum(MovimientoCaja.monto)).filter(
-        MovimientoCaja.fecha_hora >= fecha_inicio,
-        MovimientoCaja.fecha_hora <= fecha_fin,
-        MovimientoCaja.tipo == "ingreso"
-    ).scalar() or 0
+    try:
+        # Calcular ingresos y egresos del día/turno
+        fecha_inicio = datetime.combine(fecha, time(0, 0, 0))
+        if turno == "mañana":
+            fecha_fin = datetime.combine(fecha, time(13, 59, 59))
+        elif turno == "tarde":
+            fecha_inicio = datetime.combine(fecha, time(14, 0, 0))
+            fecha_fin = datetime.combine(fecha, time(21, 59, 59))
+        else:  # noche
+            fecha_inicio = datetime.combine(fecha, time(22, 0, 0))
+            fecha_fin = datetime.combine(fecha + timedelta(days=1), time(5, 59, 59))
 
-    egresos = db.session.query(db.func.sum(MovimientoCaja.monto)).filter(
-        MovimientoCaja.fecha_hora >= fecha_inicio,
-        MovimientoCaja.fecha_hora <= fecha_fin,
-        MovimientoCaja.tipo == "egreso"
-    ).scalar() or 0
+        ingresos = db.session.query(db.func.sum(MovimientoCaja.monto)).filter(
+            MovimientoCaja.fecha_hora >= fecha_inicio,
+            MovimientoCaja.fecha_hora <= fecha_fin,
+            MovimientoCaja.tipo == "ingreso"
+        ).scalar() or 0
 
-    arqueo = ArqueoCaja(
-        fecha=fecha,
-        turno=turno,
-        usuario_id=usuario_id,
-        saldo_inicial=saldo_inicial,
-        ingresos_total=Decimal(str(ingresos)),
-        egresos_total=Decimal(str(egresos)),
-        saldo_final=saldo_final,
-        diferencia=saldo_final - (saldo_inicial + Decimal(str(ingresos)) - Decimal(str(egresos)))
-    )
+        egresos = db.session.query(db.func.sum(MovimientoCaja.monto)).filter(
+            MovimientoCaja.fecha_hora >= fecha_inicio,
+            MovimientoCaja.fecha_hora <= fecha_fin,
+            MovimientoCaja.tipo == "egreso"
+        ).scalar() or 0
 
-    db.session.add(arqueo)
-    db.session.commit()
+        arqueo = ArqueoCaja(
+            fecha=fecha,
+            turno=turno,
+            usuario_id=usuario_id,
+            saldo_inicial=saldo_inicial,
+            ingresos_total=Decimal(str(ingresos)),
+            egresos_total=Decimal(str(egresos)),
+            saldo_final=saldo_final,
+            diferencia=saldo_final - (saldo_inicial + Decimal(str(ingresos)) - Decimal(str(egresos)))
+        )
 
-    return jsonify({
-        "message": "Arqueo creado",
-        "arqueo": {
-            "id": arqueo.id,
-            "fecha": arqueo.fecha.isoformat(),
-            "turno": arqueo.turno,
-            "saldo_final": float(arqueo.saldo_final),
-            "diferencia": float(arqueo.diferencia)
-        }
-    }), 201
+        db.session.add(arqueo)
+        db.session.commit()
+
+        return jsonify({
+            "message": "Arqueo creado",
+            "arqueo": {
+                "id": arqueo.id,
+                "fecha": arqueo.fecha.isoformat(),
+                "turno": arqueo.turno,
+                "saldo_final": float(arqueo.saldo_final),
+                "diferencia": float(arqueo.diferencia)
+            }
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error al crear arqueo: {str(e)}"}), 500
 
 
 @tesoreria_bp.route("/api/tesoreria/estado", methods=["GET"])
