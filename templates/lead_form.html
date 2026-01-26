@@ -4,6 +4,7 @@
 <h1>{{ 'Editar Lead' if lead else 'Nuevo Lead' }}</h1>
 
 <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div class="mb-3">
         <label>Etapa del pipeline</label>

@@ -4,6 +4,7 @@
 <h1>Nueva Orden de Compra</h1>
 
 <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div class="mb-3">
         <label>Proveedor (opcional)</label>

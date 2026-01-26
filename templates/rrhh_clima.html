@@ -9,6 +9,7 @@
             <div class="card-body">
                 <h5 class="card-title">Nueva encuesta</h5>
                 <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label>Nombre</label>
                         <input type="text" name="survey_name" class="form-control" required>
@@ -39,6 +40,7 @@
             <div class="card-body">
                 <h5 class="card-title">Responder encuesta</h5>
                 <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label>Encuesta</label>
                         <select name="survey_id" class="form-control" required>

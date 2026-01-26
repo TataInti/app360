@@ -11,6 +11,7 @@
             <div class="card-body">
                 <h5 class="card-title">Registrar objetivo</h5>
                 <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label>Empleado</label>
                         <select name="employee_id" class="form-control" required>
