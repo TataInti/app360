@@ -41,10 +41,15 @@ def rrhh_empleados():
             first_name = parts[0] if parts else ""
             last_name = parts[1] if len(parts) > 1 else ""
             
+            # Manejar rol: si es "Otro", usar el valor de role_otro
+            role = data.get("role", "").strip()
+            if role == "Otro":
+                role = data.get("role_otro", "").strip() or "Otro"
+            
             nuevo_empleado = Employee(
                 first_name=first_name,
                 last_name=last_name,
-                position=data.get("role"),
+                position=role,
                 email=data.get("email"),
                 location_id=int(data.get("location_id")) if data.get("location_id") else None,
                 is_active=data.get("active") == "on"

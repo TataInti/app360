@@ -17,8 +17,29 @@
                         <input type="text" name="full_name" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label>Rol</label>
-                        <input type="text" name="role" class="form-control">
+                        <label>Rol / Cargo</label>
+                        <select name="role" class="form-control">
+                            <option value="">-- Seleccionar --</option>
+                            <option value="Vendedor">Vendedor</option>
+                            <option value="Vendedor Senior">Vendedor Senior</option>
+                            <option value="Jefe Comercial">Jefe Comercial</option>
+                            <option value="Gerente Comercial">Gerente Comercial</option>
+                            <option value="Administrativo">Administrativo</option>
+                            <option value="Contador">Contador</option>
+                            <option value="RRHH">RRHH</option>
+                            <option value="Gerente General">Gerente General</option>
+                            <option value="Operario">Operario</option>
+                            <option value="Logística">Logística</option>
+                            <option value="Compras">Compras</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i> Los roles que contienen "Vendedor" o "Comercial" aparecen en Objetivos de Venta.
+                        </small>
+                    </div>
+                    <div class="mb-3" id="rolOtroContainer" style="display: none;">
+                        <label>Especificar rol</label>
+                        <input type="text" name="role_otro" class="form-control" placeholder="Ingrese el rol...">
                     </div>
                     <div class="mb-3">
                         <label>Ubicación</label>
@@ -73,4 +94,25 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectRol = document.querySelector('select[name="role"]');
+    const containerOtro = document.getElementById('rolOtroContainer');
+    const inputOtro = document.querySelector('input[name="role_otro"]');
+    
+    if (selectRol && containerOtro) {
+        selectRol.addEventListener('change', function() {
+            if (this.value === 'Otro') {
+                containerOtro.style.display = 'block';
+                inputOtro.required = true;
+            } else {
+                containerOtro.style.display = 'none';
+                inputOtro.required = false;
+                inputOtro.value = '';
+            }
+        });
+    }
+});
+</script>
 {% endblock %}

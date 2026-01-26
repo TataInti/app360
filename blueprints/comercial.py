@@ -385,7 +385,7 @@ def objetivos_listar():
     if periodo:
         query = query.filter(Goal.period == periodo)
     
-    objetivos = query.order_by(Goal.period.desc(), Employee.full_name).all()
+    objetivos = query.order_by(Goal.period.desc(), Employee.first_name, Employee.last_name).all()
     
     # Calcular ventas reales por empleado en el periodo
     resultado = []
@@ -495,8 +495,26 @@ def objetivos_eliminar(objetivo_id):
 @comercial_bp.route("/api/comercial/vendedores", methods=["GET"])
 def vendedores_listar():
     """Listar empleados que son vendedores"""
-    # Buscar empleados (idealmente filtrar por rol/departamento ventas)
-    empleados = Employee.query.filter(Employee.is_active == True).order_by(Employee.full_name).all()
+    from sqlalchemy import or_
+    
+    # Filtrar por position o department que contenga 'venta', 'vendedor' o 'comercial'
+    empleados = Employee.query.filter(
+        Employee.is_active == True,
+        or_(
+            Employee.position.ilike('%venta%'),
+            Employee.position.ilike('%vendedor%'),
+            Employee.position.ilike('%comercial%'),
+            Employee.department.ilike('%venta%'),
+            Employee.department.ilike('%comercial%')
+        )
+    ).order_by(Employee.first_name, Employee.last_name).all()
+    
+    # Si no hay vendedores configurados, devolver lista vacía con mensaje
+    if not empleados:
+        return jsonify({
+            "vendedores": [],
+            "mensaje": "No hay empleados con rol de vendedor. Configure el rol 'Vendedor' o 'Comercial' en RRHH > Empleados."
+        })
     
     return jsonify({
         "vendedores": [{

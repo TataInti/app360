@@ -19,6 +19,11 @@ class Employee(db.Model):
     @property
     def name(self):
         return f"{self.first_name} {self.last_name}"
+    
+    # Alias full_name = name para compatibilidad con templates y queries
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}"
 
     location = db.relationship("Location")
     attendances = db.relationship("Attendance", back_populates="employee")
