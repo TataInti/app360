@@ -215,11 +215,8 @@ def arqueos_crear():
     saldo_final = data.get("saldo_final")
     
     # Obtener usuario de la sesión o usar default
-    from flask_login import current_user
-    if current_user and current_user.is_authenticated:
-        usuario_id = current_user.id
-    else:
-        usuario_id = data.get("usuario_id", 1)
+    from flask import session
+    usuario_id = session.get("user_id") or data.get("usuario_id", 1)
 
     if not fecha_str or not turno or saldo_final is None:
         return jsonify({"error": "Fecha, turno y saldo final requeridos"}), 400
