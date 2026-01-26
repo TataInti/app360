@@ -131,3 +131,4 @@ vps_access.md
 *.key
 __pycache__/
 *.pyc
+scripts/seed_local.py
