@@ -280,14 +280,16 @@
         }
         tbody.innerHTML = arqueos.map(a => {
             const difClass = a.diferencia < 0 ? 'text-danger' : a.diferencia > 0 ? 'text-warning' : 'text-success';
+            const ingresos = parseFloat(a.ingresos_total || a.ingresos || 0);
+            const egresos = parseFloat(a.egresos_total || a.egresos || 0);
             return `
             <tr>
                 <td>${a.fecha}</td>
                 <td>${a.turno || '-'}</td>
                 <td>$${parseFloat(a.saldo_inicial).toLocaleString('es-AR')}</td>
-                <td class="text-success">$${parseFloat(a.ingresos || 0).toLocaleString('es-AR')}</td>
-                <td class="text-danger">$${parseFloat(a.egresos || 0).toLocaleString('es-AR')}</td>
-                <td>$${parseFloat(a.saldo_real || 0).toLocaleString('es-AR')}</td>
+                <td class="text-success">$${ingresos.toLocaleString('es-AR')}</td>
+                <td class="text-danger">$${egresos.toLocaleString('es-AR')}</td>
+                <td>$${parseFloat(a.saldo_final || 0).toLocaleString('es-AR')}</td>
                 <td class="${difClass}"><strong>$${parseFloat(a.diferencia || 0).toLocaleString('es-AR')}</strong></td>
             </tr>
         `}).join('');

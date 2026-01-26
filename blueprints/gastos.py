@@ -212,7 +212,7 @@ def gastos_registrar():
 
     required_fields = ["descripcion", "monto", "categoria_id", "proveedor_id"]
     for field in required_fields:
-        if field not in data:
+        if field not in data or not data[field]:
             return jsonify({"error": f"Campo requerido: {field}"}), 400
 
     try:
@@ -222,11 +222,12 @@ def gastos_registrar():
     except:
         return jsonify({"error": "Monto inválido"}), 400
 
-    # Verificar que existan categoria y proveedor
+    # Verificar que exista categoria
     categoria = CategoriaGasto.query.get(data["categoria_id"])
     if not categoria or not categoria.activo:
         return jsonify({"error": "Categoría no encontrada o inactiva"}), 404
 
+    # Verificar que exista proveedor
     proveedor = Proveedor.query.get(data["proveedor_id"])
     if not proveedor or not proveedor.activo:
         return jsonify({"error": "Proveedor no encontrado o inactivo"}), 404

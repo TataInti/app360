@@ -227,6 +227,7 @@ async function cargarMovimientos() {
 document.getElementById('formMovimiento')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     const formData = new FormData(this);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     const data = {
         tipo: formData.get('tipo'),
         monto: parseFloat(formData.get('monto')),
@@ -237,7 +238,7 @@ document.getElementById('formMovimiento')?.addEventListener('submit', async func
     try {
         const resp = await fetch('/api/tesoreria/movimientos', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify(data)
         });
         
