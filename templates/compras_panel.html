@@ -22,15 +22,15 @@
         {% for o in orders %}
         <tr>
             <td>{{ o.id }}</td>
-            <td>{{ o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else '' }}</td>
-            <td>{{ o.supplier or 'Sin proveedor' }}</td>
+            <td>{{ o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else '-' }}</td>
+            <td>{{ o.supplier if o.supplier else 'Sin proveedor' }}</td>
             <td>{{ o.location.name if o.location else 'Sin ubicación' }}</td>
             <td>
                 <span class="badge bg-{{ 'secondary' if o.status == 'borrador' else 'info' if o.status == 'enviada' else 'warning' if o.status == 'recibida' else 'success' if o.status == 'cerrada' else 'light' }}">
-                    {{ o.status }}
+                    {{ o.status or 'desconocido' }}
                 </span>
             </td>
-            <td>{{ o.items|length }}</td>
+            <td>{{ o.items|length if o.items else 0 }}</td>
             <td>
                 <a href="/compras/{{ o.id }}" class="btn btn-sm btn-outline-secondary">Detalle</a>
             </td>

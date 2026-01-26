@@ -43,8 +43,8 @@
                     <h5 class="mb-0">{{ data.name }}</h5>
                     <button class="btn btn-primary btn-sm" 
                             data-entidad="{{ entidad }}"
-                            data-fields="{{ data.fields|tojson }}"
-                            data-required="{{ data.required|tojson }}"
+                            data-fields='{{ data.fields|tojson }}'
+                            data-required='{{ data.required|tojson }}'
                             onclick="abrirModalNuevoFromBtn(this)">
                         <i class="bi bi-plus-circle"></i> Nuevo
                     </button>

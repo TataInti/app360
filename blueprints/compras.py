@@ -21,7 +21,11 @@ ORDER_STATUSES = ["borrador", "enviada", "recibida", "cerrada"]
 @compras_bp.route("/compras")
 def compras_home():
     # Listado simple de órdenes de compra
-    orders = PurchaseOrder.query.order_by(PurchaseOrder.created_at.desc()).all()
+    try:
+        orders = PurchaseOrder.query.order_by(PurchaseOrder.created_at.desc()).all()
+    except Exception:
+        # Fallback si created_at no existe en la DB
+        orders = PurchaseOrder.query.order_by(PurchaseOrder.id.desc()).all()
     return render_template(
         "compras_panel.html",
         orders=orders,
