@@ -68,14 +68,97 @@
                             <th>Saldo Esperado</th>
                             <th>Saldo Real</th>
                             <th>Diferencia</th>
+                            <th>Destino</th>
                             <th>Usuario</th>
-                            <th>Estado</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="tablaArqueos">
-                        <tr><td colspan="10" class="text-center">Cargando...</td></tr>
+                        <tr><td colspan="11" class="text-center">Cargando...</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Arqueo (solo Admin) -->
+<div class="modal fade" id="modalEditarArqueo" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Arqueo de Caja</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formEditarArqueo">
+                <input type="hidden" name="arqueo_id" id="editArqueoId">
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        Solo se pueden editar arqueos del día actual. Debes justificar esta edición.
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Fecha</label>
+                            <input type="text" class="form-control" id="editFecha" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Turno</label>
+                            <input type="text" class="form-control" id="editTurno" readonly>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Saldo Inicial *</label>
+                            <input type="number" class="form-control" name="saldo_inicial" id="editSaldoInicial" step="0.01" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Saldo Final *</label>
+                            <input type="number" class="form-control" name="saldo_final" id="editSaldoFinal" step="0.01" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Destino del Dinero</label>
+                        <select class="form-select" name="destino_id" id="editDestinoSelect">
+                            <option value="">-- Seleccionar destino --</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Observaciones</label>
+                        <textarea class="form-control" name="observaciones" id="editObservaciones" rows="2"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Justificación de Edición *</label>
+                        <textarea class="form-control" name="justificacion" rows="3" required 
+                            placeholder="Explica por qué es necesario modificar este arqueo..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Historial de Ediciones -->
+<div class="modal fade" id="modalHistorialArqueo" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Historial de Ediciones</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="historialContent">
+                    <p class="text-center">Cargando historial...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -133,6 +216,13 @@
                     </div>
                     
                     <div class="mb-3">
+                        <label class="form-label">Destino del Dinero</label>
+                        <select class="form-select" name="destino_id" id="destinoSelect">
+                            <option value="">-- Seleccionar destino --</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
                         <label class="form-label">Observaciones</label>
                         <textarea class="form-control" name="observaciones" rows="2"></textarea>
                     </div>
@@ -147,8 +237,13 @@
 </div>
 
 <script>
+let destinosDisponibles = [];
+const userRole = '{{ session.get("role", "") }}';
+const isAdmin = ['admin', 'manager', 'gerente'].includes(userRole);
+
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelector('input[name="fecha"]').value = new Date().toISOString().split('T')[0];
+    cargarDestinos();
     cargarArqueos();
     
     // Calcular diferencia automáticamente
@@ -157,6 +252,30 @@ document.addEventListener('DOMContentLoaded', function() {
         form.querySelector(`[name="${name}"]`)?.addEventListener('input', calcularDiferencia);
     });
 });
+
+async function cargarDestinos() {
+    try {
+        const resp = await fetch('/api/tesoreria/destinos');
+        const data = await resp.json();
+        destinosDisponibles = data.destinos || [];
+        
+        // Llenar dropdown del modal de nuevo arqueo
+        const select = document.getElementById('destinoSelect');
+        select.innerHTML = '<option value="">-- Seleccionar destino --</option>';
+        destinosDisponibles.forEach(d => {
+            select.innerHTML += `<option value="${d.id}">${d.nombre}</option>`;
+        });
+        
+        // Llenar dropdown del modal de edición
+        const editSelect = document.getElementById('editDestinoSelect');
+        editSelect.innerHTML = '<option value="">-- Seleccionar destino --</option>';
+        destinosDisponibles.forEach(d => {
+            editSelect.innerHTML += `<option value="${d.id}">${d.nombre}</option>`;
+        });
+    } catch(e) {
+        console.error('Error cargando destinos:', e);
+    }
+}
 
 function calcularDiferencia() {
     const form = document.getElementById('formArqueo');
@@ -193,13 +312,28 @@ async function cargarArqueos() {
         
         const tbody = document.getElementById('tablaArqueos');
         if (arqueos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No hay arqueos registrados</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">No hay arqueos registrados</td></tr>';
         } else {
             tbody.innerHTML = arqueos.map(a => {
                 const ingresos = parseFloat(a.ingresos_total || a.ingresos || 0);
                 const egresos = parseFloat(a.egresos_total || a.egresos || 0);
                 const esperado = parseFloat(a.saldo_inicial) + ingresos - egresos;
                 const difClass = a.diferencia < 0 ? 'text-danger' : a.diferencia > 0 ? 'text-warning' : 'text-success';
+                
+                const destino = a.destino_id ? (destinosDisponibles.find(d => d.id === a.destino_id)?.nombre || '-') : '-';
+                const hoy = new Date().toISOString().split('T')[0];
+                const esHoy = a.fecha === hoy;
+                
+                let acciones = `<button class="btn btn-sm btn-info" onclick="verHistorial(${a.id})" title="Ver historial">
+                    <i class="bi bi-clock-history"></i>
+                </button>`;
+                
+                if (isAdmin && esHoy) {
+                    acciones += ` <button class="btn btn-sm btn-warning" onclick="editarArqueo(${a.id})" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>`;
+                }
+                
                 return `
                 <tr>
                     <td>${a.fecha}</td>
@@ -210,16 +344,126 @@ async function cargarArqueos() {
                     <td>$${esperado.toLocaleString('es-AR')}</td>
                     <td>$${parseFloat(a.saldo_final || 0).toLocaleString('es-AR')}</td>
                     <td class="${difClass}"><strong>$${parseFloat(a.diferencia || 0).toLocaleString('es-AR')}</strong></td>
+                    <td>${destino}</td>
                     <td>${a.usuario || '-'}</td>
-                    <td><span class="badge ${a.cerrado ? 'bg-secondary' : 'bg-success'}">${a.cerrado ? 'Cerrado' : 'Activo'}</span></td>
+                    <td>${acciones}</td>
                 </tr>
             `}).join('');
         }
     } catch(e) {
         console.error('Error:', e);
         document.getElementById('tablaArqueos').innerHTML = 
-            '<tr><td colspan="10" class="text-center text-danger">Error al cargar datos</td></tr>';
+            '<tr><td colspan="11" class="text-center text-danger">Error al cargar datos</td></tr>';
     }
+}
+
+async function editarArqueo(id) {
+    try {
+        const resp = await fetch('/api/tesoreria/arqueos');
+        const data = await resp.json();
+        const arqueo = data.arqueos.find(a => a.id === id);
+        
+        if (!arqueo) {
+            alert('Arqueo no encontrado');
+            return;
+        }
+        
+        // Llenar formulario
+        document.getElementById('editArqueoId').value = arqueo.id;
+        document.getElementById('editFecha').value = arqueo.fecha;
+        document.getElementById('editTurno').value = arqueo.turno;
+        document.getElementById('editSaldoInicial').value = parseFloat(arqueo.saldo_inicial);
+        document.getElementById('editSaldoFinal').value = parseFloat(arqueo.saldo_final);
+        document.getElementById('editObservaciones').value = arqueo.observaciones || '';
+        
+        if (arqueo.destino_id) {
+            document.getElementById('editDestinoSelect').value = arqueo.destino_id;
+        } else {
+            document.getElementById('editDestinoSelect').value = '';
+        }
+        
+        // Mostrar modal
+        new bootstrap.Modal(document.getElementById('modalEditarArqueo')).show();
+    } catch(e) {
+        alert('Error al cargar datos del arqueo');
+        console.error(e);
+    }
+}
+
+async function verHistorial(id) {
+    try {
+        const resp = await fetch(`/api/tesoreria/arqueos/${id}/logs`);
+        const data = await resp.json();
+        const logs = data.logs || [];
+        
+        const content = document.getElementById('historialContent');
+        
+        if (logs.length === 0) {
+            content.innerHTML = '<p class="text-muted text-center">Este arqueo no ha sido editado.</p>';
+        } else {
+            content.innerHTML = `
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Fecha/Hora</th>
+                                <th>Usuario</th>
+                                <th>Justificación</th>
+                                <th>Cambios</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${logs.map(log => {
+                                const cambios = compararCambios(log.cambios.anterior, log.cambios.nuevo);
+                                return `
+                                <tr>
+                                    <td>${new Date(log.fecha).toLocaleString('es-AR')}</td>
+                                    <td>${log.usuario}</td>
+                                    <td>${log.justificacion}</td>
+                                    <td><small>${cambios}</small></td>
+                                </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        new bootstrap.Modal(document.getElementById('modalHistorialArqueo')).show();
+    } catch(e) {
+        alert('Error al cargar historial');
+        console.error(e);
+    }
+}
+
+function compararCambios(anterior, nuevo) {
+    const cambios = [];
+    const campos = {
+        'saldo_inicial': 'Saldo Inicial',
+        'saldo_final': 'Saldo Final',
+        'destino_id': 'Destino',
+        'observaciones': 'Observaciones'
+    };
+    
+    for (let campo in campos) {
+        if (anterior[campo] !== nuevo[campo]) {
+            let valorAnterior = anterior[campo];
+            let valorNuevo = nuevo[campo];
+            
+            if (campo === 'destino_id') {
+                valorAnterior = valorAnterior ? (destinosDisponibles.find(d => d.id === valorAnterior)?.nombre || valorAnterior) : 'Sin destino';
+                valorNuevo = valorNuevo ? (destinosDisponibles.find(d => d.id === valorNuevo)?.nombre || valorNuevo) : 'Sin destino';
+            } else if (campo !== 'observaciones') {
+                valorAnterior = '$' + parseFloat(valorAnterior).toLocaleString('es-AR');
+                valorNuevo = '$' + parseFloat(valorNuevo).toLocaleString('es-AR');
+            }
+            
+            cambios.push(`<strong>${campos[campo]}:</strong> ${valorAnterior} → ${valorNuevo}`);
+        }
+    }
+    
+    return cambios.length > 0 ? cambios.join('<br>') : 'Sin cambios';
 }
 
 document.getElementById('formArqueo')?.addEventListener('submit', async function(e) {
@@ -240,6 +484,7 @@ document.getElementById('formArqueo')?.addEventListener('submit', async function
         egresos: egresos,
         saldo_final: real,
         diferencia: real - (inicial + ingresos - egresos),
+        destino_id: formData.get('destino_id') ? parseInt(formData.get('destino_id')) : null,
         observaciones: formData.get('observaciones')
     };
     
@@ -261,6 +506,43 @@ document.getElementById('formArqueo')?.addEventListener('submit', async function
         }
     } catch(e) {
         alert('Error de conexión');
+    }
+});
+
+document.getElementById('formEditarArqueo')?.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const arqueoId = formData.get('arqueo_id');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    
+    const data = {
+        saldo_inicial: parseFloat(formData.get('saldo_inicial')),
+        saldo_final: parseFloat(formData.get('saldo_final')),
+        destino_id: formData.get('destino_id') ? parseInt(formData.get('destino_id')) : null,
+        observaciones: formData.get('observaciones'),
+        justificacion: formData.get('justificacion')
+    };
+    
+    try {
+        const resp = await fetch(`/api/tesoreria/arqueos/${arqueoId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await resp.json();
+        
+        if (resp.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('modalEditarArqueo')).hide();
+            this.reset();
+            alert('Arqueo actualizado correctamente');
+            cargarArqueos();
+        } else {
+            alert('Error: ' + (result.error || 'No se pudo actualizar'));
+        }
+    } catch(e) {
+        alert('Error de conexión');
+        console.error(e);
     }
 });
 </script>

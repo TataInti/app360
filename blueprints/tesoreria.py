@@ -1,7 +1,7 @@
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, date
 from decimal import Decimal
 
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify, render_template, session
 
 from models import (
     ArqueoCaja,
@@ -10,6 +10,7 @@ from models import (
     User,
     db,
 )
+from models.tesoreria import DestinoArqueo, LogArqueo
 from security import protect_blueprint
 
 tesoreria_bp = Blueprint("tesoreria", __name__)
@@ -315,4 +316,144 @@ def estado_caja():
         "fecha": fecha,
         "estado_por_instrumento": estado,
         "total_caja": sum(estado.values())
+    })
+
+
+# =============================================================================
+# Endpoints para DESTINOS DE ARQUEO
+# =============================================================================
+
+@tesoreria_bp.route("/api/tesoreria/destinos", methods=["GET"])
+def destinos_listar():
+    """Listar destinos de arqueo activos"""
+    destinos = DestinoArqueo.query.filter_by(activo=True).order_by(DestinoArqueo.nombre).all()
+    return jsonify({
+        "destinos": [{
+            "id": d.id,
+            "nombre": d.nombre,
+            "descripcion": d.descripcion
+        } for d in destinos]
+    })
+
+
+# =============================================================================
+# Endpoints para EDICIÓN DE ARQUEOS (Solo Admin)
+# =============================================================================
+
+def require_admin():
+    """Helper para verificar que el usuario sea admin"""
+    if "user" not in session:
+        return jsonify({"error": "No autenticado"}), 401
+    if session.get("role") not in ["admin", "manager", "gerente"]:
+        return jsonify({"error": "Acceso denegado. Se requiere rol de administrador."}), 403
+    return None
+
+
+@tesoreria_bp.route("/api/tesoreria/arqueos/<int:id>", methods=["PUT"])
+def arqueos_editar(id):
+    """Editar arqueo de caja (solo admin, solo día actual, requiere justificación)"""
+    # Verificar permisos admin
+    auth_error = require_admin()
+    if auth_error:
+        return auth_error
+    
+    arqueo = ArqueoCaja.query.get_or_404(id)
+    data = request.get_json()
+    
+    # Validar que sea del día actual
+    if arqueo.fecha != date.today():
+        return jsonify({"error": "Solo se pueden editar arqueos del día actual"}), 400
+    
+    # Validar justificación requerida
+    justificacion = data.get("justificacion")
+    if not justificacion or not justificacion.strip():
+        return jsonify({"error": "Campo requerido: justificacion"}), 400
+    
+    try:
+        # Guardar estado anterior
+        campos_anteriores = {
+            "saldo_inicial": float(arqueo.saldo_inicial),
+            "saldo_final": float(arqueo.saldo_final),
+            "destino_id": arqueo.destino_id,
+            "observaciones": arqueo.observaciones
+        }
+        
+        # Actualizar campos permitidos
+        if "saldo_inicial" in data:
+            arqueo.saldo_inicial = Decimal(str(data["saldo_inicial"]))
+        if "saldo_final" in data:
+            arqueo.saldo_final = Decimal(str(data["saldo_final"]))
+        if "destino_id" in data:
+            destino_id = data["destino_id"]
+            # Validar que el destino exista si no es None
+            if destino_id is not None:
+                destino = DestinoArqueo.query.get(destino_id)
+                if not destino:
+                    return jsonify({"error": "Destino no encontrado"}), 404
+            arqueo.destino_id = destino_id
+        if "observaciones" in data:
+            arqueo.observaciones = data["observaciones"]
+        
+        # Recalcular diferencia automáticamente
+        saldo_esperado = arqueo.saldo_inicial + arqueo.ingresos_total - arqueo.egresos_total
+        arqueo.diferencia = arqueo.saldo_final - saldo_esperado
+        
+        # Actualizar campos de auditoría
+        usuario_id = session.get("user_id")
+        arqueo.editado_por_id = usuario_id
+        arqueo.fecha_edicion = datetime.utcnow()
+        
+        # Crear log de edición
+        campos_nuevos = {
+            "saldo_inicial": float(arqueo.saldo_inicial),
+            "saldo_final": float(arqueo.saldo_final),
+            "destino_id": arqueo.destino_id,
+            "observaciones": arqueo.observaciones
+        }
+        
+        log = LogArqueo(
+            arqueo_id=id,
+            usuario_id=usuario_id,
+            campos_anteriores=campos_anteriores,
+            campos_nuevos=campos_nuevos,
+            justificacion=justificacion.strip()
+        )
+        
+        db.session.add(log)
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": "Arqueo actualizado correctamente",
+            "arqueo": {
+                "id": arqueo.id,
+                "saldo_inicial": float(arqueo.saldo_inicial),
+                "saldo_final": float(arqueo.saldo_final),
+                "diferencia": float(arqueo.diferencia),
+                "destino_id": arqueo.destino_id,
+                "observaciones": arqueo.observaciones
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error al actualizar arqueo: {str(e)}"}), 500
+
+
+@tesoreria_bp.route("/api/tesoreria/arqueos/<int:id>/logs", methods=["GET"])
+def arqueos_logs(id):
+    """Obtener historial de ediciones de un arqueo"""
+    arqueo = ArqueoCaja.query.get_or_404(id)
+    logs = LogArqueo.query.filter_by(arqueo_id=id).order_by(LogArqueo.fecha_edicion.desc()).all()
+    
+    return jsonify({
+        "logs": [{
+            "id": log.id,
+            "fecha": log.fecha_edicion.isoformat(),
+            "usuario": log.usuario.username if log.usuario else "Desconocido",
+            "justificacion": log.justificacion,
+            "cambios": {
+                "anterior": log.campos_anteriores,
+                "nuevo": log.campos_nuevos
+            }
+        } for log in logs]
     })

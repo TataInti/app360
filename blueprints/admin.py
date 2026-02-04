@@ -7,7 +7,7 @@ from flask import Blueprint, flash, jsonify, redirect, render_template, request,
 
 from models import db
 from models.gastos import CategoriaGasto, Proveedor
-from models.tesoreria import InstrumentoPago
+from models.tesoreria import InstrumentoPago, DestinoArqueo
 from models.rrhh import Turno
 from models.core import Location, Product, BusinessUnit
 
@@ -53,6 +53,12 @@ ADMIN_MODELS = {
         "instrumentos": {
             "model": InstrumentoPago,
             "name": "Instrumentos de Pago",
+            "fields": ["nombre", "descripcion", "activo"],
+            "required": ["nombre"],
+        },
+        "destinos": {
+            "model": DestinoArqueo,
+            "name": "Destinos de Arqueo",
             "fields": ["nombre", "descripcion", "activo"],
             "required": ["nombre"],
         },
