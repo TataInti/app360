@@ -91,13 +91,14 @@
                             <th>Tipo</th>
                             <th>Monto</th>
                             <th>Instrumento</th>
+                            <th>Destino</th>
                             <th>Descripción</th>
                             <th>Usuario</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="tablaMovimientos">
-                        <tr><td colspan="7" class="text-center">Cargando...</td></tr>
+                        <tr><td colspan="8" class="text-center">Cargando...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -133,6 +134,13 @@
                         </select>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">Destino</label>
+                        <select class="form-select" name="destino_id" id="selectDestino">
+                            <option value="">-- Sin especificar --</option>
+                        </select>
+                        <small class="text-muted">Indica el origen (ingreso) o destino (egreso) del movimiento</small>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Descripción *</label>
                         <input type="text" class="form-control" name="descripcion" required>
                     </div>
@@ -147,6 +155,8 @@
 </div>
 
 <script>
+let destinosDisponibles = [];
+
 document.addEventListener('DOMContentLoaded', function() {
     const hoy = new Date();
     const hace30 = new Date(hoy.getTime() - 30*24*60*60*1000);
@@ -154,8 +164,25 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('fechaDesde').value = hace30.toISOString().split('T')[0];
     
     cargarInstrumentos();
+    cargarDestinos();
     cargarMovimientos();
 });
+
+async function cargarDestinos() {
+    try {
+        const resp = await fetch('/api/tesoreria/destinos');
+        const data = await resp.json();
+        destinosDisponibles = data.destinos || [];
+        
+        const select = document.getElementById('selectDestino');
+        select.innerHTML = '<option value="">-- Sin especificar --</option>';
+        destinosDisponibles.forEach(d => {
+            select.innerHTML += `<option value="${d.id}">${d.nombre}</option>`;
+        });
+    } catch(e) {
+        console.error('Error cargando destinos:', e);
+    }
+}
 
 async function cargarInstrumentos() {
     try {
@@ -199,14 +226,17 @@ async function cargarMovimientos() {
         
         const tbody = document.getElementById('tablaMovimientos');
         if (movimientos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay movimientos</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No hay movimientos</td></tr>';
         } else {
-            tbody.innerHTML = movimientos.map(m => `
+            tbody.innerHTML = movimientos.map(m => {
+                const destino = m.destino || '-';
+                return `
                 <tr>
                     <td>${new Date(m.fecha_hora).toLocaleString('es-AR')}</td>
                     <td><span class="badge ${m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger'}">${m.tipo}</span></td>
                     <td>$${parseFloat(m.monto).toLocaleString('es-AR')}</td>
                     <td>${m.instrumento || '-'}</td>
+                    <td>${destino}</td>
                     <td>${m.descripcion}</td>
                     <td>${m.usuario || '-'}</td>
                     <td>
@@ -215,12 +245,12 @@ async function cargarMovimientos() {
                         </button>
                     </td>
                 </tr>
-            `).join('');
+            `}).join('');
         }
     } catch(e) {
         console.error('Error:', e);
         document.getElementById('tablaMovimientos').innerHTML = 
-            '<tr><td colspan="7" class="text-center text-danger">Error al cargar datos</td></tr>';
+            '<tr><td colspan="8" class="text-center text-danger">Error al cargar datos</td></tr>';
     }
 }
 
@@ -228,10 +258,13 @@ document.getElementById('formMovimiento')?.addEventListener('submit', async func
     e.preventDefault();
     const formData = new FormData(this);
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    
+    const destinoValue = formData.get('destino_id');
     const data = {
         tipo: formData.get('tipo'),
         monto: parseFloat(formData.get('monto')),
         instrumento_id: parseInt(formData.get('instrumento_id')),
+        destino_id: destinoValue ? parseInt(destinoValue) : null,
         descripcion: formData.get('descripcion')
     };
     

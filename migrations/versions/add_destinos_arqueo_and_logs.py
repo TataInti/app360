@@ -77,19 +77,8 @@ def upgrade():
                 ['usuario_id'], ['id']
             )
     
-    # 3. Agregar columnas a arqueos_caja
+    # 3. Agregar columnas a arqueos_caja (sin destino_id)
     if table_exists('arqueos_caja'):
-        if not column_exists('arqueos_caja', 'destino_id'):
-            op.add_column('arqueos_caja',
-                sa.Column('destino_id', sa.Integer(), nullable=True))
-            # Foreign key
-            if table_exists('destinos_arqueo'):
-                op.create_foreign_key(
-                    'fk_arqueo_destino_id',
-                    'arqueos_caja', 'destinos_arqueo',
-                    ['destino_id'], ['id']
-                )
-        
         if not column_exists('arqueos_caja', 'editado_por_id'):
             op.add_column('arqueos_caja',
                 sa.Column('editado_por_id', sa.Integer(), nullable=True))
@@ -113,7 +102,20 @@ def upgrade():
             op.add_column('arqueos_caja',
                 sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now(), onupdate=sa.func.now()))
     
-    # 4. Seed de destinos iniciales
+    # 4. Agregar destino_id a movimientos_caja
+    if table_exists('movimientos_caja'):
+        if not column_exists('movimientos_caja', 'destino_id'):
+            op.add_column('movimientos_caja',
+                sa.Column('destino_id', sa.Integer(), nullable=True))
+            # Foreign key
+            if table_exists('destinos_arqueo'):
+                op.create_foreign_key(
+                    'fk_movimiento_destino_id',
+                    'movimientos_caja', 'destinos_arqueo',
+                    ['destino_id'], ['id']
+                )
+    
+    # 5. Seed de destinos iniciales
     if table_exists('destinos_arqueo'):
         from sqlalchemy import table, column
         destinos_table = table('destinos_arqueo',
@@ -138,7 +140,7 @@ def upgrade():
                 {'nombre': 'Otro', 'descripcion': 'Otro destino (especificar en observaciones)', 'activo': True},
             ])
     
-    # 5. Seed de nuevos instrumentos de pago
+    # 6. Seed de nuevos instrumentos de pago
     if table_exists('instrumentos_pago'):
         from sqlalchemy import table, column
         instrumentos_table = table('instrumentos_pago',
@@ -180,6 +182,15 @@ def upgrade():
 
 
 def downgrade():
+    # Eliminar destino_id de movimientos_caja
+    if table_exists('movimientos_caja'):
+        try:
+            op.drop_constraint('fk_movimiento_destino_id', 'movimientos_caja', type_='foreignkey')
+        except:
+            pass
+        if column_exists('movimientos_caja', 'destino_id'):
+            op.drop_column('movimientos_caja', 'destino_id')
+    
     # Eliminar columnas de arqueos_caja
     if table_exists('arqueos_caja'):
         if column_exists('arqueos_caja', 'updated_at'):
@@ -189,16 +200,9 @@ def downgrade():
         if column_exists('arqueos_caja', 'fecha_edicion'):
             op.drop_column('arqueos_caja', 'fecha_edicion')
         
-        # Eliminar foreign keys primero
+        # Eliminar foreign key primero
         try:
             op.drop_constraint('fk_arqueo_editado_por_id', 'arqueos_caja', type_='foreignkey')
-        except:
-            pass
-        if column_exists('arqueos_caja', 'editado_por_id'):
-            op.drop_column('arqueos_caja', 'editado_por_id')
-        
-        try:
-            op.drop_constraint('fk_arqueo_destino_id', 'arqueos_caja', type_='foreignkey')
         except:
             pass
         if column_exists('arqueos_caja', 'destino_id'):

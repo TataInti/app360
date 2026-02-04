@@ -4,16 +4,19 @@
 
 Se han implementado las siguientes mejoras en el módulo de Tesorería:
 
-### 1. Catálogo de Destinos de Arqueos
-- Nuevo modelo `DestinoArqueo` para gestionar destinos del dinero
+### 1. Catálogo de Destinos para Movimientos
+- Nuevo modelo `DestinoArqueo` para gestionar destinos/orígenes del dinero
+- Campo `destino_id` en **MovimientoCaja** (cada ingreso/egreso tiene su destino)
 - 8 destinos predefinidos: Banco, Caja Fuerte, Caja General, Tesoro Central, Cambio de Turno, Transporte de Valores, Caja Chica, Otro
 - Administrable desde el panel de admin en `/admin`
+- Dropdown de destinos en formulario de nuevo movimiento
 
 ### 2. Sistema de Auditoría para Arqueos
 - Nuevo modelo `LogArqueo` para registro completo de ediciones
 - Solo administradores pueden editar arqueos
 - Solo se pueden editar arqueos del día actual
 - Justificación obligatoria para cada edición
+- Recálculo automático de diferencia al editar
 - Historial completo de cambios visible en la interfaz
 
 ### 3. Nuevos Instrumentos de Pago
@@ -32,13 +35,14 @@ Se agregaron 16 nuevos instrumentos:
 ## Archivos Modificados
 
 ### Backend
-- `models/tesoreria.py` - Nuevos modelos DestinoArqueo, LogArqueo, campos adicionales en ArqueoCaja
+- `models/tesoreria.py` - Nuevos modelos DestinoArqueo, LogArqueo, destino_id en MovimientoCaja, campos de auditoría en ArqueoCaja
 - `blueprints/admin.py` - Configuración de administración de destinos
-- `blueprints/tesoreria.py` - Endpoints: GET destinos, PUT arqueos, GET arqueos/logs
+- `blueprints/tesoreria.py` - Endpoints: GET destinos, POST movimientos con destino, PUT arqueos, GET arqueos/logs
 - `migrations/versions/add_destinos_arqueo_and_logs.py` - Migración con seeds
 
 ### Frontend
-- `templates/tesoreria_arqueos.html` - Modal de edición, dropdown de destinos, historial de cambios
+- `templates/tesoreria_movimientos.html` - Dropdown de destinos, columna Destino en tabla
+- `templates/tesoreria_arqueos.html` - Modal de edición, historial de cambios
 
 ---
 
@@ -84,6 +88,7 @@ psql -U app360 app360
 # Dentro de psql:
 \dt destinos_arqueo
 \dt logs_arqueo
+\d movimientos_caja
 \d arqueos_caja
 SELECT * FROM destinos_arqueo;
 SELECT * FROM instrumentos_pago WHERE nombre IN ('Flor', 'Lacteos', 'Friar');
@@ -127,27 +132,39 @@ git revert HEAD    # Revertir último commit
 
 ---
 
-## Pruebas Post-Despliegue
-
-### Caso de Prueba 1: Crear Arqueo con Destino
+## Pruebas Post-DespliegueMovimiento con Destino
 1. Login como usuario de tesorería
-2. Ir a Tesorería → Arqueos → Nuevo Arqueo
-3. Completar datos y seleccionar "Banco" como destino
-4. Guardar y verificar que aparece en la tabla
+2. Ir a Tesorería → Movimientos → Registrar Movimiento
+3. Seleccionar tipo "Egreso", monto, instrumento "Efectivo"
+4. Seleccionar destino "Banco"
+5. Descripción: "Depósito bancario del día"
+6. Guardar y verificar que aparece en la tabla con el destino
 
-### Caso de Prueba 2: Editar Arqueo (Admin)
-1. Login como administrador
-2. Ir a Tesorería → Arqueos
-3. Hacer clic en el botón "Editar" de un arqueo del día actual
-4. Modificar el saldo final
-5. Escribir justificación: "Corrección por error de conteo"
-6. Guardar y verificar que se recalcula la diferencia
+### Caso de Prueba 2: Crear Arqueo
+1. Ir a Tesorería → Arqueos → Nuevo Arqueo
+2. Completar datos (ya no hay dropdown de destino)
+3. Guardar y verificar que aparece en la tabla
 
-### Caso de Prueba 3: Ver Historial de Ediciones
+### Caso de Prueba 3ar que aparece en la tabla
+
+### Caso de Prueba 4: Ver Historial de Ediciones
 1. En la tabla de arqueos, hacer clic en el icono de reloj del arqueo editado
 2. Verificar que muestra la fecha/hora, usuario, justificación y cambios realizados
 
-### Caso de Prueba 4: Restricciones de Seguridad
+### Caso de Prueba 5: Restricciones de Seguridad
+1. Intentar editar un arqueo de ayer (debe mostrar error)
+2. Login como usuario no-admin (debe no ver botón de editar)
+3. Intentar editar sin justificación (debe mostrar error)
+
+### Caso de Prueba 6: Nuevos Instrumentos de Pago
+1. Ir a Admin → Instrumentos de Pago
+2. Verificar que aparecen los 16 nuevos instrumentos
+3. Crear un movimiento usando "Banco Galicia" con destino "Caja General"
+
+### Caso de Prueba 7: Destinos en Movimientos
+1. Crear varios movimientos con diferentes destinos
+2. Verificar que la columna "Destino" muestra correctamente
+3. Verificar que destinos administrables desde panel admindad
 1. Intentar editar un arqueo de ayer (debe mostrar error)
 2. Login como usuario no-admin (debe no ver botón de editar)
 3. Intentar editar sin justificación (debe mostrar error)

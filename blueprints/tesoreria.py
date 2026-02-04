@@ -114,6 +114,8 @@ def movimientos_listar():
             "monto": float(m.monto),
             "descripcion": m.descripcion,
             "instrumento": m.instrumento.nombre,
+            "destino": m.destino.nombre if m.destino else None,
+            "destino_id": m.destino_id,
             "referencia": m.referencia,
             "cliente_proveedor": m.cliente_proveedor,
             "usuario": m.usuario.username if m.usuario else None
@@ -133,6 +135,7 @@ def movimientos_crear():
     monto = data.get("monto")
     descripcion = data.get("descripcion")
     instrumento_id = data.get("instrumento_id")
+    destino_id = data.get("destino_id")  # Nuevo campo opcional
     usuario_id = data.get("usuario_id", 1)  # Default admin user
 
     if tipo not in ["ingreso", "egreso"]:
@@ -149,12 +152,19 @@ def movimientos_crear():
     instrumento = InstrumentoPago.query.get(instrumento_id)
     if not instrumento:
         return jsonify({"error": "Instrumento no encontrado"}), 404
+    
+    # Validar destino si se proporcionó
+    if destino_id:
+        destino = DestinoArqueo.query.get(destino_id)
+        if not destino:
+            return jsonify({"error": "Destino no encontrado"}), 404
 
     movimiento = MovimientoCaja(
         tipo=tipo,
         monto=monto,
         descripcion=descripcion,
         instrumento_id=instrumento_id,
+        destino_id=destino_id,
         usuario_id=usuario_id,
         referencia=data.get("referencia"),
         cliente_proveedor=data.get("cliente_proveedor")
@@ -374,7 +384,6 @@ def arqueos_editar(id):
         campos_anteriores = {
             "saldo_inicial": float(arqueo.saldo_inicial),
             "saldo_final": float(arqueo.saldo_final),
-            "destino_id": arqueo.destino_id,
             "observaciones": arqueo.observaciones
         }
         
@@ -383,14 +392,6 @@ def arqueos_editar(id):
             arqueo.saldo_inicial = Decimal(str(data["saldo_inicial"]))
         if "saldo_final" in data:
             arqueo.saldo_final = Decimal(str(data["saldo_final"]))
-        if "destino_id" in data:
-            destino_id = data["destino_id"]
-            # Validar que el destino exista si no es None
-            if destino_id is not None:
-                destino = DestinoArqueo.query.get(destino_id)
-                if not destino:
-                    return jsonify({"error": "Destino no encontrado"}), 404
-            arqueo.destino_id = destino_id
         if "observaciones" in data:
             arqueo.observaciones = data["observaciones"]
         
@@ -407,7 +408,6 @@ def arqueos_editar(id):
         campos_nuevos = {
             "saldo_inicial": float(arqueo.saldo_inicial),
             "saldo_final": float(arqueo.saldo_final),
-            "destino_id": arqueo.destino_id,
             "observaciones": arqueo.observaciones
         }
         
@@ -430,7 +430,6 @@ def arqueos_editar(id):
                 "saldo_inicial": float(arqueo.saldo_inicial),
                 "saldo_final": float(arqueo.saldo_final),
                 "diferencia": float(arqueo.diferencia),
-                "destino_id": arqueo.destino_id,
                 "observaciones": arqueo.observaciones
             }
         })

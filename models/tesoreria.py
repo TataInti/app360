@@ -15,7 +15,7 @@ class InstrumentoPago(db.Model):
 
 
 class DestinoArqueo(db.Model):
-    """Catálogo de destinos para arqueos de caja (donde va el dinero)"""
+    """Catálogo de destinos para movimientos de caja (origen o destino del dinero)"""
     __tablename__ = "destinos_arqueo"
     
     id = db.Column(db.Integer, primary_key=True)
@@ -24,7 +24,7 @@ class DestinoArqueo(db.Model):
     activo = db.Column(db.Boolean, default=True)
     
     # Relaciones
-    arqueos = db.relationship("ArqueoCaja", backref="destino")
+    movimientos = db.relationship("MovimientoCaja", backref="destino")
     
     def __repr__(self):
         return f'<DestinoArqueo {self.nombre}>'
@@ -46,9 +46,6 @@ class ArqueoCaja(db.Model):
     # Control
     diferencia = db.Column(db.Numeric(12, 2), default=0)  # saldo_final - (saldo_inicial + ingresos - egresos)
     observaciones = db.Column(db.Text)
-    
-    # Destino del arqueo (opcional)
-    destino_id = db.Column(db.Integer, db.ForeignKey("destinos_arqueo.id"), nullable=True)
     
     # Auditoría de ediciones
     editado_por_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
@@ -80,6 +77,7 @@ class MovimientoCaja(db.Model):
     instrumento_id = db.Column(db.Integer, db.ForeignKey("instrumentos_pago.id"), nullable=False)
     arqueo_id = db.Column(db.Integer, db.ForeignKey("arqueos_caja.id"), nullable=True)  # Puede ser null si no está arqueado
     usuario_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    destino_id = db.Column(db.Integer, db.ForeignKey("destinos_arqueo.id"), nullable=True)  # Origen o destino del movimiento
 
     # Datos adicionales
     referencia = db.Column(db.String(100))  # Número de cheque, transacción, etc.

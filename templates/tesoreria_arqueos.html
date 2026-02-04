@@ -68,13 +68,12 @@
                             <th>Saldo Esperado</th>
                             <th>Saldo Real</th>
                             <th>Diferencia</th>
-                            <th>Destino</th>
                             <th>Usuario</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="tablaArqueos">
-                        <tr><td colspan="11" class="text-center">Cargando...</td></tr>
+                        <tr><td colspan="10" class="text-center">Cargando...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -118,13 +117,6 @@
                             <label class="form-label">Saldo Final *</label>
                             <input type="number" class="form-control" name="saldo_final" id="editSaldoFinal" step="0.01" required>
                         </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Destino del Dinero</label>
-                        <select class="form-select" name="destino_id" id="editDestinoSelect">
-                            <option value="">-- Seleccionar destino --</option>
-                        </select>
                     </div>
                     
                     <div class="mb-3">
@@ -216,13 +208,6 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">Destino del Dinero</label>
-                        <select class="form-select" name="destino_id" id="destinoSelect">
-                            <option value="">-- Seleccionar destino --</option>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
                         <label class="form-label">Observaciones</label>
                         <textarea class="form-control" name="observaciones" rows="2"></textarea>
                     </div>
@@ -237,13 +222,11 @@
 </div>
 
 <script>
-let destinosDisponibles = [];
 const userRole = '{{ session.get("role", "") }}';
 const isAdmin = ['admin', 'manager', 'gerente'].includes(userRole);
 
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelector('input[name="fecha"]').value = new Date().toISOString().split('T')[0];
-    cargarDestinos();
     cargarArqueos();
     
     // Calcular diferencia automáticamente
@@ -252,30 +235,6 @@ document.addEventListener('DOMContentLoaded', function() {
         form.querySelector(`[name="${name}"]`)?.addEventListener('input', calcularDiferencia);
     });
 });
-
-async function cargarDestinos() {
-    try {
-        const resp = await fetch('/api/tesoreria/destinos');
-        const data = await resp.json();
-        destinosDisponibles = data.destinos || [];
-        
-        // Llenar dropdown del modal de nuevo arqueo
-        const select = document.getElementById('destinoSelect');
-        select.innerHTML = '<option value="">-- Seleccionar destino --</option>';
-        destinosDisponibles.forEach(d => {
-            select.innerHTML += `<option value="${d.id}">${d.nombre}</option>`;
-        });
-        
-        // Llenar dropdown del modal de edición
-        const editSelect = document.getElementById('editDestinoSelect');
-        editSelect.innerHTML = '<option value="">-- Seleccionar destino --</option>';
-        destinosDisponibles.forEach(d => {
-            editSelect.innerHTML += `<option value="${d.id}">${d.nombre}</option>`;
-        });
-    } catch(e) {
-        console.error('Error cargando destinos:', e);
-    }
-}
 
 function calcularDiferencia() {
     const form = document.getElementById('formArqueo');
@@ -312,7 +271,7 @@ async function cargarArqueos() {
         
         const tbody = document.getElementById('tablaArqueos');
         if (arqueos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">No hay arqueos registrados</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No hay arqueos registrados</td></tr>';
         } else {
             tbody.innerHTML = arqueos.map(a => {
                 const ingresos = parseFloat(a.ingresos_total || a.ingresos || 0);
@@ -320,7 +279,6 @@ async function cargarArqueos() {
                 const esperado = parseFloat(a.saldo_inicial) + ingresos - egresos;
                 const difClass = a.diferencia < 0 ? 'text-danger' : a.diferencia > 0 ? 'text-warning' : 'text-success';
                 
-                const destino = a.destino_id ? (destinosDisponibles.find(d => d.id === a.destino_id)?.nombre || '-') : '-';
                 const hoy = new Date().toISOString().split('T')[0];
                 const esHoy = a.fecha === hoy;
                 
@@ -344,7 +302,6 @@ async function cargarArqueos() {
                     <td>$${esperado.toLocaleString('es-AR')}</td>
                     <td>$${parseFloat(a.saldo_final || 0).toLocaleString('es-AR')}</td>
                     <td class="${difClass}"><strong>$${parseFloat(a.diferencia || 0).toLocaleString('es-AR')}</strong></td>
-                    <td>${destino}</td>
                     <td>${a.usuario || '-'}</td>
                     <td>${acciones}</td>
                 </tr>
@@ -353,7 +310,7 @@ async function cargarArqueos() {
     } catch(e) {
         console.error('Error:', e);
         document.getElementById('tablaArqueos').innerHTML = 
-            '<tr><td colspan="11" class="text-center text-danger">Error al cargar datos</td></tr>';
+            '<tr><td colspan="10" class="text-center text-danger">Error al cargar datos</td></tr>';
     }
 }
 
@@ -375,12 +332,6 @@ async function editarArqueo(id) {
         document.getElementById('editSaldoInicial').value = parseFloat(arqueo.saldo_inicial);
         document.getElementById('editSaldoFinal').value = parseFloat(arqueo.saldo_final);
         document.getElementById('editObservaciones').value = arqueo.observaciones || '';
-        
-        if (arqueo.destino_id) {
-            document.getElementById('editDestinoSelect').value = arqueo.destino_id;
-        } else {
-            document.getElementById('editDestinoSelect').value = '';
-        }
         
         // Mostrar modal
         new bootstrap.Modal(document.getElementById('modalEditarArqueo')).show();
@@ -442,7 +393,6 @@ function compararCambios(anterior, nuevo) {
     const campos = {
         'saldo_inicial': 'Saldo Inicial',
         'saldo_final': 'Saldo Final',
-        'destino_id': 'Destino',
         'observaciones': 'Observaciones'
     };
     
@@ -451,10 +401,7 @@ function compararCambios(anterior, nuevo) {
             let valorAnterior = anterior[campo];
             let valorNuevo = nuevo[campo];
             
-            if (campo === 'destino_id') {
-                valorAnterior = valorAnterior ? (destinosDisponibles.find(d => d.id === valorAnterior)?.nombre || valorAnterior) : 'Sin destino';
-                valorNuevo = valorNuevo ? (destinosDisponibles.find(d => d.id === valorNuevo)?.nombre || valorNuevo) : 'Sin destino';
-            } else if (campo !== 'observaciones') {
+            if (campo !== 'observaciones') {
                 valorAnterior = '$' + parseFloat(valorAnterior).toLocaleString('es-AR');
                 valorNuevo = '$' + parseFloat(valorNuevo).toLocaleString('es-AR');
             }
@@ -484,7 +431,6 @@ document.getElementById('formArqueo')?.addEventListener('submit', async function
         egresos: egresos,
         saldo_final: real,
         diferencia: real - (inicial + ingresos - egresos),
-        destino_id: formData.get('destino_id') ? parseInt(formData.get('destino_id')) : null,
         observaciones: formData.get('observaciones')
     };
     
@@ -518,7 +464,6 @@ document.getElementById('formEditarArqueo')?.addEventListener('submit', async fu
     const data = {
         saldo_inicial: parseFloat(formData.get('saldo_inicial')),
         saldo_final: parseFloat(formData.get('saldo_final')),
-        destino_id: formData.get('destino_id') ? parseInt(formData.get('destino_id')) : null,
         observaciones: formData.get('observaciones'),
         justificacion: formData.get('justificacion')
     };
