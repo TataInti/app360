@@ -198,6 +198,10 @@ def create_app():
 
     app.register_blueprint(tesoreria_bp)
 
+    from blueprints.cta_cte_friar import cta_cte_friar_bp
+
+    app.register_blueprint(cta_cte_friar_bp)
+
     from blueprints.comercial import comercial_bp
 
     app.register_blueprint(comercial_bp)

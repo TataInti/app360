@@ -411,6 +411,12 @@
             <span class="link-icon"><i class="bi bi-arrow-left-right"></i></span>
             <span class="link-text">Movimientos</span>
         </a>
+
+        <a href="/tesoreria/cta-cte-friar"
+           class="{% if current == '/tesoreria/cta-cte-friar' %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-wallet2"></i></span>
+            <span class="link-text">Cta Cte Friar</span>
+        </a>
         {% endif %}
 
         {% if can_access('gastos') %}

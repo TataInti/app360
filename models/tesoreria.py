@@ -113,3 +113,76 @@ class LogArqueo(db.Model):
     
     def __repr__(self):
         return f'<LogArqueo arqueo_id={self.arqueo_id} fecha={self.fecha_edicion}>'
+
+
+class CuentaCorrienteFriar(db.Model):
+    """Cuenta corriente con proveedor Friar"""
+    __tablename__ = "cuenta_corriente_friar"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    proveedor_id = db.Column(db.Integer, db.ForeignKey("proveedores.id"), nullable=False)
+    saldo_inicial = db.Column(db.Numeric(12, 2), default=0, nullable=False)
+    observaciones = db.Column(db.Text)
+    
+    # Auditoría de ediciones
+    editado_por_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    fecha_edicion = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    # Relaciones
+    proveedor = db.relationship("Proveedor", foreign_keys=[proveedor_id])
+    editado_por = db.relationship("User", foreign_keys=[editado_por_id])
+    pagos = db.relationship("PagoFriar", backref="cuenta", cascade="all, delete-orphan")
+    logs = db.relationship("LogCuentaCorrienteFriar", backref="cuenta", cascade="all, delete-orphan", order_by="LogCuentaCorrienteFriar.fecha_edicion.desc()")
+    
+    def __repr__(self):
+        return f'<CuentaCorrienteFriar proveedor_id={self.proveedor_id}>'
+
+
+class PagoFriar(db.Model):
+    """Pagos realizados a proveedor Friar"""
+    __tablename__ = "pagos_friar"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    cuenta_corriente_id = db.Column(db.Integer, db.ForeignKey("cuenta_corriente_friar.id"), nullable=False)
+    fecha = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    monto = db.Column(db.Numeric(12, 2), nullable=False)
+    instrumento_id = db.Column(db.Integer, db.ForeignKey("instrumentos_pago.id"), nullable=False)
+    descripcion = db.Column(db.String(200), nullable=False)
+    usuario_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    referencia = db.Column(db.String(100))  # Número de comprobante, cheque, etc.
+    
+    # Relaciones
+    instrumento = db.relationship("InstrumentoPago")
+    usuario = db.relationship("User")
+    
+    # Índices
+    __table_args__ = (
+        db.Index('idx_pago_friar_fecha', 'fecha'),
+        db.Index('idx_pago_friar_cuenta', 'cuenta_corriente_id'),
+    )
+    
+    def __repr__(self):
+        return f'<PagoFriar monto={self.monto} fecha={self.fecha}>'
+
+
+class LogCuentaCorrienteFriar(db.Model):
+    """Log de ediciones realizadas a cuenta corriente Friar"""
+    __tablename__ = "logs_cuenta_corriente_friar"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    cuenta_corriente_id = db.Column(db.Integer, db.ForeignKey("cuenta_corriente_friar.id"), nullable=False)
+    fecha_edicion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    usuario_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    
+    # Estado anterior y nuevo (JSON)
+    campos_anteriores = db.Column(db.JSON, nullable=False)
+    campos_nuevos = db.Column(db.JSON, nullable=False)
+    justificacion = db.Column(db.Text, nullable=False)
+    
+    # Relaciones
+    usuario = db.relationship("User")
+    
+    def __repr__(self):
+        return f'<LogCuentaCorrienteFriar cuenta_id={self.cuenta_corriente_id} fecha={self.fecha_edicion}>'
