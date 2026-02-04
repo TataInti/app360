@@ -2,6 +2,309 @@
 
 {% block content %}
 <div class="container-fluid">
+    <h1 class="mb-4">Adelantos y Préstamos - RRHH</h1>
+
+    <!-- Filtros -->
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <label class="form-label">Tipo</label>
+            <select class="form-control" id="filtro-tipo" onchange="cargarAdelantos()">
+                <option value="">Todos</option>
+                <option value="adelanto_efectivo">Adelanto Efectivo</option>
+                <option value="adelanto_mercaderia">Adelanto Mercadería</option>
+                <option value="prestamo">Préstamo</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Estado</label>
+            <select class="form-control" id="filtro-estado" onchange="cargarAdelantos()">
+                <option value="">Todos</option>
+                <option value="pendiente">Pendientes</option>
+                <option value="aprobado">Aprobados</option>
+                <option value="liquidado">Liquidados</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Mes Aplicación</label>
+            <input type="month" class="form-control" id="filtro-mes" onchange="cargarAdelantos()">
+        </div>
+        <div class="col-md-3 d-flex align-items-end gap-2">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoAdelanto">
+                <i class="bi bi-plus-circle"></i> Nueva Solicitud
+            </button>
+        </div>
+    </div>
+
+    <!-- Tabla de Adelantos -->
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Empleado</th>
+                    <th>Tipo</th>
+                    <th>Monto</th>
+                    <th>Concepto</th>
+                    <th>Mes Aplicación</th>
+                    <th>Cuotas</th>
+                    <th>Saldo Pendiente</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-adelantos">
+                <tr><td colspan="9" class="text-center">Cargando...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Nuevo Adelanto -->
+<div class="modal fade" id="modalNuevoAdelanto" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Solicitar Adelanto o Préstamo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formAdelanto">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Empleado</label>
+                        <select class="form-control" name="empleado_id" required id="select-empleado">
+                            <option>Cargando...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Tipo</label>
+                        <select class="form-control" name="tipo" id="tipo-adelanto" required onchange="toggleCamposPorTipo()">
+                            <option value="">Seleccionar...</option>
+                            <option value="adelanto_efectivo">Adelanto en Efectivo</option>
+                            <option value="adelanto_mercaderia">Adelanto en Mercadería</option>
+                            <option value="prestamo">Préstamo</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Monto</label>
+                        <input type="number" class="form-control" name="monto" step="0.01" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Concepto</label>
+                        <textarea class="form-control" name="concepto" rows="2" required></textarea>
+                    </div>
+
+                    <!-- Campos para Adelantos -->
+                    <div class="mb-3" id="campo-mes-aplicacion" style="display: none;">
+                        <label class="form-label">Mes de Aplicación</label>
+                        <input type="month" class="form-control" name="mes_aplicacion" id="mes_aplicacion">
+                    </div>
+
+                    <!-- Campos para Préstamos -->
+                    <div id="campos-prestamo" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">Cantidad de Cuotas</label>
+                            <input type="number" class="form-control" name="cantidad_cuotas" id="cantidad_cuotas" min="1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Interés (%)</label>
+                            <input type="number" class="form-control" name="interes_porcentaje" id="interes_porcentaje" step="0.01" min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Crear Solicitud</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Aprobar -->
+<div class="modal fade" id="modalAprobar" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Aprobar Solicitud</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Confirmar aprobación de la solicitud?</p>
+                <input type="hidden" id="adelanto-id">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="aprobarAdelanto()">Aprobar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleCamposPorTipo() {
+        const tipo = document.getElementById('tipo-adelanto').value;
+        const campoMes = document.getElementById('campo-mes-aplicacion');
+        const camposPrestamo = document.getElementById('campos-prestamo');
+        const mesInput = document.getElementById('mes_aplicacion');
+        const cuotasInput = document.getElementById('cantidad_cuotas');
+        const interesInput = document.getElementById('interes_porcentaje');
+
+        // Reset required
+        mesInput.required = false;
+        cuotasInput.required = false;
+        interesInput.required = false;
+
+        if (tipo === 'adelanto_efectivo' || tipo === 'adelanto_mercaderia') {
+            campoMes.style.display = 'block';
+            camposPrestamo.style.display = 'none';
+            mesInput.required = true;
+        } else if (tipo === 'prestamo') {
+            campoMes.style.display = 'none';
+            camposPrestamo.style.display = 'block';
+            cuotasInput.required = true;
+            interesInput.required = true;
+        } else {
+            campoMes.style.display = 'none';
+            camposPrestamo.style.display = 'none';
+        }
+    }
+
+    function cargarAdelantos() {
+        const params = new URLSearchParams();
+        
+        const tipo = document.getElementById('filtro-tipo').value;
+        if (tipo) params.append('tipo', tipo);
+
+        const estado = document.getElementById('filtro-estado').value;
+        if (estado === 'pendiente') params.append('aprobado', 'false');
+        else if (estado === 'aprobado') {
+            params.append('aprobado', 'true');
+            params.append('liquidado', 'false');
+        } else if (estado === 'liquidado') params.append('liquidado', 'true');
+
+        const mes = document.getElementById('filtro-mes').value;
+        if (mes) params.append('mes_aplicacion', mes);
+
+        fetch(`/api/rrhh/adelantos?${params}`)
+            .then(r => r.json())
+            .then(data => {
+                actualizarTabla(data.adelantos || []);
+                cargarEmpleados();
+            })
+            .catch(e => console.error('Error:', e));
+    }
+
+    function actualizarTabla(adelantos) {
+        const tbody = document.getElementById('tabla-adelantos');
+        if (!adelantos.length) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center">Sin registros</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = adelantos.map(a => {
+            const tipoLabel = {
+                'adelanto_efectivo': 'Adelanto Efectivo',
+                'adelanto_mercaderia': 'Adelanto Mercadería',
+                'prestamo': 'Préstamo'
+            }[a.tipo] || a.tipo;
+
+            const cuotasInfo = a.tipo === 'prestamo' 
+                ? `${a.cuotas_pagadas}/${a.cantidad_cuotas}` 
+                : '-';
+
+            const estadoBadge = a.liquidado 
+                ? '<span class="badge bg-secondary">Liquidado</span>'
+                : a.aprobado 
+                    ? '<span class="badge bg-success">Aprobado</span>'
+                    : '<span class="badge bg-warning">Pendiente</span>';
+
+            return `
+                <tr>
+                    <td>${a.empleado.nombre}</td>
+                    <td><span class="badge bg-info">${tipoLabel}</span></td>
+                    <td>$${parseFloat(a.monto).toFixed(2)}</td>
+                    <td>${a.concepto.substring(0, 40)}...</td>
+                    <td>${a.mes_aplicacion || '-'}</td>
+                    <td>${cuotasInfo}</td>
+                    <td>$${parseFloat(a.saldo_pendiente).toFixed(2)}</td>
+                    <td>${estadoBadge}</td>
+                    <td>
+                        ${!a.aprobado ? `<button class="btn btn-sm btn-warning" onclick="abrirAprobar(${a.id})">Aprobar</button>` : ''}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function cargarEmpleados() {
+        fetch('/api/hr/employees')
+            .then(r => r.json())
+            .then(data => {
+                const select = document.getElementById('select-empleado');
+                select.innerHTML = '<option value="">Seleccionar...</option>' +
+                    data.employees.filter(e => e.is_active).map(e =>
+                        `<option value="${e.id}">${e.name}</option>`
+                    ).join('');
+            });
+    }
+
+    function abrirAprobar(id) {
+        document.getElementById('adelanto-id').value = id;
+        new bootstrap.Modal(document.getElementById('modalAprobar')).show();
+    }
+
+    function aprobarAdelanto() {
+        const id = document.getElementById('adelanto-id').value;
+        
+        fetch(`/api/rrhh/adelantos/${id}/aprobar`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.message) {
+                alert(data.message);
+                cargarAdelantos();
+                bootstrap.Modal.getInstance(document.getElementById('modalAprobar')).hide();
+            }
+        })
+        .catch(e => console.error('Error:', e));
+    }
+
+    document.getElementById('formAdelanto').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData);
+
+        fetch('/api/rrhh/adelantos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.message) {
+                alert(data.message);
+                e.target.reset();
+                toggleCamposPorTipo(); // Reset visibility
+                bootstrap.Modal.getInstance(document.getElementById('modalNuevoAdelanto')).hide();
+                cargarAdelantos();
+            } else if (data.error) {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(e => console.error('Error:', e));
+    });
+
+    // Inicializar
+    cargarAdelantos();
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
     <h1 class="mb-4">Adelantos de Sueldo - RRHH</h1>
 
     <!-- Filtros -->

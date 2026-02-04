@@ -120,7 +120,7 @@ class CuentaCorrienteFriar(db.Model):
     __tablename__ = "cuenta_corriente_friar"
     
     id = db.Column(db.Integer, primary_key=True)
-    proveedor_id = db.Column(db.Integer, db.ForeignKey("proveedores.id"), nullable=False)
+    proveedor_id = db.Column(db.Integer, db.ForeignKey("proveedor.id"), nullable=False)
     saldo_inicial = db.Column(db.Numeric(12, 2), default=0, nullable=False)
     observaciones = db.Column(db.Text)
     

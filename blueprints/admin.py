@@ -7,7 +7,7 @@ from flask import Blueprint, flash, jsonify, redirect, render_template, request,
 
 from models import db
 from models.gastos import CategoriaGasto, Proveedor
-from models.tesoreria import InstrumentoPago, DestinoArqueo
+from models.tesoreria import InstrumentoPago, DestinoArqueo, CuentaCorrienteFriar
 from models.rrhh import Turno
 from models.core import Location, Product, BusinessUnit
 
@@ -58,9 +58,15 @@ ADMIN_MODELS = {
         },
         "destinos": {
             "model": DestinoArqueo,
-            "name": "Destinos de Arqueo",
+            "name": "Destinos de Movimientos",
             "fields": ["nombre", "descripcion", "activo"],
             "required": ["nombre"],
+        },
+        "cuenta_friar": {
+            "model": CuentaCorrienteFriar,
+            "name": "Cuenta Corriente Friar",
+            "fields": ["proveedor_id", "saldo_inicial", "observaciones"],
+            "required": ["proveedor_id", "saldo_inicial"],
         },
     },
     "rrhh": {

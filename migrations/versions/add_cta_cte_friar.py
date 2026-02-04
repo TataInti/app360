@@ -36,7 +36,7 @@ def upgrade():
         op.create_table(
             'cuenta_corriente_friar',
             sa.Column('id', sa.Integer(), primary_key=True),
-            sa.Column('proveedor_id', sa.Integer(), sa.ForeignKey('proveedores.id', ondelete='CASCADE'), nullable=False),
+            sa.Column('proveedor_id', sa.Integer(), sa.ForeignKey('proveedor.id', ondelete='CASCADE'), nullable=False),
             sa.Column('saldo_inicial', sa.Numeric(12, 2), nullable=False, server_default='0.00'),
             sa.Column('observaciones', sa.Text(), nullable=True),
             sa.Column('editado_por_id', sa.Integer(), sa.ForeignKey('users.id', ondelete='SET NULL'), nullable=True),
@@ -88,7 +88,7 @@ def upgrade():
     
     # Verificar si existe el proveedor "Friar" (case insensitive)
     result = bind.execute(sa.text("""
-        SELECT id FROM proveedores 
+        SELECT id FROM proveedor 
         WHERE LOWER(nombre) LIKE '%friar%' 
         LIMIT 1
     """))

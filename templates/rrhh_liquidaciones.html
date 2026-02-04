@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="mb-4">Liquidación de Sueldos - RRHH</h1>
+
+    <!-- Selector de Periodo -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <label class="form-label">Periodo de Liquidación</label>
+            <input type="month" class="form-control" id="periodo-liquidacion" onchange="cargarPreview()">
+        </div>
+        <div class="col-md-8 d-flex align-items-end gap-2">
+            <button class="btn btn-primary" onclick="cargarPreview()">
+                <i class="bi bi-eye"></i> Previsualizar
+            </button>
+            <button class="btn btn-success" onclick="generarLiquidaciones()" id="btn-generar" disabled>
+                <i class="bi bi-check-circle"></i> Generar Liquidaciones
+            </button>
+            <button class="btn btn-secondary" onclick="verHistorial()">
+                <i class="bi bi-calendar"></i> Ver Historial
+            </button>
+        </div>
+    </div>
+
+    <!-- Resumen -->
+    <div class="row mb-4" id="resumen-liquidacion" style="display: none;">
+        <div class="col-md-3">
+            <div class="card bg-light">
+                <div class="card-body">
+                    <h6 class="card-title">Total Empleados</h6>
+                    <h3 id="total-empleados">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Total Sueldos Base</h6>
+                    <h3 id="total-sueldos-base">$0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning">
+                <div class="card-body">
+                    <h6 class="card-title">Total Descuentos</h6>
+                    <h3 id="total-descuentos">$0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Total a Pagar</h6>
+                    <h3 id="total-neto">$0</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Previsualización -->
+    <div class="table-responsive" id="tabla-preview-container" style="display: none;">
+        <h5 class="mb-3">Detalle de Liquidaciones</h5>
+        <table class="table table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>Empleado</th>
+                    <th>Sueldo Base</th>
+                    <th>Descuento Efectivo</th>
+                    <th>Descuento Mercadería</th>
+                    <th>Descuento Cuota Préstamo</th>
+                    <th>Sueldo Neto</th>
+                    <th>Detalles</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-preview">
+                <tr><td colspan="7" class="text-center">Seleccione un periodo y haga clic en Previsualizar</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Tabla de Liquidaciones Generadas -->
+    <div class="table-responsive" id="tabla-generadas-container" style="display: none;">
+        <h5 class="mb-3">Liquidaciones del Periodo <span id="periodo-generado"></span></h5>
+        <table class="table table-striped">
+            <thead class="table-success">
+                <tr>
+                    <th>Empleado</th>
+                    <th>Sueldo Base</th>
+                    <th>Descuentos</th>
+                    <th>Sueldo Neto</th>
+                    <th>Fecha Liquidación</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-generadas">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Historial -->
+<div class="modal fade" id="modalHistorial" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Historial de Liquidaciones</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Periodo</label>
+                    <input type="month" class="form-control" id="periodo-historial">
+                    <button class="btn btn-sm btn-primary mt-2" onclick="buscarPeriodo()">Buscar</button>
+                </div>
+                <div id="resultado-historial">
+                    <p class="text-muted">Seleccione un periodo para ver las liquidaciones</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let previewData = [];
+
+    function cargarPreview() {
+        const periodo = document.getElementById('periodo-liquidacion').value;
+        if (!periodo) {
+            alert('Seleccione un periodo');
+            return;
+        }
+
+        fetch(`/api/rrhh/liquidaciones/preview/${periodo}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                previewData = data.liquidaciones;
+                mostrarPreview(data.liquidaciones);
+                document.getElementById('btn-generar').disabled = false;
+            })
+            .catch(e => {
+                console.error('Error:', e);
+                alert('Error al cargar preview');
+            });
+    }
+
+    function mostrarPreview(liquidaciones) {
+        // Mostrar resumen
+        document.getElementById('resumen-liquidacion').style.display = 'flex';
+        document.getElementById('tabla-preview-container').style.display = 'block';
+        document.getElementById('tabla-generadas-container').style.display = 'none';
+
+        const totalEmpleados = liquidaciones.length;
+        const totalSueldosBase = liquidaciones.reduce((sum, l) => sum + l.sueldo_base, 0);
+        const totalDescuentos = liquidaciones.reduce((sum, l) => 
+            sum + l.descuento_adelanto_efectivo + l.descuento_adelanto_mercaderia + l.descuento_cuota_prestamo, 0
+        );
+        const totalNeto = liquidaciones.reduce((sum, l) => sum + l.sueldo_neto, 0);
+
+        document.getElementById('total-empleados').textContent = totalEmpleados;
+        document.getElementById('total-sueldos-base').textContent = '$' + totalSueldosBase.toFixed(2);
+        document.getElementById('total-descuentos').textContent = '$' + totalDescuentos.toFixed(2);
+        document.getElementById('total-neto').textContent = '$' + totalNeto.toFixed(2);
+
+        // Mostrar tabla
+        const tbody = document.getElementById('tabla-preview');
+        tbody.innerHTML = liquidaciones.map(l => `
+            <tr>
+                <td>${l.empleado_nombre}</td>
+                <td>$${l.sueldo_base.toFixed(2)}</td>
+                <td>$${l.descuento_adelanto_efectivo.toFixed(2)}</td>
+                <td>$${l.descuento_adelanto_mercaderia.toFixed(2)}</td>
+                <td>$${l.descuento_cuota_prestamo.toFixed(2)}</td>
+                <td><strong>$${l.sueldo_neto.toFixed(2)}</strong></td>
+                <td>
+                    <small>
+                        ${l.adelantos_efectivo_count > 0 ? `${l.adelantos_efectivo_count} adel. efectivo<br>` : ''}
+                        ${l.adelantos_mercaderia_count > 0 ? `${l.adelantos_mercaderia_count} adel. mercadería<br>` : ''}
+                        ${l.prestamos_count > 0 ? `${l.prestamos_count} préstamo(s)` : ''}
+                    </small>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function generarLiquidaciones() {
+        const periodo = document.getElementById('periodo-liquidacion').value;
+        
+        if (!confirm(`¿Confirmar generación de liquidaciones para ${periodo}?\n\nEsta acción marcará todos los adelantos como liquidados y actualizará las cuotas de préstamos.`)) {
+            return;
+        }
+
+        fetch('/api/rrhh/liquidaciones', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ periodo })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            alert(data.message);
+            document.getElementById('btn-generar').disabled = true;
+            cargarLiquidacionesGeneradas(periodo);
+        })
+        .catch(e => {
+            console.error('Error:', e);
+            alert('Error al generar liquidaciones');
+        });
+    }
+
+    function cargarLiquidacionesGeneradas(periodo) {
+        fetch(`/api/rrhh/liquidaciones/${periodo}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) return;
+                
+                document.getElementById('tabla-preview-container').style.display = 'none';
+                document.getElementById('tabla-generadas-container').style.display = 'block';
+                document.getElementById('periodo-generado').textContent = data.periodo;
+
+                const tbody = document.getElementById('tabla-generadas');
+                tbody.innerHTML = data.liquidaciones.map(l => `
+                    <tr>
+                        <td>${l.empleado.nombre}</td>
+                        <td>$${l.sueldo_base.toFixed(2)}</td>
+                        <td>
+                            <small>
+                                Efectivo: $${l.descuento_adelanto_efectivo.toFixed(2)}<br>
+                                Mercadería: $${l.descuento_adelanto_mercaderia.toFixed(2)}<br>
+                                Préstamos: $${l.descuento_cuota_prestamo.toFixed(2)}
+                            </small>
+                        </td>
+                        <td><strong>$${l.sueldo_neto.toFixed(2)}</strong></td>
+                        <td>${new Date(l.fecha_liquidacion).toLocaleString()}</td>
+                    </tr>
+                `).join('');
+            });
+    }
+
+    function verHistorial() {
+        new bootstrap.Modal(document.getElementById('modalHistorial')).show();
+    }
+
+    function buscarPeriodo() {
+        const periodo = document.getElementById('periodo-historial').value;
+        if (!periodo) {
+            alert('Seleccione un periodo');
+            return;
+        }
+
+        fetch(`/api/rrhh/liquidaciones/${periodo}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('resultado-historial').innerHTML = 
+                        `<div class="alert alert-warning">${data.error}</div>`;
+                    return;
+                }
+
+                const html = `
+                    <h6>Periodo: ${data.periodo}</h6>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Empleado</th>
+                                <th>Sueldo Base</th>
+                                <th>Descuentos</th>
+                                <th>Neto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.liquidaciones.map(l => `
+                                <tr>
+                                    <td>${l.empleado.nombre}</td>
+                                    <td>$${l.sueldo_base.toFixed(2)}</td>
+                                    <td>$${(l.descuento_adelanto_efectivo + l.descuento_adelanto_mercaderia + l.descuento_cuota_prestamo).toFixed(2)}</td>
+                                    <td>$${l.sueldo_neto.toFixed(2)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+                document.getElementById('resultado-historial').innerHTML = html;
+            })
+            .catch(e => console.error('Error:', e));
+    }
+
+    // Inicializar con mes actual
+    const hoy = new Date();
+    const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+    document.getElementById('periodo-liquidacion').value = mesActual;
+    document.getElementById('periodo-historial').value = mesActual;
+</script>
+{% endblock %}

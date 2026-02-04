@@ -8,7 +8,7 @@ from .crm import *
 from .sales import *
 from .purchases import *
 from .hr import *
-from .tesoreria import *
 from .comercial import *
 from .gastos import *
+from .tesoreria import *
 from .rrhh import *
