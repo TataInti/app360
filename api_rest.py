@@ -1,7 +1,7 @@
 # api_rest.py - REST API endpoints for frontend integration
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from datetime import datetime
-from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 from models import db
 from models import (
     Product, Location, StockLevel, Lead, BusinessUnit,
@@ -12,8 +12,80 @@ from security import (
     generate_access_token, generate_refresh_token, decode_token,
     jwt_required, jwt_optional, log_login_attempt, log_security_event
 )
+from extensions import limiter
 
 api_rest = Blueprint('api_rest', __name__, url_prefix='/api')
+
+
+def error_response(status_code, message, details=None):
+    payload = {"error": message}
+    if details:
+        payload["details"] = details
+    return jsonify(payload), status_code
+
+
+def get_json_payload():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def require_fields(data, fields):
+    missing = [
+        field
+        for field in fields
+        if field not in data or data[field] is None or data[field] == ""
+    ]
+    if missing:
+        return error_response(400, "Missing required fields", {"fields": missing})
+    return None
+
+
+def parse_iso_datetime(value, field_name):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        raise ValueError(f"Invalid datetime format for {field_name}")
+
+
+def parse_iso_date(value, field_name):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value).date()
+    except ValueError:
+        raise ValueError(f"Invalid date format for {field_name}")
+
+
+def parse_pagination_args():
+    page_raw = request.args.get("page", "1")
+    per_page_raw = request.args.get("per_page", "50")
+    try:
+        page = int(page_raw)
+        per_page = int(per_page_raw)
+    except ValueError:
+        return None, error_response(400, "Invalid pagination params")
+
+    if page < 1:
+        page = 1
+    if per_page < 1:
+        per_page = 1
+    if per_page > 200:
+        per_page = 200
+
+    return (page, per_page), None
+
+
+def paginate_query(query):
+    pagination, error = parse_pagination_args()
+    if error:
+        return None, error
+    page, per_page = pagination
+    result = query.paginate(page=page, per_page=per_page, error_out=False)
+    return result, None
 
 # -----------------------------------------------------------------------------
 # AUTH ENDPOINTS
@@ -29,20 +101,19 @@ def health_check():
 
 
 @api_rest.route('/login', methods=['POST'])
+@limiter.limit("5 per minute")
 def login():
     """Login endpoint for API - returns JWT tokens"""
-    # Apply rate limiting for login
-    from app import limiter
-    
-    data = request.get_json()
+    data = get_json_payload()
     if not data:
-        return jsonify({'error': 'Invalid request body'}), 400
-        
+        return error_response(400, "Invalid request body")
+
+    missing = require_fields(data, ["username", "password"])
+    if missing:
+        return missing
+
     username = data.get('username')
     password = data.get('password')
-    
-    if not username or not password:
-        return jsonify({'error': 'Username and password required'}), 400
     
     user = User.query.filter_by(username=username, active=True).first()
     if user and user.check_password(password):
@@ -63,25 +134,30 @@ def login():
         }), 200
     
     log_login_attempt(username, success=False, ip=request.remote_addr)
-    return jsonify({'error': 'Invalid credentials'}), 401
+    return error_response(401, "Invalid credentials")
 
 
 @api_rest.route('/refresh', methods=['POST'])
+@limiter.limit("10 per minute")
 def refresh_token():
     """Refresh access token using refresh token"""
-    data = request.get_json()
-    if not data or 'refresh_token' not in data:
-        return jsonify({'error': 'Refresh token required'}), 400
+    data = get_json_payload()
+    if not data:
+        return error_response(400, "Invalid request body")
+
+    missing = require_fields(data, ["refresh_token"])
+    if missing:
+        return missing
     
     payload = decode_token(data['refresh_token'])
     if not payload or payload.get('type') != 'refresh':
         log_security_event('REFRESH_TOKEN_INVALID', 'Invalid refresh token used')
-        return jsonify({'error': 'Invalid or expired refresh token'}), 401
+        return error_response(401, "Invalid or expired refresh token")
     
     # Get user to ensure they're still active
     user = User.query.filter_by(username=payload['username'], active=True).first()
     if not user:
-        return jsonify({'error': 'User not found or inactive'}), 401
+        return error_response(401, "User not found or inactive")
     
     # Generate new access token
     access_token = generate_access_token(user.id, user.username, user.role)
@@ -112,8 +188,10 @@ def get_current_user():
 def get_products():
     """Get all products with their business unit information"""
     try:
-        products = Product.query.all()
-        return jsonify([{
+        result, error = paginate_query(Product.query)
+        if error:
+            return error
+        items = [{
             'id': p.id,
             'sku': p.sku,
             'name': p.name,
@@ -124,16 +202,29 @@ def get_products():
             'min_stock_level': p.min_stock_level,
             'business_unit_id': p.business_unit_id,
             'location_id': p.location_id
-        } for p in products])
+        } for p in result.items]
+        return jsonify({
+            "items": items,
+            "page": result.page,
+            "per_page": result.per_page,
+            "total": result.total,
+            "pages": result.pages,
+        })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to list products")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/products', methods=['POST'])
 @jwt_required
 def create_product():
     """Create a new product"""
     try:
-        data = request.get_json()
+        data = get_json_payload()
+        if not data:
+            return error_response(400, "Invalid request body")
+        missing = require_fields(data, ["name"])
+        if missing:
+            return missing
         product = Product(
             name=data['name'],
             description=data.get('description'),
@@ -146,14 +237,18 @@ def create_product():
         return jsonify({'id': product.id, 'message': 'Product created successfully'}), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to create product")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/products/<int:product_id>', methods=['PUT'])
+@jwt_required
 def update_product(product_id):
     """Update a product"""
     try:
         product = Product.query.get_or_404(product_id)
-        data = request.get_json()
+        data = get_json_payload()
+        if not data:
+            return error_response(400, "Invalid request body")
         product.name = data.get('name', product.name)
         product.description = data.get('description', product.description)
         product.price = data.get('price', product.price)
@@ -163,9 +258,11 @@ def update_product(product_id):
         return jsonify({'message': 'Product updated successfully'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to update product")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/products/<int:product_id>', methods=['DELETE'])
+@jwt_required
 def delete_product(product_id):
     """Delete a product"""
     try:
@@ -175,7 +272,8 @@ def delete_product(product_id):
         return jsonify({'message': 'Product deleted successfully'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to delete product")
+        return error_response(500, "Internal server error")
 
 # -----------------------------------------------------------------------------
 # LOCATIONS ENDPOINTS
@@ -184,8 +282,10 @@ def delete_product(product_id):
 def get_locations():
     """Get all locations"""
     try:
-        locations = Location.query.all()
-        return jsonify([{
+        result, error = paginate_query(Location.query)
+        if error:
+            return error
+        items = [{
             'id': l.id,
             'name': l.name,
             'address': l.address,
@@ -194,15 +294,29 @@ def get_locations():
             'country': l.country,
             'phone': l.phone,
             'email': l.email
-        } for l in locations])
+        } for l in result.items]
+        return jsonify({
+            "items": items,
+            "page": result.page,
+            "per_page": result.per_page,
+            "total": result.total,
+            "pages": result.pages,
+        })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to list locations")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/locations', methods=['POST'])
+@jwt_required
 def create_location():
     """Create a new location"""
     try:
-        data = request.get_json()
+        data = get_json_payload()
+        if not data:
+            return error_response(400, "Invalid request body")
+        missing = require_fields(data, ["name"])
+        if missing:
+            return missing
         location = Location(
             name=data['name'],
             address=data.get('address'),
@@ -217,14 +331,18 @@ def create_location():
         return jsonify({'id': location.id, 'message': 'Location created successfully'}), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to create location")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/locations/<int:location_id>', methods=['PUT'])
+@jwt_required
 def update_location(location_id):
     """Update a location"""
     try:
         location = Location.query.get_or_404(location_id)
-        data = request.get_json()
+        data = get_json_payload()
+        if not data:
+            return error_response(400, "Invalid request body")
         location.name = data.get('name', location.name)
         location.address = data.get('address', location.address)
         location.city = data.get('city', location.city)
@@ -236,9 +354,11 @@ def update_location(location_id):
         return jsonify({'message': 'Location updated successfully'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to update location")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/locations/<int:location_id>', methods=['DELETE'])
+@jwt_required
 def delete_location(location_id):
     """Delete a location"""
     try:
@@ -248,7 +368,8 @@ def delete_location(location_id):
         return jsonify({'message': 'Location deleted successfully'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to delete location")
+        return error_response(500, "Internal server error")
 
 # -----------------------------------------------------------------------------
 # LEADS ENDPOINTS
@@ -257,8 +378,16 @@ def delete_location(location_id):
 def get_leads():
     """Get all leads with related information"""
     try:
-        leads = Lead.query.all()
-        return jsonify([{
+        query = Lead.query.options(
+            selectinload(Lead.business_unit),
+            selectinload(Lead.product),
+            selectinload(Lead.location),
+            selectinload(Lead.campaign),
+        )
+        result, error = paginate_query(query)
+        if error:
+            return error
+        items = [{
             'id': l.id,
             'name': l.name,
             'phone': l.phone,
@@ -284,15 +413,29 @@ def get_leads():
                 'id': l.campaign.id,
                 'name': l.campaign.name
             } if l.campaign else None
-        } for l in leads])
+        } for l in result.items]
+        return jsonify({
+            "items": items,
+            "page": result.page,
+            "per_page": result.per_page,
+            "total": result.total,
+            "pages": result.pages,
+        })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to list leads")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/leads', methods=['POST'])
+@jwt_required
 def create_lead():
     """Create a new lead"""
     try:
-        data = request.get_json()
+        data = get_json_payload()
+        if not data:
+            return error_response(400, "Invalid request body")
+        missing = require_fields(data, ["name", "business_unit_id"])
+        if missing:
+            return missing
         lead = Lead(
             name=data['name'],
             phone=data.get('phone'),
@@ -311,14 +454,18 @@ def create_lead():
         return jsonify({'id': lead.id, 'message': 'Lead created successfully'}), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to create lead")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/leads/<int:lead_id>', methods=['PUT'])
+@jwt_required
 def update_lead(lead_id):
     """Update a lead"""
     try:
         lead = Lead.query.get_or_404(lead_id)
-        data = request.get_json()
+        data = get_json_payload()
+        if not data:
+            return error_response(400, "Invalid request body")
         lead.name = data.get('name', lead.name)
         lead.phone = data.get('phone', lead.phone)
         lead.email = data.get('email', lead.email)
@@ -334,9 +481,11 @@ def update_lead(lead_id):
         return jsonify({'message': 'Lead updated successfully'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to update lead")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/leads/<int:lead_id>', methods=['DELETE'])
+@jwt_required
 def delete_lead(lead_id):
     """Delete a lead"""
     try:
@@ -346,7 +495,8 @@ def delete_lead(lead_id):
         return jsonify({'message': 'Lead deleted successfully'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to delete lead")
+        return error_response(500, "Internal server error")
 
 # -----------------------------------------------------------------------------
 # STOCK ENDPOINTS
@@ -355,8 +505,10 @@ def delete_lead(lead_id):
 def get_stock():
     """Get all stock records with product and location information"""
     try:
-        stock_records = StockLevel.query.all()
-        return jsonify([{
+        result, error = paginate_query(StockLevel.query)
+        if error:
+            return error
+        items = [{
             'id': s.id,
             'product_id': s.product_id,
             'location_id': s.location_id,
@@ -366,15 +518,30 @@ def get_stock():
             'batch_number': s.batch_number,
             'expiry_date': s.expiry_date.isoformat() if s.expiry_date else None,
             'notes': s.notes
-        } for s in stock_records])
+        } for s in result.items]
+        return jsonify({
+            "items": items,
+            "page": result.page,
+            "per_page": result.per_page,
+            "total": result.total,
+            "pages": result.pages,
+        })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to list stock records")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/stock', methods=['POST'])
+@jwt_required
 def create_stock():
     """Create a new stock record"""
     try:
-        data = request.get_json()
+        data = get_json_payload()
+        if not data:
+            return error_response(400, "Invalid request body")
+        missing = require_fields(data, ["product_id", "location_id"])
+        if missing:
+            return missing
+        expiry_date = parse_iso_date(data.get('expiry_date'), 'expiry_date')
         stock = StockLevel(
             product_id=data['product_id'],
             location_id=data['location_id'],
@@ -382,37 +549,48 @@ def create_stock():
             min_quantity=data.get('min_quantity', 0),
             max_quantity=data.get('max_quantity'),
             batch_number=data.get('batch_number'),
-            expiry_date=datetime.fromisoformat(data['expiry_date']) if data.get('expiry_date') else None,
+            expiry_date=expiry_date,
             notes=data.get('notes')
         )
         db.session.add(stock)
         db.session.commit()
         return jsonify({'id': stock.id, 'message': 'Stock record created successfully'}), 201
+    except ValueError as e:
+        return error_response(400, str(e))
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to create stock record")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/stock/<int:stock_id>', methods=['PUT'])
+@jwt_required
 def update_stock(stock_id):
     """Update a stock record"""
     try:
         stock = StockLevel.query.get_or_404(stock_id)
-        data = request.get_json()
+        data = get_json_payload()
+        if not data:
+            return error_response(400, "Invalid request body")
         stock.product_id = data.get('product_id', stock.product_id)
         stock.location_id = data.get('location_id', stock.location_id)
         stock.quantity = data.get('quantity', stock.quantity)
         stock.min_quantity = data.get('min_quantity', stock.min_quantity)
         stock.max_quantity = data.get('max_quantity', stock.max_quantity)
         stock.batch_number = data.get('batch_number', stock.batch_number)
-        stock.expiry_date = datetime.fromisoformat(data['expiry_date']) if data.get('expiry_date') else stock.expiry_date
+        if 'expiry_date' in data:
+            stock.expiry_date = parse_iso_date(data.get('expiry_date'), 'expiry_date')
         stock.notes = data.get('notes', stock.notes)
         db.session.commit()
         return jsonify({'message': 'Stock record updated successfully'})
+    except ValueError as e:
+        return error_response(400, str(e))
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to update stock record")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/stock/<int:stock_id>', methods=['DELETE'])
+@jwt_required
 def delete_stock(stock_id):
     """Delete a stock record"""
     try:
@@ -422,7 +600,8 @@ def delete_stock(stock_id):
         return jsonify({'message': 'Stock record deleted successfully'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to delete stock record")
+        return error_response(500, "Internal server error")
 
 # -----------------------------------------------------------------------------
 # COMPRAS ENDPOINTS
@@ -431,8 +610,10 @@ def delete_stock(stock_id):
 def get_compras():
     """Get all purchase orders"""
     try:
-        orders = PurchaseOrder.query.all()
-        return jsonify([{
+        result, error = paginate_query(PurchaseOrder.query)
+        if error:
+            return error
+        items = [{
             'id': o.id,
             'supplier_id': o.supplier_id,
             'product_id': o.product_id,
@@ -443,23 +624,39 @@ def get_compras():
             'expected_delivery_date': o.expected_delivery_date.isoformat() if o.expected_delivery_date else None,
             'status': o.status,
             'notes': o.notes
-        } for o in orders])
+        } for o in result.items]
+        return jsonify({
+            "items": items,
+            "page": result.page,
+            "per_page": result.per_page,
+            "total": result.total,
+            "pages": result.pages,
+        })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to list purchase orders")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/compras', methods=['POST'])
+@jwt_required
 def create_compra():
     """Create a new purchase order"""
     try:
-        data = request.get_json()
+        data = get_json_payload()
+        if not data:
+            return error_response(400, "Invalid request body")
+        missing = require_fields(data, ["product_id", "quantity", "unit_price", "total_amount", "order_date"])
+        if missing:
+            return missing
+        order_date = parse_iso_date(data.get('order_date'), 'order_date')
+        expected_delivery_date = parse_iso_date(data.get('expected_delivery_date'), 'expected_delivery_date')
         order = PurchaseOrder(
             supplier_id=data.get('supplier_id'),
             product_id=data['product_id'],
             quantity=data['quantity'],
             unit_price=data['unit_price'],
             total_amount=data['total_amount'],
-            order_date=datetime.fromisoformat(data['order_date']),
-            expected_delivery_date=datetime.fromisoformat(data['expected_delivery_date']) if data.get('expected_delivery_date') else None,
+            order_date=order_date,
+            expected_delivery_date=expected_delivery_date,
             status=data.get('status', 'pendiente'),
             notes=data.get('notes'),
             location_id=data.get('location_id')
@@ -478,23 +675,31 @@ def create_compra():
             'status': order.status,
             'notes': order.notes
         }), 201
+    except ValueError as e:
+        return error_response(400, str(e))
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to create purchase order")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/compras/<int:order_id>', methods=['PUT'])
+@jwt_required
 def update_compra(order_id):
     """Update a purchase order"""
     try:
         order = PurchaseOrder.query.get_or_404(order_id)
-        data = request.get_json()
+        data = get_json_payload()
+        if not data:
+            return error_response(400, "Invalid request body")
         order.supplier_id = data.get('supplier_id', order.supplier_id)
         order.product_id = data.get('product_id', order.product_id)
         order.quantity = data.get('quantity', order.quantity)
         order.unit_price = data.get('unit_price', order.unit_price)
         order.total_amount = data.get('total_amount', order.total_amount)
-        order.order_date = datetime.fromisoformat(data['order_date']) if data.get('order_date') else order.order_date
-        order.expected_delivery_date = datetime.fromisoformat(data['expected_delivery_date']) if data.get('expected_delivery_date') else order.expected_delivery_date
+        if 'order_date' in data:
+            order.order_date = parse_iso_date(data.get('order_date'), 'order_date')
+        if 'expected_delivery_date' in data:
+            order.expected_delivery_date = parse_iso_date(data.get('expected_delivery_date'), 'expected_delivery_date')
         order.status = data.get('status', order.status)
         order.notes = data.get('notes', order.notes)
         order.location_id = data.get('location_id', order.location_id)
@@ -511,11 +716,15 @@ def update_compra(order_id):
             'status': order.status,
             'notes': order.notes
         })
+    except ValueError as e:
+        return error_response(400, str(e))
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to update purchase order")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/compras/<int:order_id>', methods=['DELETE'])
+@jwt_required
 def delete_compra(order_id):
     """Delete a purchase order"""
     try:
@@ -525,7 +734,8 @@ def delete_compra(order_id):
         return jsonify({'message': 'Purchase order deleted successfully'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to delete purchase order")
+        return error_response(500, "Internal server error")
 
 # -----------------------------------------------------------------------------
 # RRHH ENDPOINTS
@@ -560,30 +770,43 @@ def get_rrhh():
             'goals': goals_data
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to load RRHH dashboard")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/rrhh/dotacion', methods=['GET'])
 def get_rrhh_dotacion():
     """Get employee staffing data"""
     try:
-        employees = Employee.query.all()
-        return jsonify([{
+        result, error = paginate_query(Employee.query)
+        if error:
+            return error
+        items = [{
             'id': e.id,
-            'name': e.name,  # Uses the property
+            'name': e.name,
             'position': e.position,
             'department': e.department,
             'hire_date': e.hire_date.isoformat() if e.hire_date else None,
             'salary': float(e.salary) if e.salary else None
-        } for e in employees])
+        } for e in result.items]
+        return jsonify({
+            "items": items,
+            "page": result.page,
+            "per_page": result.per_page,
+            "total": result.total,
+            "pages": result.pages,
+        })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to list staffing data")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/rrhh/empleados', methods=['GET'])
 def get_employees():
     """Get all employees"""
     try:
-        employees = Employee.query.all()
-        return jsonify([{
+        result, error = paginate_query(Employee.query)
+        if error:
+            return error
+        items = [{
             'id': e.id,
             'first_name': e.first_name,
             'last_name': e.last_name,
@@ -595,15 +818,30 @@ def get_employees():
             'salary': float(e.salary) if e.salary else None,
             'location_id': e.location_id,
             'is_active': e.is_active
-        } for e in employees])
+        } for e in result.items]
+        return jsonify({
+            "items": items,
+            "page": result.page,
+            "per_page": result.per_page,
+            "total": result.total,
+            "pages": result.pages,
+        })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to list employees")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/rrhh/empleados', methods=['POST'])
+@jwt_required
 def create_employee():
     """Create a new employee"""
     try:
-        data = request.get_json()
+        data = get_json_payload()
+        if not data:
+            return error_response(400, "Invalid request body")
+        missing = require_fields(data, ["first_name", "last_name", "email"])
+        if missing:
+            return missing
+        hire_date = parse_iso_date(data.get('hire_date'), 'hire_date')
 
         employee = Employee(
             first_name=data['first_name'],
@@ -612,7 +850,7 @@ def create_employee():
             phone=data.get('phone'),
             position=data.get('position'),
             department=data.get('department'),
-            hire_date=datetime.fromisoformat(data['hire_date']) if data.get('hire_date') else None,
+            hire_date=hire_date,
             salary=data.get('salary'),
             location_id=data.get('location_id'),
             is_active=data.get('is_active', True)
@@ -634,16 +872,22 @@ def create_employee():
             'location_id': employee.location_id,
             'is_active': employee.is_active
         }), 201
+    except ValueError as e:
+        return error_response(400, str(e))
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to create employee")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/rrhh/empleados/<int:id>', methods=['PUT'])
+@jwt_required
 def update_employee(id):
     """Update an employee"""
     try:
         employee = Employee.query.get_or_404(id)
-        data = request.get_json()
+        data = get_json_payload()
+        if not data:
+            return error_response(400, "Invalid request body")
 
         employee.first_name = data.get('first_name', employee.first_name)
         employee.last_name = data.get('last_name', employee.last_name)
@@ -651,7 +895,8 @@ def update_employee(id):
         employee.phone = data.get('phone', employee.phone)
         employee.position = data.get('position', employee.position)
         employee.department = data.get('department', employee.department)
-        employee.hire_date = datetime.fromisoformat(data['hire_date']) if data.get('hire_date') else employee.hire_date
+        if 'hire_date' in data:
+            employee.hire_date = parse_iso_date(data.get('hire_date'), 'hire_date')
         employee.salary = data.get('salary', employee.salary)
         employee.location_id = data.get('location_id', employee.location_id)
         employee.is_active = data.get('is_active', employee.is_active)
@@ -671,11 +916,15 @@ def update_employee(id):
             'location_id': employee.location_id,
             'is_active': employee.is_active
         })
+    except ValueError as e:
+        return error_response(400, str(e))
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to update employee")
+        return error_response(500, "Internal server error")
 
 @api_rest.route('/rrhh/empleados/<int:id>', methods=['DELETE'])
+@jwt_required
 def delete_employee(id):
     """Delete an employee"""
     try:
@@ -685,7 +934,8 @@ def delete_employee(id):
         return jsonify({'message': 'Employee deleted successfully'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to delete employee")
+        return error_response(500, "Internal server error")
 
 # -----------------------------------------------------------------------------
 # BUSINESS UNITS ENDPOINT (helper for forms)
@@ -694,11 +944,21 @@ def delete_employee(id):
 def get_business_units():
     """Get all business units"""
     try:
-        units = BusinessUnit.query.all()
-        return jsonify([{
+        result, error = paginate_query(BusinessUnit.query)
+        if error:
+            return error
+        items = [{
             'id': u.id,
             'name': u.name,
             'description': u.description
-        } for u in units])
+        } for u in result.items]
+        return jsonify({
+            "items": items,
+            "page": result.page,
+            "per_page": result.per_page,
+            "total": result.total,
+            "pages": result.pages,
+        })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.exception("Failed to list business units")
+        return error_response(500, "Internal server error")

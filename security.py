@@ -3,7 +3,16 @@ from datetime import datetime, timedelta, timezone
 import logging
 import jwt
 
-from flask import flash, redirect, session, url_for, request, jsonify, current_app
+from flask import (
+    flash,
+    redirect,
+    session,
+    url_for,
+    request,
+    jsonify,
+    current_app,
+    has_request_context,
+)
 
 # Security Logger
 security_logger = logging.getLogger('security')
@@ -50,13 +59,16 @@ MODULE_ROUTES = {
 # =============================================================================
 def log_security_event(event_type, message, user=None, ip=None, extra=None):
     """Log security-related events"""
+    request_ip = request.remote_addr if has_request_context() else None
+    user_agent = request.headers.get('User-Agent', 'unknown') if has_request_context() else 'unknown'
+
     log_data = {
         'event_type': event_type,
         'message': message,
         'user': user or session.get('user', 'anonymous'),
-        'ip': ip or request.remote_addr if request else 'unknown',
+        'ip': ip or request_ip or 'unknown',
         'timestamp': datetime.now(timezone.utc).isoformat(),
-        'user_agent': request.headers.get('User-Agent', 'unknown') if request else 'unknown',
+        'user_agent': user_agent,
     }
     if extra:
         log_data.update(extra)

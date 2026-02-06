@@ -1,9 +1,5 @@
 from flask import Flask, session, jsonify, request
 from flask_cors import CORS
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
-from flask_wtf.csrf import CSRFProtect
-from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 from pythonjsonlogger import json as jsonlogger
 import logging
@@ -18,15 +14,7 @@ from config import Config
 from models import db
 from security import module_allowed
 from exceptions import AppException
-
-# Initialize extensions
-limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=["200 per minute"],
-    storage_uri="memory://",
-)
-csrf = CSRFProtect()
-migrate = Migrate()
+from extensions import limiter, csrf, migrate
 
 
 def setup_logging(app):
@@ -63,20 +51,40 @@ def setup_logging(app):
     security_handler.setLevel(logging.INFO)
     
     # Configure app logger
-    app.logger.addHandler(app_handler)
+    if not any(
+        isinstance(handler, RotatingFileHandler)
+        and getattr(handler, "baseFilename", None) == os.path.abspath(app_handler.baseFilename)
+        for handler in app.logger.handlers
+    ):
+        app.logger.addHandler(app_handler)
     app.logger.setLevel(getattr(logging, app.config.get('LOG_LEVEL', 'INFO')))
     
     # Configure security logger
     security_logger = logging.getLogger('security')
-    security_logger.addHandler(security_handler)
+    if not any(
+        isinstance(handler, RotatingFileHandler)
+        and getattr(handler, "baseFilename", None) == os.path.abspath(security_handler.baseFilename)
+        for handler in security_logger.handlers
+    ):
+        security_logger.addHandler(security_handler)
     security_logger.setLevel(logging.INFO)
     
     # Also log to console in development
     if app.config.get('DEBUG'):
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
-        app.logger.addHandler(console_handler)
-        security_logger.addHandler(console_handler)
+        if console_handler not in app.logger.handlers:
+            app.logger.addHandler(console_handler)
+        if console_handler not in security_logger.handlers:
+            security_logger.addHandler(console_handler)
+
+
+def validate_config(app):
+    required = ["SECRET_KEY", "ADMIN_PASSWORD"]
+    missing = [key for key in required if not app.config.get(key)]
+    if missing:
+        missing_list = ", ".join(missing)
+        raise RuntimeError(f"Missing required config: {missing_list}")
 
 
 def create_app():
@@ -86,6 +94,9 @@ def create_app():
     # Setup centralized logging
     setup_logging(app)
     app.logger.info("Application starting...")
+
+    # Validate required config after logging is available
+    validate_config(app)
 
     # Initialize Rate Limiter
     if app.config.get('RATELIMIT_ENABLED', True):
@@ -135,10 +146,6 @@ def create_app():
     if app.config.get('WTF_CSRF_ENABLED', True):
         csrf.exempt(api_rest)
     
-    # Apply rate limiting to login endpoint
-    if app.config.get('RATELIMIT_ENABLED', True):
-        limiter.limit("5 per minute")(api_rest)
-
     from blueprints.auth import auth_bp
 
     app.register_blueprint(auth_bp)
