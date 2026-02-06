@@ -239,7 +239,7 @@
     }
 
     function cargarEmpleados() {
-        fetch('/api/hr/employees')
+        fetch('/api/rrhh/empleados')
             .then(r => r.json())
             .then(data => {
                 const select = document.getElementById('select-empleado');

@@ -9,6 +9,7 @@ from models import db
 from models.gastos import CategoriaGasto, Proveedor
 from models.tesoreria import InstrumentoPago, DestinoArqueo, CuentaCorrienteFriar
 from models.rrhh import Turno
+from models.hr.employee import Employee
 from models.core import Location, Product, BusinessUnit
 
 admin_bp = Blueprint("admin", __name__)
@@ -70,6 +71,12 @@ ADMIN_MODELS = {
         },
     },
     "rrhh": {
+        "empleados": {
+            "model": Employee,
+            "name": "Empleados",
+            "fields": ["first_name", "last_name", "email", "phone", "position", "department", "hire_date", "salary", "location_id", "is_active"],
+            "required": ["first_name", "last_name"],
+        },
         "turnos": {
             "model": Turno,
             "name": "Turnos",

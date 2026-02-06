@@ -366,6 +366,23 @@ def asistencia_actualizar(asistencia_id):
 
 # Endpoints para Adelantos
 
+@rrhh_bp.route("/api/rrhh/empleados", methods=["GET"])
+def empleados_listar():
+    """Listar empleados activos"""
+    empleados = Employee.query.filter_by(is_active=True).all()
+    
+    return jsonify({
+        "employees": [{
+            "id": e.id,
+            "name": e.name,
+            "email": e.email,
+            "position": e.position,
+            "department": e.department,
+            "is_active": e.is_active
+        } for e in empleados]
+    })
+
+
 @rrhh_bp.route("/api/rrhh/adelantos", methods=["GET"])
 def adelantos_listar():
     """Listar adelantos con filtros"""
