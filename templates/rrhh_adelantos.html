@@ -191,7 +191,6 @@
             .then(r => r.json())
             .then(data => {
                 actualizarTabla(data.adelantos || []);
-                cargarEmpleados();
             })
             .catch(e => console.error('Error:', e));
     }
@@ -243,10 +242,17 @@
             .then(r => r.json())
             .then(data => {
                 const select = document.getElementById('select-empleado');
+                const empleados = (data.employees || []).filter(e => e.is_active);
+                if (!empleados.length) {
+                    select.innerHTML = '<option value="">Sin empleados activos</option>';
+                    return;
+                }
                 select.innerHTML = '<option value="">Seleccionar...</option>' +
-                    data.employees.filter(e => e.is_active).map(e =>
-                        `<option value="${e.id}">${e.name}</option>`
-                    ).join('');
+                    empleados.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+            })
+            .catch(() => {
+                const select = document.getElementById('select-empleado');
+                select.innerHTML = '<option value="">Error al cargar empleados</option>';
             });
     }
 
@@ -299,6 +305,7 @@
     });
 
     // Inicializar
+    cargarEmpleados();
     cargarAdelantos();
 </script>
 {% endblock %}

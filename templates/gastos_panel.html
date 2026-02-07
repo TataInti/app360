@@ -4,9 +4,14 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1><i class="bi bi-cash-stack"></i> Panel de Gastos</h1>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#nuevoGastoModal">
-            <i class="bi bi-plus-circle"></i> Registrar Gasto
-        </button>
+        <div>
+            <button class="btn btn-outline-success me-2" onclick="exportarGastos()">
+                <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+            </button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#nuevoGastoModal">
+                <i class="bi bi-plus-circle"></i> Registrar Gasto
+            </button>
+        </div>
     </div>
 
     <!-- Filtros -->
@@ -236,7 +241,7 @@ async function cargarGastos() {
     const hasta = document.getElementById('fechaHasta').value;
     const categoria = document.getElementById('categoriaFiltro').value;
     
-    let url = `/api/gastos?fecha_desde=${desde}&fecha_hasta=${hasta}`;
+    let url = `/api/gastos/listar?fecha_desde=${desde}&fecha_hasta=${hasta}`;
     if (categoria) url += `&categoria_id=${categoria}`;
     
     try {
@@ -267,8 +272,8 @@ async function cargarGastos() {
                 <tr>
                     <td>${g.fecha}</td>
                     <td>${g.descripcion}</td>
-                    <td>${g.categoria || '-'}</td>
-                    <td>${g.proveedor || '-'}</td>
+                    <td>${g.categoria_nombre || g.categoria?.nombre || '-'}</td>
+                    <td>${g.proveedor_nombre || g.proveedor?.nombre || '-'}</td>
                     <td>$${parseFloat(g.monto).toLocaleString('es-AR')}</td>
                     <td><span class="badge ${g.estado === 'pagado' ? 'bg-success' : 'bg-warning'}">${g.estado}</span></td>
                     <td>
@@ -356,6 +361,7 @@ async function guardarGasto() {
             bootstrap.Modal.getInstance(document.getElementById('nuevoGastoModal')).hide();
             form.reset();
             cargarGastos();
+            alert('Gasto registrado');
         } else {
             const err = await resp.json();
             alert('Error: ' + (err.error || 'No se pudo guardar'));
@@ -363,6 +369,50 @@ async function guardarGasto() {
     } catch(e) {
         alert('Error de conexión');
     }
+}
+
+async function descargarExcel(url, fallbackName) {
+    try {
+        const resp = await fetch(url);
+        const contentType = resp.headers.get('content-type') || '';
+
+        if (!resp.ok || contentType.includes('application/json')) {
+            const data = contentType.includes('application/json') ? await resp.json() : { error: await resp.text() };
+            alert('Error: ' + (data.error || 'No se pudo exportar'));
+            return;
+        }
+
+        const blob = await resp.blob();
+        const disposition = resp.headers.get('content-disposition') || '';
+        const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+        const filename = match ? decodeURIComponent(match[1]) : fallbackName;
+
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+        alert('Error de conexión');
+    }
+}
+
+function exportarGastos() {
+    const desde = document.getElementById('fechaDesde').value;
+    const hasta = document.getElementById('fechaHasta').value;
+    const categoria = document.getElementById('categoriaFiltro').value;
+
+    const params = new URLSearchParams();
+    if (desde) params.append('fecha_desde', desde);
+    if (hasta) params.append('fecha_hasta', hasta);
+    if (categoria) params.append('categoria_id', categoria);
+
+    const query = params.toString();
+    const url = query ? `/api/gastos/exportar?${query}` : '/api/gastos/exportar';
+    descargarExcel(url, 'gastos.xlsx');
 }
 
 function editarGasto(id) {

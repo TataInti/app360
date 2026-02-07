@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import io
 
-from flask import Blueprint, request, jsonify, send_file, render_template
+from flask import Blueprint, request, jsonify, send_file, render_template, session
 
 from models import (
     CategoriaGasto,
@@ -196,9 +196,12 @@ def gastos_listar():
                 "id": g.proveedor.id,
                 "nombre": g.proveedor.nombre
             },
+            "categoria_nombre": g.categoria.nombre,
+            "proveedor_nombre": g.proveedor.nombre,
             "numero_factura": g.numero_factura,
             "fecha_vencimiento": g.fecha_vencimiento.isoformat() if g.fecha_vencimiento else None,
             "pagado": g.pagado,
+            "estado": "pagado" if g.pagado else "pendiente",
             "fecha_pago": g.fecha_pago.isoformat() if g.fecha_pago else None,
             "usuario": g.usuario.username if g.usuario else None
         } for g in gastos]
@@ -249,8 +252,21 @@ def gastos_registrar():
         except ValueError:
             return jsonify({"error": "Formato de fecha_vencimiento inválido"}), 400
 
-    # Obtener usuario actual (simplificado, en producción usar sesión)
-    usuario_id = data.get("usuario_id", 1)  # Default admin
+    # Obtener usuario actual
+    usuario_id = data.get("usuario_id")
+    if not usuario_id:
+        session_user = session.get("user")
+        if session_user:
+            usuario = User.query.filter_by(username=session_user).first()
+            if usuario:
+                usuario_id = usuario.id
+
+    if not usuario_id:
+        return jsonify({"error": "Usuario no encontrado"}), 401
+
+    estado = data.get("estado")
+    pagado = bool(data.get("pagado")) or (estado == "pagado")
+    fecha_pago = datetime.utcnow() if pagado else None
 
     gasto = Gasto(
         fecha=fecha,
@@ -260,6 +276,8 @@ def gastos_registrar():
         proveedor_id=data["proveedor_id"],
         numero_factura=data.get("numero_factura"),
         fecha_vencimiento=fecha_vencimiento,
+        pagado=pagado,
+        fecha_pago=fecha_pago,
         usuario_id=usuario_id
     )
 

@@ -364,6 +364,92 @@ def asistencia_actualizar(asistencia_id):
     return jsonify({"message": "Asistencia actualizada"})
 
 
+@rrhh_bp.route("/api/rrhh/ausentismo", methods=["GET"])
+def ausentismo_listar():
+    """Listar ausentismo y llegadas tarde"""
+    limite = request.args.get("limite", 200, type=int)
+    query = Asistencia.query.filter(Asistencia.estado.in_(["ausente", "llegada_tarde"]))
+    registros = query.order_by(Asistencia.fecha.desc()).limit(limite).all()
+
+    return jsonify({
+        "registros": [{
+            "id": r.id,
+            "fecha": r.fecha.isoformat(),
+            "empleado": {
+                "id": r.empleado.id,
+                "nombre": r.empleado.name
+            },
+            "estado": r.estado,
+            "motivo": r.motivo,
+            "justificado": bool(r.justificado),
+            "minutos_tarde": r.minutos_tarde
+        } for r in registros]
+    })
+
+
+@rrhh_bp.route("/api/rrhh/ausentismo", methods=["POST"])
+def ausentismo_crear():
+    """Registrar ausentismo o llegada tarde"""
+    data = request.get_json() or {}
+
+    required_fields = ["empleado_id", "fecha", "estado"]
+    for field in required_fields:
+        if not data.get(field):
+            return jsonify({"error": f"Campo requerido: {field}"}), 400
+
+    estado = data.get("estado")
+    if estado not in ["ausente", "llegada_tarde"]:
+        return jsonify({"error": "Estado inválido"}), 400
+
+    empleado = Employee.query.get(data["empleado_id"])
+    if not empleado or not empleado.is_active:
+        return jsonify({"error": "Empleado no encontrado o inactivo"}), 404
+
+    try:
+        fecha = datetime.strptime(data["fecha"], "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"error": "Formato de fecha inválido"}), 400
+
+    minutos_tarde = data.get("minutos_tarde")
+    if estado == "llegada_tarde":
+        try:
+            minutos_tarde = int(minutos_tarde)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Minutos tarde inválido"}), 400
+        if minutos_tarde <= 0:
+            return jsonify({"error": "Minutos tarde debe ser mayor a cero"}), 400
+    else:
+        minutos_tarde = None
+
+    turno_id = data.get("turno_id")
+    if turno_id:
+        turno = Turno.query.get(turno_id)
+        if not turno or not turno.activo:
+            return jsonify({"error": "Turno no encontrado o inactivo"}), 404
+        turno_id = turno.id
+    else:
+        turno = Turno.query.filter_by(activo=True).order_by(Turno.hora_inicio).first()
+        if not turno:
+            return jsonify({"error": "Debe existir al menos un turno activo"}), 400
+        turno_id = turno.id
+
+    registro = Asistencia(
+        empleado_id=empleado.id,
+        turno_id=turno_id,
+        fecha=fecha,
+        estado=estado,
+        motivo=data.get("motivo"),
+        justificado=bool(data.get("justificado")),
+        minutos_tarde=minutos_tarde,
+        notas=data.get("notas")
+    )
+
+    db.session.add(registro)
+    db.session.commit()
+
+    return jsonify({"message": "Registro creado"}), 201
+
+
 # Endpoints para Adelantos
 
 @rrhh_bp.route("/api/rrhh/empleados", methods=["GET"])

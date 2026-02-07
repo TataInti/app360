@@ -1,67 +1,187 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>Ausentismo</h1>
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Ausentismo y Llegadas Tarde</h1>
+    </div>
 
-<form method="POST" class="mb-4">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-    <div class="row">
-        <div class="col-md-4 mb-3">
-            <label>Ubicación</label>
-            <select name="location_id" class="form-control" required>
-                {% for l in locations %}
-                <option value="{{ l.id }}">{{ l.name }} ({{ l.type }})</option>
-                {% endfor %}
-            </select>
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Registrar evento</h5>
         </div>
+        <div class="card-body">
+            <form id="formAusentismo">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Empleado *</label>
+                        <select class="form-select" name="empleado_id" id="selectEmpleado" required>
+                            <option value="">Cargando...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Fecha *</label>
+                        <input type="date" class="form-control" name="fecha" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Tipo *</label>
+                        <select class="form-select" name="estado" id="estadoAusentismo" required>
+                            <option value="ausente">Ausente</option>
+                            <option value="llegada_tarde">Llegada tarde</option>
+                        </select>
+                    </div>
+                </div>
 
-        <div class="col-md-4 mb-3">
-            <label>Mes (YYYY-MM)</label>
-            <input type="text" name="month" class="form-control" placeholder="2025-12" required>
-        </div>
+                <div class="row g-3 mt-1">
+                    <div class="col-md-6">
+                        <label class="form-label">Motivo</label>
+                        <input type="text" class="form-control" name="motivo" placeholder="Motivo de ausencia o tardanza">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Minutos tarde</label>
+                        <input type="number" class="form-control" name="minutos_tarde" id="minutosTarde" min="1" step="1" disabled>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="justificado" name="justificado">
+                            <label class="form-check-label" for="justificado">Justificado</label>
+                        </div>
+                    </div>
+                </div>
 
-        <div class="col-md-4 mb-3">
-            <label>Días perdidos</label>
-            <input type="number" step="0.5" name="days_lost" class="form-control" min="0" required>
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
         </div>
     </div>
 
-    <div class="mb-3">
-        <label>Notas (opcional)</label>
-        <input type="text" name="notes" class="form-control">
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Registros</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Empleado</th>
+                            <th>Tipo</th>
+                            <th>Motivo</th>
+                            <th>Justificado</th>
+                            <th>Minutos tarde</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaAusentismo">
+                        <tr><td colspan="6" class="text-center">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
+</div>
 
-    <button type="submit" class="btn btn-primary">Guardar</button>
-</form>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const hoy = new Date();
+    document.querySelector('input[name="fecha"]').value = hoy.toISOString().split('T')[0];
 
-<h3>Registros de Ausentismo</h3>
+    cargarEmpleados();
+    cargarRegistros();
 
-<table class="table table-bordered table-striped">
-    <thead>
-        <tr>
-            <th>Mes</th>
-            <th>Ubicación</th>
-            <th>Tipo</th>
-            <th>Días perdidos</th>
-            <th>Notas</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for rec, loc in rows %}
-        <tr>
-            <td>{{ rec.month }}</td>
-            <td>{{ loc.name }}</td>
-            <td>{{ loc.type }}</td>
-            <td>{{ rec.days_lost }}</td>
-            <td>{{ rec.notes or '' }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+    const estado = document.getElementById('estadoAusentismo');
+    estado.addEventListener('change', toggleMinutosTarde);
+    toggleMinutosTarde();
+});
 
-{% if not rows %}
-<p>No hay registros de ausentismo cargados.</p>
-{% endif %}
+function toggleMinutosTarde() {
+    const estado = document.getElementById('estadoAusentismo').value;
+    const minutos = document.getElementById('minutosTarde');
+    if (estado === 'llegada_tarde') {
+        minutos.disabled = false;
+        minutos.required = true;
+    } else {
+        minutos.disabled = true;
+        minutos.required = false;
+        minutos.value = '';
+    }
+}
 
+function cargarEmpleados() {
+    fetch('/api/rrhh/empleados')
+        .then(r => r.json())
+        .then(data => {
+            const select = document.getElementById('selectEmpleado');
+            const empleados = (data.employees || []).filter(e => e.is_active);
+            if (!empleados.length) {
+                select.innerHTML = '<option value="">Sin empleados activos</option>';
+                return;
+            }
+            select.innerHTML = '<option value="">Seleccionar...</option>' +
+                empleados.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+        })
+        .catch(() => {
+            const select = document.getElementById('selectEmpleado');
+            select.innerHTML = '<option value="">Error al cargar empleados</option>';
+        });
+}
+
+function cargarRegistros() {
+    fetch('/api/rrhh/ausentismo')
+        .then(r => r.json())
+        .then(data => {
+            const registros = data.registros || [];
+            const tbody = document.getElementById('tablaAusentismo');
+            if (!registros.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Sin registros</td></tr>';
+                return;
+            }
+            tbody.innerHTML = registros.map(r => `
+                <tr>
+                    <td>${r.fecha}</td>
+                    <td>${r.empleado.nombre}</td>
+                    <td>${r.estado === 'ausente' ? 'Ausente' : 'Llegada tarde'}</td>
+                    <td>${r.motivo || '-'}</td>
+                    <td>${r.justificado ? 'Si' : 'No'}</td>
+                    <td>${r.minutos_tarde || '-'}</td>
+                </tr>
+            `).join('');
+        })
+        .catch(() => {
+            const tbody = document.getElementById('tablaAusentismo');
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error al cargar datos</td></tr>';
+        });
+}
+
+document.getElementById('formAusentismo')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+    const payload = Object.fromEntries(formData.entries());
+
+    payload.justificado = formData.get('justificado') === 'on';
+
+    try {
+        const resp = await fetch('/api/rrhh/ausentismo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await resp.json();
+        if (resp.ok) {
+            alert('Registro guardado');
+            form.reset();
+            document.querySelector('input[name="fecha"]').value = new Date().toISOString().split('T')[0];
+            toggleMinutosTarde();
+            cargarRegistros();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo guardar'));
+        }
+    } catch (e) {
+        alert('Error de conexion');
+    }
+});
+</script>
 {% endblock %}

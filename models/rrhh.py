@@ -36,6 +36,9 @@ class Asistencia(db.Model):
     horas_trabajadas = db.Column(db.Numeric(4, 2))
     estado = db.Column(db.String(20), default='presente')  # presente, ausente, llegada_tarde, salida_temprana
     notas = db.Column(db.Text)
+    motivo = db.Column(db.Text)
+    justificado = db.Column(db.Boolean, default=False)
+    minutos_tarde = db.Column(db.Integer)
 
     # Relaciones
     empleado = db.relationship("Employee", backref="asistencias_turnos")

@@ -202,7 +202,16 @@ def movimientos_crear():
     descripcion = data.get("descripcion")
     instrumento_id = data.get("instrumento_id")
     destino_id = data.get("destino_id")  # Nuevo campo opcional
-    usuario_id = data.get("usuario_id", 1)  # Default admin user
+    usuario_id = data.get("usuario_id")
+    if not usuario_id:
+        session_user = session.get("user")
+        if session_user:
+            usuario = User.query.filter_by(username=session_user).first()
+            if usuario:
+                usuario_id = usuario.id
+
+    if not usuario_id:
+        return jsonify({"error": "Usuario no encontrado"}), 401
 
     if tipo not in ["ingreso", "egreso"]:
         return jsonify({"error": "Tipo debe ser 'ingreso' o 'egreso'"}), 400
