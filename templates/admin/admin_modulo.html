@@ -59,7 +59,7 @@
                                 <tr>
                                     <th>ID</th>
                                     {% for field in data.fields %}
-                                    <th>{{ field|replace('_', ' ')|capitalize }}</th>
+                                    <th>{{ field_labels.get(field, field)|replace('_', ' ')|capitalize }}</th>
                                     {% endfor %}
                                     <th>Acciones</th>
                                 </tr>
@@ -71,12 +71,14 @@
                                     {% for field in data.fields %}
                                     <td>
                                         {% set val = item[field] if item[field] is defined else '' %}
-                                        {% if field == 'activo' %}
+                                        {% if field == 'activo' or field == 'is_active' %}
                                             {% if val %}
                                             <span class="badge bg-success">Activo</span>
                                             {% else %}
                                             <span class="badge bg-secondary">Inactivo</span>
                                             {% endif %}
+                                        {% elif field == 'location_id' and item.location is defined and item.location %}
+                                            {{ item.location.name }}
                                         {% elif val is not none %}
                                             {{ val }}
                                         {% endif %}
@@ -142,6 +144,107 @@
 <script>
 const MODULO = '{{ modulo }}';
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+const EMPLOYEE_POSITIONS = {{ employee_positions|tojson }};
+const EMPLOYEE_LOCATIONS = {{ locations|tojson }};
+const FIELD_LABELS = {{ field_labels|tojson }};
+
+function isEmployeeEntity(entidad) {
+    return MODULO === 'rrhh' && entidad === 'empleados';
+}
+
+function getFieldLabel(entidad, field) {
+    if (isEmployeeEntity(entidad) && FIELD_LABELS[field]) {
+        return FIELD_LABELS[field];
+    }
+    return field.replace('_', ' ');
+}
+
+function getInputType(field) {
+    if (field.includes('hora')) return 'time';
+    if (field.includes('date')) return 'date';
+    if (field === 'email') return 'email';
+    if (field.includes('telefono') || field.includes('phone')) return 'tel';
+    if (field.includes('precio') || field.includes('price') || field.includes('salary')) return 'number';
+    return 'text';
+}
+
+function buildSelectOptions(options, selectedValue) {
+    const selected = selectedValue !== undefined && selectedValue !== null ? String(selectedValue) : '';
+    return options.map(opt => {
+        const value = String(opt.value);
+        const isSelected = value === selected ? 'selected' : '';
+        return `<option value="${value}" ${isSelected}>${opt.label}</option>`;
+    }).join('');
+}
+
+function appendField(container, entidad, field, value, required) {
+    const label = getFieldLabel(entidad, field);
+    const div = document.createElement('div');
+    div.className = 'mb-3';
+
+    if (isEmployeeEntity(entidad) && field === 'position') {
+        const options = EMPLOYEE_POSITIONS.map(role => ({ value: role, label: role }));
+        div.innerHTML = `
+            <label class="form-label">${label} ${required ? '*' : ''}</label>
+            <select class="form-select" name="${field}" id="field-${field}" ${required ? 'required' : ''}>
+                <option value="">Seleccionar...</option>
+                ${buildSelectOptions(options, value)}
+            </select>
+        `;
+        container.appendChild(div);
+        return;
+    }
+
+    if (isEmployeeEntity(entidad) && field === 'location_id') {
+        const options = EMPLOYEE_LOCATIONS.map(loc => ({ value: loc.id, label: loc.name }));
+        div.innerHTML = `
+            <label class="form-label">${label} ${required ? '*' : ''}</label>
+            <select class="form-select" name="${field}" id="field-${field}" ${required ? 'required' : ''}>
+                <option value="">Sin asignar</option>
+                ${buildSelectOptions(options, value)}
+            </select>
+        `;
+        container.appendChild(div);
+        return;
+    }
+
+    if (isEmployeeEntity(entidad) && field === 'is_active') {
+        const selectedValue = value === false ? 'false' : 'true';
+        div.innerHTML = `
+            <label class="form-label">${label} ${required ? '*' : ''}</label>
+            <select class="form-select" name="${field}" id="field-${field}" ${required ? 'required' : ''}>
+                ${buildSelectOptions([
+                    { value: 'true', label: 'Activo' },
+                    { value: 'false', label: 'Inactivo' }
+                ], selectedValue)}
+            </select>
+        `;
+        container.appendChild(div);
+        return;
+    }
+
+    const tipo = field === 'activo' ? 'checkbox' : getInputType(field);
+
+    if (tipo === 'checkbox') {
+        const checked = value !== undefined ? !!value : true;
+        div.innerHTML = `
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" name="${field}" id="field-${field}" ${checked ? 'checked' : ''}>
+                <label class="form-check-label" for="field-${field}">${label}</label>
+            </div>
+        `;
+    } else {
+        const step = tipo === 'number' ? 'step="0.01"' : '';
+        const safeValue = value !== undefined && value !== null ? value : '';
+        div.innerHTML = `
+            <label class="form-label">${label} ${required ? '*' : ''}</label>
+            <input type="${tipo}" class="form-control" name="${field}" id="field-${field}" value="${safeValue}"
+                   ${required ? 'required' : ''} ${step}>
+        `;
+    }
+
+    container.appendChild(div);
+}
 
 function abrirModalNuevoFromBtn(btn) {
     try {
@@ -166,30 +269,7 @@ function abrirModalNuevo(entidad, fields, required) {
     
     fields.forEach(field => {
         const isRequired = required.includes(field);
-        const tipo = field.includes('hora') ? 'time' : 
-                     field === 'activo' ? 'checkbox' :
-                     field === 'email' ? 'email' :
-                     field.includes('telefono') ? 'tel' :
-                     field.includes('precio') || field.includes('price') ? 'number' : 'text';
-        
-        const div = document.createElement('div');
-        div.className = 'mb-3';
-        
-        if (tipo === 'checkbox') {
-            div.innerHTML = `
-                <div class="form-check">
-                    <input type="checkbox" class="form-check-input" name="${field}" id="field-${field}" checked>
-                    <label class="form-check-label" for="field-${field}">${field.replace('_', ' ')}</label>
-                </div>
-            `;
-        } else {
-            div.innerHTML = `
-                <label class="form-label">${field.replace('_', ' ')} ${isRequired ? '*' : ''}</label>
-                <input type="${tipo}" class="form-control" name="${field}" id="field-${field}" 
-                       ${isRequired ? 'required' : ''} ${tipo === 'number' ? 'step="0.01"' : ''}>
-            `;
-        }
-        container.appendChild(div);
+        appendField(container, entidad, field, undefined, isRequired);
     });
     
     new bootstrap.Modal(document.getElementById('modalEntidad')).show();
@@ -218,27 +298,7 @@ async function editarItem(entidad, id, fields) {
         container.innerHTML = '';
         
         fields.forEach(field => {
-            const tipo = field.includes('hora') ? 'time' : 
-                         field === 'activo' ? 'checkbox' :
-                         field === 'email' ? 'email' : 'text';
-            
-            const div = document.createElement('div');
-            div.className = 'mb-3';
-            
-            if (tipo === 'checkbox') {
-                div.innerHTML = `
-                    <div class="form-check">
-                        <input type="checkbox" class="form-check-input" name="${field}" id="field-${field}" ${item[field] ? 'checked' : ''}>
-                        <label class="form-check-label" for="field-${field}">${field.replace('_', ' ')}</label>
-                    </div>
-                `;
-            } else {
-                div.innerHTML = `
-                    <label class="form-label">${field.replace('_', ' ')}</label>
-                    <input type="${tipo}" class="form-control" name="${field}" id="field-${field}" value="${item[field] || ''}">
-                `;
-            }
-            container.appendChild(div);
+            appendField(container, entidad, field, item[field], false);
         });
         
         new bootstrap.Modal(document.getElementById('modalEntidad')).show();
@@ -302,6 +362,16 @@ document.getElementById('formEntidad')?.addEventListener('submit', async functio
         data[cb.name] = cb.checked;
     });
     
+    if (data.is_active !== undefined) {
+        data.is_active = data.is_active === true || data.is_active === 'true';
+    }
+    if (data.location_id === '') {
+        delete data.location_id;
+    }
+    if (data.salary === '') {
+        delete data.salary;
+    }
+
     const url = id ? `/api/admin/${MODULO}/${entidad}/${id}` : `/api/admin/${MODULO}/${entidad}`;
     const method = id ? 'PUT' : 'POST';
     

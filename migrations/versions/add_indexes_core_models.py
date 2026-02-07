@@ -31,8 +31,19 @@ def index_exists(table_name, index_name):
     return any(idx['name'] == index_name for idx in indexes)
 
 
+def columns_exist(table_name, columns):
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    if table_name not in inspector.get_table_names():
+        return False
+    existing = {col['name'] for col in inspector.get_columns(table_name)}
+    return all(col in existing for col in columns)
+
+
 def create_index_if_missing(table_name, index_name, columns):
     if not table_exists(table_name):
+        return
+    if not columns_exist(table_name, columns):
         return
     if index_exists(table_name, index_name):
         return

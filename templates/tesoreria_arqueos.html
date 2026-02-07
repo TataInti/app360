@@ -494,8 +494,37 @@ document.getElementById('formEditarArqueo')?.addEventListener('submit', async fu
     }
 });
 
+async function descargarExcel(url, fallbackName) {
+    try {
+        const resp = await fetch(url);
+        const contentType = resp.headers.get('content-type') || '';
+
+        if (!resp.ok || contentType.includes('application/json')) {
+            const data = contentType.includes('application/json') ? await resp.json() : { error: await resp.text() };
+            alert('Error: ' + (data.error || 'No se pudo exportar'));
+            return;
+        }
+
+        const blob = await resp.blob();
+        const disposition = resp.headers.get('content-disposition') || '';
+        const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+        const filename = match ? decodeURIComponent(match[1]) : fallbackName;
+
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+        alert('Error de conexión');
+    }
+}
+
 function exportarArqueos() {
-    window.location.href = '/api/tesoreria/arqueos/exportar';
+    descargarExcel('/api/tesoreria/arqueos/exportar', 'tesoreria_arqueos.xlsx');
 }
 </script>
 {% endblock %}

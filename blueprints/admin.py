@@ -3,6 +3,7 @@ Blueprint de Administración de Variables/Catálogos
 Solo accesible para usuarios con rol 'admin'
 """
 from functools import wraps
+from decimal import Decimal
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 
 from models import db
@@ -106,6 +107,31 @@ ADMIN_MODELS = {
     },
 }
 
+EMPLOYEE_POSITION_OPTIONS = [
+    "vendedor",
+    "administracion",
+    "gerente",
+    "cajero",
+    "deposito",
+    "jefe ventas",
+    "tesoreria",
+    "jefe deposito",
+    "reparto",
+]
+
+EMPLOYEE_FIELD_LABELS = {
+    "first_name": "Nombre",
+    "last_name": "Apellido",
+    "email": "Email",
+    "phone": "Telefono",
+    "position": "Posicion",
+    "department": "Departamento",
+    "hire_date": "Fecha ingreso",
+    "salary": "Salario",
+    "location_id": "Ubicacion",
+    "is_active": "Estado",
+}
+
 
 # =============================================================================
 # Rutas Web
@@ -163,12 +189,59 @@ def admin_modulo(modulo):
                 "error": str(e),
             }
     
+    locations = []
+    employee_positions = []
+    field_labels = {}
+    if modulo == "rrhh":
+        locations = [
+            {"id": loc.id, "name": loc.name}
+            for loc in Location.query.order_by(Location.name).all()
+        ]
+        employee_positions = EMPLOYEE_POSITION_OPTIONS
+        field_labels = EMPLOYEE_FIELD_LABELS
+
     return render_template(
         "admin/admin_modulo.html",
         modulo=modulo,
         entidades=data,
         modulos=ADMIN_MODELS,
+        locations=locations,
+        employee_positions=employee_positions,
+        field_labels=field_labels,
     )
+
+
+def coerce_field_value(field, val):
+    if val is None:
+        return None
+    if isinstance(val, str) and val.strip() == "":
+        return None
+
+    if field in ("is_active", "activo"):
+        if isinstance(val, str):
+            return val.strip().lower() in ["true", "1", "yes", "on"]
+        return bool(val)
+
+    if field.endswith("_id"):
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
+
+    if "date" in field and isinstance(val, str):
+        try:
+            from datetime import datetime
+            return datetime.strptime(val, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    if field in ("salary",) or "precio" in field.lower() or "price" in field.lower():
+        try:
+            return Decimal(str(val))
+        except Exception:
+            return None
+
+    return val
 
 
 # =============================================================================
@@ -221,7 +294,7 @@ def api_crear(modulo, entidad):
         item = model()
         for field in config["fields"]:
             if field in data:
-                val = data[field]
+                val = coerce_field_value(field, data[field])
                 # Convertir strings de tiempo
                 if 'hora' in field.lower() and isinstance(val, str) and ':' in val:
                     from datetime import time
@@ -252,7 +325,7 @@ def api_actualizar(modulo, entidad, id):
         item = model.query.get_or_404(id)
         for field in config["fields"]:
             if field in data:
-                val = data[field]
+                val = coerce_field_value(field, data[field])
                 # Convertir strings de tiempo
                 if 'hora' in field.lower() and isinstance(val, str) and ':' in val:
                     from datetime import time
