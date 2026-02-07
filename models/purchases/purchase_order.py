@@ -1,6 +1,5 @@
-from datetime import datetime
-
 from .. import db
+from ..time_utils import now_local
 
 
 class PurchaseOrder(db.Model):
@@ -13,7 +12,7 @@ class PurchaseOrder(db.Model):
     location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=True, index=True)
     
     # Fechas
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=now_local, index=True)
     order_date = db.Column(db.Date, nullable=True, index=True)
     expected_delivery_date = db.Column(db.Date, nullable=True, index=True)
 

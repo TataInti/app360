@@ -1,7 +1,8 @@
 from datetime import datetime, date
+import io
 from decimal import Decimal
 
-from flask import Blueprint, request, jsonify, render_template, session
+from flask import Blueprint, request, jsonify, render_template, session, send_file
 
 from models import db, User
 from models.tesoreria import CuentaCorrienteFriar, PagoFriar, LogCuentaCorrienteFriar, InstrumentoPago
@@ -238,6 +239,60 @@ def pagos_listar():
         "pages": pagos.pages,
         "current_page": pagos.page
     })
+
+
+@cta_cte_friar_bp.route("/api/tesoreria/cta-cte-friar/pagos/exportar", methods=["GET"])
+def pagos_exportar():
+    """Exportar pagos a Friar a Excel"""
+    try:
+        import pandas as pd
+    except ImportError:
+        return jsonify({"error": "Pandas no instalado"}), 500
+
+    cuenta = CuentaCorrienteFriar.query.first()
+
+    if not cuenta:
+        return jsonify({"error": "No existe cuenta corriente Friar configurada"}), 400
+
+    fecha_desde = request.args.get("fecha_desde")
+    fecha_hasta = request.args.get("fecha_hasta")
+
+    query = PagoFriar.query.filter_by(cuenta_corriente_id=cuenta.id)
+
+    if fecha_desde:
+        query = query.filter(PagoFriar.fecha >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
+    if fecha_hasta:
+        query = query.filter(PagoFriar.fecha <= datetime.strptime(fecha_hasta + " 23:59:59", "%Y-%m-%d %H:%M:%S"))
+
+    pagos = query.order_by(PagoFriar.fecha.desc()).all()
+
+    data = []
+    for p in pagos:
+        data.append({
+            "Fecha": p.fecha,
+            "Monto": float(p.monto),
+            "Instrumento": p.instrumento.nombre if p.instrumento else "",
+            "Descripcion": p.descripcion,
+            "Referencia": p.referencia or "",
+            "Usuario": p.usuario.username if p.usuario else ""
+        })
+
+    df = pd.DataFrame(data)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, sheet_name="Pagos", index=False)
+
+    output.seek(0)
+    fecha_actual = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"tesoreria_pagos_friar_{fecha_actual}.xlsx"
+
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename
+    )
 
 
 @cta_cte_friar_bp.route("/api/tesoreria/cta-cte-friar/pagos", methods=["POST"])

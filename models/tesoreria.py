@@ -1,6 +1,5 @@
-from datetime import datetime
-
 from . import db
+from .time_utils import now_local, today_local_date
 
 
 class InstrumentoPago(db.Model):
@@ -33,7 +32,7 @@ class DestinoArqueo(db.Model):
 class ArqueoCaja(db.Model):
     __tablename__ = "arqueos_caja"
     id = db.Column(db.Integer, primary_key=True)
-    fecha = db.Column(db.Date, nullable=False, default=datetime.utcnow().date)
+    fecha = db.Column(db.Date, nullable=False, default=today_local_date)
     turno = db.Column(db.String(20), nullable=False)  # mañana, tarde, noche
     usuario_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
 
@@ -50,8 +49,8 @@ class ArqueoCaja(db.Model):
     # Auditoría de ediciones
     editado_por_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     fecha_edicion = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=now_local, nullable=False)
+    updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
 
     # Relaciones
     usuario = db.relationship("User", foreign_keys=[usuario_id])
@@ -67,7 +66,7 @@ class ArqueoCaja(db.Model):
 class MovimientoCaja(db.Model):
     __tablename__ = "movimientos_caja"
     id = db.Column(db.Integer, primary_key=True)
-    fecha_hora = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    fecha_hora = db.Column(db.DateTime, nullable=False, default=now_local)
 
     tipo = db.Column(db.String(10), nullable=False)  # 'ingreso' o 'egreso'
     monto = db.Column(db.Numeric(12, 2), nullable=False)
@@ -100,7 +99,7 @@ class LogArqueo(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     arqueo_id = db.Column(db.Integer, db.ForeignKey("arqueos_caja.id"), nullable=False)
-    fecha_edicion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    fecha_edicion = db.Column(db.DateTime, default=now_local, nullable=False)
     usuario_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     
     # Estado anterior y nuevo (JSON)
@@ -127,8 +126,8 @@ class CuentaCorrienteFriar(db.Model):
     # Auditoría de ediciones
     editado_por_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     fecha_edicion = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=now_local, nullable=False)
+    updated_at = db.Column(db.DateTime, default=now_local, onupdate=now_local, nullable=False)
     
     # Relaciones
     proveedor = db.relationship("Proveedor", foreign_keys=[proveedor_id])
@@ -146,7 +145,7 @@ class PagoFriar(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     cuenta_corriente_id = db.Column(db.Integer, db.ForeignKey("cuenta_corriente_friar.id"), nullable=False)
-    fecha = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    fecha = db.Column(db.DateTime, default=now_local, nullable=False)
     monto = db.Column(db.Numeric(12, 2), nullable=False)
     instrumento_id = db.Column(db.Integer, db.ForeignKey("instrumentos_pago.id"), nullable=False)
     descripcion = db.Column(db.String(200), nullable=False)
@@ -173,7 +172,7 @@ class LogCuentaCorrienteFriar(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     cuenta_corriente_id = db.Column(db.Integer, db.ForeignKey("cuenta_corriente_friar.id"), nullable=False)
-    fecha_edicion = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    fecha_edicion = db.Column(db.DateTime, default=now_local, nullable=False)
     usuario_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     
     # Estado anterior y nuevo (JSON)

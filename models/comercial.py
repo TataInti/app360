@@ -1,7 +1,7 @@
-from datetime import datetime
 from decimal import Decimal
 
 from . import db
+from .time_utils import now_local
 
 
 class Promocion(db.Model):
@@ -42,7 +42,7 @@ class PromocionAplicada(db.Model):
 
     # Detalles de aplicación
     descuento_aplicado = db.Column(db.Numeric(12, 2), nullable=False)
-    fecha_aplicacion = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_aplicacion = db.Column(db.DateTime, default=now_local)
 
     # Relaciones
     venta = db.relationship("Venta")

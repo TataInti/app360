@@ -1,6 +1,5 @@
-from datetime import datetime
-
 from .. import db
+from ..time_utils import now_local
 
 
 class PurchaseReceipt(db.Model):
@@ -10,7 +9,7 @@ class PurchaseReceipt(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False, index=True)
     location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=False, index=True)
     quantity_received = db.Column(db.Integer, nullable=False)
-    received_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    received_at = db.Column(db.DateTime, default=now_local, index=True)
 
     product = db.relationship("Product")
     location = db.relationship("Location")

@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, time, date
+import io
 from decimal import Decimal
 
-from flask import Blueprint, request, jsonify, render_template, session
+from flask import Blueprint, request, jsonify, render_template, session, send_file
 
 from models import (
     ArqueoCaja,
@@ -126,6 +127,71 @@ def movimientos_listar():
     })
 
 
+@tesoreria_bp.route("/api/tesoreria/movimientos/exportar", methods=["GET"])
+def movimientos_exportar():
+    """Exportar movimientos de caja a Excel"""
+    try:
+        import pandas as pd
+    except ImportError:
+        return jsonify({"error": "Pandas no instalado"}), 500
+
+    fecha_desde = request.args.get("fecha_desde")
+    fecha_hasta = request.args.get("fecha_hasta")
+    tipo = request.args.get("tipo")
+    instrumento_id = request.args.get("instrumento_id")
+    arqueo_id = request.args.get("arqueo_id")
+
+    query = MovimientoCaja.query
+
+    if fecha_desde:
+        query = query.filter(MovimientoCaja.fecha_hora >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
+    if fecha_hasta:
+        query = query.filter(
+            MovimientoCaja.fecha_hora <= datetime.strptime(
+                fecha_hasta + " 23:59:59", "%Y-%m-%d %H:%M:%S"
+            )
+        )
+    if tipo:
+        query = query.filter(MovimientoCaja.tipo == tipo)
+    if instrumento_id:
+        query = query.filter(MovimientoCaja.instrumento_id == instrumento_id)
+    if arqueo_id:
+        query = query.filter(MovimientoCaja.arqueo_id == arqueo_id)
+
+    movimientos = query.order_by(MovimientoCaja.fecha_hora.desc()).all()
+
+    data = []
+    for m in movimientos:
+        data.append({
+            "Fecha/Hora": m.fecha_hora,
+            "Tipo": m.tipo,
+            "Monto": float(m.monto),
+            "Instrumento": m.instrumento.nombre if m.instrumento else "",
+            "Destino": m.destino.nombre if m.destino else "",
+            "Descripcion": m.descripcion,
+            "Referencia": m.referencia or "",
+            "Cliente/Proveedor": m.cliente_proveedor or "",
+            "Usuario": m.usuario.username if m.usuario else ""
+        })
+
+    df = pd.DataFrame(data)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, sheet_name="Movimientos", index=False)
+
+    output.seek(0)
+    fecha_actual = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"tesoreria_movimientos_{fecha_actual}.xlsx"
+
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename
+    )
+
+
 @tesoreria_bp.route("/api/tesoreria/movimientos", methods=["POST"])
 def movimientos_crear():
     """Crear nuevo movimiento de caja"""
@@ -213,6 +279,58 @@ def arqueos_listar():
             "usuario": a.usuario.username if a.usuario else None
         } for a in arqueos]
     })
+
+
+@tesoreria_bp.route("/api/tesoreria/arqueos/exportar", methods=["GET"])
+def arqueos_exportar():
+    """Exportar arqueos de caja a Excel"""
+    try:
+        import pandas as pd
+    except ImportError:
+        return jsonify({"error": "Pandas no instalado"}), 500
+
+    fecha = request.args.get("fecha")
+    turno = request.args.get("turno")
+
+    query = ArqueoCaja.query
+
+    if fecha:
+        query = query.filter(ArqueoCaja.fecha == datetime.strptime(fecha, "%Y-%m-%d").date())
+    if turno:
+        query = query.filter(ArqueoCaja.turno == turno)
+
+    arqueos = query.order_by(ArqueoCaja.fecha.desc(), ArqueoCaja.turno).all()
+
+    data = []
+    for a in arqueos:
+        data.append({
+            "Fecha": a.fecha,
+            "Turno": a.turno,
+            "Saldo Inicial": float(a.saldo_inicial),
+            "Ingresos": float(a.ingresos_total),
+            "Egresos": float(a.egresos_total),
+            "Saldo Final": float(a.saldo_final),
+            "Diferencia": float(a.diferencia),
+            "Usuario": a.usuario.username if a.usuario else "",
+            "Observaciones": a.observaciones or ""
+        })
+
+    df = pd.DataFrame(data)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, sheet_name="Arqueos", index=False)
+
+    output.seek(0)
+    fecha_actual = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"tesoreria_arqueos_{fecha_actual}.xlsx"
+
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename
+    )
 
 
 @tesoreria_bp.route("/api/tesoreria/arqueos", methods=["POST"])

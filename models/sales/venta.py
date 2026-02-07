@@ -1,12 +1,11 @@
-from datetime import datetime
-
 from .. import db
+from ..time_utils import now_local
 
 
 class Venta(db.Model):
     __tablename__ = "ventas"
     id = db.Column(db.Integer, primary_key=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=now_local)
 
     # Datos importados del CSV
     fecha = db.Column(db.Date, nullable=False)

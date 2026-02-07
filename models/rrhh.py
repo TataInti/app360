@@ -1,7 +1,7 @@
-from datetime import datetime
 from decimal import Decimal
 
 from . import db
+from .time_utils import now_local
 
 
 class Turno(db.Model):
@@ -56,7 +56,7 @@ class Adelanto(db.Model):
     tipo = db.Column(db.String(30), nullable=False, default='adelanto_efectivo')
     
     # Común para todos
-    fecha_solicitud = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_solicitud = db.Column(db.DateTime, default=now_local)
     monto = db.Column(db.Numeric(10, 2), nullable=False)
     concepto = db.Column(db.Text, nullable=False)  # antes: motivo
     
@@ -120,7 +120,7 @@ class LiquidacionSueldo(db.Model):
     sueldo_neto = db.Column(db.Numeric(10, 2), nullable=False)
     
     # Auditoría
-    fecha_liquidacion = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_liquidacion = db.Column(db.DateTime, default=now_local)
     liquidado_por_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     observaciones = db.Column(db.Text)
     

@@ -1,12 +1,11 @@
-from datetime import datetime
-
 from .. import db
+from ..time_utils import now_local
 
 
 class Lead(db.Model):
     __tablename__ = "leads"
     id = db.Column(db.Integer, primary_key=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=now_local, index=True)
 
     name = db.Column(db.String(200), nullable=False)
     phone = db.Column(db.String(50))

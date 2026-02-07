@@ -8,6 +8,9 @@
             <a href="/tesoreria" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Volver a Tesorería
             </a>
+            <button class="btn btn-outline-success" onclick="exportarMovimientos()">
+                <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+            </button>
             <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
                 <i class="bi bi-plus-circle"></i> Registrar Movimiento
             </button>
@@ -252,6 +255,26 @@ async function cargarMovimientos() {
         document.getElementById('tablaMovimientos').innerHTML = 
             '<tr><td colspan="8" class="text-center text-danger">Error al cargar datos</td></tr>';
     }
+}
+
+function exportarMovimientos() {
+    const desde = document.getElementById('fechaDesde').value;
+    const hasta = document.getElementById('fechaHasta').value;
+    const tipo = document.getElementById('tipoFiltro').value;
+    const instrumento = document.getElementById('instrumentoFiltro').value;
+
+    const params = new URLSearchParams();
+    if (desde) params.append('fecha_desde', desde);
+    if (hasta) params.append('fecha_hasta', hasta);
+    if (tipo) params.append('tipo', tipo);
+    if (instrumento) params.append('instrumento_id', instrumento);
+
+    const query = params.toString();
+    const url = query
+        ? `/api/tesoreria/movimientos/exportar?${query}`
+        : '/api/tesoreria/movimientos/exportar';
+
+    window.location.href = url;
 }
 
 document.getElementById('formMovimiento')?.addEventListener('submit', async function(e) {

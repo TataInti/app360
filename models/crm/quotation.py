@@ -1,6 +1,5 @@
-from datetime import datetime
-
 from .. import db
+from ..time_utils import now_local
 
 
 class Quotation(db.Model):
@@ -11,7 +10,7 @@ class Quotation(db.Model):
     amount = db.Column(db.Numeric(12, 2), nullable=False)
     currency = db.Column(db.String(10), default="ARS")
     status = db.Column(db.String(40), default="borrador")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=now_local)
     notes = db.Column(db.Text)
 
     lead = db.relationship("Lead", backref="quotations")

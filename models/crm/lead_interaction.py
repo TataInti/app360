@@ -1,13 +1,12 @@
-from datetime import datetime
-
 from .. import db
+from ..time_utils import now_local
 
 
 class LeadInteraction(db.Model):
     __tablename__ = "lead_interactions"
     id = db.Column(db.Integer, primary_key=True)
     lead_id = db.Column(db.Integer, db.ForeignKey("leads.id"), nullable=False)
-    contact_date = db.Column(db.DateTime, default=datetime.utcnow)
+    contact_date = db.Column(db.DateTime, default=now_local)
     type = db.Column(db.String(60))
     channel = db.Column(db.String(60))
     owner_name = db.Column(db.String(120))

@@ -47,6 +47,9 @@
             <button class="btn btn-info me-2" onclick="verHistorialCuenta()">
                 <i class="bi bi-clock-history"></i> Historial de Cambios
             </button>
+            <button class="btn btn-outline-success me-2" onclick="exportarPagos()">
+                <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+            </button>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoPago">
                 <i class="bi bi-plus-circle"></i> Registrar Pago
             </button>
@@ -306,6 +309,22 @@ function limpiarFiltros() {
     document.getElementById("fechaDesde").value = "";
     document.getElementById("fechaHasta").value = "";
     cargarPagos();
+}
+
+function exportarPagos() {
+    const fechaDesde = document.getElementById("fechaDesde").value;
+    const fechaHasta = document.getElementById("fechaHasta").value;
+
+    const params = new URLSearchParams();
+    if (fechaDesde) params.append("fecha_desde", fechaDesde);
+    if (fechaHasta) params.append("fecha_hasta", fechaHasta);
+
+    const query = params.toString();
+    const url = query
+        ? `/api/tesoreria/cta-cte-friar/pagos/exportar?${query}`
+        : "/api/tesoreria/cta-cte-friar/pagos/exportar";
+
+    window.location.href = url;
 }
 
 function editarSaldoInicial() {

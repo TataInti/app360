@@ -8,6 +8,9 @@
             <a href="/tesoreria" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Volver a Tesorería
             </a>
+            <button class="btn btn-outline-success" onclick="exportarArqueos()">
+                <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+            </button>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoArqueo">
                 <i class="bi bi-plus-circle"></i> Nuevo Arqueo
             </button>
@@ -490,5 +493,9 @@ document.getElementById('formEditarArqueo')?.addEventListener('submit', async fu
         console.error(e);
     }
 });
+
+function exportarArqueos() {
+    window.location.href = '/api/tesoreria/arqueos/exportar';
+}
 </script>
 {% endblock %}

@@ -1,10 +1,10 @@
-from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import relationship
 
 from . import db
+from .time_utils import now_local, today_local_date
 
 
 class CategoriaGasto(db.Model):
@@ -47,7 +47,7 @@ class Gasto(db.Model):
     __tablename__ = 'gasto'
 
     id = Column(Integer, primary_key=True)
-    fecha = Column(Date, nullable=False, default=datetime.utcnow().date)
+    fecha = Column(Date, nullable=False, default=today_local_date)
     descripcion = Column(String(300), nullable=False)
     monto = Column(Numeric(12, 2), nullable=False)
     categoria_id = Column(Integer, ForeignKey('categoria_gasto.id'), nullable=False)
@@ -63,8 +63,8 @@ class Gasto(db.Model):
     usuario_id = Column(Integer, ForeignKey('users.id'), nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_local)
+    updated_at = Column(DateTime, default=now_local, onupdate=now_local)
 
     # Relaciones
     categoria = relationship("CategoriaGasto", back_populates="gastos")

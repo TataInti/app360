@@ -1,6 +1,5 @@
-from datetime import datetime
-
 from .. import db
+from ..time_utils import now_local
 
 
 class SurveyResponse(db.Model):
@@ -10,7 +9,7 @@ class SurveyResponse(db.Model):
     employee_id = db.Column(db.Integer, db.ForeignKey("employees.id"), nullable=False, index=True)
     score = db.Column(db.Integer, nullable=False)
     comments = db.Column(db.Text, nullable=True)
-    submitted_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    submitted_at = db.Column(db.DateTime, default=now_local, index=True)
 
     survey = db.relationship("Survey", back_populates="responses")
     employee = db.relationship("Employee", back_populates="survey_responses")
