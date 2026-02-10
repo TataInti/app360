@@ -10,7 +10,7 @@ from sqlalchemy import inspect
 
 
 revision = "20260209_add_compras_registro_fields"
-down_revision = "0dd692d555b0"
+down_revision = "fix_alembic_version_len"
 branch_labels = None
 depends_on = None
 
