@@ -283,9 +283,9 @@
 
         <hr>
 
-        <!-- Comercial -->
+        <!-- Marketing -->
         <div class="sidebar-section-title">
-            Comercial
+            Marketing
         </div>
 
         {% if can_access('crm') %}
@@ -301,6 +301,21 @@
             <span class="link-text">Nuevo Lead</span>
         </a>
 
+        <a href="/campaigns"
+           class="{% if current.startswith('/campaigns') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-megaphone"></i></span>
+            <span class="link-text">Campañas</span>
+        </a>
+        {% endif %}
+
+        <hr>
+
+        <!-- Comercial -->
+        <div class="sidebar-section-title">
+            Comercial
+        </div>
+
+        {% if can_access('crm') %}
         <a href="/ventas"
            class="{% if current.startswith('/ventas') %}active-link{% endif %}">
             <span class="link-icon"><i class="bi bi-receipt"></i></span>
@@ -311,12 +326,6 @@
            class="{% if current == '/ventas/nuevo' %}active-link{% endif %}">
             <span class="link-icon"><i class="bi bi-pencil"></i></span>
             <span class="link-text">Nueva Venta</span>
-        </a>
-
-        <a href="/campaigns"
-           class="{% if current.startswith('/campaigns') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-megaphone"></i></span>
-            <span class="link-text">Campañas</span>
         </a>
 
         <a href="/comercial/objetivos"
@@ -337,13 +346,13 @@
         <a href="/compras"
            class="{% if current.startswith('/compras') and current != '/compras/orden-nueva' %}active-link{% endif %}">
             <span class="link-icon"><i class="bi bi-stack"></i></span>
-            <span class="link-text">Panel de Compras</span>
+            <span class="link-text">Panel de Registros de Compras</span>
         </a>
 
         <a href="/compras/orden-nueva"
            class="{% if current == '/compras/orden-nueva' %}active-link{% endif %}">
             <span class="link-icon"><i class="bi bi-file-earmark-plus"></i></span>
-            <span class="link-text">Nueva Orden</span>
+            <span class="link-text">Nuevo Registro</span>
         </a>
         {% endif %}
 

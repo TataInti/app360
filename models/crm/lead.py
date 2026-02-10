@@ -28,3 +28,9 @@ class Lead(db.Model):
     product = db.relationship("Product")
     location = db.relationship("Location")
     campaign = db.relationship("Campaign", back_populates="leads")
+    stage_history = db.relationship(
+        "LeadStageHistory",
+        back_populates="lead",
+        cascade="all, delete-orphan",
+        order_by="LeadStageHistory.created_at.desc()",
+    )

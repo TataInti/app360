@@ -1,14 +1,35 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>Nueva Orden de Compra</h1>
+<h1>Nuevo Registro de Compras</h1>
 
 <form method="POST">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
     <div class="mb-3">
-        <label>Proveedor (opcional)</label>
-        <input type="text" name="supplier" class="form-control">
+        <label>Fecha</label>
+        <input type="date" name="order_date" class="form-control" value="{{ default_date }}" required>
+    </div>
+
+    <div class="mb-3">
+        <label>Número de comprobante</label>
+        <input type="text" name="comprobante_numero" class="form-control">
+    </div>
+
+    <div class="mb-3">
+        <label>Proveedor</label>
+        <select name="supplier_id" class="form-control">
+            <option value="">Seleccionar proveedor existente</option>
+            {% for p in proveedores %}
+            <option value="{{ p.id }}">{{ p.nombre }}</option>
+            {% endfor %}
+        </select>
+        <div class="form-text">Si el proveedor no existe, ingresalo manualmente abajo.</div>
+    </div>
+
+    <div class="mb-3">
+        <label>Proveedor (manual)</label>
+        <input type="text" name="supplier_text" class="form-control">
     </div>
 
     <div class="mb-3">
@@ -35,11 +56,27 @@
     </div>
 
     <div class="mb-3">
+        <label>Monto total</label>
+        <input type="number" name="monto_total" class="form-control" step="0.01" min="0">
+    </div>
+
+    <div class="mb-3">
+        <label>Origen de los fondos</label>
+        <select name="instrumento_id" class="form-control">
+            <option value="">No generar egreso</option>
+            {% for i in instrumentos %}
+            <option value="{{ i.id }}">{{ i.nombre }}</option>
+            {% endfor %}
+        </select>
+        <div class="form-text">Si seleccionas un origen, se registrara un egreso en Tesoreria.</div>
+    </div>
+
+    <div class="mb-3">
         <label>Notas (opcional)</label>
         <textarea name="notes" class="form-control" rows="3"></textarea>
     </div>
 
-    <button type="submit" class="btn btn-primary">Guardar Orden</button>
+    <button type="submit" class="btn btn-primary">Guardar Registro</button>
     <a href="/compras" class="btn btn-secondary">Volver</a>
 </form>
 

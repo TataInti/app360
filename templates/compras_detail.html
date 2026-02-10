@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center">
     <div>
-        <h1>Orden #{{ order.id }}</h1>
+        <h1>Registro #{{ order.id }}</h1>
         <p class="text-muted mb-0">
             {{ order.location.name if order.location else 'Ubicación no asignada' }}
             · {{ order.supplier or 'Proveedor no especificado' }}
@@ -16,7 +16,45 @@
     <div class="col-md-6">
         <div class="card mb-4">
             <div class="card-body">
-                <h5 class="card-title">Estado de la orden</h5>
+                <h5 class="card-title">Datos del registro</h5>
+                <ul class="list-group">
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Fecha</span>
+                        <span>
+                            {% if order.order_date %}
+                                {{ order.order_date.strftime('%Y-%m-%d') }}
+                            {% elif order.created_at %}
+                                {{ order.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Comprobante</span>
+                        <span>{{ order.comprobante_numero or '-' }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Monto</span>
+                        <span>
+                            {% if order.monto_total is not none %}
+                                {{ '%.2f'|format(order.monto_total) }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>Origen de fondos</span>
+                        <span>{{ order.instrumento.nombre if order.instrumento else '-' }}</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Estado del registro</h5>
                 <form action="{{ url_for('compras.compras_change_status', order_id=order.id) }}" method="POST">
                     <div class="mb-3">
                         <label>Estado</label>

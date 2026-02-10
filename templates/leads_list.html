@@ -1,56 +1,509 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>Leads</h1>
+<style>
+    .kanban-board {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1rem;
+        align-items: start;
+    }
 
-<a href="/leads/new" class="btn btn-primary mb-3">Nuevo Lead</a>
+    .kanban-column {
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 0.75rem;
+        min-height: 520px;
+        display: flex;
+        flex-direction: column;
+    }
 
-<table class="table table-bordered table-striped">
-    <thead>
-        <tr>
-            <th>Fecha</th>
-            <th>Nombre</th>
-            <th>Etapa</th>
-            <th>Responsable</th>
-            <th>Teléfono</th>
-            <th>Email</th>
-            <th>Origen</th>
-            <th>Campaña</th>
-            <th>Ubicación</th>
-            <th>Estado</th>
-            <th>Último contacto</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for lead in leads %}
-        <tr>
-            <td>{{ lead.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
-            <td>
-                <a href="/leads/{{ lead.id }}" class="text-decoration-none">
-                    {{ lead.name }}
-                </a>
-            </td>
-            <td>{{ lead.stage }}</td>
-            <td>{{ lead.owner_name or '-' }}</td>
-            <td>{{ lead.phone }}</td>
-            <td>{{ lead.email }}</td>
-            <td>{{ lead.source }}</td>
-            <td>{{ campaigns.get(lead.campaign_id, '') }}</td>
-            <td>{{ locations.get(lead.location_id, '') }}</td>
-            <td>{{ lead.status }}</td>
-            <td>
-                {% if lead.last_contacted_at %}
-                    {{ lead.last_contacted_at.strftime("%Y-%m-%d %H:%M") }}
-                {% else %}
-                    ---
-                {% endif %}
-            </td>
-            <td>
-                <a href="/leads/edit/{{ lead.id }}" class="btn btn-sm btn-secondary">Editar</a>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+    .kanban-column-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+    }
+
+    .kanban-column-header h5 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 700;
+        text-transform: capitalize;
+    }
+
+    .kanban-column-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.65rem;
+        min-height: 420px;
+        padding: 0.25rem;
+        border-radius: 10px;
+        transition: background 0.2s ease, border 0.2s ease;
+    }
+
+    .kanban-column-body.is-over {
+        background: #eef2ff;
+        border: 1px dashed #6366f1;
+    }
+
+    .kanban-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 0.75rem;
+        box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+        cursor: grab;
+    }
+
+    .kanban-card.dragging {
+        opacity: 0.4;
+    }
+
+    .kanban-card-title {
+        font-weight: 700;
+        margin-bottom: 0.35rem;
+    }
+
+    .kanban-card-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        font-size: 0.8rem;
+        color: #475569;
+        margin-bottom: 0.35rem;
+    }
+
+    .kanban-card-details {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin-bottom: 0.5rem;
+    }
+
+    .kanban-card-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .kanban-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.55);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1050;
+        padding: 1rem;
+    }
+
+    .kanban-modal.is-open {
+        display: flex;
+    }
+
+    .kanban-modal-content {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1.25rem;
+        width: min(520px, 100%);
+        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
+    }
+
+    .history-panel {
+        position: fixed;
+        top: 0;
+        right: -420px;
+        height: 100vh;
+        width: 380px;
+        background: #ffffff;
+        border-left: 1px solid #e2e8f0;
+        box-shadow: -10px 0 25px rgba(15, 23, 42, 0.1);
+        padding: 1rem;
+        transition: right 0.25s ease;
+        z-index: 1040;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .history-panel.is-open {
+        right: 0;
+    }
+
+    .history-list {
+        overflow-y: auto;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .history-entry {
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 0.75rem;
+        font-size: 0.85rem;
+        color: #475569;
+    }
+
+    .history-entry strong {
+        color: #111827;
+    }
+
+    .history-entry small {
+        color: #94a3b8;
+    }
+
+    .history-form textarea {
+        resize: vertical;
+        min-height: 90px;
+    }
+
+    .history-empty {
+        color: #94a3b8;
+        font-size: 0.85rem;
+        text-align: center;
+        margin-top: 1rem;
+    }
+
+    @media (max-width: 960px) {
+        .history-panel {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h1>Marketing</h1>
+        <p class="text-muted mb-0">Pipeline de leads estilo CRM</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/leads/new" class="btn btn-primary">Nuevo Lead</a>
+        <a href="/campaigns" class="btn btn-outline-secondary">Campañas</a>
+    </div>
+</div>
+
+<div class="kanban-board" id="kanbanBoard">
+    {% for stage in stages %}
+    <div class="kanban-column" data-stage="{{ stage.name }}">
+        <div class="kanban-column-header">
+            <h5>{{ stage.name|capitalize }}</h5>
+            <span class="badge bg-light text-dark js-count">{{ leads_by_stage[stage.name]|length }}</span>
+        </div>
+        <div class="kanban-column-body" data-stage="{{ stage.name }}">
+            {% for lead in leads_by_stage[stage.name] %}
+            <div class="kanban-card"
+                 draggable="true"
+                 data-lead-id="{{ lead.id }}"
+                 data-stage="{{ stage.name }}"
+                 data-lead-name="{{ lead.name|e }}">
+                <div class="kanban-card-title">
+                    <a href="/leads/{{ lead.id }}" class="text-decoration-none">{{ lead.name }}</a>
+                </div>
+                <div class="kanban-card-meta">
+                    <span class="badge bg-secondary js-stage">{{ stage.name|capitalize }}</span>
+                    <span>{{ lead.owner_name or 'Sin responsable' }}</span>
+                </div>
+                <div class="kanban-card-details">
+                    <div>Origen: {{ lead.source or '-' }}</div>
+                    <div>Unidad: {{ units.get(lead.business_unit_id, '-') }}</div>
+                    <div>Campaña: {{ campaigns.get(lead.campaign_id, '-') }}</div>
+                </div>
+                <div class="kanban-card-actions">
+                    <button class="btn btn-sm btn-outline-primary js-history"
+                            data-lead-id="{{ lead.id }}"
+                            data-lead-name="{{ lead.name|e }}">
+                        Historial
+                    </button>
+                    <a href="/leads/edit/{{ lead.id }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="kanban-modal" id="moveModal" aria-hidden="true">
+    <div class="kanban-modal-content">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0" id="moveModalTitle">Mover lead</h5>
+            <button class="btn btn-sm btn-outline-secondary" id="moveModalClose">Cerrar</button>
+        </div>
+        <p class="text-muted" id="moveModalSubtitle"></p>
+        <div class="mb-2">
+            <label class="form-label">Comentario sobre el cambio (max 300)</label>
+            <textarea class="form-control" id="moveComment" maxlength="300" placeholder="Escribe una nota para el historial..."></textarea>
+            <div class="text-muted small mt-1" id="moveCommentCount">0 / 300</div>
+        </div>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            <button class="btn btn-outline-secondary" id="moveCancel">Cancelar</button>
+            <button class="btn btn-primary" id="moveConfirm">Mover</button>
+        </div>
+    </div>
+</div>
+
+<div class="history-panel" id="historyPanel" aria-hidden="true">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <strong id="historyTitle">Historial</strong>
+            <div class="text-muted small" id="historySubtitle"></div>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" id="historyClose">Cerrar</button>
+    </div>
+    <div class="history-form">
+        <label class="form-label">Agregar comentario</label>
+        <textarea class="form-control" id="historyComment" maxlength="300" placeholder="Nota sobre el estado..."></textarea>
+        <div class="text-muted small mt-1" id="historyCommentCount">0 / 300</div>
+        <button class="btn btn-primary w-100 mt-2" id="historySubmit">Guardar comentario</button>
+    </div>
+    <div class="history-list" id="historyList"></div>
+</div>
+
+<script>
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const moveModal = document.getElementById('moveModal');
+    const moveModalTitle = document.getElementById('moveModalTitle');
+    const moveModalSubtitle = document.getElementById('moveModalSubtitle');
+    const moveComment = document.getElementById('moveComment');
+    const moveCommentCount = document.getElementById('moveCommentCount');
+    const moveModalClose = document.getElementById('moveModalClose');
+    const moveCancel = document.getElementById('moveCancel');
+    const moveConfirm = document.getElementById('moveConfirm');
+
+    const historyPanel = document.getElementById('historyPanel');
+    const historyTitle = document.getElementById('historyTitle');
+    const historySubtitle = document.getElementById('historySubtitle');
+    const historyList = document.getElementById('historyList');
+    const historyComment = document.getElementById('historyComment');
+    const historyCommentCount = document.getElementById('historyCommentCount');
+    const historySubmit = document.getElementById('historySubmit');
+    const historyClose = document.getElementById('historyClose');
+
+    let pendingMove = null;
+    let activeHistoryLeadId = null;
+
+    const updateCountBadges = () => {
+        document.querySelectorAll('.kanban-column').forEach((column) => {
+            const count = column.querySelectorAll('.kanban-card').length;
+            const badge = column.querySelector('.js-count');
+            if (badge) {
+                badge.textContent = count;
+            }
+        });
+    };
+
+    const formatStageLabel = (stage) => stage ? stage.charAt(0).toUpperCase() + stage.slice(1) : '';
+
+    const openMoveModal = ({ leadId, leadName, fromStage, toStage, card, targetColumn }) => {
+        pendingMove = { leadId, leadName, fromStage, toStage, card, targetColumn };
+        moveModalTitle.textContent = `Mover ${leadName}`;
+        moveModalSubtitle.textContent = `De ${formatStageLabel(fromStage)} a ${formatStageLabel(toStage)}.`;
+        moveComment.value = '';
+        moveCommentCount.textContent = '0 / 300';
+        moveModal.classList.add('is-open');
+    };
+
+    const closeMoveModal = () => {
+        pendingMove = null;
+        moveModal.classList.remove('is-open');
+    };
+
+    const openHistoryPanel = (leadId, leadName) => {
+        activeHistoryLeadId = leadId;
+        historyTitle.textContent = 'Historial';
+        historySubtitle.textContent = leadName;
+        historyComment.value = '';
+        historyCommentCount.textContent = '0 / 300';
+        historyPanel.classList.add('is-open');
+        loadHistory(leadId);
+    };
+
+    const closeHistoryPanel = () => {
+        activeHistoryLeadId = null;
+        historyPanel.classList.remove('is-open');
+    };
+
+    const loadHistory = async (leadId) => {
+        historyList.innerHTML = '';
+        try {
+            const response = await fetch(`/api/crm/leads/${leadId}/history`);
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'No se pudo cargar el historial');
+            }
+
+            if (!data.history || data.history.length === 0) {
+                historyList.innerHTML = '<div class="history-empty">Sin movimientos registrados.</div>';
+                return;
+            }
+
+            data.history.forEach((entry) => {
+                const entryEl = document.createElement('div');
+                entryEl.className = 'history-entry';
+                const fromStage = entry.from_stage ? formatStageLabel(entry.from_stage) : '-';
+                const toStage = entry.to_stage ? formatStageLabel(entry.to_stage) : '-';
+                const comment = entry.comment ? entry.comment : 'Sin comentario.';
+                const author = entry.created_by ? entry.created_by : 'Sistema';
+                const dateLabel = entry.created_at ? new Date(entry.created_at).toLocaleString() : '';
+                entryEl.innerHTML = `
+                    <div><strong>${fromStage}</strong> -> <strong>${toStage}</strong></div>
+                    <div class="mt-1">${comment}</div>
+                    <small>${author} - ${dateLabel}</small>
+                `;
+                historyList.appendChild(entryEl);
+            });
+        } catch (error) {
+            historyList.innerHTML = `<div class="history-empty">${error.message}</div>`;
+        }
+    };
+
+    const registerDragAndDrop = () => {
+        document.querySelectorAll('.kanban-card').forEach((card) => {
+            card.addEventListener('dragstart', (event) => {
+                card.classList.add('dragging');
+                event.dataTransfer.setData('text/plain', card.dataset.leadId);
+            });
+
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging');
+            });
+        });
+
+        document.querySelectorAll('.kanban-column-body').forEach((column) => {
+            column.addEventListener('dragover', (event) => {
+                event.preventDefault();
+                column.classList.add('is-over');
+            });
+
+            column.addEventListener('dragleave', () => {
+                column.classList.remove('is-over');
+            });
+
+            column.addEventListener('drop', (event) => {
+                event.preventDefault();
+                column.classList.remove('is-over');
+                const leadId = event.dataTransfer.getData('text/plain');
+                const card = document.querySelector(`.kanban-card[data-lead-id="${leadId}"]`);
+                if (!card) {
+                    return;
+                }
+
+                const fromStage = card.dataset.stage;
+                const toStage = column.dataset.stage;
+                if (fromStage === toStage) {
+                    return;
+                }
+
+                openMoveModal({
+                    leadId,
+                    leadName: card.dataset.leadName || 'Lead',
+                    fromStage,
+                    toStage,
+                    card,
+                    targetColumn: column,
+                });
+            });
+        });
+    };
+
+    moveComment.addEventListener('input', () => {
+        moveCommentCount.textContent = `${moveComment.value.length} / 300`;
+    });
+
+    historyComment.addEventListener('input', () => {
+        historyCommentCount.textContent = `${historyComment.value.length} / 300`;
+    });
+
+    moveModalClose.addEventListener('click', closeMoveModal);
+    moveCancel.addEventListener('click', closeMoveModal);
+
+    moveConfirm.addEventListener('click', async () => {
+        if (!pendingMove) {
+            return;
+        }
+
+        const { leadId, toStage, card, targetColumn } = pendingMove;
+        const comment = moveComment.value.trim();
+        moveConfirm.disabled = true;
+
+        try {
+            const response = await fetch(`/api/crm/leads/${leadId}/stage`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({ stage: toStage, comment }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'No se pudo mover el lead');
+            }
+
+            targetColumn.appendChild(card);
+            card.dataset.stage = toStage;
+            const stageBadge = card.querySelector('.js-stage');
+            if (stageBadge) {
+                stageBadge.textContent = formatStageLabel(toStage);
+            }
+            updateCountBadges();
+
+            if (activeHistoryLeadId === leadId) {
+                loadHistory(leadId);
+            }
+            closeMoveModal();
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            moveConfirm.disabled = false;
+        }
+    });
+
+    historySubmit.addEventListener('click', async () => {
+        if (!activeHistoryLeadId) {
+            return;
+        }
+        const comment = historyComment.value.trim();
+        if (!comment) {
+            alert('El comentario es obligatorio.');
+            return;
+        }
+        historySubmit.disabled = true;
+        try {
+            const response = await fetch(`/api/crm/leads/${activeHistoryLeadId}/comments`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({ comment }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'No se pudo guardar el comentario');
+            }
+            historyComment.value = '';
+            historyCommentCount.textContent = '0 / 300';
+            loadHistory(activeHistoryLeadId);
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            historySubmit.disabled = false;
+        }
+    });
+
+    historyClose.addEventListener('click', closeHistoryPanel);
+
+    document.querySelectorAll('.js-history').forEach((button) => {
+        button.addEventListener('click', () => {
+            openHistoryPanel(button.dataset.leadId, button.dataset.leadName || 'Lead');
+        });
+    });
+
+    registerDragAndDrop();
+</script>
 {% endblock %}

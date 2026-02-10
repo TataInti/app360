@@ -12,6 +12,7 @@ from models.tesoreria import InstrumentoPago, DestinoArqueo, CuentaCorrienteFria
 from models.rrhh import Turno
 from models.hr.employee import Employee
 from models.core import Location, Product, BusinessUnit
+from models.crm import LeadStage
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -103,6 +104,14 @@ ADMIN_MODELS = {
             "name": "Unidades de Negocio",
             "fields": ["name"],
             "required": ["name"],
+        },
+    },
+    "marketing": {
+        "pipeline": {
+            "model": LeadStage,
+            "name": "Etapas del Pipeline",
+            "fields": ["name", "position", "activo"],
+            "required": ["name", "position"],
         },
     },
 }
