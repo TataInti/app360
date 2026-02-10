@@ -297,6 +297,80 @@ def gastos_registrar():
     }), 201
 
 
+@gastos_bp.route("/api/gastos/<int:gasto_id>", methods=["GET"])
+def gastos_detalle(gasto_id):
+    """Obtener detalle de un gasto"""
+    gasto = Gasto.query.get_or_404(gasto_id)
+    return jsonify({
+        "id": gasto.id,
+        "fecha": gasto.fecha.isoformat() if gasto.fecha else None,
+        "descripcion": gasto.descripcion,
+        "monto": float(gasto.monto),
+        "categoria_id": gasto.categoria_id,
+        "proveedor_id": gasto.proveedor_id,
+        "numero_factura": gasto.numero_factura,
+        "fecha_vencimiento": gasto.fecha_vencimiento.isoformat() if gasto.fecha_vencimiento else None,
+        "pagado": gasto.pagado,
+        "estado": "pagado" if gasto.pagado else "pendiente",
+    })
+
+
+@gastos_bp.route("/api/gastos/<int:gasto_id>", methods=["PUT"])
+def gastos_actualizar(gasto_id):
+    """Actualizar un gasto"""
+    gasto = Gasto.query.get_or_404(gasto_id)
+    data = request.get_json() or {}
+
+    required_fields = ["descripcion", "monto", "categoria_id", "proveedor_id", "fecha"]
+    for field in required_fields:
+        if field not in data or data[field] in (None, ""):
+            return jsonify({"error": f"Campo requerido: {field}"}), 400
+
+    try:
+        monto = Decimal(str(data["monto"]))
+        if monto <= 0:
+            return jsonify({"error": "Monto debe ser mayor a cero"}), 400
+    except Exception:
+        return jsonify({"error": "Monto inválido"}), 400
+
+    categoria = CategoriaGasto.query.get(data["categoria_id"])
+    if not categoria or not categoria.activo:
+        return jsonify({"error": "Categoría no encontrada o inactiva"}), 404
+
+    proveedor = Proveedor.query.get(data["proveedor_id"])
+    if not proveedor or not proveedor.activo:
+        return jsonify({"error": "Proveedor no encontrado o inactivo"}), 404
+
+    try:
+        fecha = datetime.strptime(data["fecha"], "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"error": "Formato de fecha inválido"}), 400
+
+    fecha_vencimiento = data.get("fecha_vencimiento")
+    if fecha_vencimiento:
+        try:
+            fecha_vencimiento = datetime.strptime(fecha_vencimiento, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"error": "Formato de fecha_vencimiento inválido"}), 400
+
+    estado = data.get("estado")
+    pagado = bool(data.get("pagado")) or (estado == "pagado")
+    fecha_pago = datetime.utcnow() if pagado else None
+
+    gasto.descripcion = data["descripcion"]
+    gasto.monto = monto
+    gasto.categoria_id = data["categoria_id"]
+    gasto.proveedor_id = data["proveedor_id"]
+    gasto.fecha = fecha
+    gasto.numero_factura = data.get("numero_factura")
+    gasto.fecha_vencimiento = fecha_vencimiento
+    gasto.pagado = pagado
+    gasto.fecha_pago = fecha_pago
+
+    db.session.commit()
+    return jsonify({"message": "Gasto actualizado"})
+
+
 @gastos_bp.route("/api/gastos/<int:gasto_id>/pagar", methods=["POST"])
 def gastos_pagar(gasto_id):
     """Marcar gasto como pagado"""

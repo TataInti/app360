@@ -188,8 +188,71 @@
     </div>
 </div>
 
+<!-- Modal Editar Gasto -->
+<div class="modal fade" id="editarGastoModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Gasto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEditarGasto">
+                    <input type="hidden" name="gasto_id" id="editGastoId">
+                    <div class="mb-3">
+                        <label class="form-label">Descripción *</label>
+                        <input type="text" name="descripcion" id="editDescripcion" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Categoría *</label>
+                        <select name="categoria_id" id="editCategoriaSelect" class="form-select" required>
+                            <option value="">Seleccionar...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Proveedor *</label>
+                        <select name="proveedor_id" id="editProveedorSelect" class="form-select" required>
+                            <option value="">Seleccionar...</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Monto *</label>
+                            <input type="number" name="monto" id="editMonto" class="form-control" step="0.01" min="0" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Fecha *</label>
+                            <input type="date" name="fecha" id="editFecha" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Estado</label>
+                        <select name="estado" id="editEstado" class="form-select">
+                            <option value="pendiente">Pendiente</option>
+                            <option value="pagado">Pagado</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Número de factura</label>
+                        <input type="text" name="numero_factura" id="editNumeroFactura" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Fecha vencimiento</label>
+                        <input type="date" name="fecha_vencimiento" id="editFechaVencimiento" class="form-control">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="actualizarGasto()">Guardar cambios</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 let chartCategorias = null;
 let chartDistribucion = null;
 
@@ -212,9 +275,11 @@ async function cargarCategorias() {
         const data = await resp.json();
         const select = document.getElementById('categoriaSelect');
         const filtro = document.getElementById('categoriaFiltro');
+        const editSelect = document.getElementById('editCategoriaSelect');
         data.categorias.forEach(c => {
             select.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
             filtro.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+            editSelect.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
         });
     } catch(e) {
         console.error('Error cargando categorías:', e);
@@ -226,9 +291,11 @@ async function cargarProveedores() {
         const resp = await fetch('/api/gastos/proveedores');
         const data = await resp.json();
         const select = document.getElementById('proveedorSelect');
+        const editSelect = document.getElementById('editProveedorSelect');
         if (data.proveedores) {
             data.proveedores.forEach(p => {
                 select.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
+                editSelect.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
             });
         }
     } catch(e) {
@@ -416,7 +483,64 @@ function exportarGastos() {
 }
 
 function editarGasto(id) {
-    alert('Función editar en desarrollo - ID: ' + id);
+    cargarGastoDetalle(id);
+}
+
+async function cargarGastoDetalle(id) {
+    try {
+        const resp = await fetch(`/api/gastos/${id}`);
+        const data = await resp.json();
+        if (!resp.ok) {
+            alert(data.error || 'No se pudo cargar el gasto');
+            return;
+        }
+
+        document.getElementById('editGastoId').value = data.id;
+        document.getElementById('editDescripcion').value = data.descripcion || '';
+        document.getElementById('editCategoriaSelect').value = data.categoria_id || '';
+        document.getElementById('editProveedorSelect').value = data.proveedor_id || '';
+        document.getElementById('editMonto').value = data.monto || 0;
+        document.getElementById('editFecha').value = data.fecha || '';
+        document.getElementById('editEstado').value = data.estado || (data.pagado ? 'pagado' : 'pendiente');
+        document.getElementById('editNumeroFactura').value = data.numero_factura || '';
+        document.getElementById('editFechaVencimiento').value = data.fecha_vencimiento || '';
+
+        new bootstrap.Modal(document.getElementById('editarGastoModal')).show();
+    } catch (e) {
+        alert('Error de conexión');
+    }
+}
+
+async function actualizarGasto() {
+    const id = document.getElementById('editGastoId').value;
+    const data = {
+        descripcion: document.getElementById('editDescripcion').value,
+        categoria_id: document.getElementById('editCategoriaSelect').value,
+        proveedor_id: document.getElementById('editProveedorSelect').value,
+        monto: document.getElementById('editMonto').value,
+        fecha: document.getElementById('editFecha').value,
+        estado: document.getElementById('editEstado').value,
+        numero_factura: document.getElementById('editNumeroFactura').value,
+        fecha_vencimiento: document.getElementById('editFechaVencimiento').value
+    };
+
+    try {
+        const resp = await fetch(`/api/gastos/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify(data)
+        });
+        const result = await resp.json();
+        if (!resp.ok) {
+            alert(result.error || 'No se pudo actualizar el gasto');
+            return;
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById('editarGastoModal')).hide();
+        cargarGastos();
+    } catch (e) {
+        alert('Error de conexión');
+    }
 }
 </script>
 {% endblock %}

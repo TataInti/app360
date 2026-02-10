@@ -209,6 +209,8 @@
 </div>
 
 <script>
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+
 document.addEventListener('DOMContentLoaded', function() {
     const hoy = new Date();
     const periodo = hoy.toISOString().slice(0, 7);
@@ -331,7 +333,10 @@ async function eliminarObjetivo(id) {
     if (!confirm('¿Eliminar este objetivo?')) return;
     
     try {
-        const resp = await fetch(`/api/comercial/objetivos/${id}`, { method: 'DELETE' });
+        const resp = await fetch(`/api/comercial/objetivos/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
         if (resp.ok) {
             cargarDatos();
         } else {
@@ -358,7 +363,10 @@ document.getElementById('formObjetivo')?.addEventListener('submit', async functi
     try {
         const resp = await fetch('/api/comercial/objetivos', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
             body: JSON.stringify(data)
         });
         
@@ -388,7 +396,10 @@ document.getElementById('formEditar')?.addEventListener('submit', async function
     try {
         const resp = await fetch(`/api/comercial/objetivos/${id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
             body: JSON.stringify(data)
         });
         

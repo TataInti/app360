@@ -60,6 +60,7 @@ def bi_dashboard():
         Venta.fecha.between(fecha_desde, fecha_hasta)
     ).scalar() or 0
     kpis["ventas_totales"] = float(ventas_total)
+    kpis["ventas_total"] = float(ventas_total)
 
     # 2. Número de ventas
     num_ventas = Venta.query.filter(
@@ -75,9 +76,12 @@ def bi_dashboard():
         Gasto.fecha.between(fecha_desde, fecha_hasta)
     ).scalar() or 0
     kpis["gastos_totales"] = float(gastos_total)
+    kpis["gastos_total"] = float(gastos_total)
 
     # 5. Margen (ventas - gastos)
-    kpis["margen_bruto"] = float(ventas_total - gastos_total)
+    margen_bruto = float(ventas_total - gastos_total)
+    kpis["margen_bruto"] = margen_bruto
+    kpis["margen_neto"] = (margen_bruto / float(ventas_total)) if ventas_total else 0
 
     # 6. Número de productos
     kpis["total_productos"] = Product.query.count()
@@ -98,6 +102,119 @@ def bi_dashboard():
     # 11. Conversión de leads
     leads_ganados = Lead.query.filter_by(status="ganado").count()
     kpis["conversion_leads"] = round((leads_ganados / kpis["total_leads"] * 100), 2) if kpis["total_leads"] > 0 else 0
+
+    leads_generados = Lead.query.filter(
+        func.date(Lead.created_at).between(fecha_desde, fecha_hasta)
+    ).count()
+    kpis["leads_generados"] = leads_generados
+
+    ventas_diarias_raw = (
+        db.session.query(
+            Venta.fecha,
+            func.sum(Venta.precio_efectivo * Venta.cantidad)
+        )
+        .filter(Venta.fecha.between(fecha_desde, fecha_hasta))
+        .group_by(Venta.fecha)
+        .order_by(Venta.fecha)
+        .all()
+    )
+    ventas_diarias = {
+        row[0].isoformat(): float(row[1] or 0)
+        for row in ventas_diarias_raw
+    }
+
+    ventas_por_categoria_raw = (
+        db.session.query(
+            Product.category,
+            func.sum(Venta.precio_efectivo * Venta.cantidad)
+        )
+        .join(Product, Venta.producto_id == Product.id)
+        .filter(Venta.fecha.between(fecha_desde, fecha_hasta))
+        .group_by(Product.category)
+        .order_by(desc(func.sum(Venta.precio_efectivo * Venta.cantidad)))
+        .all()
+    )
+    ventas_por_categoria = {}
+    for categoria, total in ventas_por_categoria_raw:
+        label = categoria or "Sin categoria"
+        ventas_por_categoria[label] = float(total or 0)
+
+    gastos_diarias_raw = (
+        db.session.query(Gasto.fecha, func.sum(Gasto.monto))
+        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
+        .group_by(Gasto.fecha)
+        .order_by(Gasto.fecha)
+        .all()
+    )
+    gastos_diarias = {
+        row[0].isoformat(): float(row[1] or 0)
+        for row in gastos_diarias_raw
+    }
+
+    leads_periodo_total = Lead.query.filter(
+        func.date(Lead.created_at).between(fecha_desde, fecha_hasta)
+    ).count()
+    leads_stage_raw = (
+        db.session.query(Lead.stage, func.count(Lead.id))
+        .filter(func.date(Lead.created_at).between(fecha_desde, fecha_hasta))
+        .group_by(Lead.stage)
+        .order_by(desc(func.count(Lead.id)))
+        .all()
+    )
+    conversion_leads = {}
+    for stage, total in leads_stage_raw:
+        label = stage or "sin etapa"
+        conversion_leads[label] = round((total / leads_periodo_total * 100), 2) if leads_periodo_total else 0
+
+    ventas_top = (
+        Venta.query
+        .filter(Venta.fecha.between(fecha_desde, fecha_hasta))
+        .order_by((Venta.precio_efectivo * Venta.cantidad).desc())
+        .limit(10)
+        .all()
+    )
+    ventas_top_data = [
+        {
+            "cliente": venta.cliente.name if venta.cliente else "N/A",
+            "monto": float(venta.precio_efectivo * venta.cantidad),
+            "fecha": venta.fecha.isoformat()
+        }
+        for venta in ventas_top
+    ]
+
+    gastos_top = (
+        Gasto.query
+        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
+        .order_by(Gasto.monto.desc())
+        .limit(10)
+        .all()
+    )
+    gastos_top_data = [
+        {
+            "descripcion": gasto.descripcion,
+            "monto": float(gasto.monto),
+            "categoria": gasto.categoria.nombre if gasto.categoria else "",
+            "fecha": gasto.fecha.isoformat() if gasto.fecha else None
+        }
+        for gasto in gastos_top
+    ]
+
+    leads_activos = (
+        Lead.query
+        .filter(Lead.status.notin_(["ganado", "perdido"]))
+        .order_by(Lead.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    leads_activos_data = [
+        {
+            "empresa": lead.name,
+            "contacto": lead.owner_name or lead.phone or lead.email or "",
+            "estado": lead.status,
+            "valor_potencial": 0
+        }
+        for lead in leads_activos
+    ]
 
     # 12. Asistencia promedio (últimos 30 días)
     asistencia_reciente = Asistencia.query.filter(
@@ -127,7 +244,14 @@ def bi_dashboard():
             "desde": fecha_desde.isoformat(),
             "hasta": fecha_hasta.isoformat()
         },
-        "kpis": kpis
+        "kpis": kpis,
+        "ventas_diarias": ventas_diarias,
+        "ventas_por_categoria": ventas_por_categoria,
+        "gastos_diarios": gastos_diarias,
+        "conversion_leads": conversion_leads,
+        "ventas_top": ventas_top_data,
+        "gastos_top": gastos_top_data,
+        "leads_activos": leads_activos_data
     })
 
 
