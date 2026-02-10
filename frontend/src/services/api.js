@@ -37,6 +37,19 @@ class ApiService {
     return this.request('/panel-ejecutivo');
   }
 
+  // Inteligencia / BI endpoints
+  async getInteligenciaOverview(params = '') {
+    return this.request(`/bi/overview${params ? `?${params}` : ''}`);
+  }
+
+  async getInteligenciaRentabilidad(params = '') {
+    return this.request(`/bi/rentabilidad${params ? `?${params}` : ''}`);
+  }
+
+  async getInteligenciaEficiencia(params = '') {
+    return this.request(`/bi/eficiencia${params ? `?${params}` : ''}`);
+  }
+
   // Products endpoints
   async getProducts() {
     return this.request('/products');

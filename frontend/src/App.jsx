@@ -7,6 +7,7 @@ import Layout from "./components/Layout";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const DashboardComercial = lazy(() => import("./pages/DashboardComercial"));
 const PanelEjecutivo = lazy(() => import("./pages/PanelEjecutivo"));
+const Inteligencia = lazy(() => import("./pages/Inteligencia"));
 const Products = lazy(() => import("./pages/Products"));
 const Locations = lazy(() => import("./pages/Locations"));
 const Stock = lazy(() => import("./pages/Stock"));
@@ -31,6 +32,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard-comercial" element={<DashboardComercial />} />
           <Route path="/panel-ejecutivo" element={<PanelEjecutivo />} />
+          <Route path="/inteligencia" element={<Inteligencia />} />
 
           {/* Operaciones */}
           <Route path="/products" element={<Products />} />

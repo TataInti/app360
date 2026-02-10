@@ -41,6 +41,13 @@ function Sidebar() {
         Panel Ejecutivo
       </NavLink>
 
+      <NavLink
+        to="/inteligencia"
+        className={linkClass}
+      >
+        Inteligencia
+      </NavLink>
+
       <hr />
 
       {/* Operaciones */}
