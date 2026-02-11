@@ -717,6 +717,155 @@ def bi_eficiencia():
     })
 
 
+@bi_bp.route("/api/bi/liquidez", methods=["GET"])
+def bi_liquidez():
+    """Liquidez: caja, FCF 30/90d, burn y aging placeholders."""
+    rango = request.args.get("range", "6m")
+    fecha_desde, fecha_hasta, _, _ = _parse_range(rango)
+
+    # Caja disponible = ventas acumuladas - gastos acumulados
+    cash_on_hand = (
+        (db.session.query(func.sum(Venta.precio_efectivo * Venta.cantidad)).filter(Venta.fecha <= fecha_hasta).scalar() or 0)
+        - (db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha <= fecha_hasta).scalar() or 0)
+    )
+
+    def _fcf_days(days: int):
+        start = fecha_hasta - timedelta(days=days)
+        ventas = db.session.query(func.sum(Venta.precio_efectivo * Venta.cantidad)).filter(Venta.fecha.between(start, fecha_hasta)).scalar() or 0
+        gastos = db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha.between(start, fecha_hasta)).scalar() or 0
+        return float(ventas - gastos)
+
+    fcf_30d = _fcf_days(30)
+    fcf_90d = _fcf_days(90)
+
+    # Burn y runway aproximados
+    months = max(1, (fecha_hasta - fecha_desde).days / 30)
+    gastos_periodo = db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha.between(fecha_desde, fecha_hasta)).scalar() or 0
+    burn = gastos_periodo / months
+    runway_months = (cash_on_hand / burn) if burn else 0
+
+    kpis = {
+        "cash_on_hand": float(cash_on_hand),
+        "fcf_30d": float(fcf_30d),
+        "fcf_90d": float(fcf_90d),
+        "burn": float(burn),
+        "runway_months": float(runway_months),
+        "ccc": 0,
+        "nwc_ratio": 0,
+        "deltas": {
+            "cash_on_hand": 0,
+            "fcf_30d": 0,
+            "fcf_90d": 0,
+            "burn": 0,
+            "runway_months": 0,
+            "ccc": 0,
+            "nwc_ratio": 0,
+        },
+    }
+
+    # Serie semanal cash in/out
+    labels, cash_in_series, cash_out_series, balance_series = [], [], [], []
+    balance_acum = 0
+    current = fecha_desde
+    week_idx = 1
+    while current <= fecha_hasta:
+        week_end = min(current + timedelta(days=6), fecha_hasta)
+        ci = db.session.query(func.sum(Venta.precio_efectivo * Venta.cantidad)).filter(Venta.fecha.between(current, week_end)).scalar() or 0
+        co = db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha.between(current, week_end)).scalar() or 0
+        balance_acum += ci - co
+        labels.append(f"S{week_idx}")
+        cash_in_series.append(float(ci))
+        cash_out_series.append(float(co))
+        balance_series.append(float(balance_acum))
+        week_idx += 1
+        current = week_end + timedelta(days=1)
+
+    cash_weekly = {
+        "labels": labels,
+        "cash_in": cash_in_series,
+        "cash_out": cash_out_series,
+        "balance": balance_series,
+    }
+
+    # Sin AR/AP modelados: devolvemos buckets vacíos
+    aging_ar = {"labels": ["0-30", "31-60", "61-90", "90+"], "values": [0, 0, 0, 0]}
+    aging_ap = {"labels": ["0-30", "31-60", "61-90", "90+"], "values": [0, 0, 0, 0]}
+
+    return jsonify({
+        "periodo": {"desde": fecha_desde.isoformat(), "hasta": fecha_hasta.isoformat()},
+        "kpis": kpis,
+        "cash_weekly": cash_weekly,
+        "aging_ar": aging_ar,
+        "aging_ap": aging_ap,
+    })
+
+
+@bi_bp.route("/api/bi/proyecciones", methods=["GET"])
+def bi_proyecciones():
+    """Proyecciones a 24M con escenarios base/optimista/estresado (mock calculado)."""
+    scenario = request.args.get("scenario", "base")
+
+    base_labels = [f"T{i}" for i in range(1, 9)]  # 8 trimestres = 24M
+
+    def _serie(base_val: float, growth: float):
+        vals = []
+        current = base_val
+        for _ in base_labels:
+            vals.append(round(current, 2))
+            current *= (1 + growth)
+        return vals
+
+    growth_map = {
+        "base": 0.04,
+        "optimista": 0.06,
+        "estres": 0.02,
+    }
+    g = growth_map.get(scenario, 0.04)
+
+    escenarios = {
+        key: {
+            "labels": base_labels,
+            "ingresos": _serie(480, growth_map[key]),
+            "ebitda": [round(v * 0.26, 2) for v in _serie(480, growth_map[key])],
+            "fcf": [round(v * 0.18, 2) for v in _serie(480, growth_map[key])],
+        }
+        for key in growth_map
+    }
+
+    capex_vs_inversion = {
+        "labels": base_labels,
+        "capex": _serie(30, 0.0),
+        "otros": _serie(12, 0.0),
+    }
+
+    estructura_capital = {"labels": ["Equity", "Deuda"], "values": [65, 35]}
+
+    kpis = {
+        "fcf_proj": escenarios.get(scenario, escenarios["base"]).get("fcf", [])[-1] if escenarios else 0,
+        "debt_ebitda": 2.4,
+        "interest_coverage": 4.8,
+        "deltas": {
+            "fcf_proj": 0,
+            "debt_ebitda": 0,
+            "interest_coverage": 0,
+        },
+    }
+
+    supuestos = [
+        "Crecimiento trimestral estable según escenario",
+        "Capex plano en 24M",
+        "Costo de deuda constante",
+    ]
+
+    return jsonify({
+        "kpis": kpis,
+        "escenarios": escenarios,
+        "capex_vs_inversion": capex_vs_inversion,
+        "estructura_capital": estructura_capital,
+        "supuestos": supuestos,
+    })
+
+
 # Rankings y análisis
 @bi_bp.route("/api/bi/ranking", methods=["GET"])
 def bi_ranking():

@@ -32,7 +32,14 @@ const currencyFmt = new Intl.NumberFormat("es-ES", {
 
 const percentFmt = (value) => `${(value * 100).toFixed(1)}%`;
 
-function KPIStat({ title, value, delta }) {
+const TAB_LABELS = {
+  liquidez: "Liquidez",
+  rentabilidad: "Rentabilidad",
+  eficiencia: "Eficiencia",
+  proyecciones: "Proyecciones",
+};
+
+function KPIStat({ title, value, delta, badge }) {
   const isUp = delta !== undefined && delta >= 0;
   const deltaClass = delta === undefined ? "" : isUp ? "delta-up" : "delta-down";
   const deltaText = delta === undefined ? null : `${isUp ? "▲" : "▼"} ${(delta * 100).toFixed(1)}%`;
@@ -41,7 +48,10 @@ function KPIStat({ title, value, delta }) {
     <div className="kpi-card">
       <p className="kpi-title">{title}</p>
       <p className="kpi-value">{value}</p>
-      {deltaText && <span className={`kpi-delta ${deltaClass}`}>{deltaText}</span>}
+      <div className="kpi-meta">
+        {deltaText && <span className={`kpi-delta ${deltaClass}`}>{deltaText}</span>}
+        {badge && <span className="kpi-badge">{badge}</span>}
+      </div>
     </div>
   );
 }
@@ -49,7 +59,7 @@ function KPIStat({ title, value, delta }) {
 function ChartCard({ title, subtitle, children }) {
   return (
     <div className="chart-card">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
+      <div className="chart-card-head">
         <h4 className="section-title">{title}</h4>
         {subtitle && <span className="subtle">{subtitle}</span>}
       </div>
@@ -66,7 +76,7 @@ function Pill({ active, label, onClick }) {
   );
 }
 
-function useTabData(tab, range) {
+function useTabData(tab, range, scenario) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -77,18 +87,22 @@ function useTabData(tab, range) {
       setLoading(true);
       setError("");
       try {
-        const params = `range=${range}`;
+        const params = new URLSearchParams();
+        if (range) params.append("range", range);
+        if (tab === "proyecciones" && scenario) params.append("scenario", scenario);
+
         let response;
-        if (tab === "overview") {
-          response = await apiService.getInteligenciaOverview(params);
+        if (tab === "liquidez") {
+          response = await apiService.getInteligenciaLiquidez(params.toString());
         } else if (tab === "rentabilidad") {
-          response = await apiService.getInteligenciaRentabilidad(params);
+          response = await apiService.getInteligenciaRentabilidad(params.toString());
+        } else if (tab === "proyecciones") {
+          response = await apiService.getInteligenciaProyecciones(params.toString());
         } else {
-          response = await apiService.getInteligenciaEficiencia(params);
+          response = await apiService.getInteligenciaEficiencia(params.toString());
         }
-        if (active) {
-          setData(response);
-        }
+
+        if (active) setData(response);
       } catch (err) {
         console.warn("Falling back to mock inteligencia data", err);
         if (active) {
@@ -103,60 +117,63 @@ function useTabData(tab, range) {
     return () => {
       active = false;
     };
-  }, [tab, range]);
+  }, [tab, range, scenario]);
 
   return { data, loading, error };
 }
 
 function getFallbackData(tab) {
-  if (tab === "overview") {
+  if (tab === "liquidez") {
     return {
       kpis: {
-        cash_flow: 420000,
-        ebitda: 210000,
-        gross_margin: 0.54,
-        net_margin: 0.21,
-        burn_rate: 95000,
-        runway_months: 9.5,
+        cash_on_hand: 820000,
+        fcf_30d: 125000,
+        fcf_90d: 310000,
+        burn: 95000,
+        runway_months: 9.8,
+        ccc: 54,
+        nwc_ratio: 0.12,
         deltas: {
-          cash_flow: 0.08,
-          ebitda: 0.06,
-          gross_margin: 0.02,
-          net_margin: -0.01,
-          burn_rate: -0.05,
-          runway_months: 0.07,
+          cash_on_hand: 0.04,
+          fcf_30d: 0.07,
+          fcf_90d: 0.06,
+          burn: -0.05,
+          runway_months: 0.08,
+          ccc: -0.03,
+          nwc_ratio: 0.01,
         },
       },
-      mix_ingresos: {
-        labels: ["Servicios", "Productos", "Proyectos", "Soporte"],
-        valores: [42, 28, 18, 12],
+      cash_weekly: {
+        labels: ["W1", "W2", "W3", "W4", "W5", "W6"],
+        cash_in: [180, 190, 210, 205, 215, 225],
+        cash_out: [150, 160, 165, 170, 175, 172],
+        balance: [420, 430, 450, 470, 495, 520],
       },
-      ingresos_costos: {
-        labels: ["Oct", "Nov", "Dic", "Ene", "Feb", "Mar"],
-        ingresos: [380, 410, 430, 455, 470, 495],
-        costos: [240, 250, 260, 270, 280, 285],
-        ebitda: [110, 125, 140, 155, 160, 170],
-      },
-      top_series: {
-        labels: ["Oct", "Nov", "Dic", "Ene", "Feb", "Mar"],
-        cash_flow: [60, 85, 70, 95, 110, 120],
-        burn: [90, 92, 95, 97, 96, 94],
-      },
+      aging_ar: { labels: ["0-30", "31-60", "61-90", "90+"], values: [42, 28, 18, 12] },
+      aging_ap: { labels: ["0-30", "31-60", "61-90", "90+"], values: [38, 26, 22, 14] },
     };
   }
 
   if (tab === "rentabilidad") {
     return {
       kpis: {
-        gross_margin: 0.54,
-        net_margin: 0.21,
-        ebitda_margin: 0.27,
+        gross_margin: 0.55,
+        ebitda_margin: 0.28,
+        net_margin: 0.18,
+        roic: 0.16,
+        roe: 0.19,
         ltv_cac: 3.4,
+        arpu: 860,
+        payback_months: 7.2,
         deltas: {
           gross_margin: 0.01,
-          net_margin: -0.02,
           ebitda_margin: 0.02,
+          net_margin: -0.01,
+          roic: 0.02,
+          roe: 0.01,
           ltv_cac: 0.3,
+          arpu: 0.05,
+          payback_months: -0.1,
         },
       },
       margen_unidades: {
@@ -165,13 +182,13 @@ function getFallbackData(tab) {
         neto: [28, 18, 30, 24],
       },
       mix_costos: {
-        labels: ["Operativos", "Personal", "Marketing", "Infra"],
-        valores: [38, 32, 18, 12],
+        labels: ["OPEX", "CAPEX", "Marketing", "Personal", "Infra"],
+        valores: [34, 16, 18, 22, 10],
       },
       margen_serie: {
         labels: ["Oct", "Nov", "Dic", "Ene", "Feb", "Mar"],
-        bruto: [0.5, 0.52, 0.55, 0.53, 0.54, 0.56],
-        neto: [0.2, 0.22, 0.23, 0.21, 0.21, 0.24],
+        bruto: [0.52, 0.53, 0.54, 0.55, 0.55, 0.56],
+        neto: [0.17, 0.18, 0.18, 0.19, 0.18, 0.19],
       },
       top_clientes: [
         { cliente: "Acme SA", margen: 0.32, ingreso: 180000 },
@@ -185,61 +202,92 @@ function getFallbackData(tab) {
     };
   }
 
+  if (tab === "eficiencia") {
+    return {
+      kpis: {
+        dso: 52,
+        dpo: 41,
+        dio: 40,
+        ccc: 51,
+        nwc_ratio: 0.11,
+        overdue_ratio: 0.07,
+        deltas: {
+          dso: -0.05,
+          dpo: 0.02,
+          dio: -0.04,
+          ccc: -0.06,
+          nwc_ratio: 0.01,
+          overdue_ratio: -0.02,
+        },
+      },
+      eficiencia: {
+        labels: ["Oct", "Nov", "Dic", "Ene", "Feb", "Mar"],
+        dso: [58, 56, 54, 53, 52, 50],
+        dpo: [34, 35, 36, 38, 40, 41],
+        dio: [48, 46, 44, 43, 41, 40],
+      },
+      aging_ar: { labels: ["0-30", "31-60", "61-90", "90+"], values: [48, 24, 18, 10] },
+      aging_ap: { labels: ["0-30", "31-60", "61-90", "90+"], values: [36, 28, 22, 14] },
+      cobranzas: [
+        { cliente: "Acme SA", monto: 68000, vencimiento: "2026-02-15" },
+        { cliente: "Globex", monto: 52000, vencimiento: "2026-02-20" },
+        { cliente: "Innova", monto: 38000, vencimiento: "2026-02-24" },
+      ],
+    };
+  }
+
   return {
     kpis: {
-      cash_balance: 760000,
-      cash_in: 520000,
-      cash_out: 395000,
-      dso: 52,
-      dpo: 38,
-      inventory_days: 41,
-      burn_rate: 95000,
-      runway_months: 9.5,
-      arpu: 860,
-      payback_months: 7.2,
+      fcf_proj: 820000,
+      debt_ebitda: 2.4,
+      interest_coverage: 4.8,
       deltas: {
-        cash_balance: 0.04,
-        cash_in: 0.09,
-        cash_out: -0.03,
-        dso: -0.05,
-        dpo: 0.02,
-        inventory_days: -0.04,
-        burn_rate: -0.05,
-        runway_months: 0.07,
-        arpu: 0.06,
-        payback_months: -0.08,
+        fcf_proj: 0.05,
+        debt_ebitda: -0.1,
+        interest_coverage: 0.12,
       },
     },
-    cash_flow: {
-      labels: ["Oct", "Nov", "Dic", "Ene", "Feb", "Mar"],
-      cash_in: [320, 340, 360, 380, 410, 440],
-      cash_out: [260, 270, 295, 305, 320, 325],
-      balance: [420, 430, 450, 480, 520, 575],
+    escenarios: {
+      base: {
+        labels: ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"],
+        ingresos: [480, 500, 520, 540, 560, 580, 600, 620],
+        ebitda: [120, 128, 132, 140, 148, 152, 160, 168],
+        fcf: [80, 90, 95, 105, 115, 120, 130, 140],
+      },
+      optimista: {
+        labels: ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"],
+        ingresos: [490, 515, 540, 565, 590, 620, 645, 670],
+        ebitda: [126, 134, 142, 152, 162, 170, 180, 190],
+        fcf: [86, 98, 108, 120, 130, 142, 152, 165],
+      },
+      estres: {
+        labels: ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"],
+        ingresos: [470, 485, 495, 510, 525, 535, 550, 565],
+        ebitda: [110, 118, 122, 126, 132, 136, 140, 145],
+        fcf: [70, 78, 80, 85, 90, 96, 102, 110],
+      },
     },
-    eficiencia: {
-      labels: ["Oct", "Nov", "Dic", "Ene", "Feb", "Mar"],
-      dso: [58, 56, 54, 53, 52, 50],
-      dpo: [34, 35, 36, 37, 38, 39],
-      inventory: [48, 46, 44, 43, 41, 40],
+    capex_vs_inversion: {
+      labels: ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8"],
+      capex: [30, 28, 32, 30, 31, 29, 28, 27],
+      otros: [12, 14, 15, 12, 13, 13, 12, 12],
     },
-    gastos_mix: {
-      labels: ["OPEX", "CAPEX", "Nómina", "Marketing"],
-      valores: [44, 18, 28, 10],
-    },
-    cobranzas: [
-      { cliente: "Acme SA", monto: 68000, vencimiento: "2026-02-15" },
-      { cliente: "Globex", monto: 52000, vencimiento: "2026-02-20" },
-      { cliente: "Innova", monto: 38000, vencimiento: "2026-02-24" },
+    estructura_capital: { labels: ["Equity", "Deuda"], values: [65, 35] },
+    supuestos: [
+      "Crecimiento trimestral 5% en escenario base",
+      "Capex estable desde T2",
+      "Costo de deuda 8% fijo",
     ],
   };
 }
 
 function Inteligencia() {
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState("liquidez");
   const [range, setRange] = useState("6m");
-  const { data, loading, error } = useTabData(tab, range);
+  const [scenario, setScenario] = useState("base");
+  const { data, loading, error } = useTabData(tab, range, scenario);
 
-  const charts = useMemo(() => buildCharts(tab, data), [tab, data]);
+  const charts = useMemo(() => buildCharts(tab, data, scenario), [tab, data, scenario]);
 
   return (
     <div className="int-page">
@@ -247,8 +295,8 @@ function Inteligencia() {
         <div>
           <h1>Inteligencia Financiera</h1>
           <div className="inline-meta">
-            <span>Enfoque: cash flow, EBITDA, márgenes</span>
-            <span>Horizonte: 6 meses</span>
+            <span>Foco: liquidez, rentabilidad, eficiencia y proyecciones</span>
+            <span>Rango: {range.toUpperCase()}</span>
           </div>
         </div>
         <div className="pill-group">
@@ -259,60 +307,70 @@ function Inteligencia() {
       </div>
 
       <div className="int-tabs">
-        <button className={`int-tab ${tab === "overview" ? "active" : ""}`} onClick={() => setTab("overview")}>
-          Overview
-        </button>
-        <button className={`int-tab ${tab === "rentabilidad" ? "active" : ""}`} onClick={() => setTab("rentabilidad")}>
-          Rentabilidad
-        </button>
-        <button className={`int-tab ${tab === "eficiencia" ? "active" : ""}`} onClick={() => setTab("eficiencia")}>
-          Cash & Eficiencia
-        </button>
+        {Object.entries(TAB_LABELS).map(([key, label]) => (
+          <button key={key} className={`int-tab ${tab === key ? "active" : ""}`} onClick={() => setTab(key)}>
+            {label}
+          </button>
+        ))}
       </div>
+
+      {tab === "proyecciones" && (
+        <div className="pill-group" style={{ marginTop: "-0.35rem" }}>
+          {[
+            { key: "base", label: "Base" },
+            { key: "optimista", label: "Optimista" },
+            { key: "estres", label: "Estresado" },
+          ].map((s) => (
+            <Pill key={s.key} label={s.label} active={scenario === s.key} onClick={() => setScenario(s.key)} />
+          ))}
+        </div>
+      )}
 
       {loading && <div className="loading">Cargando inteligencia...</div>}
       {error && <div className="error">{error}</div>}
 
       {!loading && data && (
         <>
-          {tab === "overview" && <OverviewView data={data} charts={charts} />}
+          {tab === "liquidez" && <LiquidezView data={data} charts={charts} />}
           {tab === "rentabilidad" && <RentabilidadView data={data} charts={charts} />}
           {tab === "eficiencia" && <EficienciaView data={data} charts={charts} />}
+          {tab === "proyecciones" && <ProyeccionesView data={data} charts={charts} scenario={scenario} />}
         </>
       )}
     </div>
   );
 }
 
-function OverviewView({ data, charts }) {
+function LiquidezView({ data, charts }) {
   const k = data.kpis || {};
   const d = k.deltas || {};
   return (
     <>
       <div className="kpi-grid">
-        <KPIStat title="Cash Flow 30d" value={currencyFmt.format(k.cash_flow || 0)} delta={d.cash_flow} />
-        <KPIStat title="EBITDA 30d" value={currencyFmt.format(k.ebitda || 0)} delta={d.ebitda} />
-        <KPIStat title="Margen Bruto" value={percentFmt(k.gross_margin || 0)} delta={d.gross_margin} />
-        <KPIStat title="Margen Neto" value={percentFmt(k.net_margin || 0)} delta={d.net_margin} />
-        <KPIStat title="Burn Rate" value={currencyFmt.format(k.burn_rate || 0)} delta={d.burn_rate} />
-        <KPIStat title="Runway (meses)" value={`${(k.runway_months || 0).toFixed(1)} m`} delta={d.runway_months} />
+        <KPIStat title="Caja disponible" value={currencyFmt.format(k.cash_on_hand || 0)} delta={d.cash_on_hand} badge=">= 2.5x nómina" />
+        <KPIStat title="FCF 30d" value={currencyFmt.format(k.fcf_30d || 0)} delta={d.fcf_30d} />
+        <KPIStat title="FCF 90d" value={currencyFmt.format(k.fcf_90d || 0)} delta={d.fcf_90d} />
+        <KPIStat title="Burn mensual" value={currencyFmt.format(k.burn || 0)} delta={d.burn} />
+        <KPIStat title="Runway" value={`${(k.runway_months || 0).toFixed(1)} m`} delta={d.runway_months} />
+        <KPIStat title="CCC" value={`${k.ccc || 0} días`} delta={d.ccc} badge="< 55" />
+        <KPIStat title="NWC/Ingresos" value={percentFmt(k.nwc_ratio || 0)} delta={d.nwc_ratio} badge="10-15%" />
       </div>
 
       <div className="charts-grid">
-        <ChartCard title="Ingresos vs Costos vs EBITDA" subtitle="Serie mensual">
-          <Line data={charts.ingresosCostos} options={lineOptions()} height={280} />
+        <ChartCard title="Cash In/Out semanal" subtitle="Apilado">
+          <Bar data={charts.cashStacked} options={barOptions("Cash", "USD", false, true)()} height={280} />
         </ChartCard>
-        <ChartCard title="Mix de Ingresos" subtitle="Composición actual">
-          <Doughnut data={charts.mixIngresos} options={doughnutOptions()} height={280} />
+        <ChartCard title="Balance de caja" subtitle="Serie 12M">
+          <Line data={charts.cashBalance} options={lineOptions()} height={280} />
         </ChartCard>
       </div>
 
       <div className="charts-grid">
-        <ChartCard title="Cash Flow neto" subtitle="Últimos 6 meses">
-          <Bar data={charts.cashFlow} options={barOptions("Cash neto", "USD")()} height={280} />
+        <ChartCard title="Aging de cuentas por cobrar" subtitle="AR buckets">
+          <Doughnut data={charts.agingAR} options={doughnutOptions()} height={260} />
         </ChartCard>
-        <ChartCard title="Burn mensual" subtitle="Tendencia">
-          <Line data={charts.burn} options={lineOptions()} height={280} />
+        <ChartCard title="Aging de cuentas por pagar" subtitle="AP buckets">
+          <Doughnut data={charts.agingAP} options={doughnutOptions()} height={260} />
         </ChartCard>
       </div>
     </>
@@ -325,28 +383,32 @@ function RentabilidadView({ data, charts }) {
   return (
     <>
       <div className="kpi-grid">
-        <KPIStat title="Margen Bruto" value={percentFmt(k.gross_margin || 0)} delta={d.gross_margin} />
-        <KPIStat title="Margen Neto" value={percentFmt(k.net_margin || 0)} delta={d.net_margin} />
-        <KPIStat title="Margen EBITDA" value={percentFmt(k.ebitda_margin || 0)} delta={d.ebitda_margin} />
-        <KPIStat title="LTV/CAC" value={`x${(k.ltv_cac || 0).toFixed(1)}`} delta={d.ltv_cac} />
+        <KPIStat title="Margen Bruto" value={percentFmt(k.gross_margin || 0)} delta={d.gross_margin} badge=">= 55%" />
+        <KPIStat title="Margen EBITDA" value={percentFmt(k.ebitda_margin || 0)} delta={d.ebitda_margin} badge=">= 28%" />
+        <KPIStat title="Margen Neto" value={percentFmt(k.net_margin || 0)} delta={d.net_margin} badge=">= 18%" />
+        <KPIStat title="ROIC" value={percentFmt(k.roic || 0)} delta={d.roic} badge=">= 15%" />
+        <KPIStat title="ROE" value={percentFmt(k.roe || 0)} delta={d.roe} />
+        <KPIStat title="LTV/CAC" value={`x${(k.ltv_cac || 0).toFixed(1)}`} delta={d.ltv_cac} badge=">= 3.0" />
+        <KPIStat title="ARPU" value={currencyFmt.format(k.arpu || 0)} delta={d.arpu} />
+        <KPIStat title="Payback" value={`${(k.payback_months || 0).toFixed(1)} m`} delta={d.payback_months} />
       </div>
 
       <div className="charts-grid">
-        <ChartCard title="Margen por Unidad" subtitle="Bruto y Neto">
-          <Bar data={charts.margenUnidades} options={barOptions("Margen", "%", true)} height={280} />
+        <ChartCard title="Margen por unidad" subtitle="Bruto vs Neto">
+          <Bar data={charts.margenUnidades} options={barOptions("Margen", "%", true)()} height={280} />
         </ChartCard>
-        <ChartCard title="Mix de Costos" subtitle="OPEX vs CAPEX">
+        <ChartCard title="Mix de costos" subtitle="OPEX / CAPEX / otros">
           <Doughnut data={charts.mixCostos} options={doughnutOptions()} height={280} />
         </ChartCard>
       </div>
 
       <div className="charts-grid">
-        <ChartCard title="Serie de Margen" subtitle="Bruto y Neto 6 meses">
+        <ChartCard title="Serie de márgenes" subtitle="18M">
           <Line data={charts.margenSerie} options={lineOptions(true)} height={280} />
         </ChartCard>
         <div className="table-card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-            <h4 className="section-title">Top Clientes por Margen</h4>
+          <div className="chart-card-head">
+            <h4 className="section-title">Top clientes por margen</h4>
             <span className="subtle">Top 3</span>
           </div>
           <table className="table">
@@ -389,30 +451,26 @@ function EficienciaView({ data, charts }) {
   return (
     <>
       <div className="kpi-grid">
-        <KPIStat title="Saldo de Caja" value={currencyFmt.format(k.cash_balance || 0)} delta={d.cash_balance} />
-        <KPIStat title="Cash In" value={currencyFmt.format(k.cash_in || 0)} delta={d.cash_in} />
-        <KPIStat title="Cash Out" value={currencyFmt.format(k.cash_out || 0)} delta={d.cash_out} />
-        <KPIStat title="DSO" value={`${k.dso || 0} días`} delta={d.dso} />
-        <KPIStat title="DPO" value={`${k.dpo || 0} días`} delta={d.dpo} />
-        <KPIStat title="Días Inventario" value={`${k.inventory_days || 0} días`} delta={d.inventory_days} />
-        <KPIStat title="Burn Rate" value={currencyFmt.format(k.burn_rate || 0)} delta={d.burn_rate} />
-        <KPIStat title="Runway" value={`${(k.runway_months || 0).toFixed(1)} m`} delta={d.runway_months} />
-        <KPIStat title="ARPU" value={currencyFmt.format(k.arpu || 0)} delta={d.arpu} />
-        <KPIStat title="Payback" value={`${(k.payback_months || 0).toFixed(1)} m`} delta={d.payback_months} />
+        <KPIStat title="DSO" value={`${k.dso || 0} días`} delta={d.dso} badge="< 55" />
+        <KPIStat title="DPO" value={`${k.dpo || 0} días`} delta={d.dpo} badge="> 40" />
+        <KPIStat title="DIO" value={`${k.dio || 0} días`} delta={d.dio} badge="< 45" />
+        <KPIStat title="CCC" value={`${k.ccc || 0} días`} delta={d.ccc} badge="< 55" />
+        <KPIStat title="NWC/Ingresos" value={percentFmt(k.nwc_ratio || 0)} delta={d.nwc_ratio} />
+        <KPIStat title="Cobranzas vencidas" value={percentFmt(k.overdue_ratio || 0)} delta={d.overdue_ratio} />
       </div>
 
       <div className="charts-grid">
-        <ChartCard title="Cash In/Out y Saldo" subtitle="Serie 6 meses">
-          <Line data={charts.cashFlow} options={lineOptions()} height={280} />
-        </ChartCard>
-        <ChartCard title="DSO, DPO, Inventario" subtitle="Días operativos">
+        <ChartCard title="DSO / DPO / DIO" subtitle="Tendencia 6M">
           <Line data={charts.eficiencia} options={lineOptions()} height={280} />
         </ChartCard>
+        <ChartCard title="Aging AR" subtitle="Cuentas por cobrar">
+          <Doughnut data={charts.agingAR} options={doughnutOptions()} height={260} />
+        </ChartCard>
       </div>
 
       <div className="charts-grid">
-        <ChartCard title="Composición de Gastos" subtitle="OPEX vs CAPEX">
-          <Doughnut data={charts.gastosMix} options={doughnutOptions()} height={280} />
+        <ChartCard title="Aging AP" subtitle="Cuentas por pagar">
+          <Doughnut data={charts.agingAP} options={doughnutOptions()} height={260} />
         </ChartCard>
         <div className="table-card">
           <h4 className="section-title" style={{ marginBottom: "0.75rem" }}>Cobranzas próximas</h4>
@@ -440,73 +498,75 @@ function EficienciaView({ data, charts }) {
   );
 }
 
-function buildCharts(tab, data) {
+function ProyeccionesView({ data, charts, scenario }) {
+  const k = data.kpis || {};
+  const d = k.deltas || {};
+  return (
+    <>
+      <div className="kpi-grid">
+        <KPIStat title="FCF proyectado" value={currencyFmt.format(k.fcf_proj || 0)} delta={d.fcf_proj} />
+        <KPIStat title="Deuda / EBITDA" value={`${(k.debt_ebitda || 0).toFixed(1)}x`} delta={d.debt_ebitda} badge="< 3.0x" />
+        <KPIStat title="Cobertura intereses" value={`${(k.interest_coverage || 0).toFixed(1)}x`} delta={d.interest_coverage} badge="> 4.0x" />
+      </div>
+
+      <div className="charts-grid">
+        <ChartCard title={`Escenario ${scenario}`} subtitle="Ingresos / EBITDA / FCF 24M">
+          <Line data={charts.escenario} options={lineOptions()} height={280} />
+        </ChartCard>
+        <ChartCard title="Estructura de capital" subtitle="Equity vs Deuda">
+          <Doughnut data={charts.estructuraCapital} options={doughnutOptions()} height={260} />
+        </ChartCard>
+      </div>
+
+      <div className="charts-grid">
+        <ChartCard title="CAPEX vs Inversión" subtitle="Serie 24M">
+          <Bar data={charts.capexVsInversion} options={barOptions("USD", "USD", false, true)()} height={280} />
+        </ChartCard>
+        <div className="table-card">
+          <h4 className="section-title" style={{ marginBottom: "0.75rem" }}>Supuestos clave</h4>
+          <ul className="bullet-list">
+            {(data.supuestos || []).map((s) => (
+              <li key={s}>{s}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function buildCharts(tab, data, scenario) {
   if (!data) return {};
 
-  if (tab === "overview") {
+  if (tab === "liquidez") {
     return {
-      ingresosCostos: {
-        labels: data.ingresos_costos?.labels || [],
+      cashStacked: {
+        labels: data.cash_weekly?.labels || [],
+        datasets: [
+          { label: "Cash In", data: data.cash_weekly?.cash_in || [], backgroundColor: "#0f766e" },
+          { label: "Cash Out", data: data.cash_weekly?.cash_out || [], backgroundColor: "#f97316" },
+        ],
+      },
+      cashBalance: {
+        labels: data.cash_weekly?.labels || [],
         datasets: [
           {
-            label: "Ingresos",
-            data: data.ingresos_costos?.ingresos || [],
+            label: "Balance",
+            data: data.cash_weekly?.balance || [],
             borderColor: "#2563eb",
             backgroundColor: "rgba(37, 99, 235, 0.12)",
             tension: 0.35,
             fill: true,
           },
-          {
-            label: "Costos",
-            data: data.ingresos_costos?.costos || [],
-            borderColor: "#ef4444",
-            backgroundColor: "rgba(239, 68, 68, 0.12)",
-            tension: 0.35,
-            fill: true,
-          },
-          {
-            label: "EBITDA",
-            data: data.ingresos_costos?.ebitda || [],
-            borderColor: "#16a34a",
-            backgroundColor: "rgba(22, 163, 74, 0.12)",
-            tension: 0.35,
-            fill: false,
-          },
         ],
       },
-      mixIngresos: {
-        labels: data.mix_ingresos?.labels || [],
-        datasets: [
-          {
-            data: data.mix_ingresos?.valores || [],
-            backgroundColor: ["#2563eb", "#16a34a", "#f59e0b", "#a855f7", "#0ea5e9"],
-          },
-        ],
+      agingAR: {
+        labels: data.aging_ar?.labels || [],
+        datasets: [{ data: data.aging_ar?.values || [], backgroundColor: ["#2563eb", "#16a34a", "#f59e0b", "#ef4444"] }],
       },
-      cashFlow: {
-        labels: data.top_series?.labels || [],
-        datasets: [
-          {
-            type: "bar",
-            label: "Cash neto",
-            data: data.top_series?.cash_flow || [],
-            backgroundColor: "#2563eb",
-            borderRadius: 6,
-          },
-        ],
-      },
-      burn: {
-        labels: data.top_series?.labels || [],
-        datasets: [
-          {
-            label: "Burn",
-            data: data.top_series?.burn || [],
-            borderColor: "#ef4444",
-            backgroundColor: "rgba(239, 68, 68, 0.12)",
-            tension: 0.35,
-            fill: true,
-          },
-        ],
+      agingAP: {
+        labels: data.aging_ap?.labels || [],
+        datasets: [{ data: data.aging_ap?.values || [], backgroundColor: ["#2563eb", "#16a34a", "#f59e0b", "#ef4444"] }],
       },
     };
   }
@@ -516,28 +576,13 @@ function buildCharts(tab, data) {
       margenUnidades: {
         labels: data.margen_unidades?.labels || [],
         datasets: [
-          {
-            label: "Bruto %",
-            data: data.margen_unidades?.bruto || [],
-            backgroundColor: "rgba(37, 99, 235, 0.7)",
-            borderRadius: 6,
-          },
-          {
-            label: "Neto %",
-            data: data.margen_unidades?.neto || [],
-            backgroundColor: "rgba(22, 163, 74, 0.7)",
-            borderRadius: 6,
-          },
+          { label: "Bruto %", data: data.margen_unidades?.bruto || [], backgroundColor: "rgba(37, 99, 235, 0.8)", borderRadius: 8 },
+          { label: "Neto %", data: data.margen_unidades?.neto || [], backgroundColor: "rgba(22, 163, 74, 0.8)", borderRadius: 8 },
         ],
       },
       mixCostos: {
         labels: data.mix_costos?.labels || [],
-        datasets: [
-          {
-            data: data.mix_costos?.valores || [],
-            backgroundColor: ["#2563eb", "#16a34a", "#f59e0b", "#a855f7", "#0ea5e9"],
-          },
-        ],
+        datasets: [{ data: data.mix_costos?.valores || [], backgroundColor: ["#0f766e", "#2563eb", "#f59e0b", "#16a34a", "#a855f7"] }],
       },
       margenSerie: {
         labels: data.margen_serie?.labels || [],
@@ -563,84 +608,59 @@ function buildCharts(tab, data) {
     };
   }
 
+  if (tab === "eficiencia") {
+    return {
+      eficiencia: {
+        labels: data.eficiencia?.labels || [],
+        datasets: [
+          { label: "DSO", data: data.eficiencia?.dso || [], borderColor: "#2563eb", backgroundColor: "rgba(37, 99, 235, 0.12)", tension: 0.35, fill: false },
+          { label: "DPO", data: data.eficiencia?.dpo || [], borderColor: "#16a34a", backgroundColor: "rgba(22, 163, 74, 0.12)", tension: 0.35, fill: false },
+          { label: "DIO", data: data.eficiencia?.dio || [], borderColor: "#f59e0b", backgroundColor: "rgba(245, 158, 11, 0.12)", tension: 0.35, fill: false },
+        ],
+      },
+      agingAR: {
+        labels: data.aging_ar?.labels || [],
+        datasets: [{ data: data.aging_ar?.values || [], backgroundColor: ["#2563eb", "#16a34a", "#f59e0b", "#ef4444"] }],
+      },
+      agingAP: {
+        labels: data.aging_ap?.labels || [],
+        datasets: [{ data: data.aging_ap?.values || [], backgroundColor: ["#2563eb", "#16a34a", "#f59e0b", "#ef4444"] }],
+      },
+    };
+  }
+
+  const scenarioData = data.escenarios?.[scenario] || { labels: [], ingresos: [], ebitda: [], fcf: [] };
   return {
-    cashFlow: {
-      labels: data.cash_flow?.labels || [],
+    escenario: {
+      labels: scenarioData.labels,
       datasets: [
-        {
-          label: "Cash In",
-          data: data.cash_flow?.cash_in || [],
-          borderColor: "#16a34a",
-          backgroundColor: "rgba(22, 163, 74, 0.12)",
-          tension: 0.35,
-          fill: true,
-        },
-        {
-          label: "Cash Out",
-          data: data.cash_flow?.cash_out || [],
-          borderColor: "#ef4444",
-          backgroundColor: "rgba(239, 68, 68, 0.12)",
-          tension: 0.35,
-          fill: true,
-        },
-        {
-          label: "Saldo",
-          data: data.cash_flow?.balance || [],
-          borderColor: "#2563eb",
-          backgroundColor: "rgba(37, 99, 235, 0.1)",
-          tension: 0.35,
-          fill: false,
-        },
+        { label: "Ingresos", data: scenarioData.ingresos, borderColor: "#2563eb", backgroundColor: "rgba(37, 99, 235, 0.12)", tension: 0.35, fill: true },
+        { label: "EBITDA", data: scenarioData.ebitda, borderColor: "#16a34a", backgroundColor: "rgba(22, 163, 74, 0.12)", tension: 0.35, fill: true },
+        { label: "FCF", data: scenarioData.fcf, borderColor: "#f59e0b", backgroundColor: "rgba(245, 158, 11, 0.12)", tension: 0.35, fill: true },
       ],
     },
-    eficiencia: {
-      labels: data.eficiencia?.labels || [],
-      datasets: [
-        {
-          label: "DSO",
-          data: data.eficiencia?.dso || [],
-          borderColor: "#2563eb",
-          backgroundColor: "rgba(37, 99, 235, 0.12)",
-          tension: 0.35,
-          fill: false,
-        },
-        {
-          label: "DPO",
-          data: data.eficiencia?.dpo || [],
-          borderColor: "#16a34a",
-          backgroundColor: "rgba(22, 163, 74, 0.12)",
-          tension: 0.35,
-          fill: false,
-        },
-        {
-          label: "Inventario",
-          data: data.eficiencia?.inventory || [],
-          borderColor: "#f59e0b",
-          backgroundColor: "rgba(245, 158, 11, 0.12)",
-          tension: 0.35,
-          fill: false,
-        },
-      ],
+    estructuraCapital: {
+      labels: data.estructura_capital?.labels || [],
+      datasets: [{ data: data.estructura_capital?.values || [], backgroundColor: ["#0f766e", "#2563eb"] }],
     },
-    gastosMix: {
-      labels: data.gastos_mix?.labels || [],
+    capexVsInversion: {
+      labels: data.capex_vs_inversion?.labels || [],
       datasets: [
-        {
-          data: data.gastos_mix?.valores || [],
-          backgroundColor: ["#2563eb", "#16a34a", "#f59e0b", "#a855f7", "#0ea5e9"],
-        },
+        { label: "CAPEX", data: data.capex_vs_inversion?.capex || [], backgroundColor: "#2563eb", borderRadius: 8 },
+        { label: "Otros", data: data.capex_vs_inversion?.otros || [], backgroundColor: "#0f766e", borderRadius: 8 },
       ],
     },
   };
 }
 
-function barOptions(label = "Valor", unit = "", isPercent = false) {
+function barOptions(label = "Valor", unit = "", isPercent = false, stacked = false) {
   return () => ({
     responsive: true,
     maintainAspectRatio: false,
     scales: {
-      x: { stacked: false, grid: { display: false } },
+      x: { stacked, grid: { display: false } },
       y: {
+        stacked,
         beginAtZero: true,
         ticks: {
           callback: (v) => {

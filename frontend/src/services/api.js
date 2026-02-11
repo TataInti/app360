@@ -50,6 +50,14 @@ class ApiService {
     return this.request(`/bi/eficiencia${params ? `?${params}` : ''}`);
   }
 
+  async getInteligenciaLiquidez(params = '') {
+    return this.request(`/bi/liquidez${params ? `?${params}` : ''}`);
+  }
+
+  async getInteligenciaProyecciones(params = '') {
+    return this.request(`/bi/proyecciones${params ? `?${params}` : ''}`);
+  }
+
   // Products endpoints
   async getProducts() {
     return this.request('/products');

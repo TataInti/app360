@@ -41,6 +41,14 @@ App360 es una plataforma integral de gestion desarrollada con Flask (backend) y 
     - React Query
     - React Router
 
+## Integracion con SabioGo
+
+- SabioGo sigue siendo el facturador legal; App360 funciona como soporte para decision de direccion y necesita nutrirse de sus datos de ventas y costos.
+- Importamos diariamente dos archivos XLS generados desde SabioGo: `ventas_globales.xls` (ventas) y `compras_globales.xls` (costos). Se pueden cargar de forma manual por UI o por proceso programado/cron.
+- Ambos archivos traen 28 columnas: RUBRO, FECHA, SUBRUBRO, CODIGO, MODELO, PRODUCTO, MARCA, COMPROBANTE, NRO_COMPROB, CLIENTE, CONDICION_IVA, VENDEDOR, DEPOSITO, UNINEGOCIO, FORMA_PAGO, KILOS, CAJAS, DTOS, NETO, LOCALIDAD, ZONA, SUCURSAL, IVA, MONIVA, TIPO, SUBTOT, NUMLISPRE, LISPREC.
+- En PostgreSQL se cargan primero a tablas de staging (`stg_sabiogo_ventas` y `stg_sabiogo_compras`) con metadatos de import (archivo, fecha_import, hash, estado) antes de procesarlas hacia tablas de negocio y KPIs de rentabilidad/margen por linea de producto y canal.
+- Tesoreria es el modulo con mas carga manual de usuarios; se complementa con los movimientos financieros y costos/ventas importados desde SabioGo para mantener consistencia diaria.
+
 ## Requisitos
 
 - Python 3.12+
