@@ -22,6 +22,7 @@ from models import (
     db,
 )
 from security import protect_blueprint
+from services.sabiogo_service import SabiogoService
 
 bi_bp = Blueprint("bi", __name__)
 
@@ -268,6 +269,29 @@ def bi_dashboard():
     ).count()
     kpis["promociones_activas"] = promociones_activas
 
+    # 15. Rentabilidad SabioGo (integración)
+    sabiogo_service = SabiogoService()
+    try:
+        rentabilidad_resumen = sabiogo_service.get_rentabilidad_resumen(fecha_desde, fecha_hasta)
+        margen_productos_top = sabiogo_service.get_top_productos_margen(limit=5, fecha_inicio=fecha_desde, fecha_fin=fecha_hasta)
+        
+        kpis["rentabilidad_sabiogo"] = {
+            "total_ingresos": rentabilidad_resumen.get("total_ingresos", 0),
+            "total_costos": rentabilidad_resumen.get("total_costos", 0),
+            "margen_bruto": rentabilidad_resumen.get("margen_bruto", 0),
+            "margen_porcentual": rentabilidad_resumen.get("margen_porcentual", 0),
+            "productos_activos": rentabilidad_resumen.get("productos_activos", 0)
+        }
+        
+        # Reemplazar margen_bruto con datos reales de SabioGo si hay datos
+        if rentabilidad_resumen.get("total_ingresos", 0) > 0:
+            kpis["margen_bruto_real"] = rentabilidad_resumen.get("margen_bruto", 0)
+            kpis["margen_neto_real"] = rentabilidad_resumen.get("margen_porcentual", 0) / 100
+    except Exception as e:
+        # Si falla la integración, continuar sin datos de SabioGo
+        kpis["rentabilidad_sabiogo"] = None
+        margen_productos_top = []
+
     return jsonify({
         "periodo": {
             "desde": fecha_desde.isoformat(),
@@ -280,7 +304,8 @@ def bi_dashboard():
         "conversion_leads": conversion_leads,
         "ventas_top": ventas_top_data,
         "gastos_top": gastos_top_data,
-        "leads_activos": leads_activos_data
+        "leads_activos": leads_activos_data,
+        "margen_productos_top": margen_productos_top
     })
 
 

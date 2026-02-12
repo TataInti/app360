@@ -221,6 +221,10 @@ def create_app():
 
     app.register_blueprint(bi_bp)
 
+    from blueprints.sabiogo import sabiogo_bp
+
+    app.register_blueprint(sabiogo_bp)
+
     from blueprints.admin import admin_bp
 
     app.register_blueprint(admin_bp)

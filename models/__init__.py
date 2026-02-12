@@ -12,3 +12,4 @@ from .comercial import *
 from .gastos import *
 from .tesoreria import *
 from .rrhh import *
+from .sabiogo import *

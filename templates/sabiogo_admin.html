@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2><i class="bi bi-graph-up-arrow"></i> Administración SabioGo - Rentabilidad</h2>
+            <p class="text-muted">Gestión de mapeos y carga de datos para análisis de rentabilidad</p>
+        </div>
+    </div>
+
+    <!-- Estadísticas -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Productos Mapeados</h6>
+                    <h2>{{ stats.productos_mapeados }}</h2>
+                    <small>de {{ stats.total_productos }} totales</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <h6 class="card-title">Productos Sin Mapear</h6>
+                    <h2>{{ stats.productos_sin_mapear }}</h2>
+                    <small>requieren asignación</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Clientes Mapeados</h6>
+                    <h2>{{ stats.clientes_mapeados }}</h2>
+                    <small>de {{ stats.total_clientes }} totales</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h6 class="card-title">Clientes Sin Mapear</h6>
+                    <h2>{{ stats.clientes_sin_mapear }}</h2>
+                    <small>requieren asignación</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs" id="sabiogoTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="carga-tab" data-bs-toggle="tab" data-bs-target="#carga" type="button" role="tab">
+                <i class="bi bi-upload"></i> Carga de Datos
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="productos-tab" data-bs-toggle="tab" data-bs-target="#productos" type="button" role="tab">
+                <i class="bi bi-box"></i> Mapeo Productos
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="clientes-tab" data-bs-toggle="tab" data-bs-target="#clientes" type="button" role="tab">
+                <i class="bi bi-people"></i> Mapeo Clientes
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="facts-tab" data-bs-toggle="tab" data-bs-target="#facts" type="button" role="tab">
+                <i class="bi bi-arrow-repeat"></i> Actualizar Facts
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content mt-3" id="sabiogoTabContent">
+        <!-- Tab Carga de Datos -->
+        <div class="tab-pane fade show active" id="carga" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Cargar Archivo Excel</h5>
+                    <form id="formCarga" enctype="multipart/form-data">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="tipoArchivo" class="form-label">Tipo de Datos</label>
+                                    <select class="form-select" id="tipoArchivo" name="tipo" required>
+                                        <option value="ventas">Ventas</option>
+                                        <option value="compras">Compras</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="archivoXls" class="form-label">Archivo (.xls / .xlsx)</label>
+                                    <input type="file" class="form-control" id="archivoXls" name="file" accept=".xls,.xlsx" required>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Cargar Archivo
+                        </button>
+                    </form>
+                    <div id="resultadoCarga" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Mapeo Productos -->
+        <div class="tab-pane fade" id="productos" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Mapeo de Productos</h5>
+                    <div class="mb-3">
+                        <button class="btn btn-sm btn-secondary" onclick="filtrarProductos('todos')">Todos</button>
+                        <button class="btn btn-sm btn-success" onclick="filtrarProductos('mapeado')">Mapeados</button>
+                        <button class="btn btn-sm btn-warning" onclick="filtrarProductos('sin_mapear')">Sin Mapear</button>
+                    </div>
+                    <div id="listaProductos">
+                        <p class="text-muted">Cargando...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Mapeo Clientes -->
+        <div class="tab-pane fade" id="clientes" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Mapeo de Clientes</h5>
+                    <div id="listaClientes">
+                        <p class="text-muted">Cargando...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Actualizar Facts -->
+        <div class="tab-pane fade" id="facts" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Actualizar Vistas Materializadas</h5>
+                    <p>Refresca las vistas materializadas con los últimos datos procesados.</p>
+                    <button class="btn btn-primary" onclick="refreshFacts()">
+                        <i class="bi bi-arrow-repeat"></i> Actualizar Facts
+                    </button>
+                    <div id="resultadoFacts" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Carga de archivo
+document.getElementById('formCarga').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const resultadoDiv = document.getElementById('resultadoCarga');
+    
+    resultadoDiv.innerHTML = '<div class="alert alert-info">Cargando archivo...</div>';
+    
+    try {
+        const response = await fetch('/sabiogo/api/cargar-xls', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            resultadoDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <strong>✓ Archivo cargado exitosamente</strong><br>
+                    Filas insertadas: ${data.filas_insertadas}<br>
+                    Filas con error: ${data.filas_error}
+                </div>
+            `;
+            this.reset();
+        } else {
+            resultadoDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+        }
+    } catch (error) {
+        resultadoDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+});
+
+// Filtrar productos
+async function filtrarProductos(estado) {
+    const listaDiv = document.getElementById('listaProductos');
+    listaDiv.innerHTML = '<p class="text-muted">Cargando...</p>';
+    
+    try {
+        let url = '/sabiogo/api/mapeos/productos';
+        if (estado !== 'todos') {
+            url += `?estado=${estado}`;
+        }
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.items.length === 0) {
+            listaDiv.innerHTML = '<p class="text-muted">No hay productos para mostrar</p>';
+            return;
+        }
+        
+        let html = '<table class="table table-sm"><thead><tr>';
+        html += '<th>Código</th><th>Producto</th><th>Marca</th><th>Mapeado a</th><th>Estado</th>';
+        html += '</tr></thead><tbody>';
+        
+        data.items.forEach(item => {
+            const badge = item.mapeado 
+                ? '<span class="badge bg-success">Mapeado</span>'
+                : '<span class="badge bg-warning">Sin mapear</span>';
+            
+            html += `<tr>
+                <td>${item.codigo}</td>
+                <td>${item.producto_descripcion || '-'}</td>
+                <td>${item.marca || '-'}</td>
+                <td>${item.product_name || '-'}</td>
+                <td>${badge}</td>
+            </tr>`;
+        });
+        
+        html += '</tbody></table>';
+        listaDiv.innerHTML = html;
+        
+    } catch (error) {
+        listaDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+}
+
+// Cargar productos al abrir tab
+document.getElementById('productos-tab').addEventListener('shown.bs.tab', function() {
+    filtrarProductos('todos');
+});
+
+// Cargar clientes al abrir tab
+document.getElementById('clientes-tab').addEventListener('shown.bs.tab', async function() {
+    const listaDiv = document.getElementById('listaClientes');
+    listaDiv.innerHTML = '<p class="text-muted">Cargando...</p>';
+    
+    try {
+        const response = await fetch('/sabiogo/api/mapeos/clientes');
+        const data = await response.json();
+        
+        if (data.items.length === 0) {
+            listaDiv.innerHTML = '<p class="text-muted">No hay clientes para mostrar</p>';
+            return;
+        }
+        
+        let html = '<table class="table table-sm"><thead><tr>';
+        html += '<th>Cliente</th><th>Condición IVA</th><th>Zona</th><th>Mapeado a</th><th>Estado</th>';
+        html += '</tr></thead><tbody>';
+        
+        data.items.forEach(item => {
+            const badge = item.mapeado 
+                ? '<span class="badge bg-success">Mapeado</span>'
+                : '<span class="badge bg-warning">Sin mapear</span>';
+            
+            html += `<tr>
+                <td>${item.cliente}</td>
+                <td>${item.condicion_iva || '-'}</td>
+                <td>${item.zona || '-'}</td>
+                <td>${item.client_name || '-'}</td>
+                <td>${badge}</td>
+            </tr>`;
+        });
+        
+        html += '</tbody></table>';
+        listaDiv.innerHTML = html;
+        
+    } catch (error) {
+        listaDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+});
+
+// Refresh facts
+async function refreshFacts() {
+    const resultadoDiv = document.getElementById('resultadoFacts');
+    resultadoDiv.innerHTML = '<div class="alert alert-info">Actualizando vistas materializadas...</div>';
+    
+    try {
+        const response = await fetch('/sabiogo/api/refresh-facts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            resultadoDiv.innerHTML = '<div class="alert alert-success">✓ Vistas actualizadas correctamente</div>';
+        } else {
+            resultadoDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+        }
+    } catch (error) {
+        resultadoDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+}
+</script>
+{% endblock %}
