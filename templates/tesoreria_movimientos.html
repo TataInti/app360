@@ -137,11 +137,9 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Destino</label>
-                        <select class="form-select" name="destino_id" id="selectDestino">
-                            <option value="">-- Sin especificar --</option>
-                        </select>
-                        <small class="text-muted">Indica el origen (ingreso) o destino (egreso) del movimiento</small>
+                        <label class="form-label">Destino ID (opcional)</label>
+                        <input type="number" class="form-control" name="destino_id" id="inputDestino" min="1" placeholder="ID del destino del dinero">
+                        <small class="text-muted">Indica el ID del origen (ingreso) o destino (egreso) del movimiento para tracking</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Descripción *</label>
@@ -158,7 +156,6 @@
 </div>
 
 <script>
-let destinosDisponibles = [];
 
 document.addEventListener('DOMContentLoaded', function() {
     const hoy = new Date();
@@ -167,25 +164,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('fechaDesde').value = hace30.toISOString().split('T')[0];
     
     cargarInstrumentos();
-    cargarDestinos();
     cargarMovimientos();
 });
-
-async function cargarDestinos() {
-    try {
-        const resp = await fetch('/api/tesoreria/destinos');
-        const data = await resp.json();
-        destinosDisponibles = data.destinos || [];
-        
-        const select = document.getElementById('selectDestino');
-        select.innerHTML = '<option value="">-- Sin especificar --</option>';
-        destinosDisponibles.forEach(d => {
-            select.innerHTML += `<option value="${d.id}">${d.nombre}</option>`;
-        });
-    } catch(e) {
-        console.error('Error cargando destinos:', e);
-    }
-}
 
 async function cargarInstrumentos() {
     try {
@@ -232,14 +212,14 @@ async function cargarMovimientos() {
             tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No hay movimientos</td></tr>';
         } else {
             tbody.innerHTML = movimientos.map(m => {
-                const destino = m.destino || '-';
+                const destinoId = m.destino_id ? `#${m.destino_id}` : '-';
                 return `
                 <tr>
                     <td>${new Date(m.fecha_hora).toLocaleString('es-AR')}</td>
                     <td><span class="badge ${m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger'}">${m.tipo}</span></td>
                     <td>$${parseFloat(m.monto).toLocaleString('es-AR')}</td>
                     <td>${m.instrumento || '-'}</td>
-                    <td>${destino}</td>
+                    <td>${destinoId}</td>
                     <td>${m.descripcion}</td>
                     <td>${m.usuario || '-'}</td>
                     <td>

@@ -11,7 +11,7 @@ from models import (
     User,
     db,
 )
-from models.tesoreria import DestinoArqueo, LogArqueo
+from models.tesoreria import LogArqueo
 from security import protect_blueprint
 
 tesoreria_bp = Blueprint("tesoreria", __name__)
@@ -115,8 +115,7 @@ def movimientos_listar():
             "monto": float(m.monto),
             "descripcion": m.descripcion,
             "instrumento": m.instrumento.nombre,
-            "destino": m.destino.nombre if m.destino else None,
-            "destino_id": m.destino_id,
+            "destino_id": m.destino_id,  # Simple integer para tracking del destino del dinero
             "referencia": m.referencia,
             "cliente_proveedor": m.cliente_proveedor,
             "usuario": m.usuario.username if m.usuario else None
@@ -167,7 +166,7 @@ def movimientos_exportar():
             "Tipo": m.tipo,
             "Monto": float(m.monto),
             "Instrumento": m.instrumento.nombre if m.instrumento else "",
-            "Destino": m.destino.nombre if m.destino else "",
+            "Destino ID": m.destino_id or "",  # ID del destino del dinero
             "Descripcion": m.descripcion,
             "Referencia": m.referencia or "",
             "Cliente/Proveedor": m.cliente_proveedor or "",
@@ -227,12 +226,6 @@ def movimientos_crear():
     instrumento = InstrumentoPago.query.get(instrumento_id)
     if not instrumento:
         return jsonify({"error": "Instrumento no encontrado"}), 404
-    
-    # Validar destino si se proporcionó
-    if destino_id:
-        destino = DestinoArqueo.query.get(destino_id)
-        if not destino:
-            return jsonify({"error": "Destino no encontrado"}), 404
 
     movimiento = MovimientoCaja(
         tipo=tipo,
@@ -453,23 +446,6 @@ def estado_caja():
         "fecha": fecha,
         "estado_por_instrumento": estado,
         "total_caja": sum(estado.values())
-    })
-
-
-# =============================================================================
-# Endpoints para DESTINOS DE ARQUEO
-# =============================================================================
-
-@tesoreria_bp.route("/api/tesoreria/destinos", methods=["GET"])
-def destinos_listar():
-    """Listar destinos de arqueo activos"""
-    destinos = DestinoArqueo.query.filter_by(activo=True).order_by(DestinoArqueo.nombre).all()
-    return jsonify({
-        "destinos": [{
-            "id": d.id,
-            "nombre": d.nombre,
-            "descripcion": d.descripcion
-        } for d in destinos]
     })
 
 

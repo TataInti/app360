@@ -13,22 +13,6 @@ class InstrumentoPago(db.Model):
     movimientos = db.relationship("MovimientoCaja", backref="instrumento", cascade="all, delete-orphan")
 
 
-class DestinoArqueo(db.Model):
-    """Catálogo de destinos para movimientos de caja (origen o destino del dinero)"""
-    __tablename__ = "destinos_arqueo"
-    
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(100), nullable=False, unique=True)
-    descripcion = db.Column(db.String(200))
-    activo = db.Column(db.Boolean, default=True)
-    
-    # Relaciones
-    movimientos = db.relationship("MovimientoCaja", backref="destino")
-    
-    def __repr__(self):
-        return f'<DestinoArqueo {self.nombre}>'
-
-
 class ArqueoCaja(db.Model):
     __tablename__ = "arqueos_caja"
     id = db.Column(db.Integer, primary_key=True)
@@ -76,7 +60,7 @@ class MovimientoCaja(db.Model):
     instrumento_id = db.Column(db.Integer, db.ForeignKey("instrumentos_pago.id"), nullable=False)
     arqueo_id = db.Column(db.Integer, db.ForeignKey("arqueos_caja.id"), nullable=True)  # Puede ser null si no está arqueado
     usuario_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    destino_id = db.Column(db.Integer, db.ForeignKey("destinos_arqueo.id"), nullable=True)  # Origen o destino del movimiento
+    destino_id = db.Column(db.Integer, nullable=True)  # ID del origen o destino del movimiento (sin FK)
 
     # Datos adicionales
     referencia = db.Column(db.String(100))  # Número de cheque, transacción, etc.

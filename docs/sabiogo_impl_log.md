@@ -90,9 +90,9 @@
   - `purchase_order_items`: order_id, product_id, quantity.
   - `purchase_receipts`: purchase_order_id, product_id, location_id, quantity_received, received_at.
 - Tesoreria:
-  - `movimientos_caja`: tipo, monto, instrumento_id, arqueo_id?, usuario_id, referencia, cliente_proveedor.
-  - `arqueos_caja`: fecha, turno, usuario_id, destino_id?, saldos y diferencias; constraint unica (fecha, turno).
-  - `instrumentos_pago`, `destinos_arqueo` catálogos.
+  - `movimientos_caja`: tipo, monto, instrumento_id, arqueo_id?, usuario_id, destino_id (tracking simple), referencia, cliente_proveedor.
+  - `arqueos_caja`: fecha, turno, usuario_id, saldos y diferencias; constraint unica (fecha, turno).
+  - `instrumentos_pago` catálogo.
   - `cuenta_corriente_friar`, `pagos_friar`, `logs_cuenta_corriente_friar`, `logs_arqueo`.
 
 ## Mapeos y enlaces propuestos

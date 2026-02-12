@@ -31,14 +31,13 @@
 - `purchase_receipts`: recepciones por orden/producto/location con `received_at` y cantidad.
 
 ### Tesoreria
-- `movimientos_caja`: movimientos de dinero con `tipo` (ingreso/egreso), `monto`, `instrumento_id`, `arqueo_id`, `usuario_id`, `cliente_proveedor`, `referencia`.
+- `movimientos_caja`: movimientos de dinero con `tipo` (ingreso/egreso), `monto`, `instrumento_id`, `arqueo_id`, `usuario_id`, `destino_id` (tracking simple sin FK), `cliente_proveedor`, `referencia`.
   - FK: `instrumento_id -> instrumentos_pago`, `arqueo_id -> arqueos_caja`, `usuario_id -> users`.
   - Indices: fecha_hora, tipo, instrumento.
-- `arqueos_caja`: cierres de caja (fecha, turno, usuario, destino opcional, saldos, diferencia, observaciones).
-  - FK: `usuario_id`, `destino_id -> destinos_arqueo`, `editado_por_id -> users`.
+- `arqueos_caja`: cierres de caja (fecha, turno, usuario, saldos, diferencia, observaciones).
+  - FK: `usuario_id`, `editado_por_id -> users`.
   - Constraint unica (fecha, turno).
 - `instrumentos_pago`: catalogo de medios de pago (nombre unico, activo).
-- `destinos_arqueo`: destinos de dinero (nombre unico, activo).
 - `cuenta_corriente_friar`: saldo y observaciones por proveedor Friar, con auditoria (`editado_por_id`).
 - `pagos_friar`: pagos aplicados a cuenta corriente Friar (fecha, monto, instrumento, descripcion, referencia, usuario opcional).
 - Logs de auditoria:
