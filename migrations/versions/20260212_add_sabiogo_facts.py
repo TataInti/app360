@@ -51,7 +51,13 @@ def upgrade():
                 v.neto,
                 v.subtot as ingresos_bruto,
                 v.iva,
-                v.total,
+                COALESCE(
+                    NULLIF(to_jsonb(v)->>'total', '')::numeric,
+                    NULLIF(to_jsonb(v)->>'total_venta', '')::numeric,
+                    NULLIF(to_jsonb(v)->>'importe_total', '')::numeric,
+                    COALESCE(NULLIF(to_jsonb(v)->>'subtot', '')::numeric, 0)
+                    + COALESCE(NULLIF(to_jsonb(v)->>'iva', '')::numeric, 0)
+                ) as total,
                 v.marca,
                 v.modelo
             FROM stg_sabiogo_ventas v
@@ -120,7 +126,13 @@ def upgrade():
                 c.neto,
                 c.subtot as costo_bruto,
                 c.iva,
-                c.total,
+                COALESCE(
+                    NULLIF(to_jsonb(c)->>'total', '')::numeric,
+                    NULLIF(to_jsonb(c)->>'total_compra', '')::numeric,
+                    NULLIF(to_jsonb(c)->>'importe_total', '')::numeric,
+                    COALESCE(NULLIF(to_jsonb(c)->>'subtot', '')::numeric, 0)
+                    + COALESCE(NULLIF(to_jsonb(c)->>'iva', '')::numeric, 0)
+                ) as total,
                 c.marca,
                 c.modelo
             FROM stg_sabiogo_compras c
