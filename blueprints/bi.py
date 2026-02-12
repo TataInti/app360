@@ -3,7 +3,7 @@ from decimal import Decimal
 import io
 
 from flask import Blueprint, request, jsonify, send_file, render_template, current_app
-from sqlalchemy import func, desc, extract
+from sqlalchemy import func, desc, extract, text
 
 from models import (
     Adelanto,
@@ -20,7 +20,6 @@ from models import (
     Promocion,
     StockLevel,
     Venta,
-    CategoriaGasto,
     db,
 )
 from security import protect_blueprint
@@ -142,23 +141,23 @@ def bi_dashboard():
         ]
 
         # 3) Tesorería (caja)
-        movimientos_query = db.session.query(MovimientoCaja).filter(
-            func.date(MovimientoCaja.fecha_hora).between(fecha_desde, fecha_hasta)
-        )
+        caja_resumen = db.session.execute(
+            text(
+                """
+                SELECT
+                    COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) AS ingresos,
+                    COALESCE(SUM(CASE WHEN tipo = 'egreso' THEN monto ELSE 0 END), 0) AS egresos,
+                    COUNT(*) AS movimientos
+                FROM movimientos_caja
+                WHERE DATE(fecha_hora) BETWEEN :fecha_desde AND :fecha_hasta
+                """
+            ),
+            {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+        ).first()
 
-        ingresos_caja = (
-            movimientos_query.filter(MovimientoCaja.tipo == "ingreso")
-            .with_entities(func.sum(MovimientoCaja.monto))
-            .scalar()
-            or 0
-        )
-        egresos_caja = (
-            movimientos_query.filter(MovimientoCaja.tipo == "egreso")
-            .with_entities(func.sum(MovimientoCaja.monto))
-            .scalar()
-            or 0
-        )
-        movimientos_count = movimientos_query.count()
+        ingresos_caja = caja_resumen.ingresos if caja_resumen else 0
+        egresos_caja = caja_resumen.egresos if caja_resumen else 0
+        movimientos_count = caja_resumen.movimientos if caja_resumen else 0
 
         # 4) Series mensuales para visualización (sin depender de vw_margen_producto)
         margen_mensual_rows = db.session.execute(

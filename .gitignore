@@ -100,6 +100,14 @@ FUNCIONALIDADES.md
 # Development-only Files
 # =============================================================================
 tests/
+**/tests/
+**/tests/**
+test/
+**/test/
+**/test/**
+__tests__/
+**/__tests__/
+**/__tests__/**
 scripts/test_all_modules.py
 scripts/seed_demo_data.py
 scripts/seed_local.py
