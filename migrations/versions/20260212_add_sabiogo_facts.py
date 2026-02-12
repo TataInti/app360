@@ -116,7 +116,11 @@ def upgrade():
                 c.codigo,
                 pm.product_id,
                 lm.location_id,
-                c.proveedor,
+                COALESCE(
+                    NULLIF(to_jsonb(c)->>'proveedor', ''),
+                    NULLIF(to_jsonb(c)->>'cliente', ''),
+                    NULLIF(to_jsonb(c)->>'vendedor', '')
+                ) as proveedor,
                 c.forma_pago,
                 c.tipo,
                 c.rubro,

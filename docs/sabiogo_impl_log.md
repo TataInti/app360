@@ -1,5 +1,23 @@
 # Bitacora SabioGo -> App360 (staging, carga y enlaces)
 
+## Actualizacion de consistencia (2026-02-12)
+- Se detecto deriva de esquema entre staging real en VPS y supuestos de migraciones analiticas.
+- Errores de deploy observados:
+   - `UndefinedColumn: v.total` en `stg_sabiogo_ventas`.
+   - `UndefinedColumn: c.proveedor` en `stg_sabiogo_compras`.
+   - Conflicto Alembic por doble merge head (`53a8d4de6d8f` y `20260212_merge_sabiogo_all`).
+- Causa raiz: la migracion de staging fue generada/aplicada en VPS (`2671935051de`) con columnas efectivas distintas a las asumidas luego en facts.
+- Decisiones de correccion:
+   - Mantener un unico merge head valido: `53a8d4de6d8f`.
+   - Eliminar merge duplicado `20260212_merge_sabiogo_all`.
+   - Hacer `20260212_add_sabiogo_facts` compatible con esquema real:
+      - `total` se deriva por fallback (`total`/`total_venta`/`importe_total` o `subtot + iva`).
+      - `proveedor` se deriva por fallback (`proveedor`/`cliente`/`vendedor`).
+- Regla operativa para siguientes cambios:
+   1) Congelar nuevas migraciones hasta cerrar `flask db current` en head unico.
+   2) Antes de crear SQL de vistas/facts, validar columnas reales con `\d stg_sabiogo_*` en prod.
+   3) Si hay divergencia, resolver con una estrategia explicita de compatibilidad documentada (no asumir nombres de columnas).
+
 ## Contexto
 - SabioGo sigue como facturador legal. App360 complementa analitica y tesoreria.
 - Importamos diarios los XLS de SabioGo: `ventas_globales.xls` y `compras_globales.xls`.
@@ -15,7 +33,7 @@
 3) Instalar dependencia para XLS:
    - `pip install "xlrd>=2.0.1"`
 4) Cargar XLS a staging:
-   - URI: `postgresql://app360user:2uxlzMbbQcxaqjsbKSY=@localhost:5432/app360`
+   - URI: `postgresql://<usuario>:<password>@localhost:5432/app360` (usar `.env`, no credenciales inline)
    - Script pandas → to_sql con chunksize 200.
    - Se quitaron constraints únicas de staging para permitir duplicados: `ALTER TABLE stg_sabiogo_ventas DROP CONSTRAINT uq_stg_sabiogo_ventas_nro_tipo_fecha;` y análogo para compras.
 5) Resultado de carga:
