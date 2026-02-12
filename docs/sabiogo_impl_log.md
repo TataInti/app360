@@ -13,10 +13,45 @@
    - Hacer `20260212_add_sabiogo_facts` compatible con esquema real:
       - `total` se deriva por fallback (`total`/`total_venta`/`importe_total` o `subtot + iva`).
       - `proveedor` se deriva por fallback (`proveedor`/`cliente`/`vendedor`).
+   - Corregir ciclo de estados en carga XLS:
+      - Antes: registros quedaban en `pendiente` (solo duplicados pasaban a `duplicado`), por lo que facts filtradas por `estado='procesado'` quedaban en cero.
+      - Ahora: luego de validar duplicados, los `pendiente` del mismo `hash_archivo` se promueven a `procesado`.
 - Regla operativa para siguientes cambios:
    1) Congelar nuevas migraciones hasta cerrar `flask db current` en head unico.
    2) Antes de crear SQL de vistas/facts, validar columnas reales con `\d stg_sabiogo_*` en prod.
    3) Si hay divergencia, resolver con una estrategia explicita de compatibilidad documentada (no asumir nombres de columnas).
+
+### Remediacion operativa (solo una vez para datos ya cargados)
+- Si existen datos historicos en `pendiente`, ejecutar:
+   - `UPDATE stg_sabiogo_ventas SET estado='procesado' WHERE estado='pendiente';`
+   - `UPDATE stg_sabiogo_compras SET estado='procesado' WHERE estado='pendiente';`
+   - `REFRESH MATERIALIZED VIEW CONCURRENTLY fact_ventas_sabiogo;`
+   - `REFRESH MATERIALIZED VIEW CONCURRENTLY fact_costos_sabiogo;`
+
+## BI productivo unificado (2026-02-12)
+- Se descarta el enfoque DEMO del dashboard `/bi` y se consolida un contrato productivo único.
+- Endpoint oficial: `/api/bi/dashboard`.
+
+### Fuentes de datos del BI
+1) Rentabilidad SabioGo:
+   - Servicio `SabiogoService` / repository SabioGo (datos `estado='procesado'`).
+   - KPIs: ingresos, costos, margen bruto, margen porcentual, productos activos.
+2) Finanzas internas:
+   - `gasto` + `categoria_gasto` para gasto total y desglose por categoría.
+   - `movimientos_caja` para ingresos/egresos/neto de caja y cantidad de movimientos.
+3) Calidad de datos SabioGo:
+   - Conteo por estado en `stg_sabiogo_ventas` y `stg_sabiogo_compras`.
+   - Registros procesados sin mapeo de producto.
+
+### Estructura del payload BI
+- `periodo`: rango aplicado.
+- `kpis`: métricas ejecutivas rentabilidad + finanzas.
+- `series`: evolución mensual de margen y caja.
+- `detalles`: top productos por margen, gastos por categoría y calidad de datos.
+
+### Criterio de coherencia
+- Todo gráfico y tabla del BI debe tener una fuente explícita de datos productivos.
+- Se eliminan métricas no financieras/no rentabilidad del dashboard BI (leads, RRHH, promociones, mocks).
 
 ## Contexto
 - SabioGo sigue como facturador legal. App360 complementa analitica y tesoreria.

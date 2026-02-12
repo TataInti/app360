@@ -451,6 +451,14 @@
         </a>
         {% endif %}
 
+        {% if session.get('role') in ['admin', 'manager', 'gerente'] %}
+        <a href="/sabiogo/admin"
+           class="{% if current.startswith('/sabiogo') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-graph-up-arrow"></i></span>
+            <span class="link-text">SabioGo Rentabilidad</span>
+        </a>
+        {% endif %}
+
         <!-- Administración (solo admin) -->
         {% if session.get('role') in ['admin', 'manager', 'gerente'] %}
         <hr>

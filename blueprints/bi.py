@@ -15,10 +15,12 @@ from models import (
     Gasto,
     Lead,
     Location,
+    MovimientoCaja,
     Product,
     Promocion,
     StockLevel,
     Venta,
+    CategoriaGasto,
     db,
 )
 from security import protect_blueprint
@@ -66,247 +68,223 @@ def bi_dashboard_web():
 # Endpoint principal del dashboard BI
 @bi_bp.route("/api/bi/dashboard", methods=["GET"])
 def bi_dashboard():
-    """Dashboard principal con KPIs principales"""
-    fecha_desde = request.args.get("fecha_desde")
-    fecha_hasta = request.args.get("fecha_hasta")
+    """Dashboard BI productivo: rentabilidad SabioGo + finanzas internas."""
+    fecha_desde_raw = request.args.get("fecha_desde")
+    fecha_hasta_raw = request.args.get("fecha_hasta")
 
-    # Si no se especifican fechas, usar último mes
-    if not fecha_desde:
-        fecha_desde = (date.today() - timedelta(days=30)).isoformat()
-    if not fecha_hasta:
-        fecha_hasta = date.today().isoformat()
+    if not fecha_desde_raw:
+        fecha_desde_raw = (date.today() - timedelta(days=30)).isoformat()
+    if not fecha_hasta_raw:
+        fecha_hasta_raw = date.today().isoformat()
 
     try:
-        fecha_desde = datetime.fromisoformat(fecha_desde).date()
-        fecha_hasta = datetime.fromisoformat(fecha_hasta).date()
+        fecha_desde = datetime.fromisoformat(fecha_desde_raw).date()
+        fecha_hasta = datetime.fromisoformat(fecha_hasta_raw).date()
     except ValueError:
         return jsonify({"error": "Formato de fecha inválido"}), 400
 
-    # KPIs principales
-    kpis = {}
+    if fecha_desde > fecha_hasta:
+        return jsonify({"error": "fecha_desde no puede ser mayor a fecha_hasta"}), 400
 
-    # 1. Ventas totales
-    ventas_total = db.session.query(func.sum(Venta.precio_efectivo * Venta.cantidad)).filter(
-        Venta.fecha.between(fecha_desde, fecha_hasta)
-    ).scalar() or 0
-    kpis["ventas_totales"] = float(ventas_total)
-    kpis["ventas_total"] = float(ventas_total)
-
-    # 2. Número de ventas
-    num_ventas = Venta.query.filter(
-        Venta.fecha.between(fecha_desde, fecha_hasta)
-    ).count()
-    kpis["numero_ventas"] = num_ventas
-
-    # 3. Ticket promedio
-    kpis["ticket_promedio"] = float(ventas_total / num_ventas) if num_ventas > 0 else 0
-
-    # 4. Gastos totales
-    gastos_total = db.session.query(func.sum(Gasto.monto)).filter(
-        Gasto.fecha.between(fecha_desde, fecha_hasta)
-    ).scalar() or 0
-    kpis["gastos_totales"] = float(gastos_total)
-    kpis["gastos_total"] = float(gastos_total)
-
-    # 5. Margen (ventas - gastos)
-    margen_bruto = float(ventas_total - gastos_total)
-    kpis["margen_bruto"] = margen_bruto
-    kpis["margen_neto"] = (margen_bruto / float(ventas_total)) if ventas_total else 0
-
-    # 6. Número de productos
-    kpis["total_productos"] = Product.query.count()
-
-    # 7. Número de ubicaciones
-    kpis["total_ubicaciones"] = Location.query.count()
-
-    # 8. Stock total
-    stock_total = db.session.query(func.sum(StockLevel.quantity)).scalar() or 0
-    kpis["stock_total"] = int(stock_total)
-
-    # 9. Empleados activos
-    kpis["empleados_activos"] = Employee.query.filter_by(is_active=True).count()
-
-    # 10. Leads totales
-    kpis["total_leads"] = Lead.query.count()
-
-    # 11. Conversión de leads
-    leads_ganados = Lead.query.filter_by(status="ganado").count()
-    kpis["conversion_leads"] = round((leads_ganados / kpis["total_leads"] * 100), 2) if kpis["total_leads"] > 0 else 0
-
-    leads_generados = Lead.query.filter(
-        func.date(Lead.created_at).between(fecha_desde, fecha_hasta)
-    ).count()
-    kpis["leads_generados"] = leads_generados
-
-    ventas_diarias_raw = (
-        db.session.query(
-            Venta.fecha,
-            func.sum(Venta.precio_efectivo * Venta.cantidad)
-        )
-        .filter(Venta.fecha.between(fecha_desde, fecha_hasta))
-        .group_by(Venta.fecha)
-        .order_by(Venta.fecha)
-        .all()
-    )
-    ventas_diarias = {
-        row[0].isoformat(): float(row[1] or 0)
-        for row in ventas_diarias_raw
-    }
-
-    ventas_por_categoria_raw = (
-        db.session.query(
-            Product.category,
-            func.sum(Venta.precio_efectivo * Venta.cantidad)
-        )
-        .join(Product, Venta.producto_id == Product.id)
-        .filter(Venta.fecha.between(fecha_desde, fecha_hasta))
-        .group_by(Product.category)
-        .order_by(desc(func.sum(Venta.precio_efectivo * Venta.cantidad)))
-        .all()
-    )
-    ventas_por_categoria = {}
-    for categoria, total in ventas_por_categoria_raw:
-        label = categoria or "Sin categoria"
-        ventas_por_categoria[label] = float(total or 0)
-
-    gastos_diarias_raw = (
-        db.session.query(Gasto.fecha, func.sum(Gasto.monto))
-        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
-        .group_by(Gasto.fecha)
-        .order_by(Gasto.fecha)
-        .all()
-    )
-    gastos_diarias = {
-        row[0].isoformat(): float(row[1] or 0)
-        for row in gastos_diarias_raw
-    }
-
-    leads_periodo_total = Lead.query.filter(
-        func.date(Lead.created_at).between(fecha_desde, fecha_hasta)
-    ).count()
-    leads_stage_raw = (
-        db.session.query(Lead.stage, func.count(Lead.id))
-        .filter(func.date(Lead.created_at).between(fecha_desde, fecha_hasta))
-        .group_by(Lead.stage)
-        .order_by(desc(func.count(Lead.id)))
-        .all()
-    )
-    conversion_leads = {}
-    for stage, total in leads_stage_raw:
-        label = stage or "sin etapa"
-        conversion_leads[label] = round((total / leads_periodo_total * 100), 2) if leads_periodo_total else 0
-
-    ventas_top = (
-        Venta.query
-        .filter(Venta.fecha.between(fecha_desde, fecha_hasta))
-        .order_by((Venta.precio_efectivo * Venta.cantidad).desc())
-        .limit(10)
-        .all()
-    )
-    ventas_top_data = [
-        {
-            "cliente": venta.cliente.name if venta.cliente else "N/A",
-            "monto": float(venta.precio_efectivo * venta.cantidad),
-            "fecha": venta.fecha.isoformat()
-        }
-        for venta in ventas_top
-    ]
-
-    gastos_top = (
-        Gasto.query
-        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
-        .order_by(Gasto.monto.desc())
-        .limit(10)
-        .all()
-    )
-    gastos_top_data = [
-        {
-            "descripcion": gasto.descripcion,
-            "monto": float(gasto.monto),
-            "categoria": gasto.categoria.nombre if gasto.categoria else "",
-            "fecha": gasto.fecha.isoformat() if gasto.fecha else None
-        }
-        for gasto in gastos_top
-    ]
-
-    leads_activos = (
-        Lead.query
-        .filter(Lead.status.notin_(["ganado", "perdido"]))
-        .order_by(Lead.created_at.desc())
-        .limit(10)
-        .all()
-    )
-    leads_activos_data = [
-        {
-            "empresa": lead.name,
-            "contacto": lead.owner_name or lead.phone or lead.email or "",
-            "estado": lead.status,
-            "valor_potencial": 0
-        }
-        for lead in leads_activos
-    ]
-
-    # 12. Asistencia promedio (últimos 30 días)
-    asistencia_reciente = Asistencia.query.filter(
-        Asistencia.fecha >= (date.today() - timedelta(days=30))
-    ).all()
-
-    if asistencia_reciente:
-        presentes = sum(1 for a in asistencia_reciente if a.estado == 'presente')
-        kpis["asistencia_promedio"] = round((presentes / len(asistencia_reciente) * 100), 2)
-    else:
-        kpis["asistencia_promedio"] = 0
-
-    # 13. Adelantos pendientes
-    adelantos_pendientes = Adelanto.query.filter_by(aprobado=True, pagado=False).count()
-    kpis["adelantos_pendientes"] = adelantos_pendientes
-
-    # 14. Promociones activas
-    promociones_activas = Promocion.query.filter(
-        Promocion.activo == True,
-        Promocion.fecha_inicio <= date.today(),
-        Promocion.fecha_fin >= date.today()
-    ).count()
-    kpis["promociones_activas"] = promociones_activas
-
-    # 15. Rentabilidad SabioGo (integración)
+    # 1) Rentabilidad SabioGo (fuente principal)
     sabiogo_service = SabiogoService()
-    try:
-        rentabilidad_resumen = sabiogo_service.get_rentabilidad_resumen(fecha_desde, fecha_hasta)
-        margen_productos_top = sabiogo_service.get_top_productos_margen(limit=5, fecha_inicio=fecha_desde, fecha_fin=fecha_hasta)
-        
-        kpis["rentabilidad_sabiogo"] = {
-            "total_ingresos": rentabilidad_resumen.get("total_ingresos", 0),
-            "total_costos": rentabilidad_resumen.get("total_costos", 0),
-            "margen_bruto": rentabilidad_resumen.get("margen_bruto", 0),
-            "margen_porcentual": rentabilidad_resumen.get("margen_porcentual", 0),
-            "productos_activos": rentabilidad_resumen.get("productos_activos", 0)
-        }
-        
-        # Reemplazar margen_bruto con datos reales de SabioGo si hay datos
-        if rentabilidad_resumen.get("total_ingresos", 0) > 0:
-            kpis["margen_bruto_real"] = rentabilidad_resumen.get("margen_bruto", 0)
-            kpis["margen_neto_real"] = rentabilidad_resumen.get("margen_porcentual", 0) / 100
-    except Exception as e:
-        # Si falla la integración, continuar sin datos de SabioGo
-        kpis["rentabilidad_sabiogo"] = None
-        margen_productos_top = []
+    rentabilidad_resumen = sabiogo_service.get_rentabilidad_resumen(fecha_desde, fecha_hasta)
+    top_productos = sabiogo_service.get_top_productos_margen(
+        limit=10,
+        fecha_inicio=fecha_desde,
+        fecha_fin=fecha_hasta,
+    )
 
-    return jsonify({
-        "periodo": {
-            "desde": fecha_desde.isoformat(),
-            "hasta": fecha_hasta.isoformat()
-        },
-        "kpis": kpis,
-        "ventas_diarias": ventas_diarias,
-        "ventas_por_categoria": ventas_por_categoria,
-        "gastos_diarios": gastos_diarias,
-        "conversion_leads": conversion_leads,
-        "ventas_top": ventas_top_data,
-        "gastos_top": gastos_top_data,
-        "leads_activos": leads_activos_data,
-        "margen_productos_top": margen_productos_top
-    })
+    # 2) Gastos internos (módulo finanzas)
+    gastos_total = (
+        db.session.query(func.sum(Gasto.monto))
+        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
+        .scalar()
+        or 0
+    )
+
+    gastos_categoria_rows = (
+        db.session.query(
+            CategoriaGasto.nombre,
+            func.sum(Gasto.monto).label("monto_total")
+        )
+        .join(CategoriaGasto, Gasto.categoria_id == CategoriaGasto.id)
+        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
+        .group_by(CategoriaGasto.nombre)
+        .order_by(desc(func.sum(Gasto.monto)))
+        .all()
+    )
+
+    gastos_por_categoria = [
+        {
+            "categoria": nombre or "Sin categoría",
+            "monto_total": float(monto_total or 0),
+        }
+        for nombre, monto_total in gastos_categoria_rows
+    ]
+
+    # 3) Tesorería (caja)
+    movimientos_query = db.session.query(MovimientoCaja).filter(
+        func.date(MovimientoCaja.fecha_hora).between(fecha_desde, fecha_hasta)
+    )
+
+    ingresos_caja = (
+        movimientos_query.filter(MovimientoCaja.tipo == "ingreso")
+        .with_entities(func.sum(MovimientoCaja.monto))
+        .scalar()
+        or 0
+    )
+    egresos_caja = (
+        movimientos_query.filter(MovimientoCaja.tipo == "egreso")
+        .with_entities(func.sum(MovimientoCaja.monto))
+        .scalar()
+        or 0
+    )
+    movimientos_count = movimientos_query.count()
+
+    # 4) Series mensuales para visualización
+    margen_mensual_rows = db.session.execute(
+        text(
+            """
+            SELECT
+                periodo_mes,
+                COALESCE(SUM(ingresos_totales), 0) AS ingresos,
+                COALESCE(SUM(costos_totales), 0) AS costos,
+                COALESCE(SUM(margen_bruto), 0) AS margen
+            FROM vw_margen_producto
+            WHERE periodo_mes BETWEEN :fecha_desde AND :fecha_hasta
+            GROUP BY periodo_mes
+            ORDER BY periodo_mes
+            """
+        ),
+        {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+    )
+
+    margen_mensual = [
+        {
+            "periodo": row.periodo_mes.isoformat() if row.periodo_mes else None,
+            "ingresos": float(row.ingresos or 0),
+            "costos": float(row.costos or 0),
+            "margen": float(row.margen or 0),
+        }
+        for row in margen_mensual_rows
+    ]
+
+    caja_mensual_rows = db.session.execute(
+        text(
+            """
+            SELECT
+                DATE_TRUNC('month', fecha_hora)::date AS periodo,
+                COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) AS ingresos,
+                COALESCE(SUM(CASE WHEN tipo = 'egreso' THEN monto ELSE 0 END), 0) AS egresos
+            FROM movimientos_caja
+            WHERE DATE(fecha_hora) BETWEEN :fecha_desde AND :fecha_hasta
+            GROUP BY DATE_TRUNC('month', fecha_hora)::date
+            ORDER BY DATE_TRUNC('month', fecha_hora)::date
+            """
+        ),
+        {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+    )
+
+    caja_mensual = [
+        {
+            "periodo": row.periodo.isoformat() if row.periodo else None,
+            "ingresos": float(row.ingresos or 0),
+            "egresos": float(row.egresos or 0),
+            "neto": float((row.ingresos or 0) - (row.egresos or 0)),
+        }
+        for row in caja_mensual_rows
+    ]
+
+    # 5) Calidad de datos SabioGo
+    estado_ventas = db.session.execute(
+        text(
+            """
+            SELECT estado, COUNT(*) AS total
+            FROM stg_sabiogo_ventas
+            WHERE fecha BETWEEN :fecha_desde AND :fecha_hasta
+            GROUP BY estado
+            """
+        ),
+        {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+    )
+    estado_compras = db.session.execute(
+        text(
+            """
+            SELECT estado, COUNT(*) AS total
+            FROM stg_sabiogo_compras
+            WHERE fecha BETWEEN :fecha_desde AND :fecha_hasta
+            GROUP BY estado
+            """
+        ),
+        {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+    )
+
+    sin_mapeo_ventas = db.session.execute(
+        text(
+            """
+            SELECT COUNT(*) AS total
+            FROM stg_sabiogo_ventas v
+            LEFT JOIN sabiogo_product_map pm ON v.codigo = pm.codigo AND pm.activo = true
+            WHERE v.fecha BETWEEN :fecha_desde AND :fecha_hasta
+              AND v.estado = 'procesado'
+              AND pm.product_id IS NULL
+            """
+        ),
+        {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+    ).scalar() or 0
+
+    sin_mapeo_compras = db.session.execute(
+        text(
+            """
+            SELECT COUNT(*) AS total
+            FROM stg_sabiogo_compras c
+            LEFT JOIN sabiogo_product_map pm ON c.codigo = pm.codigo AND pm.activo = true
+            WHERE c.fecha BETWEEN :fecha_desde AND :fecha_hasta
+              AND c.estado = 'procesado'
+              AND pm.product_id IS NULL
+            """
+        ),
+        {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+    ).scalar() or 0
+
+    estados_ventas = {row.estado: int(row.total or 0) for row in estado_ventas}
+    estados_compras = {row.estado: int(row.total or 0) for row in estado_compras}
+
+    return jsonify(
+        {
+            "periodo": {
+                "desde": fecha_desde.isoformat(),
+                "hasta": fecha_hasta.isoformat(),
+            },
+            "kpis": {
+                "ingresos_sabiogo": float(rentabilidad_resumen.get("total_ingresos", 0)),
+                "costos_sabiogo": float(rentabilidad_resumen.get("total_costos", 0)),
+                "margen_bruto_sabiogo": float(rentabilidad_resumen.get("margen_bruto", 0)),
+                "margen_porcentual_sabiogo": float(rentabilidad_resumen.get("margen_porcentual", 0)),
+                "productos_activos_sabiogo": int(rentabilidad_resumen.get("productos_activos", 0)),
+                "gastos_finanzas": float(gastos_total),
+                "ingresos_caja": float(ingresos_caja),
+                "egresos_caja": float(egresos_caja),
+                "caja_neta": float(ingresos_caja - egresos_caja),
+                "movimientos_caja": int(movimientos_count),
+            },
+            "series": {
+                "margen_mensual": margen_mensual,
+                "caja_mensual": caja_mensual,
+            },
+            "detalles": {
+                "top_productos_margen": top_productos,
+                "gastos_por_categoria": gastos_por_categoria,
+                "calidad_sabiogo": {
+                    "ventas_por_estado": estados_ventas,
+                    "compras_por_estado": estados_compras,
+                    "sin_mapeo_ventas": int(sin_mapeo_ventas),
+                    "sin_mapeo_compras": int(sin_mapeo_compras),
+                },
+            },
+        }
+    )
 
 
 # Nuevos endpoints para Inteligencia Financiera

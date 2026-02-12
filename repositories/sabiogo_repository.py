@@ -182,7 +182,7 @@ class SabiogoRepository:
         result = db.session.execute(
             query,
             {
-                'limite': limit,
+                'limit': limit,
                 'fecha_inicio': fecha_inicio,
                 'fecha_fin': fecha_fin
             }

@@ -2,148 +2,300 @@
 
 {% block content %}
 <div class="container-fluid">
-    <h1 class="mb-4">BI / Inteligencia de Negocios</h1>
-
-    <!-- KPIs Principales -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <h6 class="card-title">Ventas Total (30 días)</h6>
-                    <h3 id="kpi-ventas">Cargando...</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <h6 class="card-title">Gasto Total (30 días)</h6>
-                    <h3 id="kpi-gastos">Cargando...</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <h6 class="card-title">Leads Generados</h6>
-                    <h3 id="kpi-leads">Cargando...</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-dark">
-                <div class="card-body">
-                    <h6 class="card-title">Margen Neto</h6>
-                    <h3 id="kpi-margen">Cargando...</h3>
-                </div>
-            </div>
-        </div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">BI Unificado · Rentabilidad & Finanzas</h1>
     </div>
 
-    <!-- Filtros de Fecha -->
-    <div class="row mb-3">
-        <div class="col-md-6">
+    <div class="row mb-4">
+        <div class="col-md-8">
             <div class="input-group">
-                <label class="input-group-text">Desde:</label>
-                <input type="date" id="fecha-desde" class="form-control" value="2026-01-01">
-                <label class="input-group-text">Hasta:</label>
-                <input type="date" id="fecha-hasta" class="form-control" value="2026-01-24">
+                <label class="input-group-text">Desde</label>
+                <input type="date" id="fecha-desde" class="form-control">
+                <label class="input-group-text">Hasta</label>
+                <input type="date" id="fecha-hasta" class="form-control">
                 <button class="btn btn-primary" onclick="cargarDatos()">Actualizar</button>
             </div>
         </div>
-    </div>
-
-    <!-- Gráficos -->
-    <div class="charts-row">
-        <div class="chart-card">
-            <h6 class="text-white mb-3">Ventas Diarias (últimos 30 días)</h6>
-            <canvas id="ventasChart"></canvas>
-        </div>
-        <div class="chart-card">
-            <h6 class="text-white mb-3">Distribución por Categoría</h6>
-            <canvas id="categoriasChart"></canvas>
+        <div class="col-md-4 text-end">
+            <small class="text-muted" id="periodo-label">Período: -</small>
         </div>
     </div>
 
-    <div class="charts-row mt-4">
-        <div class="chart-card">
-            <h6 class="text-white mb-3">Tendencia de Gastos</h6>
-            <canvas id="gastosChart"></canvas>
+    <div class="row mb-4 g-3">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body">
+                    <h6 class="card-title">Ingresos SabioGo</h6>
+                    <h4 id="kpi-ingresos">$0.00</h4>
+                </div>
+            </div>
         </div>
-        <div class="chart-card">
-            <h6 class="text-white mb-3">Conversión de Leads</h6>
-            <canvas id="conversionChart"></canvas>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white h-100">
+                <div class="card-body">
+                    <h6 class="card-title">Costos SabioGo</h6>
+                    <h4 id="kpi-costos">$0.00</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white h-100">
+                <div class="card-body">
+                    <h6 class="card-title">Margen Bruto SabioGo</h6>
+                    <h4 id="kpi-margen">$0.00</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-dark text-white h-100">
+                <div class="card-body">
+                    <h6 class="card-title">Margen % SabioGo</h6>
+                    <h4 id="kpi-margen-pct">0.0%</h4>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Tabla de Datos -->
-    <div class="mt-5">
-        <h5>Análisis Detallado</h5>
-        <ul class="nav nav-tabs">
-            <li class="nav-item">
-                <a class="nav-link active" data-bs-toggle="tab" href="#tab-ventas">Ventas Top</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#tab-gastos">Gastos Top</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" data-bs-toggle="tab" href="#tab-leads">Leads Activos</a>
-            </li>
-        </ul>
+    <div class="row mb-4 g-3">
+        <div class="col-md-3">
+            <div class="card bg-secondary text-white h-100">
+                <div class="card-body">
+                    <h6 class="card-title">Gastos Finanzas</h6>
+                    <h4 id="kpi-gastos">$0.00</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white h-100">
+                <div class="card-body">
+                    <h6 class="card-title">Caja Neta</h6>
+                    <h4 id="kpi-caja-neta">$0.00</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark h-100">
+                <div class="card-body">
+                    <h6 class="card-title">Movimientos de Caja</h6>
+                    <h4 id="kpi-movimientos">0</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-light h-100">
+                <div class="card-body">
+                    <h6 class="card-title">Productos Activos (SabioGo)</h6>
+                    <h4 id="kpi-productos">0</h4>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        <div class="tab-content border p-3 bg-light">
-            <div id="tab-ventas" class="tab-pane fade show active">
-                <table class="table table-sm" id="tabla-ventas">
-                    <thead>
-                        <tr>
-                            <th>Cliente</th>
-                            <th>Monto</th>
-                            <th>Fecha</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbody-ventas">
-                        <tr><td colspan="3">Cargando...</td></tr>
-                    </tbody>
-                </table>
+    <div class="charts-row mb-4">
+        <div class="chart-card">
+            <h6 class="text-white mb-3">Evolución mensual · Ingresos, Costos y Margen</h6>
+            <canvas id="margenMensualChart"></canvas>
+        </div>
+        <div class="chart-card">
+            <h6 class="text-white mb-3">Caja mensual · Ingresos vs Egresos</h6>
+            <canvas id="cajaMensualChart"></canvas>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-7">
+            <div class="card">
+                <div class="card-header">
+                    <strong>Top productos por margen (SabioGo)</strong>
+                </div>
+                <div class="card-body table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>SKU</th>
+                                <th class="text-end">Ingresos</th>
+                                <th class="text-end">Costos</th>
+                                <th class="text-end">Margen</th>
+                                <th class="text-end">Margen %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-top-productos">
+                            <tr><td colspan="6">Cargando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card mb-3">
+                <div class="card-header">
+                    <strong>Gastos por categoría (Finanzas)</strong>
+                </div>
+                <div class="card-body table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Categoría</th>
+                                <th class="text-end">Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-gastos-categoria">
+                            <tr><td colspan="2">Cargando...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <div id="tab-gastos" class="tab-pane fade">
-                <table class="table table-sm" id="tabla-gastos">
-                    <thead>
-                        <tr>
-                            <th>Concepto</th>
-                            <th>Monto</th>
-                            <th>Categoría</th>
-                            <th>Fecha</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbody-gastos">
-                        <tr><td colspan="4">Cargando...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div id="tab-leads" class="tab-pane fade">
-                <table class="table table-sm" id="tabla-leads">
-                    <thead>
-                        <tr>
-                            <th>Empresa</th>
-                            <th>Contacto</th>
-                            <th>Estado</th>
-                            <th>Valor Potencial</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbody-leads">
-                        <tr><td colspan="4">Cargando...</td></tr>
-                    </tbody>
-                </table>
+            <div class="card">
+                <div class="card-header">
+                    <strong>Calidad de datos SabioGo</strong>
+                </div>
+                <div class="card-body">
+                    <div class="small mb-2"><strong>Ventas por estado:</strong> <span id="q-ventas-estados">-</span></div>
+                    <div class="small mb-2"><strong>Compras por estado:</strong> <span id="q-compras-estados">-</span></div>
+                    <div class="small mb-2"><strong>Sin mapeo ventas:</strong> <span id="q-sin-mapeo-ventas">0</span></div>
+                    <div class="small"><strong>Sin mapeo compras:</strong> <span id="q-sin-mapeo-compras">0</span></div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    let ventasChart, categoriasChart, gastosChart, conversionChart;
+    let margenMensualChart;
+    let cajaMensualChart;
+
+    function formatearMoneda(valor) {
+        return `$${Number(valor || 0).toFixed(2)}`;
+    }
+
+    function formatearEstados(estados) {
+        const entries = Object.entries(estados || {});
+        if (!entries.length) return '-';
+        return entries.map(([estado, total]) => `${estado}: ${total}`).join(' · ');
+    }
+
+    function setFechasPorDefecto() {
+        const hoy = new Date();
+        const hace30 = new Date(hoy);
+        hace30.setDate(hoy.getDate() - 30);
+
+        const toISO = (d) => d.toISOString().slice(0, 10);
+        document.getElementById('fecha-desde').value = toISO(hace30);
+        document.getElementById('fecha-hasta').value = toISO(hoy);
+    }
+
+    function renderKPIs(kpis) {
+        document.getElementById('kpi-ingresos').textContent = formatearMoneda(kpis.ingresos_sabiogo);
+        document.getElementById('kpi-costos').textContent = formatearMoneda(kpis.costos_sabiogo);
+        document.getElementById('kpi-margen').textContent = formatearMoneda(kpis.margen_bruto_sabiogo);
+        document.getElementById('kpi-margen-pct').textContent = `${Number(kpis.margen_porcentual_sabiogo || 0).toFixed(1)}%`;
+        document.getElementById('kpi-gastos').textContent = formatearMoneda(kpis.gastos_finanzas);
+        document.getElementById('kpi-caja-neta').textContent = formatearMoneda(kpis.caja_neta);
+        document.getElementById('kpi-movimientos').textContent = Number(kpis.movimientos_caja || 0);
+        document.getElementById('kpi-productos').textContent = Number(kpis.productos_activos_sabiogo || 0);
+    }
+
+    function renderCharts(series) {
+        const margenData = series.margen_mensual || [];
+        const margenLabels = margenData.map(x => x.periodo || 'N/A');
+
+        const margenCtx = document.getElementById('margenMensualChart').getContext('2d');
+        if (margenMensualChart) margenMensualChart.destroy();
+        margenMensualChart = new Chart(margenCtx, {
+            type: 'line',
+            data: {
+                labels: margenLabels,
+                datasets: [
+                    {
+                        label: 'Ingresos',
+                        data: margenData.map(x => x.ingresos || 0),
+                        borderColor: '#22c55e',
+                        backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Costos',
+                        data: margenData.map(x => x.costos || 0),
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Margen',
+                        data: margenData.map(x => x.margen || 0),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: true }
+        });
+
+        const cajaData = series.caja_mensual || [];
+        const cajaLabels = cajaData.map(x => x.periodo || 'N/A');
+
+        const cajaCtx = document.getElementById('cajaMensualChart').getContext('2d');
+        if (cajaMensualChart) cajaMensualChart.destroy();
+        cajaMensualChart = new Chart(cajaCtx, {
+            type: 'bar',
+            data: {
+                labels: cajaLabels,
+                datasets: [
+                    {
+                        label: 'Ingresos caja',
+                        data: cajaData.map(x => x.ingresos || 0),
+                        backgroundColor: '#22c55e'
+                    },
+                    {
+                        label: 'Egresos caja',
+                        data: cajaData.map(x => x.egresos || 0),
+                        backgroundColor: '#ef4444'
+                    },
+                    {
+                        label: 'Neto',
+                        data: cajaData.map(x => x.neto || 0),
+                        backgroundColor: '#3b82f6'
+                    }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: true }
+        });
+    }
+
+    function renderTopProductos(items) {
+        const tbody = document.getElementById('tbody-top-productos');
+        tbody.innerHTML = (items || []).map(item => `
+            <tr>
+                <td>${item.producto || 'N/A'}</td>
+                <td>${item.sku || ''}</td>
+                <td class="text-end">${formatearMoneda(item.ingresos)}</td>
+                <td class="text-end">${formatearMoneda(item.costos)}</td>
+                <td class="text-end">${formatearMoneda(item.margen_bruto)}</td>
+                <td class="text-end">${Number(item.margen_porcentual || 0).toFixed(1)}%</td>
+            </tr>
+        `).join('') || '<tr><td colspan="6">Sin datos para el período seleccionado</td></tr>';
+    }
+
+    function renderGastosCategoria(items) {
+        const tbody = document.getElementById('tbody-gastos-categoria');
+        tbody.innerHTML = (items || []).map(item => `
+            <tr>
+                <td>${item.categoria || 'Sin categoría'}</td>
+                <td class="text-end">${formatearMoneda(item.monto_total)}</td>
+            </tr>
+        `).join('') || '<tr><td colspan="2">Sin datos para el período seleccionado</td></tr>';
+    }
+
+    function renderCalidad(calidad) {
+        document.getElementById('q-ventas-estados').textContent = formatearEstados(calidad.ventas_por_estado);
+        document.getElementById('q-compras-estados').textContent = formatearEstados(calidad.compras_por_estado);
+        document.getElementById('q-sin-mapeo-ventas').textContent = calidad.sin_mapeo_ventas || 0;
+        document.getElementById('q-sin-mapeo-compras').textContent = calidad.sin_mapeo_compras || 0;
+    }
 
     function cargarDatos() {
         const fechaDesde = document.getElementById('fecha-desde').value;
@@ -152,140 +304,27 @@
         fetch(`/api/bi/dashboard?fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}`)
             .then(r => r.json())
             .then(data => {
-                // KPIs
-                document.getElementById('kpi-ventas').textContent = '$' + (data.kpis?.ventas_total || 0).toFixed(2);
-                document.getElementById('kpi-gastos').textContent = '$' + (data.kpis?.gastos_total || 0).toFixed(2);
-                document.getElementById('kpi-leads').textContent = data.kpis?.leads_generados || 0;
-                document.getElementById('kpi-margen').textContent = ((data.kpis?.margen_neto || 0) * 100).toFixed(1) + '%';
+                if (data.error) {
+                    throw new Error(data.error);
+                }
 
-                // Gráficos de ventas
-                actualizarGraficoVentas(data.ventas_diarias || {});
-                actualizarGraficoCategorias(data.ventas_por_categoria || {});
-                actualizarGraficoGastos(data.gastos_diarios || {});
-                actualizarGraficoConversion(data.conversion_leads || {});
+                document.getElementById('periodo-label').textContent = `Período: ${data.periodo.desde} a ${data.periodo.hasta}`;
 
-                // Tablas
-                actualizarTablaVentas(data.ventas_top || []);
-                actualizarTablaGastos(data.gastos_top || []);
-                actualizarTablaLeads(data.leads_activos || []);
+                renderKPIs(data.kpis || {});
+                renderCharts(data.series || {});
+                renderTopProductos((data.detalles && data.detalles.top_productos_margen) || []);
+                renderGastosCategoria((data.detalles && data.detalles.gastos_por_categoria) || []);
+                renderCalidad((data.detalles && data.detalles.calidad_sabiogo) || {});
             })
-            .catch(e => console.error('Error cargando datos:', e));
+            .catch(error => {
+                console.error('Error en BI dashboard:', error);
+                alert(`Error cargando BI: ${error.message}`);
+            });
     }
 
-    function actualizarGraficoVentas(datos) {
-        const ctx = document.getElementById('ventasChart').getContext('2d');
-        if (ventasChart) ventasChart.destroy();
-        ventasChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: Object.keys(datos),
-                datasets: [{
-                    label: 'Ventas Diarias',
-                    data: Object.values(datos),
-                    borderColor: '#2563eb',
-                    backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                    tension: 0.4
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: true }
-        });
-    }
-
-    function actualizarGraficoCategorias(datos) {
-        const ctx = document.getElementById('categoriasChart').getContext('2d');
-        if (categoriasChart) categoriasChart.destroy();
-        categoriasChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: Object.keys(datos),
-                datasets: [{
-                    data: Object.values(datos),
-                    backgroundColor: ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: true }
-        });
-    }
-
-    function actualizarGraficoGastos(datos) {
-        const ctx = document.getElementById('gastosChart').getContext('2d');
-        if (gastosChart) gastosChart.destroy();
-        gastosChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: Object.keys(datos),
-                datasets: [{
-                    label: 'Gastos Diarios',
-                    data: Object.values(datos),
-                    backgroundColor: '#ef4444'
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: true }
-        });
-    }
-
-    function actualizarGraficoConversion(datos) {
-        const ctx = document.getElementById('conversionChart').getContext('2d');
-        if (conversionChart) conversionChart.destroy();
-        conversionChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: Object.keys(datos),
-                datasets: [{
-                    label: 'Conversión (%)',
-                    data: Object.values(datos),
-                    backgroundColor: '#10b981'
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: true }
-        });
-    }
-
-    function actualizarTablaVentas(ventas) {
-        const tbody = document.getElementById('tbody-ventas');
-        tbody.innerHTML = ventas.map(v => `
-            <tr>
-                <td>${v.cliente || 'N/A'}</td>
-                <td>$${(v.monto || 0).toFixed(2)}</td>
-                <td>${v.fecha || 'N/A'}</td>
-            </tr>
-        `).join('') || '<tr><td colspan="3">Sin datos</td></tr>';
-    }
-
-    function actualizarTablaGastos(gastos) {
-        const tbody = document.getElementById('tbody-gastos');
-        tbody.innerHTML = gastos.map(g => `
-            <tr>
-                <td>${g.descripcion || 'N/A'}</td>
-                <td>$${(g.monto || 0).toFixed(2)}</td>
-                <td>${g.categoria || 'N/A'}</td>
-                <td>${g.fecha || 'N/A'}</td>
-            </tr>
-        `).join('') || '<tr><td colspan="4">Sin datos</td></tr>';
-    }
-
-    function actualizarTablaLeads(leads) {
-        const tbody = document.getElementById('tbody-leads');
-        tbody.innerHTML = leads.map(l => `
-            <tr>
-                <td>${l.empresa || 'N/A'}</td>
-                <td>${l.contacto || 'N/A'}</td>
-                <td><span class="badge bg-info">${l.estado || 'Pendiente'}</span></td>
-                <td>$${(l.valor_potencial || 0).toFixed(2)}</td>
-            </tr>
-        `).join('') || '<tr><td colspan="4">Sin datos</td></tr>';
-    }
-
-    // Cargar datos al iniciar
-    document.addEventListener('DOMContentLoaded', cargarDatos);
+    document.addEventListener('DOMContentLoaded', () => {
+        setFechasPorDefecto();
+        cargarDatos();
+    });
 </script>
-
-<style>
-    .chart-card h6 {
-        font-weight: 600;
-    }
-    .tab-content {
-        border-top: none;
-    }
-</style>
 {% endblock %}

@@ -171,6 +171,14 @@ def cargar_xls():
         except Exception as e:
             current_app.logger.warning(f"Error en validación de duplicados: {e}")
             duplicados = 0
+
+        # Promover a procesado los registros válidos del archivo cargado
+        # (los duplicados ya quedan en estado='duplicado')
+        filas_procesadas = db.session.query(ModelClass).filter(
+            ModelClass.hash_archivo == hash_archivo,
+            ModelClass.estado == 'pendiente'
+        ).update({'estado': 'procesado'}, synchronize_session=False)
+        db.session.commit()
         
         # Contar registros sin mapeo
         if tipo == 'ventas':
@@ -214,6 +222,7 @@ def cargar_xls():
             'success': True,
             'mensaje': f'Archivo cargado exitosamente',
             'filas_insertadas': filas_insertadas,
+            'filas_procesadas': filas_procesadas,
             'filas_duplicadas': duplicados,
             'filas_sin_mapeo': sin_mapeo_query,
             'filas_error': filas_error
