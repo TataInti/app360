@@ -155,6 +155,8 @@
                 <div class="card-body">
                     <div class="small mb-2"><strong>Ventas por estado:</strong> <span id="q-ventas-estados">-</span></div>
                     <div class="small mb-2"><strong>Compras por estado:</strong> <span id="q-compras-estados">-</span></div>
+                    <div class="small mb-2"><strong>Ventas global:</strong> <span id="q-ventas-estados-global">-</span></div>
+                    <div class="small mb-2"><strong>Compras global:</strong> <span id="q-compras-estados-global">-</span></div>
                     <div class="small mb-2"><strong>Sin mapeo ventas:</strong> <span id="q-sin-mapeo-ventas">0</span></div>
                     <div class="small"><strong>Sin mapeo compras:</strong> <span id="q-sin-mapeo-compras">0</span></div>
                 </div>
@@ -175,16 +177,6 @@
         const entries = Object.entries(estados || {});
         if (!entries.length) return '-';
         return entries.map(([estado, total]) => `${estado}: ${total}`).join(' · ');
-    }
-
-    function setFechasPorDefecto() {
-        const hoy = new Date();
-        const hace30 = new Date(hoy);
-        hace30.setDate(hoy.getDate() - 30);
-
-        const toISO = (d) => d.toISOString().slice(0, 10);
-        document.getElementById('fecha-desde').value = toISO(hace30);
-        document.getElementById('fecha-hasta').value = toISO(hoy);
     }
 
     function renderKPIs(kpis) {
@@ -293,6 +285,8 @@
     function renderCalidad(calidad) {
         document.getElementById('q-ventas-estados').textContent = formatearEstados(calidad.ventas_por_estado);
         document.getElementById('q-compras-estados').textContent = formatearEstados(calidad.compras_por_estado);
+        document.getElementById('q-ventas-estados-global').textContent = formatearEstados(calidad.ventas_por_estado_global);
+        document.getElementById('q-compras-estados-global').textContent = formatearEstados(calidad.compras_por_estado_global);
         document.getElementById('q-sin-mapeo-ventas').textContent = calidad.sin_mapeo_ventas || 0;
         document.getElementById('q-sin-mapeo-compras').textContent = calidad.sin_mapeo_compras || 0;
     }
@@ -300,8 +294,15 @@
     function cargarDatos() {
         const fechaDesde = document.getElementById('fecha-desde').value;
         const fechaHasta = document.getElementById('fecha-hasta').value;
+        let url = '/api/bi/dashboard';
+        if (fechaDesde || fechaHasta) {
+            const params = new URLSearchParams();
+            if (fechaDesde) params.append('fecha_desde', fechaDesde);
+            if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+            url += `?${params.toString()}`;
+        }
 
-        fetch(`/api/bi/dashboard?fecha_desde=${fechaDesde}&fecha_hasta=${fechaHasta}`)
+        fetch(url)
             .then(r => r.json())
             .then(data => {
                 if (data.error) {
@@ -310,6 +311,8 @@
                 }
 
                 document.getElementById('periodo-label').textContent = `Período: ${data.periodo.desde} a ${data.periodo.hasta}`;
+                document.getElementById('fecha-desde').value = data.periodo.desde;
+                document.getElementById('fecha-hasta').value = data.periodo.hasta;
 
                 renderKPIs(data.kpis || {});
                 renderCharts(data.series || {});
@@ -324,7 +327,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        setFechasPorDefecto();
         cargarDatos();
     });
 </script>

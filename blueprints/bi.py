@@ -72,10 +72,27 @@ def bi_dashboard():
     fecha_desde_raw = request.args.get("fecha_desde")
     fecha_hasta_raw = request.args.get("fecha_hasta")
 
-    if not fecha_desde_raw:
-        fecha_desde_raw = (date.today() - timedelta(days=30)).isoformat()
-    if not fecha_hasta_raw:
-        fecha_hasta_raw = date.today().isoformat()
+    if not fecha_desde_raw or not fecha_hasta_raw:
+        ultima_fecha_sabiogo = db.session.execute(
+            text(
+                """
+                SELECT MAX(fecha_max) AS ultima_fecha
+                FROM (
+                    SELECT MAX(fecha)::date AS fecha_max FROM stg_sabiogo_ventas
+                    UNION ALL
+                    SELECT MAX(fecha)::date AS fecha_max FROM stg_sabiogo_compras
+                ) f
+                """
+            )
+        ).scalar()
+
+        fecha_hasta_base = ultima_fecha_sabiogo or date.today()
+        fecha_desde_base = fecha_hasta_base - timedelta(days=30)
+
+        if not fecha_desde_raw:
+            fecha_desde_raw = fecha_desde_base.isoformat()
+        if not fecha_hasta_raw:
+            fecha_hasta_raw = fecha_hasta_base.isoformat()
 
     try:
         fecha_desde = datetime.fromisoformat(fecha_desde_raw).date()
@@ -263,6 +280,28 @@ def bi_dashboard():
         estados_ventas = {row.estado: int(row.total or 0) for row in estado_ventas}
         estados_compras = {row.estado: int(row.total or 0) for row in estado_compras}
 
+        estado_ventas_global = db.session.execute(
+            text(
+                """
+                SELECT estado, COUNT(*) AS total
+                FROM stg_sabiogo_ventas
+                GROUP BY estado
+                """
+            )
+        )
+        estado_compras_global = db.session.execute(
+            text(
+                """
+                SELECT estado, COUNT(*) AS total
+                FROM stg_sabiogo_compras
+                GROUP BY estado
+                """
+            )
+        )
+
+        estados_ventas_global = {row.estado: int(row.total or 0) for row in estado_ventas_global}
+        estados_compras_global = {row.estado: int(row.total or 0) for row in estado_compras_global}
+
         return jsonify(
             {
                 "periodo": {
@@ -291,6 +330,8 @@ def bi_dashboard():
                     "calidad_sabiogo": {
                         "ventas_por_estado": estados_ventas,
                         "compras_por_estado": estados_compras,
+                        "ventas_por_estado_global": estados_ventas_global,
+                        "compras_por_estado_global": estados_compras_global,
                         "sin_mapeo_ventas": int(sin_mapeo_ventas),
                         "sin_mapeo_compras": int(sin_mapeo_compras),
                     },
