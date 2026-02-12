@@ -299,7 +299,42 @@ def bi_dashboard():
         )
     except Exception as e:
         current_app.logger.error(f"Error BI dashboard: {e}", exc_info=True)
-        return jsonify({"error": "Internal server error", "detail": str(e)}), 500
+        return jsonify(
+            {
+                "periodo": {
+                    "desde": fecha_desde.isoformat(),
+                    "hasta": fecha_hasta.isoformat(),
+                },
+                "kpis": {
+                    "ingresos_sabiogo": 0,
+                    "costos_sabiogo": 0,
+                    "margen_bruto_sabiogo": 0,
+                    "margen_porcentual_sabiogo": 0,
+                    "productos_activos_sabiogo": 0,
+                    "gastos_finanzas": 0,
+                    "ingresos_caja": 0,
+                    "egresos_caja": 0,
+                    "caja_neta": 0,
+                    "movimientos_caja": 0,
+                },
+                "series": {
+                    "margen_mensual": [],
+                    "caja_mensual": [],
+                },
+                "detalles": {
+                    "top_productos_margen": [],
+                    "gastos_por_categoria": [],
+                    "calidad_sabiogo": {
+                        "ventas_por_estado": {},
+                        "compras_por_estado": {},
+                        "sin_mapeo_ventas": 0,
+                        "sin_mapeo_compras": 0,
+                    },
+                },
+                "warning": "BI cargado con datos vacíos por error interno",
+                "detail": str(e),
+            }
+        ), 200
 
 
 # Nuevos endpoints para Inteligencia Financiera

@@ -305,7 +305,8 @@
             .then(r => r.json())
             .then(data => {
                 if (data.error) {
-                    throw new Error(data.error);
+                    const detail = data.detail ? ` | ${data.detail}` : '';
+                    throw new Error(`${data.error}${detail}`);
                 }
 
                 document.getElementById('periodo-label').textContent = `Período: ${data.periodo.desde} a ${data.periodo.hasta}`;

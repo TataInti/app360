@@ -152,6 +152,19 @@
 </div>
 
 <script>
+function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+}
+
+async function parseJsonResponse(response) {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+        return response.json();
+    }
+    const text = await response.text();
+    throw new Error(`Respuesta no JSON (${response.status}): ${text.substring(0, 120)}`);
+}
+
 // Carga de archivo
 document.getElementById('formCarga').addEventListener('submit', async function(e) {
     e.preventDefault();
@@ -164,10 +177,14 @@ document.getElementById('formCarga').addEventListener('submit', async function(e
     try {
         const response = await fetch('/sabiogo/api/cargar-xls', {
             method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'X-CSRF-Token': getCsrfToken()
+            },
             body: formData
         });
-        
-        const data = await response.json();
+
+        const data = await parseJsonResponse(response);
         
         if (data.success) {
             resultadoDiv.innerHTML = `
@@ -198,7 +215,7 @@ async function filtrarProductos(estado) {
         }
         
         const response = await fetch(url);
-        const data = await response.json();
+        const data = await parseJsonResponse(response);
         
         if (data.items.length === 0) {
             listaDiv.innerHTML = '<p class="text-muted">No hay productos para mostrar</p>';
@@ -243,7 +260,7 @@ document.getElementById('clientes-tab').addEventListener('shown.bs.tab', async f
     
     try {
         const response = await fetch('/sabiogo/api/mapeos/clientes');
-        const data = await response.json();
+        const data = await parseJsonResponse(response);
         
         if (data.items.length === 0) {
             listaDiv.innerHTML = '<p class="text-muted">No hay clientes para mostrar</p>';
@@ -285,11 +302,13 @@ async function refreshFacts() {
         const response = await fetch('/sabiogo/api/refresh-facts', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
+                'X-CSRF-Token': getCsrfToken()
             }
         });
-        
-        const data = await response.json();
+
+        const data = await parseJsonResponse(response);
         
         if (data.success) {
             resultadoDiv.innerHTML = '<div class="alert alert-success">✓ Vistas actualizadas correctamente</div>';

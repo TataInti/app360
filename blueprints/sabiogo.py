@@ -8,6 +8,7 @@ import hashlib
 import os
 from datetime import datetime, date, timedelta
 from typing import Optional
+from sqlalchemy import text
 
 from models import db
 from models.sabiogo import (
@@ -380,8 +381,8 @@ def refresh_facts():
     """Ejecuta REFRESH MATERIALIZED VIEW en facts."""
     try:
         # Refrescar vistas materializadas
-        db.session.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY fact_ventas_sabiogo")
-        db.session.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY fact_costos_sabiogo")
+        db.session.execute(text("REFRESH MATERIALIZED VIEW fact_ventas_sabiogo"))
+        db.session.execute(text("REFRESH MATERIALIZED VIEW fact_costos_sabiogo"))
         db.session.commit()
         
         return jsonify({
