@@ -103,6 +103,7 @@ def bi_dashboard():
         return jsonify({"error": "fecha_desde no puede ser mayor a fecha_hasta"}), 400
 
     try:
+        db_engine = db.session.bind.dialect.name if db.session.bind else None
         # 1) Rentabilidad SabioGo (fuente principal)
         sabiogo_service = SabiogoService()
         rentabilidad_resumen = sabiogo_service.get_rentabilidad_resumen(fecha_desde, fecha_hasta)
@@ -301,80 +302,71 @@ def bi_dashboard():
         estados_ventas_global = {row.estado: int(row.total or 0) for row in estado_ventas_global}
         estados_compras_global = {row.estado: int(row.total or 0) for row in estado_compras_global}
 
-        return jsonify(
-            {
-                "periodo": {
-                    "desde": fecha_desde.isoformat(),
-                    "hasta": fecha_hasta.isoformat(),
+        total_ventas_global = sum(estados_ventas_global.values())
+        total_compras_global = sum(estados_compras_global.values())
+        ventas_procesado_global = estados_ventas_global.get("procesado", 0)
+        compras_procesado_global = estados_compras_global.get("procesado", 0)
+
+        warning = None
+        if db_engine != "postgresql":
+            warning = f"Motor de base de datos detectado: {db_engine or 'desconocido'}. Se esperaba postgresql."
+        elif (total_ventas_global > 0 and ventas_procesado_global == 0) or (
+            total_compras_global > 0 and compras_procesado_global == 0
+        ):
+            warning = "Hay datos SabioGo cargados pero sin estado 'procesado'."
+
+        payload = {
+            "periodo": {
+                "desde": fecha_desde.isoformat(),
+                "hasta": fecha_hasta.isoformat(),
+            },
+            "kpis": {
+                "ingresos_sabiogo": float(rentabilidad_resumen.get("total_ingresos", 0)),
+                "costos_sabiogo": float(rentabilidad_resumen.get("total_costos", 0)),
+                "margen_bruto_sabiogo": float(rentabilidad_resumen.get("margen_bruto", 0)),
+                "margen_porcentual_sabiogo": float(rentabilidad_resumen.get("margen_porcentual", 0)),
+                "productos_activos_sabiogo": int(rentabilidad_resumen.get("productos_activos", 0)),
+                "gastos_finanzas": float(gastos_total),
+                "ingresos_caja": float(ingresos_caja),
+                "egresos_caja": float(egresos_caja),
+                "caja_neta": float(ingresos_caja - egresos_caja),
+                "movimientos_caja": int(movimientos_count),
+            },
+            "series": {
+                "margen_mensual": margen_mensual,
+                "caja_mensual": caja_mensual,
+            },
+            "detalles": {
+                "top_productos_margen": top_productos,
+                "gastos_por_categoria": gastos_por_categoria,
+                "calidad_sabiogo": {
+                    "ventas_por_estado": estados_ventas,
+                    "compras_por_estado": estados_compras,
+                    "ventas_por_estado_global": estados_ventas_global,
+                    "compras_por_estado_global": estados_compras_global,
+                    "sin_mapeo_ventas": int(sin_mapeo_ventas),
+                    "sin_mapeo_compras": int(sin_mapeo_compras),
+                    "db_engine": db_engine,
                 },
-                "kpis": {
-                    "ingresos_sabiogo": float(rentabilidad_resumen.get("total_ingresos", 0)),
-                    "costos_sabiogo": float(rentabilidad_resumen.get("total_costos", 0)),
-                    "margen_bruto_sabiogo": float(rentabilidad_resumen.get("margen_bruto", 0)),
-                    "margen_porcentual_sabiogo": float(rentabilidad_resumen.get("margen_porcentual", 0)),
-                    "productos_activos_sabiogo": int(rentabilidad_resumen.get("productos_activos", 0)),
-                    "gastos_finanzas": float(gastos_total),
-                    "ingresos_caja": float(ingresos_caja),
-                    "egresos_caja": float(egresos_caja),
-                    "caja_neta": float(ingresos_caja - egresos_caja),
-                    "movimientos_caja": int(movimientos_count),
-                },
-                "series": {
-                    "margen_mensual": margen_mensual,
-                    "caja_mensual": caja_mensual,
-                },
-                "detalles": {
-                    "top_productos_margen": top_productos,
-                    "gastos_por_categoria": gastos_por_categoria,
-                    "calidad_sabiogo": {
-                        "ventas_por_estado": estados_ventas,
-                        "compras_por_estado": estados_compras,
-                        "ventas_por_estado_global": estados_ventas_global,
-                        "compras_por_estado_global": estados_compras_global,
-                        "sin_mapeo_ventas": int(sin_mapeo_ventas),
-                        "sin_mapeo_compras": int(sin_mapeo_compras),
-                    },
-                },
-            }
-        )
+            },
+        }
+
+        if warning:
+            payload["warning"] = warning
+
+        return jsonify(payload)
     except Exception as e:
         current_app.logger.error(f"Error BI dashboard: {e}", exc_info=True)
         return jsonify(
             {
+                "error": "Error interno obteniendo BI dashboard",
+                "detail": str(e),
                 "periodo": {
                     "desde": fecha_desde.isoformat(),
                     "hasta": fecha_hasta.isoformat(),
                 },
-                "kpis": {
-                    "ingresos_sabiogo": 0,
-                    "costos_sabiogo": 0,
-                    "margen_bruto_sabiogo": 0,
-                    "margen_porcentual_sabiogo": 0,
-                    "productos_activos_sabiogo": 0,
-                    "gastos_finanzas": 0,
-                    "ingresos_caja": 0,
-                    "egresos_caja": 0,
-                    "caja_neta": 0,
-                    "movimientos_caja": 0,
-                },
-                "series": {
-                    "margen_mensual": [],
-                    "caja_mensual": [],
-                },
-                "detalles": {
-                    "top_productos_margen": [],
-                    "gastos_por_categoria": [],
-                    "calidad_sabiogo": {
-                        "ventas_por_estado": {},
-                        "compras_por_estado": {},
-                        "sin_mapeo_ventas": 0,
-                        "sin_mapeo_compras": 0,
-                    },
-                },
-                "warning": "BI cargado con datos vacíos por error interno",
-                "detail": str(e),
             }
-        ), 200
+        ), 500
 
 
 # Nuevos endpoints para Inteligencia Financiera

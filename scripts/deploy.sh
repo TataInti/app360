@@ -98,8 +98,21 @@ else
 fi
 echo -e "${GREEN}✓ Base de datos actualizada${NC}"
 
-# 8. Verificar que la aplicación funciona
-echo -e "\n${YELLOW}[8/8] Verificando aplicación...${NC}"
+# 8. Ejecutar tests seguros (sin tocar DB productiva)
+echo -e "\n${YELLOW}[8/9] Ejecutando tests seguros en entorno aislado...${NC}"
+if [ -d "tests" ]; then
+    rm -f /tmp/app360_test.sqlite
+    PYTHONPATH=/var/www/app360 DATABASE_URL=sqlite:////tmp/app360_test.sqlite pytest tests/ -v --tb=short || {
+        echo -e "${RED}Error: Fallaron tests seguros en VPS${NC}"
+        exit 1
+    }
+    echo -e "${GREEN}✓ Tests seguros ejecutados correctamente${NC}"
+else
+    echo -e "${YELLOW}Advertencia: carpeta tests/ no encontrada, se omite validación${NC}"
+fi
+
+# 9. Verificar que la aplicación funciona
+echo -e "\n${YELLOW}[9/9] Verificando aplicación...${NC}"
 python3 -c "
 from app import create_app
 app = create_app()

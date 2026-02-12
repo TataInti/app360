@@ -8,7 +8,7 @@ import hashlib
 import os
 from datetime import datetime, date, timedelta
 from typing import Optional
-from sqlalchemy import text
+from sqlalchemy import text, func
 
 from models import db
 from models.sabiogo import (
@@ -19,6 +19,7 @@ from models.sabiogo import (
     SabiogoLocationMap
 )
 from models.core.product import Product
+from models.crm.client import Client
 from services.sabiogo_service import SabiogoService
 from dtos.sabiogo_dto import (
     RentabilidadProductoDTO,
@@ -60,6 +61,118 @@ def calcular_hash_archivo(filepath):
     return sha256_hash.hexdigest()
 
 
+def _autogenerar_mapeos_faltantes():
+    """Autogenera mapeos faltantes de productos y clientes desde staging."""
+    stats = {
+        'productos_creados': 0,
+        'productos_auto_mapeados': 0,
+        'clientes_creados': 0,
+        'clientes_auto_mapeados': 0,
+    }
+
+    # Productos: unir códigos de ventas y compras
+    codigos_ventas = db.session.query(
+        StgSabiogoVentas.codigo,
+        func.max(StgSabiogoVentas.producto).label('producto'),
+        func.max(StgSabiogoVentas.marca).label('marca'),
+        func.max(StgSabiogoVentas.modelo).label('modelo'),
+    ).filter(
+        StgSabiogoVentas.codigo.isnot(None),
+        StgSabiogoVentas.codigo != '',
+    ).group_by(StgSabiogoVentas.codigo).all()
+
+    codigos_compras = db.session.query(
+        StgSabiogoCompras.codigo,
+        func.max(StgSabiogoCompras.producto).label('producto'),
+        func.max(StgSabiogoCompras.marca).label('marca'),
+        func.max(StgSabiogoCompras.modelo).label('modelo'),
+    ).filter(
+        StgSabiogoCompras.codigo.isnot(None),
+        StgSabiogoCompras.codigo != '',
+    ).group_by(StgSabiogoCompras.codigo).all()
+
+    codigos_dict = {}
+    for row in codigos_ventas + codigos_compras:
+        codigo = row.codigo
+        if codigo not in codigos_dict:
+            codigos_dict[codigo] = {
+                'producto': row.producto,
+                'marca': row.marca,
+                'modelo': row.modelo,
+            }
+
+    codigos_existentes = {
+        codigo for (codigo,) in db.session.query(SabiogoProductMap.codigo).all()
+    }
+
+    for codigo, info in codigos_dict.items():
+        if codigo in codigos_existentes:
+            continue
+
+        product = Product.query.filter_by(sku=codigo).first()
+        nuevo_mapeo = SabiogoProductMap(
+            codigo=codigo,
+            product_id=product.id if product else None,
+            marca=info.get('marca'),
+            modelo=info.get('modelo'),
+            producto_descripcion=info.get('producto'),
+            activo=True if product else False,
+        )
+        db.session.add(nuevo_mapeo)
+        stats['productos_creados'] += 1
+        if product:
+            stats['productos_auto_mapeados'] += 1
+
+    # Clientes: extraer únicos desde ventas
+    clientes_staging = db.session.query(
+        StgSabiogoVentas.cliente,
+        StgSabiogoVentas.condicion_iva,
+        func.max(StgSabiogoVentas.zona).label('zona'),
+        func.max(StgSabiogoVentas.localidad).label('localidad'),
+    ).filter(
+        StgSabiogoVentas.cliente.isnot(None),
+        StgSabiogoVentas.cliente != '',
+    ).group_by(
+        StgSabiogoVentas.cliente,
+        StgSabiogoVentas.condicion_iva,
+    ).all()
+
+    clientes_existentes = {
+        (cliente, condicion_iva)
+        for cliente, condicion_iva in db.session.query(
+            SabiogoClientMap.cliente,
+            SabiogoClientMap.condicion_iva,
+        ).all()
+    }
+
+    for row in clientes_staging:
+        key = (row.cliente, row.condicion_iva)
+        if key in clientes_existentes:
+            continue
+
+        client = None
+        if row.cliente:
+            client = Client.query.filter(
+                func.lower(Client.name).like(f"%{row.cliente.lower()}%")
+            ).first()
+
+        nuevo_cliente = SabiogoClientMap(
+            cliente=row.cliente,
+            condicion_iva=row.condicion_iva,
+            client_id=client.id if client else None,
+            zona=row.zona,
+            localidad=row.localidad,
+            activo=True if client else False,
+        )
+        db.session.add(nuevo_cliente)
+        stats['clientes_creados'] += 1
+        if client:
+            stats['clientes_auto_mapeados'] += 1
+
+    db.session.commit()
+    return stats
+
+
 # ============================================================================
 # ENDPOINTS HTML - ADMINISTRACIÓN
 # ============================================================================
@@ -68,6 +181,13 @@ def calcular_hash_archivo(filepath):
 @login_required
 def admin_panel():
     """Panel de administración SabioGo."""
+    if SabiogoProductMap.query.count() == 0 or SabiogoClientMap.query.count() == 0:
+        try:
+            auto_stats = _autogenerar_mapeos_faltantes()
+            current_app.logger.info(f"Autogeneración de mapeos SabioGo: {auto_stats}")
+        except Exception as e:
+            current_app.logger.error(f"Error autogenerando mapeos SabioGo: {e}")
+
     # Estadísticas básicas
     total_productos_map = SabiogoProductMap.query.count()
     productos_mapeados = SabiogoProductMap.query.filter_by(activo=True).filter(
@@ -255,6 +375,9 @@ def cargar_xls():
 @login_required
 def listar_mapeos_productos():
     """Lista códigos de productos con estado de mapeo."""
+    if SabiogoProductMap.query.count() == 0:
+        _autogenerar_mapeos_faltantes()
+
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
     estado = request.args.get('estado')  # 'mapeado', 'sin_mapear'
@@ -341,6 +464,9 @@ def actualizar_mapeo_producto(codigo):
 @login_required
 def listar_mapeos_clientes():
     """Lista clientes con estado de mapeo."""
+    if SabiogoClientMap.query.count() == 0:
+        _autogenerar_mapeos_faltantes()
+
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
     
@@ -372,6 +498,77 @@ def listar_mapeos_clientes():
         'page': page,
         'per_page': per_page,
         'pages': pagination.pages
+    })
+
+
+@sabiogo_bp.route('/api/ventas')
+@login_required
+def listar_ventas_staging():
+    """Lista ventas de staging con paginación server-side y filtros."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    per_page = max(10, min(per_page, 200))
+
+    estado = request.args.get('estado', 'procesado')
+    fecha_desde = request.args.get('fecha_desde')
+    fecha_hasta = request.args.get('fecha_hasta')
+    codigo = request.args.get('codigo')
+    cliente = request.args.get('cliente')
+    producto = request.args.get('producto')
+
+    query = StgSabiogoVentas.query
+
+    if estado and estado != 'todos':
+        query = query.filter(StgSabiogoVentas.estado == estado)
+
+    if fecha_desde:
+        try:
+            fecha_desde_dt = date.fromisoformat(fecha_desde)
+            query = query.filter(StgSabiogoVentas.fecha >= fecha_desde_dt)
+        except ValueError:
+            return jsonify({'error': 'Formato de fecha_desde inválido'}), 400
+
+    if fecha_hasta:
+        try:
+            fecha_hasta_dt = date.fromisoformat(fecha_hasta)
+            query = query.filter(StgSabiogoVentas.fecha <= fecha_hasta_dt)
+        except ValueError:
+            return jsonify({'error': 'Formato de fecha_hasta inválido'}), 400
+
+    if codigo:
+        query = query.filter(StgSabiogoVentas.codigo.ilike(f'%{codigo}%'))
+    if cliente:
+        query = query.filter(StgSabiogoVentas.cliente.ilike(f'%{cliente}%'))
+    if producto:
+        query = query.filter(StgSabiogoVentas.producto.ilike(f'%{producto}%'))
+
+    pagination = query.order_by(
+        StgSabiogoVentas.fecha.desc(),
+        StgSabiogoVentas.id.desc()
+    ).paginate(page=page, per_page=per_page, error_out=False)
+
+    items = []
+    for venta in pagination.items:
+        items.append({
+            'id': venta.id,
+            'fecha': venta.fecha.isoformat() if venta.fecha else None,
+            'codigo': venta.codigo,
+            'producto': venta.producto,
+            'cliente': venta.cliente,
+            'sucursal': venta.sucursal,
+            'kilos': float(venta.kilos or 0),
+            'cajas': float(venta.cajas or 0),
+            'subtot': float(venta.subtot or 0),
+            'total': float(venta.total or 0),
+            'estado': venta.estado,
+        })
+
+    return jsonify({
+        'items': items,
+        'total': pagination.total,
+        'page': page,
+        'per_page': per_page,
+        'pages': pagination.pages,
     })
 
 

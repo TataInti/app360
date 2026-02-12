@@ -67,6 +67,11 @@
             </button>
         </li>
         <li class="nav-item" role="presentation">
+            <button class="nav-link" id="ventas-tab" data-bs-toggle="tab" data-bs-target="#ventas" type="button" role="tab">
+                <i class="bi bi-table"></i> Ventas Staging
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
             <button class="nav-link" id="facts-tab" data-bs-toggle="tab" data-bs-target="#facts" type="button" role="tab">
                 <i class="bi bi-arrow-repeat"></i> Actualizar Facts
             </button>
@@ -135,6 +140,68 @@
             </div>
         </div>
 
+        <!-- Tab Ventas Staging -->
+        <div class="tab-pane fade" id="ventas" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Listado de Ventas en PostgreSQL (Staging)</h5>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-2">
+                            <label class="form-label">Desde</label>
+                            <input type="date" id="ventasFechaDesde" class="form-control">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Hasta</label>
+                            <input type="date" id="ventasFechaHasta" class="form-control">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Código</label>
+                            <input type="text" id="ventasCodigo" class="form-control" placeholder="SKU / Código">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Cliente</label>
+                            <input type="text" id="ventasCliente" class="form-control" placeholder="Cliente">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Producto</label>
+                            <input type="text" id="ventasProducto" class="form-control" placeholder="Producto">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Estado</label>
+                            <select id="ventasEstado" class="form-select">
+                                <option value="procesado" selected>Procesado</option>
+                                <option value="pendiente">Pendiente</option>
+                                <option value="duplicado">Duplicado</option>
+                                <option value="error">Error</option>
+                                <option value="todos">Todos</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <button class="btn btn-primary btn-sm" onclick="cargarVentas(1)">
+                            <i class="bi bi-search"></i> Buscar
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="limpiarFiltrosVentas()">
+                            Limpiar
+                        </button>
+                    </div>
+                    <div id="ventasResumen" class="small text-muted mb-2"></div>
+                    <div id="listaVentas" class="table-responsive">
+                        <p class="text-muted">Abra esta pestaña para cargar ventas...</p>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <button class="btn btn-sm btn-outline-primary" id="ventasPrevBtn" onclick="cambiarPaginaVentas(-1)" disabled>
+                            Anterior
+                        </button>
+                        <span id="ventasPageInfo" class="small text-muted">Página 0 de 0</span>
+                        <button class="btn btn-sm btn-outline-primary" id="ventasNextBtn" onclick="cambiarPaginaVentas(1)" disabled>
+                            Siguiente
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Tab Actualizar Facts -->
         <div class="tab-pane fade" id="facts" role="tabpanel">
             <div class="card">
@@ -152,6 +219,12 @@
 </div>
 
 <script>
+const ventasState = {
+    page: 1,
+    pages: 0,
+    perPage: 50,
+};
+
 function getCsrfToken() {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 }
@@ -163,6 +236,15 @@ async function parseJsonResponse(response) {
     }
     const text = await response.text();
     throw new Error(`Respuesta no JSON (${response.status}): ${text.substring(0, 120)}`);
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
 }
 
 // Carga de archivo
@@ -319,5 +401,96 @@ async function refreshFacts() {
         resultadoDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
     }
 }
+
+function cambiarPaginaVentas(direction) {
+    const nextPage = ventasState.page + direction;
+    if (nextPage < 1 || nextPage > ventasState.pages) {
+        return;
+    }
+    cargarVentas(nextPage);
+}
+
+function limpiarFiltrosVentas() {
+    document.getElementById('ventasFechaDesde').value = '';
+    document.getElementById('ventasFechaHasta').value = '';
+    document.getElementById('ventasCodigo').value = '';
+    document.getElementById('ventasCliente').value = '';
+    document.getElementById('ventasProducto').value = '';
+    document.getElementById('ventasEstado').value = 'procesado';
+    cargarVentas(1);
+}
+
+async function cargarVentas(page = 1) {
+    const listaDiv = document.getElementById('listaVentas');
+    const resumenDiv = document.getElementById('ventasResumen');
+    listaDiv.innerHTML = '<p class="text-muted">Cargando ventas...</p>';
+
+    try {
+        const params = new URLSearchParams();
+        params.set('page', String(page));
+        params.set('per_page', String(ventasState.perPage));
+
+        const estado = document.getElementById('ventasEstado').value;
+        const fechaDesde = document.getElementById('ventasFechaDesde').value;
+        const fechaHasta = document.getElementById('ventasFechaHasta').value;
+        const codigo = document.getElementById('ventasCodigo').value.trim();
+        const cliente = document.getElementById('ventasCliente').value.trim();
+        const producto = document.getElementById('ventasProducto').value.trim();
+
+        if (estado) params.set('estado', estado);
+        if (fechaDesde) params.set('fecha_desde', fechaDesde);
+        if (fechaHasta) params.set('fecha_hasta', fechaHasta);
+        if (codigo) params.set('codigo', codigo);
+        if (cliente) params.set('cliente', cliente);
+        if (producto) params.set('producto', producto);
+
+        const response = await fetch(`/sabiogo/api/ventas?${params.toString()}`);
+        const data = await parseJsonResponse(response);
+
+        const items = data.items || [];
+        ventasState.page = data.page || 1;
+        ventasState.pages = data.pages || 0;
+
+        resumenDiv.textContent = `Total registros: ${data.total || 0} · Página ${ventasState.page} de ${ventasState.pages || 1}`;
+        document.getElementById('ventasPageInfo').textContent = `Página ${ventasState.page} de ${ventasState.pages || 1}`;
+        document.getElementById('ventasPrevBtn').disabled = ventasState.page <= 1;
+        document.getElementById('ventasNextBtn').disabled = ventasState.pages === 0 || ventasState.page >= ventasState.pages;
+
+        if (!items.length) {
+            listaDiv.innerHTML = '<p class="text-muted">No hay ventas para los filtros seleccionados</p>';
+            return;
+        }
+
+        let html = '<table class="table table-sm table-striped align-middle">';
+        html += '<thead><tr>';
+        html += '<th>Fecha</th><th>Código</th><th>Producto</th><th>Cliente</th><th>Sucursal</th>';
+        html += '<th class="text-end">Kilos</th><th class="text-end">Cajas</th><th class="text-end">Subtotal</th><th class="text-end">Total</th><th>Estado</th>';
+        html += '</tr></thead><tbody>';
+
+        items.forEach(item => {
+            html += '<tr>';
+            html += `<td>${escapeHtml(item.fecha || '-')}</td>`;
+            html += `<td>${escapeHtml(item.codigo || '-')}</td>`;
+            html += `<td>${escapeHtml(item.producto || '-')}</td>`;
+            html += `<td>${escapeHtml(item.cliente || '-')}</td>`;
+            html += `<td>${escapeHtml(item.sucursal || '-')}</td>`;
+            html += `<td class="text-end">${Number(item.kilos || 0).toFixed(3)}</td>`;
+            html += `<td class="text-end">${Number(item.cajas || 0).toFixed(2)}</td>`;
+            html += `<td class="text-end">$${Number(item.subtot || 0).toFixed(2)}</td>`;
+            html += `<td class="text-end">$${Number(item.total || 0).toFixed(2)}</td>`;
+            html += `<td>${escapeHtml(item.estado || '-')}</td>`;
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        listaDiv.innerHTML = html;
+    } catch (error) {
+        listaDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+}
+
+document.getElementById('ventas-tab').addEventListener('shown.bs.tab', function() {
+    cargarVentas(1);
+});
 </script>
 {% endblock %}

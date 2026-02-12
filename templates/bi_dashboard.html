@@ -21,6 +21,8 @@
         </div>
     </div>
 
+    <div id="bi-warning" class="alert alert-warning d-none" role="alert"></div>
+
     <div class="row mb-4 g-3">
         <div class="col-md-3">
             <div class="card bg-primary text-white h-100">
@@ -92,12 +94,12 @@
     </div>
 
     <div class="charts-row mb-4">
-        <div class="chart-card">
-            <h6 class="text-white mb-3">Evolución mensual · Ingresos, Costos y Margen</h6>
+        <div class="chart-card chart-card-light">
+            <h6 class="mb-3">Evolución mensual · Ingresos, Costos y Margen</h6>
             <canvas id="margenMensualChart"></canvas>
         </div>
-        <div class="chart-card">
-            <h6 class="text-white mb-3">Caja mensual · Ingresos vs Egresos</h6>
+        <div class="chart-card chart-card-light">
+            <h6 class="mb-3">Caja mensual · Ingresos vs Egresos</h6>
             <canvas id="cajaMensualChart"></canvas>
         </div>
     </div>
@@ -193,6 +195,27 @@
     function renderCharts(series) {
         const margenData = series.margen_mensual || [];
         const margenLabels = margenData.map(x => x.periodo || 'N/A');
+        const commonChartOptions = {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#111827'
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#374151' },
+                    grid: { color: 'rgba(55, 65, 81, 0.12)' }
+                },
+                y: {
+                    ticks: { color: '#374151' },
+                    grid: { color: 'rgba(55, 65, 81, 0.12)' }
+                }
+            }
+        };
 
         const margenCtx = document.getElementById('margenMensualChart').getContext('2d');
         if (margenMensualChart) margenMensualChart.destroy();
@@ -224,7 +247,7 @@
                     }
                 ]
             },
-            options: { responsive: true, maintainAspectRatio: true }
+            options: commonChartOptions
         });
 
         const cajaData = series.caja_mensual || [];
@@ -254,7 +277,7 @@
                     }
                 ]
             },
-            options: { responsive: true, maintainAspectRatio: true }
+            options: commonChartOptions
         });
     }
 
@@ -313,6 +336,15 @@
                 document.getElementById('periodo-label').textContent = `Período: ${data.periodo.desde} a ${data.periodo.hasta}`;
                 document.getElementById('fecha-desde').value = data.periodo.desde;
                 document.getElementById('fecha-hasta').value = data.periodo.hasta;
+
+                const warningEl = document.getElementById('bi-warning');
+                if (data.warning) {
+                    warningEl.textContent = data.warning;
+                    warningEl.classList.remove('d-none');
+                } else {
+                    warningEl.textContent = '';
+                    warningEl.classList.add('d-none');
+                }
 
                 renderKPIs(data.kpis || {});
                 renderCharts(data.series || {});

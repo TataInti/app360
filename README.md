@@ -139,6 +139,19 @@ app360/
 pytest
 ```
 
+### Test seguro en VPS (post-deploy)
+
+Para validar en servidor sin tocar la base de datos productiva:
+
+```bash
+cd /var/www/app360
+source venv/bin/activate
+rm -f /tmp/app360_test.sqlite
+PYTHONPATH=/var/www/app360 DATABASE_URL=sqlite:////tmp/app360_test.sqlite pytest tests/ -v --tb=short
+```
+
+Este comando corre tests contra SQLite temporal (`/tmp/app360_test.sqlite`) y evita impacto en PostgreSQL de producción.
+
 ```bash
 cd frontend
 npm test
