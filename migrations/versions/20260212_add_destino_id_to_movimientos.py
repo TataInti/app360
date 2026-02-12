@@ -1,7 +1,7 @@
 """Add destino_id to movimientos_caja
 
 Revision ID: 20260212_add_destino_id_to_movimientos
-Revises: 20260212_add_sabiogo_facts
+Revises: 53a8d4de6d8f
 Create Date: 2026-02-12 17:50:00.000000
 
 Agrega la columna destino_id a movimientos_caja como simple integer sin FK
@@ -12,7 +12,7 @@ from sqlalchemy import inspect
 
 
 revision = '20260212_add_destino_id_to_movimientos'
-down_revision = '20260212_add_sabiogo_facts'
+down_revision = '53a8d4de6d8f'
 branch_labels = None
 depends_on = None
 

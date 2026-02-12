@@ -54,8 +54,9 @@ def constraint_exists(table_name, constraint_name):
 def upgrade():
     """
     1. Elimina FK de movimientos_caja.destino_id si existe
-    2. Elimina tabla destinos_arqueo si existe
-    3. destino_id se mantiene en movimientos_caja como simple Integer para tracking
+    2. Elimina FK/columna destino_id en arqueos_caja si existe
+    3. Elimina tabla destinos_arqueo si existe
+    4. destino_id se mantiene en movimientos_caja como simple Integer para tracking
     """
     
     # 1. Eliminar FK de movimientos_caja.destino_id si existe
@@ -74,13 +75,36 @@ def upgrade():
                     print(f"✓ FK {fk_name} eliminada de movimientos_caja")
                 except Exception as e:
                     print(f"⚠ No se pudo eliminar FK {fk_name}: {e}")
+
+    # 2. Eliminar FK/columna destino_id de arqueos_caja si existen
+    if table_exists('arqueos_caja'):
+        possible_fk_names_arqueo = [
+            'fk_arqueo_destino_id',
+            'arqueos_caja_destino_id_fkey',
+            'fk_arqueos_caja_destino_id'
+        ]
+
+        for fk_name in possible_fk_names_arqueo:
+            if constraint_exists('arqueos_caja', fk_name):
+                try:
+                    op.drop_constraint(fk_name, 'arqueos_caja', type_='foreignkey')
+                    print(f"✓ FK {fk_name} eliminada de arqueos_caja")
+                except Exception as e:
+                    print(f"⚠ No se pudo eliminar FK {fk_name}: {e}")
+
+        if column_exists('arqueos_caja', 'destino_id'):
+            try:
+                op.drop_column('arqueos_caja', 'destino_id')
+                print("✓ Columna destino_id eliminada de arqueos_caja")
+            except Exception as e:
+                print(f"⚠ No se pudo eliminar columna arqueos_caja.destino_id: {e}")
     
-    # 2. Eliminar tabla destinos_arqueo si existe
+    # 3. Eliminar tabla destinos_arqueo si existe
     if table_exists('destinos_arqueo'):
         op.drop_table('destinos_arqueo')
         print("✓ Tabla destinos_arqueo eliminada")
     
-    # 3. destino_id en movimientos_caja se mantiene como está (simple Integer)
+    # 4. destino_id en movimientos_caja se mantiene como está (simple Integer)
     print("✓ destino_id se mantiene en movimientos_caja como campo de tracking")
 
 
