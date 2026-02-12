@@ -1,7 +1,7 @@
 """Blueprint para administración y análisis SabioGo."""
 
-from flask import Blueprint, render_template, request, jsonify, current_app
-from flask_login import login_required, current_user
+from flask import Blueprint, render_template, request, jsonify, current_app, session, redirect, url_for
+from functools import wraps
 from werkzeug.utils import secure_filename
 import pandas as pd
 import hashlib
@@ -25,12 +25,24 @@ from dtos.sabiogo_dto import (
     ProductoTopMargenDTO
 )
 from security import protect_blueprint
+from models.core.user import User
 
 sabiogo_bp = Blueprint("sabiogo", __name__, url_prefix="/sabiogo")
 protect_blueprint(sabiogo_bp, "admin")
 
 
 ALLOWED_EXTENSIONS = {'xls', 'xlsx'}
+
+
+def login_required(f):
+    """Compatibilidad con sistema de sesión propio del proyecto."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if session.get("user"):
+            return f(*args, **kwargs)
+        return redirect(url_for("auth.login"))
+
+    return decorated
 
 
 def allowed_file(filename):
@@ -204,6 +216,7 @@ def cargar_xls():
         
         # Registrar log de auditoría
         service = SabiogoService()
+        usuario = User.query.filter_by(username=session.get('user')).first()
         service.registrar_carga(
             archivo_nombre=filename,
             tipo_carga=tipo,
@@ -212,7 +225,7 @@ def cargar_xls():
             filas_duplicadas=duplicados,
             filas_sin_mapeo=sin_mapeo_query,
             filas_error=filas_error,
-            usuario_id=current_user.id
+            usuario_id=usuario.id if usuario else None
         )
         
         # Limpiar archivo temporal

@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 import io
 
-from flask import Blueprint, request, jsonify, send_file, render_template
+from flask import Blueprint, request, jsonify, send_file, render_template, current_app
 from sqlalchemy import func, desc, extract
 
 from models import (
@@ -86,205 +86,220 @@ def bi_dashboard():
     if fecha_desde > fecha_hasta:
         return jsonify({"error": "fecha_desde no puede ser mayor a fecha_hasta"}), 400
 
-    # 1) Rentabilidad SabioGo (fuente principal)
-    sabiogo_service = SabiogoService()
-    rentabilidad_resumen = sabiogo_service.get_rentabilidad_resumen(fecha_desde, fecha_hasta)
-    top_productos = sabiogo_service.get_top_productos_margen(
-        limit=10,
-        fecha_inicio=fecha_desde,
-        fecha_fin=fecha_hasta,
-    )
-
-    # 2) Gastos internos (módulo finanzas)
-    gastos_total = (
-        db.session.query(func.sum(Gasto.monto))
-        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
-        .scalar()
-        or 0
-    )
-
-    gastos_categoria_rows = (
-        db.session.query(
-            CategoriaGasto.nombre,
-            func.sum(Gasto.monto).label("monto_total")
+    try:
+        # 1) Rentabilidad SabioGo (fuente principal)
+        sabiogo_service = SabiogoService()
+        rentabilidad_resumen = sabiogo_service.get_rentabilidad_resumen(fecha_desde, fecha_hasta)
+        top_productos = sabiogo_service.get_top_productos_margen(
+            limit=10,
+            fecha_inicio=fecha_desde,
+            fecha_fin=fecha_hasta,
         )
-        .join(CategoriaGasto, Gasto.categoria_id == CategoriaGasto.id)
-        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
-        .group_by(CategoriaGasto.nombre)
-        .order_by(desc(func.sum(Gasto.monto)))
-        .all()
-    )
 
-    gastos_por_categoria = [
-        {
-            "categoria": nombre or "Sin categoría",
-            "monto_total": float(monto_total or 0),
-        }
-        for nombre, monto_total in gastos_categoria_rows
-    ]
+        # 2) Gastos internos (módulo finanzas)
+        gastos_total = (
+            db.session.query(func.sum(Gasto.monto))
+            .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
+            .scalar()
+            or 0
+        )
 
-    # 3) Tesorería (caja)
-    movimientos_query = db.session.query(MovimientoCaja).filter(
-        func.date(MovimientoCaja.fecha_hora).between(fecha_desde, fecha_hasta)
-    )
+        gastos_categoria_rows = (
+            db.session.query(
+                CategoriaGasto.nombre,
+                func.sum(Gasto.monto).label("monto_total")
+            )
+            .join(CategoriaGasto, Gasto.categoria_id == CategoriaGasto.id)
+            .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
+            .group_by(CategoriaGasto.nombre)
+            .order_by(desc(func.sum(Gasto.monto)))
+            .all()
+        )
 
-    ingresos_caja = (
-        movimientos_query.filter(MovimientoCaja.tipo == "ingreso")
-        .with_entities(func.sum(MovimientoCaja.monto))
-        .scalar()
-        or 0
-    )
-    egresos_caja = (
-        movimientos_query.filter(MovimientoCaja.tipo == "egreso")
-        .with_entities(func.sum(MovimientoCaja.monto))
-        .scalar()
-        or 0
-    )
-    movimientos_count = movimientos_query.count()
+        gastos_por_categoria = [
+            {
+                "categoria": nombre or "Sin categoría",
+                "monto_total": float(monto_total or 0),
+            }
+            for nombre, monto_total in gastos_categoria_rows
+        ]
 
-    # 4) Series mensuales para visualización
-    margen_mensual_rows = db.session.execute(
-        text(
-            """
-            SELECT
-                periodo_mes,
-                COALESCE(SUM(ingresos_totales), 0) AS ingresos,
-                COALESCE(SUM(costos_totales), 0) AS costos,
-                COALESCE(SUM(margen_bruto), 0) AS margen
-            FROM vw_margen_producto
-            WHERE periodo_mes BETWEEN :fecha_desde AND :fecha_hasta
-            GROUP BY periodo_mes
-            ORDER BY periodo_mes
-            """
-        ),
-        {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
-    )
+        # 3) Tesorería (caja)
+        movimientos_query = db.session.query(MovimientoCaja).filter(
+            func.date(MovimientoCaja.fecha_hora).between(fecha_desde, fecha_hasta)
+        )
 
-    margen_mensual = [
-        {
-            "periodo": row.periodo_mes.isoformat() if row.periodo_mes else None,
-            "ingresos": float(row.ingresos or 0),
-            "costos": float(row.costos or 0),
-            "margen": float(row.margen or 0),
-        }
-        for row in margen_mensual_rows
-    ]
+        ingresos_caja = (
+            movimientos_query.filter(MovimientoCaja.tipo == "ingreso")
+            .with_entities(func.sum(MovimientoCaja.monto))
+            .scalar()
+            or 0
+        )
+        egresos_caja = (
+            movimientos_query.filter(MovimientoCaja.tipo == "egreso")
+            .with_entities(func.sum(MovimientoCaja.monto))
+            .scalar()
+            or 0
+        )
+        movimientos_count = movimientos_query.count()
 
-    caja_mensual_rows = db.session.execute(
-        text(
-            """
-            SELECT
-                DATE_TRUNC('month', fecha_hora)::date AS periodo,
-                COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) AS ingresos,
-                COALESCE(SUM(CASE WHEN tipo = 'egreso' THEN monto ELSE 0 END), 0) AS egresos
-            FROM movimientos_caja
-            WHERE DATE(fecha_hora) BETWEEN :fecha_desde AND :fecha_hasta
-            GROUP BY DATE_TRUNC('month', fecha_hora)::date
-            ORDER BY DATE_TRUNC('month', fecha_hora)::date
-            """
-        ),
-        {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
-    )
+        # 4) Series mensuales para visualización (sin depender de vw_margen_producto)
+        margen_mensual_rows = db.session.execute(
+            text(
+                """
+                WITH ventas AS (
+                    SELECT DATE_TRUNC('month', fecha)::date AS periodo, COALESCE(SUM(subtot), 0) AS ingresos
+                    FROM stg_sabiogo_ventas
+                    WHERE estado = 'procesado' AND fecha BETWEEN :fecha_desde AND :fecha_hasta
+                    GROUP BY DATE_TRUNC('month', fecha)::date
+                ),
+                compras AS (
+                    SELECT DATE_TRUNC('month', fecha)::date AS periodo, COALESCE(SUM(subtot), 0) AS costos
+                    FROM stg_sabiogo_compras
+                    WHERE estado = 'procesado' AND fecha BETWEEN :fecha_desde AND :fecha_hasta
+                    GROUP BY DATE_TRUNC('month', fecha)::date
+                )
+                SELECT
+                    COALESCE(v.periodo, c.periodo) AS periodo,
+                    COALESCE(v.ingresos, 0) AS ingresos,
+                    COALESCE(c.costos, 0) AS costos,
+                    COALESCE(v.ingresos, 0) - COALESCE(c.costos, 0) AS margen
+                FROM ventas v
+                FULL OUTER JOIN compras c ON v.periodo = c.periodo
+                ORDER BY COALESCE(v.periodo, c.periodo)
+                """
+            ),
+            {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+        )
 
-    caja_mensual = [
-        {
-            "periodo": row.periodo.isoformat() if row.periodo else None,
-            "ingresos": float(row.ingresos or 0),
-            "egresos": float(row.egresos or 0),
-            "neto": float((row.ingresos or 0) - (row.egresos or 0)),
-        }
-        for row in caja_mensual_rows
-    ]
+        margen_mensual = [
+            {
+                "periodo": row.periodo.isoformat() if row.periodo else None,
+                "ingresos": float(row.ingresos or 0),
+                "costos": float(row.costos or 0),
+                "margen": float(row.margen or 0),
+            }
+            for row in margen_mensual_rows
+        ]
 
-    # 5) Calidad de datos SabioGo
-    estado_ventas = db.session.execute(
-        text(
-            """
-            SELECT estado, COUNT(*) AS total
-            FROM stg_sabiogo_ventas
-            WHERE fecha BETWEEN :fecha_desde AND :fecha_hasta
-            GROUP BY estado
-            """
-        ),
-        {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
-    )
-    estado_compras = db.session.execute(
-        text(
-            """
-            SELECT estado, COUNT(*) AS total
-            FROM stg_sabiogo_compras
-            WHERE fecha BETWEEN :fecha_desde AND :fecha_hasta
-            GROUP BY estado
-            """
-        ),
-        {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
-    )
+        caja_mensual_rows = db.session.execute(
+            text(
+                """
+                SELECT
+                    DATE_TRUNC('month', fecha_hora)::date AS periodo,
+                    COALESCE(SUM(CASE WHEN tipo = 'ingreso' THEN monto ELSE 0 END), 0) AS ingresos,
+                    COALESCE(SUM(CASE WHEN tipo = 'egreso' THEN monto ELSE 0 END), 0) AS egresos
+                FROM movimientos_caja
+                WHERE DATE(fecha_hora) BETWEEN :fecha_desde AND :fecha_hasta
+                GROUP BY DATE_TRUNC('month', fecha_hora)::date
+                ORDER BY DATE_TRUNC('month', fecha_hora)::date
+                """
+            ),
+            {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+        )
 
-    sin_mapeo_ventas = db.session.execute(
-        text(
-            """
-            SELECT COUNT(*) AS total
-            FROM stg_sabiogo_ventas v
-            LEFT JOIN sabiogo_product_map pm ON v.codigo = pm.codigo AND pm.activo = true
-            WHERE v.fecha BETWEEN :fecha_desde AND :fecha_hasta
-              AND v.estado = 'procesado'
-              AND pm.product_id IS NULL
-            """
-        ),
-        {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
-    ).scalar() or 0
+        caja_mensual = [
+            {
+                "periodo": row.periodo.isoformat() if row.periodo else None,
+                "ingresos": float(row.ingresos or 0),
+                "egresos": float(row.egresos or 0),
+                "neto": float((row.ingresos or 0) - (row.egresos or 0)),
+            }
+            for row in caja_mensual_rows
+        ]
 
-    sin_mapeo_compras = db.session.execute(
-        text(
-            """
-            SELECT COUNT(*) AS total
-            FROM stg_sabiogo_compras c
-            LEFT JOIN sabiogo_product_map pm ON c.codigo = pm.codigo AND pm.activo = true
-            WHERE c.fecha BETWEEN :fecha_desde AND :fecha_hasta
-              AND c.estado = 'procesado'
-              AND pm.product_id IS NULL
-            """
-        ),
-        {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
-    ).scalar() or 0
+        # 5) Calidad de datos SabioGo
+        estado_ventas = db.session.execute(
+            text(
+                """
+                SELECT estado, COUNT(*) AS total
+                FROM stg_sabiogo_ventas
+                WHERE fecha BETWEEN :fecha_desde AND :fecha_hasta
+                GROUP BY estado
+                """
+            ),
+            {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+        )
+        estado_compras = db.session.execute(
+            text(
+                """
+                SELECT estado, COUNT(*) AS total
+                FROM stg_sabiogo_compras
+                WHERE fecha BETWEEN :fecha_desde AND :fecha_hasta
+                GROUP BY estado
+                """
+            ),
+            {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+        )
 
-    estados_ventas = {row.estado: int(row.total or 0) for row in estado_ventas}
-    estados_compras = {row.estado: int(row.total or 0) for row in estado_compras}
+        sin_mapeo_ventas = db.session.execute(
+            text(
+                """
+                SELECT COUNT(*) AS total
+                FROM stg_sabiogo_ventas v
+                LEFT JOIN sabiogo_product_map pm ON v.codigo = pm.codigo AND pm.activo = true
+                WHERE v.fecha BETWEEN :fecha_desde AND :fecha_hasta
+                  AND v.estado = 'procesado'
+                  AND pm.product_id IS NULL
+                """
+            ),
+            {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+        ).scalar() or 0
 
-    return jsonify(
-        {
-            "periodo": {
-                "desde": fecha_desde.isoformat(),
-                "hasta": fecha_hasta.isoformat(),
-            },
-            "kpis": {
-                "ingresos_sabiogo": float(rentabilidad_resumen.get("total_ingresos", 0)),
-                "costos_sabiogo": float(rentabilidad_resumen.get("total_costos", 0)),
-                "margen_bruto_sabiogo": float(rentabilidad_resumen.get("margen_bruto", 0)),
-                "margen_porcentual_sabiogo": float(rentabilidad_resumen.get("margen_porcentual", 0)),
-                "productos_activos_sabiogo": int(rentabilidad_resumen.get("productos_activos", 0)),
-                "gastos_finanzas": float(gastos_total),
-                "ingresos_caja": float(ingresos_caja),
-                "egresos_caja": float(egresos_caja),
-                "caja_neta": float(ingresos_caja - egresos_caja),
-                "movimientos_caja": int(movimientos_count),
-            },
-            "series": {
-                "margen_mensual": margen_mensual,
-                "caja_mensual": caja_mensual,
-            },
-            "detalles": {
-                "top_productos_margen": top_productos,
-                "gastos_por_categoria": gastos_por_categoria,
-                "calidad_sabiogo": {
-                    "ventas_por_estado": estados_ventas,
-                    "compras_por_estado": estados_compras,
-                    "sin_mapeo_ventas": int(sin_mapeo_ventas),
-                    "sin_mapeo_compras": int(sin_mapeo_compras),
+        sin_mapeo_compras = db.session.execute(
+            text(
+                """
+                SELECT COUNT(*) AS total
+                FROM stg_sabiogo_compras c
+                LEFT JOIN sabiogo_product_map pm ON c.codigo = pm.codigo AND pm.activo = true
+                WHERE c.fecha BETWEEN :fecha_desde AND :fecha_hasta
+                  AND c.estado = 'procesado'
+                  AND pm.product_id IS NULL
+                """
+            ),
+            {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+        ).scalar() or 0
+
+        estados_ventas = {row.estado: int(row.total or 0) for row in estado_ventas}
+        estados_compras = {row.estado: int(row.total or 0) for row in estado_compras}
+
+        return jsonify(
+            {
+                "periodo": {
+                    "desde": fecha_desde.isoformat(),
+                    "hasta": fecha_hasta.isoformat(),
                 },
-            },
-        }
-    )
+                "kpis": {
+                    "ingresos_sabiogo": float(rentabilidad_resumen.get("total_ingresos", 0)),
+                    "costos_sabiogo": float(rentabilidad_resumen.get("total_costos", 0)),
+                    "margen_bruto_sabiogo": float(rentabilidad_resumen.get("margen_bruto", 0)),
+                    "margen_porcentual_sabiogo": float(rentabilidad_resumen.get("margen_porcentual", 0)),
+                    "productos_activos_sabiogo": int(rentabilidad_resumen.get("productos_activos", 0)),
+                    "gastos_finanzas": float(gastos_total),
+                    "ingresos_caja": float(ingresos_caja),
+                    "egresos_caja": float(egresos_caja),
+                    "caja_neta": float(ingresos_caja - egresos_caja),
+                    "movimientos_caja": int(movimientos_count),
+                },
+                "series": {
+                    "margen_mensual": margen_mensual,
+                    "caja_mensual": caja_mensual,
+                },
+                "detalles": {
+                    "top_productos_margen": top_productos,
+                    "gastos_por_categoria": gastos_por_categoria,
+                    "calidad_sabiogo": {
+                        "ventas_por_estado": estados_ventas,
+                        "compras_por_estado": estados_compras,
+                        "sin_mapeo_ventas": int(sin_mapeo_ventas),
+                        "sin_mapeo_compras": int(sin_mapeo_compras),
+                    },
+                },
+            }
+        )
+    except Exception as e:
+        current_app.logger.error(f"Error BI dashboard: {e}", exc_info=True)
+        return jsonify({"error": "Internal server error", "detail": str(e)}), 500
 
 
 # Nuevos endpoints para Inteligencia Financiera
