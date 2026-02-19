@@ -4,6 +4,7 @@ import io
 
 from flask import Blueprint, request, jsonify, send_file, render_template, current_app
 from sqlalchemy import func, desc, extract, text
+from sqlalchemy.exc import ProgrammingError
 
 from models import (
     Adelanto,
@@ -103,7 +104,10 @@ def bi_dashboard():
         return jsonify({"error": "fecha_desde no puede ser mayor a fecha_hasta"}), 400
 
     try:
-        db_engine = db.session.bind.dialect.name if db.session.bind else None
+        try:
+            db_engine = db.engine.dialect.name
+        except Exception:
+            db_engine = db.session.bind.dialect.name if db.session.bind else None
         # 1) Rentabilidad SabioGo (fuente principal)
         sabiogo_service = SabiogoService()
         rentabilidad_resumen = sabiogo_service.get_rentabilidad_resumen(fecha_desde, fecha_hasta)
@@ -376,25 +380,25 @@ def bi_overview():
     fecha_desde, fecha_hasta, prev_desde, prev_hasta = _parse_range(rango)
 
     # Ventas y gastos del periodo y previo
-    ventas_total = (
+    ventas_total = float(
         db.session.query(func.sum(Venta.precio_efectivo * Venta.cantidad))
         .filter(Venta.fecha.between(fecha_desde, fecha_hasta))
         .scalar()
         or 0
     )
-    gastos_total = (
+    gastos_total = float(
         db.session.query(func.sum(Gasto.monto))
         .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
         .scalar()
         or 0
     )
-    ventas_prev = (
+    ventas_prev = float(
         db.session.query(func.sum(Venta.precio_efectivo * Venta.cantidad))
         .filter(Venta.fecha.between(prev_desde, prev_hasta))
         .scalar()
         or 0
     )
-    gastos_prev = (
+    gastos_prev = float(
         db.session.query(func.sum(Gasto.monto))
         .filter(Gasto.fecha.between(prev_desde, prev_hasta))
         .scalar()
@@ -407,7 +411,7 @@ def bi_overview():
 
     # Burn y runway (aprox: gastos operativos promediados por mes)
     months = max(1, (fecha_hasta - fecha_desde).days / 30)
-    burn_rate = gastos_total / months
+    burn_rate = gastos_total / float(months)
     runway_months = (ventas_total - gastos_total) / burn_rate if burn_rate else 0
 
     # Deltas
@@ -428,7 +432,7 @@ def bi_overview():
           "ebitda": _delta(margen_bruto, ventas_prev - gastos_prev),
           "gross_margin": _delta(gross_margin, (ventas_prev - gastos_prev) / ventas_prev if ventas_prev else 0),
           "net_margin": _delta(net_margin, (ventas_prev - gastos_prev) / ventas_prev if ventas_prev else 0),
-          "burn_rate": _delta(burn_rate, gastos_prev / months if months else 0),
+                    "burn_rate": _delta(burn_rate, gastos_prev / float(months) if months else 0),
           "runway_months": _delta(runway_months, runway_months),
         }
     }
@@ -670,13 +674,13 @@ def bi_eficiencia():
     fecha_desde, fecha_hasta, prev_desde, prev_hasta = _parse_range(rango)
 
     # Cash in/out
-    cash_in = (
+    cash_in = float(
         db.session.query(func.sum(Venta.precio_efectivo * Venta.cantidad))
         .filter(Venta.fecha.between(fecha_desde, fecha_hasta))
         .scalar()
         or 0
     )
-    cash_out = (
+    cash_out = float(
         db.session.query(func.sum(Gasto.monto))
         .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
         .scalar()
@@ -685,7 +689,7 @@ def bi_eficiencia():
     cash_balance = cash_in - cash_out
 
     months = max(1, (fecha_hasta - fecha_desde).days / 30)
-    burn_rate = cash_out / months
+    burn_rate = cash_out / float(months)
     runway_months = cash_balance / burn_rate if burn_rate else 0
 
     kpis = {
@@ -808,16 +812,45 @@ def bi_liquidez():
     rango = request.args.get("range", "6m")
     fecha_desde, fecha_hasta, _, _ = _parse_range(rango)
 
-    # Caja disponible = ventas acumuladas - gastos acumulados
-    cash_on_hand = (
-        (db.session.query(func.sum(Venta.precio_efectivo * Venta.cantidad)).filter(Venta.fecha <= fecha_hasta).scalar() or 0)
-        - (db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha <= fecha_hasta).scalar() or 0)
+    def _ingresos_between(desde: date, hasta: date) -> float:
+        """Ingresos del periodo.
+
+        Prioriza tabla operativa `ventas` si existe. Si no existe (entornos donde
+        solo está SabioGo staging), cae a `stg_sabiogo_ventas` en estado procesado.
+        """
+        try:
+            val = (
+                db.session.query(func.sum(Venta.precio_efectivo * Venta.cantidad))
+                .filter(Venta.fecha.between(desde, hasta))
+                .scalar()
+            )
+            return float(val or 0)
+        except ProgrammingError:
+            db.session.rollback()
+            val = db.session.execute(
+                text(
+                    """
+                    SELECT COALESCE(SUM(subtot), 0) AS ingresos
+                    FROM stg_sabiogo_ventas
+                    WHERE estado = 'procesado'
+                      AND fecha BETWEEN :desde AND :hasta
+                    """
+                ),
+                {"desde": desde, "hasta": hasta},
+            ).scalar()
+            return float(val or 0)
+
+    # Caja disponible = ingresos acumulados - gastos acumulados
+    cash_on_hand = _ingresos_between(date(1900, 1, 1), fecha_hasta) - float(
+        db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha <= fecha_hasta).scalar() or 0
     )
 
     def _fcf_days(days: int):
         start = fecha_hasta - timedelta(days=days)
-        ventas = db.session.query(func.sum(Venta.precio_efectivo * Venta.cantidad)).filter(Venta.fecha.between(start, fecha_hasta)).scalar() or 0
-        gastos = db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha.between(start, fecha_hasta)).scalar() or 0
+        ventas = _ingresos_between(start, fecha_hasta)
+        gastos = float(
+            db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha.between(start, fecha_hasta)).scalar() or 0
+        )
         return float(ventas - gastos)
 
     fcf_30d = _fcf_days(30)
@@ -825,8 +858,10 @@ def bi_liquidez():
 
     # Burn y runway aproximados
     months = max(1, (fecha_hasta - fecha_desde).days / 30)
-    gastos_periodo = db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha.between(fecha_desde, fecha_hasta)).scalar() or 0
-    burn = gastos_periodo / months
+    gastos_periodo = float(
+        db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha.between(fecha_desde, fecha_hasta)).scalar() or 0
+    )
+    burn = gastos_periodo / float(months)
     runway_months = (cash_on_hand / burn) if burn else 0
 
     kpis = {
@@ -855,8 +890,10 @@ def bi_liquidez():
     week_idx = 1
     while current <= fecha_hasta:
         week_end = min(current + timedelta(days=6), fecha_hasta)
-        ci = db.session.query(func.sum(Venta.precio_efectivo * Venta.cantidad)).filter(Venta.fecha.between(current, week_end)).scalar() or 0
-        co = db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha.between(current, week_end)).scalar() or 0
+        ci = _ingresos_between(current, week_end)
+        co = float(
+            db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha.between(current, week_end)).scalar() or 0
+        )
         balance_acum += ci - co
         labels.append(f"S{week_idx}")
         cash_in_series.append(float(ci))

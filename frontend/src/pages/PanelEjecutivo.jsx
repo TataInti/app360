@@ -1,37 +1,36 @@
 // frontend/src/pages/PanelEjecutivo.jsx
-import React, { useEffect, useState } from "react";
-import axios from "axios";
-import { Bar, Pie } from "react-chartjs-2";
+import React, { useEffect, useMemo, useState } from "react";
+import { Doughnut } from "react-chartjs-2";
 import {
   Chart as ChartJS,
-  BarElement,
   ArcElement,
-  CategoryScale,
-  LinearScale,
   Tooltip,
   Legend,
 } from "chart.js";
 
-ChartJS.register(
-  BarElement,
-  ArcElement,
-  CategoryScale,
-  LinearScale,
-  Tooltip,
-  Legend
-);
+import apiService from "../services/api";
 
-const API_BASE = "/api";
+ChartJS.register(ArcElement, Tooltip, Legend);
+
+function formatMoney(value) {
+  const n = Number(value || 0);
+  return (
+    "$" +
+    (Number.isFinite(n) ? n : 0).toLocaleString("es-AR", {
+      maximumFractionDigits: 0,
+    })
+  );
+}
 
 function PanelEjecutivo() {
   const [data, setData] = useState({
-    total_leads: 0,
-    total_products: 0,
-    total_locations: 0,
-    conversion: 0,
-    leads_por_estado: {},
-    stock_por_unidad: [],
-    stock_bajo: [],
+    period: "ytd",
+    desde: null,
+    hasta: null,
+    kpis: {},
+    top_clientes: [],
+    instrumentos: { labels: [], values: [] },
+    friar: { cuenta: null, ultimos_pagos: [] },
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -41,8 +40,8 @@ function PanelEjecutivo() {
       try {
         setLoading(true);
         setError("");
-        const res = await axios.get(`${API_BASE}/panel-ejecutivo`);
-        setData(res.data);
+        const res = await apiService.getPanelEjecutivoV2("ytd");
+        setData(res);
       } catch (err) {
         console.error(err);
         setError("No se pudo cargar el panel ejecutivo (error API)");
@@ -53,101 +52,199 @@ function PanelEjecutivo() {
     fetchData();
   }, []);
 
-  const estadoLabels = Object.keys(data.leads_por_estado);
-  const estadoValues = Object.values(data.leads_por_estado);
+  const instrumentosChart = useMemo(() => {
+    const labels = data.instrumentos?.labels || [];
+    const values = (data.instrumentos?.values || []).map((x) => Number(x || 0));
+    return {
+      data: {
+        labels,
+        datasets: [
+          {
+            data: values,
+            backgroundColor: [
+              "rgba(59, 130, 246, 0.35)",
+              "rgba(34, 197, 94, 0.35)",
+              "rgba(245, 158, 11, 0.35)",
+              "rgba(236, 72, 153, 0.35)",
+              "rgba(99, 102, 241, 0.35)",
+              "rgba(20, 184, 166, 0.35)",
+              "rgba(239, 68, 68, 0.35)",
+            ],
+            borderColor: [
+              "#3b82f6",
+              "#22c55e",
+              "#f59e0b",
+              "#ec4899",
+              "#6366f1",
+              "#14b8a6",
+              "#ef4444",
+            ],
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: "bottom",
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const label = ctx.label ? `${ctx.label}: ` : "";
+                return label + formatMoney(ctx.parsed || 0);
+              },
+            },
+          },
+        },
+      },
+    };
+  }, [data.instrumentos]);
+
+  const kpis = data.kpis || {};
 
   return (
     <div>
-      <h1>Panel Ejecutivo Global</h1>
+      <h1>Panel Ejecutivo</h1>
 
-      <div className="row mt-4">
+      <div className="text-muted small mt-2">
+        Período: {data.desde || "-"} → {data.hasta || "-"}
+      </div>
+
+      <div className="row mt-4 g-3">
         <div className="col-md-3">
           <div className="card text-center">
-            <h5>Total Leads</h5>
-            <p className="display-6">{data.total_leads}</p>
+            <h6 className="mt-3">Ingresos (SabioGo)</h6>
+            <p className="display-6">{formatMoney(kpis.sabiogo_ingresos)}</p>
           </div>
         </div>
-
         <div className="col-md-3">
           <div className="card text-center">
-            <h5>Total Productos</h5>
-            <p className="display-6">{data.total_products}</p>
+            <h6 className="mt-3">Costos (SabioGo)</h6>
+            <p className="display-6">{formatMoney(kpis.sabiogo_costos)}</p>
           </div>
         </div>
-
         <div className="col-md-3">
           <div className="card text-center">
-            <h5>Total Ubicaciones</h5>
-            <p className="display-6">{data.total_locations}</p>
+            <h6 className="mt-3">Margen (SabioGo)</h6>
+            <p className="display-6">{formatMoney(kpis.sabiogo_margen)}</p>
           </div>
         </div>
-
         <div className="col-md-3">
           <div className="card text-center">
-            <h5>Conversión Comercial</h5>
-            <p className="display-6">{data.conversion} %</p>
+            <h6 className="mt-3">Saldo c/c Friar</h6>
+            <p className="display-6">{formatMoney(kpis.cta_cte_friar_saldo_actual)}</p>
           </div>
         </div>
       </div>
 
       <hr className="mt-5" />
 
-      <h3>Leads por Estado</h3>
-      <div style={{ maxWidth: 600, height: 300 }}>
-        <Bar
-          data={{
-            labels: estadoLabels,
-            datasets: [
-              {
-                label: "Cantidad",
-                data: estadoValues,
-              },
-            ],
-          }}
-          options={{ responsive: true, maintainAspectRatio: false }}
-        />
+      <div className="row g-3">
+        <div className="col-lg-5">
+          <div className="card p-3" style={{ height: 360 }}>
+            <h4>Distribución de instrumentos</h4>
+            <div style={{ height: 280 }}>
+              <Doughnut
+                data={instrumentosChart.data}
+                options={instrumentosChart.options}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="col-lg-7">
+          <div className="card p-3">
+            <h4>Top 5 clientes por monto (SabioGo)</h4>
+            <table className="table table-sm">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th className="text-end">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.top_clientes?.length ? (
+                  data.top_clientes.map((r) => (
+                    <tr key={r.cliente}>
+                      <td>{r.cliente}</td>
+                      <td className="text-end">{formatMoney(r.monto)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={2} className="text-muted">
+                      Sin datos
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <hr className="mt-5" />
 
-      <h3>Stock por Unidad de Negocio</h3>
-      <div style={{ maxWidth: 500, height: 300 }}>
-        <Pie
-          data={{
-            labels: data.stock_por_unidad.map(([name]) => name),
-            datasets: [
-              {
-                data: data.stock_por_unidad.map(([, qty]) => qty),
-              },
-            ],
-          }}
-          options={{ responsive: true, maintainAspectRatio: false }}
-        />
+      <div className="row g-3">
+        <div className="col-lg-6">
+          <div className="card p-3">
+            <h4>Cuenta Corriente Friar</h4>
+            {data.friar?.cuenta ? (
+              <div className="small">
+                <div>
+                  <strong>Proveedor:</strong> {data.friar.cuenta.proveedor || "-"}
+                </div>
+                <div>
+                  <strong>Saldo inicial:</strong> {formatMoney(data.friar.cuenta.saldo_inicial)}
+                </div>
+                <div>
+                  <strong>Total pagos:</strong> {formatMoney(data.friar.cuenta.total_pagos)}
+                </div>
+                <div>
+                  <strong>Saldo actual:</strong> {formatMoney(data.friar.cuenta.saldo_actual)}
+                </div>
+              </div>
+            ) : (
+              <div className="text-muted">Sin cuenta configurada</div>
+            )}
+          </div>
+        </div>
+
+        <div className="col-lg-6">
+          <div className="card p-3">
+            <h4>Últimos 5 pagos a Friar</h4>
+            <table className="table table-sm">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Instrumento</th>
+                  <th className="text-end">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.friar?.ultimos_pagos?.length ? (
+                  data.friar.ultimos_pagos.map((p, idx) => (
+                    <tr key={`${p.fecha || ""}-${idx}`}>
+                      <td>{p.fecha ? String(p.fecha).slice(0, 10) : "-"}</td>
+                      <td>{p.instrumento || "-"}</td>
+                      <td className="text-end">{formatMoney(p.monto)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={3} className="text-muted">
+                      Sin datos
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
-
-      <hr className="mt-5" />
-
-      <h3>Productos con Stock Bajo</h3>
-      {data.stock_bajo.length > 0 ? (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Producto</th>
-              <th>Cantidad Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.stock_bajo.map(([name, qty]) => (
-              <tr key={name}>
-                <td>{name}</td>
-                <td>{qty}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p>No hay productos con stock bajo.</p>
-      )}
 
       {loading && <p>Cargando...</p>}
       {error && <p>{error}</p>}

@@ -5,6 +5,7 @@ Solo accesible para usuarios con rol 'admin'
 from functools import wraps
 from decimal import Decimal
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import current_app
 
 from models import db
 from models.gastos import CategoriaGasto, Proveedor
@@ -24,6 +25,11 @@ def admin_required(f):
     """Decorador que verifica que el usuario tenga rol admin"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # En desarrollo local, permitir bypass para facilitar pruebas.
+        env = (current_app.config.get("FLASK_ENV") or "").lower()
+        if current_app.config.get("LOCAL_DEV_BYPASS_AUTH") and env in {"development", "dev", "local"}:
+            return f(*args, **kwargs)
+
         if "user" not in session:
             flash("Debe iniciar sesión.", "warning")
             return redirect(url_for("auth.login"))
@@ -62,8 +68,8 @@ ADMIN_MODELS = {
         "cuenta_friar": {
             "model": CuentaCorrienteFriar,
             "name": "Cuenta Corriente Friar",
-            "fields": ["proveedor_id", "saldo_inicial", "observaciones"],
-            "required": ["proveedor_id", "saldo_inicial"],
+            "fields": ["saldo_inicial", "observaciones"],
+            "required": ["saldo_inicial"],
         },
     },
     "rrhh": {
@@ -247,6 +253,17 @@ def coerce_field_value(field, val):
     return val
 
 
+def get_or_create_friar_proveedor_id() -> int:
+    prov = Proveedor.query.filter(Proveedor.nombre.ilike("friar")).first()
+    if prov:
+        return int(prov.id)
+
+    prov = Proveedor(nombre="Friar", activo=True)
+    db.session.add(prov)
+    db.session.flush()
+    return int(prov.id)
+
+
 # =============================================================================
 # APIs REST para CRUD
 # =============================================================================
@@ -267,9 +284,21 @@ def api_listar(modulo, entidad):
             row = {"id": item.id}
             for field in config["fields"]:
                 val = getattr(item, field, None)
-                # Convertir time objects a string
-                if hasattr(val, 'strftime'):
-                    val = val.strftime('%H:%M') if hasattr(val, 'hour') else val.strftime('%Y-%m-%d')
+                # Serialización segura para JSON
+                if isinstance(val, Decimal):
+                    val = float(val)
+                elif hasattr(val, "isoformat"):
+                    # date/datetime
+                    try:
+                        val = val.isoformat()
+                    except Exception:
+                        val = str(val)
+                elif hasattr(val, 'strftime'):
+                    # time u otros
+                    try:
+                        val = val.strftime('%H:%M') if hasattr(val, 'hour') else val.strftime('%Y-%m-%d')
+                    except Exception:
+                        val = str(val)
                 row[field] = val
             result.append(row)
         return jsonify({"items": result, "total": len(result)})
@@ -304,6 +333,10 @@ def api_crear(modulo, entidad):
                     parts = val.split(':')
                     val = time(int(parts[0]), int(parts[1]))
                 setattr(item, field, val)
+
+        if modulo == "tesoreria" and entidad == "cuenta_friar":
+            # No pedir proveedor_id: Friar es único y se asigna server-side
+            item.proveedor_id = get_or_create_friar_proveedor_id()
         
         db.session.add(item)
         db.session.commit()

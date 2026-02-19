@@ -1,11 +1,41 @@
 // frontend/src/pages/Compras.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Bar } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  Tooltip,
+  Legend,
+} from 'chart.js';
 import apiService from '../services/api';
+
+ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
+
+const PERIODS = [
+  { key: '7', label: '7d' },
+  { key: '15', label: '15d' },
+  { key: '30', label: '30d' },
+  { key: 'ytd', label: 'YTD' },
+];
+
+function money(v) {
+  const n = Number(v || 0);
+  return (
+    '$' +
+    (Number.isFinite(n) ? n : 0).toLocaleString('es-AR', {
+      maximumFractionDigits: 0,
+    })
+  );
+}
 
 function Compras() {
   const [purchases, setPurchases] = useState([]);
   const [products, setProducts] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [overview, setOverview] = useState(null);
+  const [period, setPeriod] = useState('30');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -23,17 +53,19 @@ function Compras() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [period]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [purchasesData, productsData] = await Promise.all([
+      const [purchasesData, productsData, overviewData] = await Promise.all([
         apiService.getPurchases(),
-        apiService.getProducts()
+        apiService.getProducts(),
+        apiService.getComprasOverview(period),
       ]);
-      setPurchases(purchasesData);
-      setProducts(productsData);
+      setPurchases(purchasesData?.items || []);
+      setProducts(productsData?.items || []);
+      setOverview(overviewData || null);
       // For now, we'll use a simple supplier list - in a real app this would come from API
       setSuppliers([
         { id: 1, name: 'Proveedor A' },
@@ -41,7 +73,7 @@ function Compras() {
         { id: 3, name: 'Proveedor C' }
       ]);
     } catch (err) {
-      setError('Error al cargar los datos');
+      setError('Error al cargar compras. Verifica que el backend esté arriba y que el endpoint /api/compras no esté en error.');
       console.error('Error loading data:', err);
     } finally {
       setLoading(false);
@@ -78,7 +110,7 @@ function Compras() {
       setShowForm(false);
       loadData();
     } catch (err) {
-      setError('Error al crear la orden de compra');
+      setError('Error al crear la orden de compra. Si ves 401, iniciá sesión para obtener token JWT.');
       console.error('Error creating purchase:', err);
     }
   };
@@ -101,6 +133,33 @@ function Compras() {
     return supplier ? supplier.name : 'Proveedor desconocido';
   };
 
+  const estadoChart = useMemo(() => {
+    const series = overview?.series?.orders_por_estado || {};
+    const labels = Object.keys(series);
+    const values = Object.values(series);
+    return {
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Órdenes',
+            data: values,
+            backgroundColor: 'rgba(59, 130, 246, 0.25)',
+            borderColor: 'rgba(59, 130, 246, 1)',
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0 } },
+        },
+      },
+    };
+  }, [overview]);
+
   if (loading) {
     return <div className="loading">Cargando órdenes de compra...</div>;
   }
@@ -113,6 +172,18 @@ function Compras() {
     <div className="compras-page">
       <div className="page-header">
         <h1>Gestión de Compras</h1>
+        <div className="btn-group" role="group" aria-label="Período" style={{ marginLeft: 12 }}>
+          {PERIODS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              className={`btn ${period === p.key ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setPeriod(p.key)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
         <button
           className="btn btn-primary"
           onClick={() => setShowForm(!showForm)}
@@ -120,6 +191,42 @@ function Compras() {
           {showForm ? 'Cancelar' : 'Nueva Orden'}
         </button>
       </div>
+
+      {overview && (
+        <>
+          <div className="text-muted small" style={{ marginTop: 8 }}>
+            Período: {overview.desde || '-'} → {overview.hasta || '-'}
+          </div>
+
+          <div className="row mt-3">
+            <div className="col-md-4">
+              <div className="card text-center">
+                <h6 style={{ marginTop: 12 }}>Órdenes</h6>
+                <p className="display-6">{overview.kpis?.orders_total || 0}</p>
+              </div>
+            </div>
+            <div className="col-md-4">
+              <div className="card text-center">
+                <h6 style={{ marginTop: 12 }}>Monto total</h6>
+                <p className="display-6">{money(overview.kpis?.monto_total)}</p>
+              </div>
+            </div>
+            <div className="col-md-4">
+              <div className="card text-center">
+                <h6 style={{ marginTop: 12 }}>Ticket promedio</h6>
+                <p className="display-6">{money(overview.kpis?.ticket_promedio)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ maxWidth: 800, height: 300, marginTop: 16 }}>
+            <div style={{ padding: 12, fontWeight: 600 }}>Órdenes por estado</div>
+            <div style={{ height: 230, padding: 12 }}>
+              <Bar data={estadoChart.data} options={estadoChart.options} />
+            </div>
+          </div>
+        </>
+      )}
 
       {showForm && (
         <div className="form-container">
@@ -283,7 +390,7 @@ function Compras() {
           <tbody>
             {purchases.map(purchase => (
               <tr key={purchase.id}>
-                <td>{getSupplierName(purchase.supplier_id)}</td>
+                <td>{purchase.supplier || getSupplierName(purchase.supplier_id)}</td>
                 <td>{getProductName(purchase.product_id)}</td>
                 <td>{purchase.quantity}</td>
                 <td>${purchase.unit_price?.toFixed(2) || '0.00'}</td>

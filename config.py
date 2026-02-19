@@ -2,15 +2,35 @@ import os
 
 
 class Config:
+    FLASK_ENV = os.getenv("FLASK_ENV", "production")
+    DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+    _IS_LOCAL = FLASK_ENV.lower() in {"development", "dev", "local"} or DEBUG
     SECRET_KEY = os.getenv("SECRET_KEY")
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL", "postgresql://app360:password@localhost:5432/app360"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SERVER_NAME = os.getenv("SERVER_NAME", "app360.actioconsultores.com")
-    PREFERRED_URL_SCHEME = os.getenv("PREFERRED_URL_SCHEME", "https")
-    SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "True").lower() == "true"
-    REMEMBER_COOKIE_SECURE = os.getenv("REMEMBER_COOKIE_SECURE", "True").lower() == "true"
+
+    # En local no forzar SERVER_NAME/HTTPS (rompe cookies y routing con host distinto)
+    SERVER_NAME = os.getenv("SERVER_NAME") or (
+        None if _IS_LOCAL else "app360.actioconsultores.com"
+    )
+    PREFERRED_URL_SCHEME = os.getenv("PREFERRED_URL_SCHEME") or (
+        "http" if _IS_LOCAL else "https"
+    )
+
+    SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE")
+    if SESSION_COOKIE_SECURE is None:
+        SESSION_COOKIE_SECURE = not _IS_LOCAL
+    else:
+        SESSION_COOKIE_SECURE = SESSION_COOKIE_SECURE.lower() == "true"
+
+    REMEMBER_COOKIE_SECURE = os.getenv("REMEMBER_COOKIE_SECURE")
+    if REMEMBER_COOKIE_SECURE is None:
+        REMEMBER_COOKIE_SECURE = not _IS_LOCAL
+    else:
+        REMEMBER_COOKIE_SECURE = REMEMBER_COOKIE_SECURE.lower() == "true"
+
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     JSONIFY_PRETTYPRINT_REGULAR = False
@@ -40,3 +60,4 @@ class Config:
     LOG_FORMAT = os.getenv("LOG_FORMAT", "json")  # 'json' or 'text'
     LOG_FILE = os.getenv("LOG_FILE", "logs/app.log")
     SECURITY_LOG_FILE = os.getenv("SECURITY_LOG_FILE", "logs/security.log")
+    LOCAL_DEV_BYPASS_AUTH = os.getenv("LOCAL_DEV_BYPASS_AUTH", "False").lower() == "true"

@@ -23,11 +23,16 @@ ChartJS.register(
 
 function DashboardComercial() {
   const [data, setData] = useState({
-    total_leads: 0,
-    leads_por_estado: {},
-    conversion: 0,
-    leads_por_unidad: [],
-    leads_por_origen: [],
+    period: "30",
+    desde: null,
+    hasta: null,
+    kpis: {},
+    series: {
+      leads_por_estado: {},
+      leads_por_origen: [],
+      leads_por_canal: [],
+      top_campanias_por_leads: [],
+    },
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -37,7 +42,7 @@ function DashboardComercial() {
       try {
         setLoading(true);
         setError("");
-        const dashboardData = await apiService.getDashboardComercial();
+        const dashboardData = await apiService.getDashboardComercialV2("30");
         setData(dashboardData);
       } catch (err) {
         console.error('Error loading commercial dashboard:', err);
@@ -49,8 +54,11 @@ function DashboardComercial() {
     fetchData();
   }, []);
 
-  const estadoLabels = Object.keys(data.leads_por_estado);
-  const estadoValues = Object.values(data.leads_por_estado);
+  const kpis = data.kpis || {};
+  const series = data.series || {};
+
+  const estadoLabels = Object.keys(series.leads_por_estado || {});
+  const estadoValues = Object.values(series.leads_por_estado || {});
 
   if (loading) {
     return <div className="loading">Cargando dashboard comercial...</div>;
@@ -64,29 +72,57 @@ function DashboardComercial() {
     <div className="dashboard-comercial-page">
       <div className="page-header">
         <h1>Dashboard Comercial</h1>
+        <div className="text-muted small mt-2">
+          Período: {data.desde || "-"} → {data.hasta || "-"}
+        </div>
       </div>
 
       <div className="row mt-4">
         <div className="col-md-4">
           <div className="card text-center">
             <h4>Total de Leads</h4>
-            <p className="display-6">{data.total_leads}</p>
+            <p className="display-6">{kpis.leads_total || 0}</p>
           </div>
         </div>
 
         <div className="col-md-4">
           <div className="card text-center">
-            <h4>Leads Ganados</h4>
-            <p className="display-6">
-              {data.leads_por_estado.ganado || 0}
-            </p>
+            <h4>Campañas Activas</h4>
+            <p className="display-6">{kpis.campanias_activas || 0}</p>
           </div>
         </div>
 
         <div className="col-md-4">
           <div className="card text-center">
-            <h4>Conversión</h4>
-            <p className="display-6">{data.conversion} %</p>
+            <h4>Conversión (total)</h4>
+            <p className="display-6">{kpis.conversion_total_pct || 0} %</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="row mt-3">
+        <div className="col-md-3">
+          <div className="card text-center">
+            <h6 className="mt-3">Leads (período)</h6>
+            <p className="display-6">{kpis.leads_periodo || 0}</p>
+          </div>
+        </div>
+        <div className="col-md-3">
+          <div className="card text-center">
+            <h6 className="mt-3">Ventas (período)</h6>
+            <p className="display-6">${Number(kpis.ventas_periodo_total || 0).toLocaleString("es-AR")}</p>
+          </div>
+        </div>
+        <div className="col-md-3">
+          <div className="card text-center">
+            <h6 className="mt-3">Promociones activas</h6>
+            <p className="display-6">{kpis.promociones_activas || 0}</p>
+          </div>
+        </div>
+        <div className="col-md-3">
+          <div className="card text-center">
+            <h6 className="mt-3">Comisiones (mes)</h6>
+            <p className="display-6">${Number(kpis.comisiones_mes_total || 0).toLocaleString("es-AR")}</p>
           </div>
         </div>
       </div>
@@ -135,19 +171,18 @@ function DashboardComercial() {
           }}
         />
       </div>
-        />
-      </div>
+
 
       <hr className="mt-5" />
 
-      <h3>Leads por Unidad de Negocio</h3>
+      <h3>Leads por Canal (Marketing)</h3>
       <div style={{ maxWidth: 500, height: 300 }}>
         <Pie
           data={{
-            labels: data.leads_por_unidad.map(([name]) => name),
+            labels: (series.leads_por_canal || []).map(([name]) => name),
             datasets: [
               {
-                data: data.leads_por_unidad.map(([, qty]) => qty),
+                data: (series.leads_por_canal || []).map(([, qty]) => qty),
               },
             ],
           }}
@@ -161,11 +196,11 @@ function DashboardComercial() {
       <div style={{ maxWidth: 600, height: 300 }}>
         <Bar
           data={{
-            labels: data.leads_por_origen.map(([origen]) => origen),
+            labels: (series.leads_por_origen || []).map(([origen]) => origen),
             datasets: [
               {
                 label: "Cantidad",
-                data: data.leads_por_origen.map(([, qty]) => qty),
+                data: (series.leads_por_origen || []).map(([, qty]) => qty),
               },
             ],
           }}
@@ -173,8 +208,36 @@ function DashboardComercial() {
         />
       </div>
 
-      {loading && <p>Cargando...</p>}
-      {error && <p>{error}</p>}
+      <hr className="mt-5" />
+
+      <h3>Top Campañas por Leads</h3>
+      <div style={{ maxWidth: 700 }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Campaña</th>
+              <th>Leads</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(series.top_campanias_por_leads || []).length ? (
+              series.top_campanias_por_leads.map(([name, qty]) => (
+                <tr key={name}>
+                  <td>{name}</td>
+                  <td>{qty}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={2} className="text-muted">
+                  Sin datos
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
     </div>
   );
 }

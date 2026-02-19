@@ -479,9 +479,13 @@ async function guardarPago() {
     }
     
     try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const response = await fetch("/api/tesoreria/cta-cte-friar/pagos", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers: {
+                "Content-Type": "application/json",
+                ...(csrfToken ? { "X-CSRFToken": csrfToken } : {})
+            },
             body: JSON.stringify({
                 fecha: fecha,
                 monto: parseFloat(monto),
@@ -490,8 +494,9 @@ async function guardarPago() {
                 referencia: referencia.trim() || null
             })
         });
-        
-        const data = await response.json();
+
+        const contentType = response.headers.get('content-type') || '';
+        const data = contentType.includes('application/json') ? await response.json() : { error: await response.text() };
         
         if (response.ok) {
             alert(data.message);
@@ -517,11 +522,16 @@ async function eliminarPago(id) {
     }
     
     try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const response = await fetch(`/api/tesoreria/cta-cte-friar/pagos/${id}`, {
-            method: "DELETE"
+            method: "DELETE",
+            headers: {
+                ...(csrfToken ? { "X-CSRFToken": csrfToken } : {})
+            }
         });
-        
-        const data = await response.json();
+
+        const contentType = response.headers.get('content-type') || '';
+        const data = contentType.includes('application/json') ? await response.json() : { error: await response.text() };
         
         if (response.ok) {
             alert(data.message);

@@ -17,14 +17,10 @@ function Sidebar() {
       <div className="sidebar-section-title">Paneles Estratégicos</div>
 
       <NavLink
-        to="/dashboard"
-        className={({ isActive }) =>
-          isActive && !current.startsWith("/dashboard-comercial")
-            ? "active-link"
-            : ""
-        }
+        to="/dashboard-financiero"
+        className={linkClass}
       >
-        Dashboard Operativo
+        Dashboard Financiero
       </NavLink>
 
       <NavLink

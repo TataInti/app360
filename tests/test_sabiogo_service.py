@@ -110,7 +110,6 @@ def setup_data(app):
             neto=Decimal('100.00'),
             subtot=Decimal('120.00'),
             iva=Decimal('20.00'),
-            total=Decimal('120.00'),
             estado='procesado'
         )
         db.session.add(venta)
@@ -121,14 +120,13 @@ def setup_data(app):
             fecha=fecha_compra,
             codigo='PROD001',
             producto='Producto Test',
-            proveedor='Proveedor Test',
+            cliente='Proveedor Test',
             sucursal='Sucursal Test',
             kilos=Decimal('15.0'),
             cajas=Decimal('3.0'),
             neto=Decimal('60.00'),
             subtot=Decimal('70.00'),
             iva=Decimal('10.00'),
-            total=Decimal('70.00'),
             estado='procesado'
         )
         db.session.add(compra)
@@ -386,7 +384,7 @@ class TestSabiogoModels:
                 fecha=date.today(),
                 codigo='PROD001',
                 producto='Producto Test',
-                proveedor='Proveedor Test',
+                cliente='Proveedor Test',
                 subtot=Decimal('80.00'),
                 estado='pendiente'
             )

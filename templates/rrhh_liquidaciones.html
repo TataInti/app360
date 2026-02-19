@@ -123,6 +123,7 @@
 
 <script>
     let previewData = [];
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
     function cargarPreview() {
         const periodo = document.getElementById('periodo-liquidacion').value;
@@ -196,7 +197,7 @@
 
         fetch('/api/rrhh/liquidaciones', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify({ periodo })
         })
         .then(r => r.json())

@@ -250,18 +250,40 @@ class SabiogoRepository:
         Obtiene resumen global de rentabilidad.
         """
         query = text("""
-            SELECT 
-                COALESCE(SUM(v.subtot), 0) as total_ingresos,
-                COALESCE(SUM(c.subtot), 0) as total_costos,
-                COUNT(DISTINCT pm.product_id) as productos_activos
-            FROM sabiogo_product_map pm
-            LEFT JOIN stg_sabiogo_ventas v ON pm.codigo = v.codigo 
-                AND v.estado = 'procesado' 
-                AND v.fecha BETWEEN :fecha_inicio AND :fecha_fin
-            LEFT JOIN stg_sabiogo_compras c ON pm.codigo = c.codigo 
-                AND c.estado = 'procesado' 
-                AND c.fecha BETWEEN :fecha_inicio AND :fecha_fin
-            WHERE pm.activo = true
+            WITH totales AS (
+                SELECT
+                    (SELECT COALESCE(SUM(v.subtot), 0)
+                     FROM stg_sabiogo_ventas v
+                     WHERE v.estado = 'procesado'
+                       AND v.fecha BETWEEN :fecha_inicio AND :fecha_fin) AS total_ingresos,
+                    (SELECT COALESCE(SUM(c.subtot), 0)
+                     FROM stg_sabiogo_compras c
+                     WHERE c.estado = 'procesado'
+                       AND c.fecha BETWEEN :fecha_inicio AND :fecha_fin) AS total_costos
+            ),
+            mapeados AS (
+                SELECT
+                    COALESCE(SUM(v.subtot), 0) AS ingresos_mapeados,
+                    COALESCE(SUM(c.subtot), 0) AS costos_mapeados,
+                    COUNT(DISTINCT pm.product_id) AS productos_activos_mapeados
+                FROM sabiogo_product_map pm
+                LEFT JOIN stg_sabiogo_ventas v ON pm.codigo = v.codigo
+                    AND v.estado = 'procesado'
+                    AND v.fecha BETWEEN :fecha_inicio AND :fecha_fin
+                LEFT JOIN stg_sabiogo_compras c ON pm.codigo = c.codigo
+                    AND c.estado = 'procesado'
+                    AND c.fecha BETWEEN :fecha_inicio AND :fecha_fin
+                WHERE pm.activo = true
+                  AND pm.product_id IS NOT NULL
+            )
+            SELECT
+                t.total_ingresos,
+                t.total_costos,
+                m.ingresos_mapeados,
+                m.costos_mapeados,
+                m.productos_activos_mapeados
+            FROM totales t
+            CROSS JOIN mapeados m
         """)
         
         result = db.session.execute(
@@ -274,13 +296,21 @@ class SabiogoRepository:
         
         total_ingresos = float(result.total_ingresos) if result else 0
         total_costos = float(result.total_costos) if result else 0
+        ingresos_mapeados = float(getattr(result, 'ingresos_mapeados', 0) or 0) if result else 0
+        costos_mapeados = float(getattr(result, 'costos_mapeados', 0) or 0) if result else 0
+        productos_activos_mapeados = int(getattr(result, 'productos_activos_mapeados', 0) or 0) if result else 0
         
         return {
             'total_ingresos': total_ingresos,
             'total_costos': total_costos,
             'margen_bruto': total_ingresos - total_costos,
             'margen_porcentual': ((total_ingresos - total_costos) / total_ingresos * 100) if total_ingresos > 0 else 0,
-            'productos_activos': result.productos_activos if result else 0
+            # Compatibilidad: este campo se usa en BI como métrica de productos con mapeo.
+            'productos_activos': productos_activos_mapeados,
+            # Métricas adicionales (no rompen contratos existentes)
+            'ingresos_mapeados': ingresos_mapeados,
+            'costos_mapeados': costos_mapeados,
+            'productos_activos_mapeados': productos_activos_mapeados,
         }
     
     def registrar_log_carga(

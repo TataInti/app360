@@ -143,6 +143,8 @@
 </div>
 
 <script>
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
     function toggleCamposPorTipo() {
         const tipo = document.getElementById('tipo-adelanto').value;
         const campoMes = document.getElementById('campo-mes-aplicacion');
@@ -266,7 +268,7 @@
         
         fetch(`/api/rrhh/adelantos/${id}/aprobar`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
         })
         .then(r => r.json())
         .then(data => {
@@ -286,7 +288,7 @@
 
         fetch('/api/rrhh/adelantos', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify(data)
         })
         .then(r => r.json())

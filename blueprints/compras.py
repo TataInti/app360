@@ -29,17 +29,17 @@ ORDER_STATUSES = ["borrador", "enviada", "recibida", "cerrada"]
 
 @compras_bp.route("/compras")
 def compras_home():
+    return render_template("compras_overview.html")
+
+
+@compras_bp.route("/compras/listado")
+def compras_listado():
     # Listado simple de órdenes de compra
     try:
         orders = PurchaseOrder.query.order_by(PurchaseOrder.created_at.desc()).all()
     except Exception:
-        # Fallback si created_at no existe en la DB
         orders = PurchaseOrder.query.order_by(PurchaseOrder.id.desc()).all()
-    return render_template(
-        "compras_panel.html",
-        orders=orders,
-        statuses=ORDER_STATUSES,
-    )
+    return render_template("compras_panel.html", orders=orders, statuses=ORDER_STATUSES)
 
 
 @compras_bp.route("/compras/orden-nueva", methods=["GET", "POST"])
@@ -113,10 +113,22 @@ def compras_nueva():
             )
 
         # Creamos la orden
+        total_amount = monto_total if monto_total is not None else Decimal("0")
+        unit_price = Decimal("0")
+        if quantity:
+            try:
+                unit_price = (total_amount / Decimal(quantity)).quantize(Decimal("0.01"))
+            except Exception:
+                unit_price = Decimal("0")
+
         po = PurchaseOrder(
             supplier=supplier,
             supplier_id=supplier_id,
             location_id=location_id,
+            product_id=product_id,
+            quantity=quantity,
+            unit_price=unit_price,
+            total_amount=total_amount,
             status="borrador",
             notes=notes,
             order_date=order_date,

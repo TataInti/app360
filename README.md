@@ -2,6 +2,43 @@
 
 App360 es una plataforma integral de gestion desarrollada con Flask (backend) y React (frontend). Unifica operacion comercial, RRHH, compras, ventas y finanzas en un solo panel con roles y permisos. Esta pensada para operar en produccion con PostgreSQL y para pruebas con SQLite.
 
+## Prioridad Operativa (Local First)
+
+Desde 2026-02-12, la prioridad del proyecto es:
+
+- Trabajar y validar primero en local.
+- Versionar en GitHub todos los cambios de DB (migraciones + release SQL).
+- Replicar en VPS solo desde cambios versionados.
+
+Documento oficial de trabajo:
+
+- `docs/PRIORIDAD_LOCAL_FIRST_DB.md`
+
+Scripts operativos:
+
+- `bash scripts/create_local_db_release.sh` (genera release DB local versionable)
+- `bash scripts/apply_db_release_to_vps.sh <release_tag>` (aplica release versionada en VPS)
+
+## Deploy a VPS (GitHub -> VPS)
+
+Guía completa y checklist pre-push/post-pull:
+
+- `docs/DEPLOY_VPS.md`
+
+Nota: `scripts/deploy.sh` es seguro de ejecutar en un VPS ya instalado (update), porque no hace seed ni `db.create_all()`; solo instala deps y valida configuración. Los únicos cambios de schema ocurren si se habilita `RUN_MIGRATIONS=true` o si se aplica un release DB versionado.
+
+### Archivos locales (no versionar)
+
+El repo está configurado para ignorar:
+
+- `.env` (secrets)
+- `instance/*.db` / `*.sqlite*` (DBs locales)
+- `logs/*.log` (logs locales)
+- `backups/db-sync/*` (dumps temporales)
+- `docs/_local/*` (notas locales, accesos, etc.)
+
+Tip: si necesitás guardar accesos/credenciales del VPS, guardalos en `docs/_local/` (no se pushea).
+
 ## Caracteristicas Principales
 
 - Dashboard ejecutivo con KPIs clave.
@@ -72,16 +109,10 @@ ADMIN_PASSWORD=admin-password
 DATABASE_URL=postgresql://app360:password@localhost:5432/app360
 ```
 
-Inicializar base y migraciones:
+Ejecutar backend (1 comando, incluye: arrancar PostgreSQL local + crear DB/usuario si faltan + crear tablas):
 
 ```bash
-python scripts/setup_database.py
-```
-
-Ejecutar backend:
-
-```bash
-python app.py
+bash scripts/dev_backend.sh
 ```
 
 ## Frontend
@@ -89,7 +120,7 @@ python app.py
 ```bash
 cd frontend
 npm install
-echo "VITE_API_BASE_URL=http://localhost:5000/api" > .env
+echo "VITE_API_BASE_URL=http://localhost:5001/api" > .env
 npm run dev
 ```
 
@@ -137,6 +168,20 @@ app360/
 
 ```bash
 pytest
+```
+
+## Release de base de datos (GitHub -> VPS)
+
+Generar release local de DB:
+
+```bash
+bash scripts/create_local_db_release.sh
+```
+
+Aplicar release en VPS:
+
+```bash
+bash scripts/apply_db_release_to_vps.sh <release_tag>
 ```
 
 ### Test seguro en VPS (post-deploy)

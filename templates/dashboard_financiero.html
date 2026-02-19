@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid">
+  <h1 class="mb-3">Dashboard Financiero</h1>
+
+  <div class="btn-group mb-3" role="group" aria-label="Período">
+    <button class="btn btn-outline-primary" data-period="7">7d</button>
+    <button class="btn btn-outline-primary" data-period="15">15d</button>
+    <button class="btn btn-outline-primary" data-period="30">30d</button>
+    <button class="btn btn-outline-primary" data-period="ytd">YTD</button>
+  </div>
+
+  <div class="text-muted small mb-4">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card p-3 text-center">
+        <h6>Ingresos</h6>
+        <div class="display-6" id="kpi-ingresos">$0</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card p-3 text-center">
+        <h6>Egresos</h6>
+        <div class="display-6" id="kpi-egresos">$0</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card p-3 text-center">
+        <h6>Neto</h6>
+        <div class="display-6" id="kpi-neto">$0</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card p-3 text-center">
+        <h6>Movimientos</h6>
+        <div class="display-6" id="kpi-movimientos">0</div>
+      </div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card p-3 text-center">
+        <h6>Ticket promedio</h6>
+        <div class="display-6" id="kpi-ticket">$0</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card p-3 text-center">
+        <h6>Egresos/Ingresos</h6>
+        <div class="display-6" id="kpi-egresos-ingresos">0 %</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card p-3 text-center">
+        <h6>Días neto negativo</h6>
+        <div class="display-6" id="kpi-dias-neg">0</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card p-3 text-center">
+        <h6>Empleados con adelantos/préstamos</h6>
+        <div class="display-6" id="kpi-rrhh-emps">0</div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card p-3 text-center">
+        <h6>Monto adelantos/préstamos (período)</h6>
+        <div class="display-6" id="kpi-rrhh-monto">$0</div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card p-3 text-center">
+        <h6>Saldo pendiente préstamos (global)</h6>
+        <div class="display-6" id="kpi-rrhh-pendiente">$0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts-row mb-4">
+    <div class="chart-card chart-card-light">
+      <h6 class="mb-3">Flujo de caja</h6>
+      <canvas id="flujoChart"></canvas>
+    </div>
+    <div class="chart-card chart-card-light">
+      <h6 class="mb-3">Distribución por instrumento</h6>
+      <canvas id="instrumentosChart"></canvas>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card p-3">
+        <h5>Máximo ingreso</h5>
+        <div class="text-muted" id="max-ingreso">Sin datos</div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card p-3">
+        <h5>Máximo egreso</h5>
+        <div class="text-muted" id="max-egreso">Sin datos</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let flujoChart;
+  let instrumentosChart;
+
+  function money(v) {
+    const n = Number(v || 0);
+    return '$' + (Number.isFinite(n) ? n : 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  }
+
+  function pct(v) {
+    const n = Number(v || 0);
+    return (Number.isFinite(n) ? n : 0).toFixed(1) + ' %';
+  }
+
+  function formatLabelPeriodo(label, granularidad) {
+    if (!label) return '-';
+    if (granularidad === 'mes') return String(label);
+    const parts = String(label).split('-');
+    if (parts.length !== 3) return String(label);
+    return `${parts[2]}/${parts[1]}`;
+  }
+
+  function setActivePeriodButton(period) {
+    document.querySelectorAll('[data-period]').forEach(btn => {
+      btn.classList.toggle('btn-primary', btn.dataset.period === period);
+      btn.classList.toggle('btn-outline-primary', btn.dataset.period !== period);
+    });
+  }
+
+  async function fetchData(period) {
+    setActivePeriodButton(period);
+    const resp = await fetch(`/api/dashboard-financiero?period=${encodeURIComponent(period)}`);
+    const data = await resp.json();
+
+    const k = data.kpis || {};
+    const s = data.series || {};
+
+    document.getElementById('period-desde').textContent = k.desde || '-';
+    document.getElementById('period-hasta').textContent = k.hasta || '-';
+
+    document.getElementById('kpi-ingresos').textContent = money(k.ingresos_total);
+    document.getElementById('kpi-egresos').textContent = money(k.egresos_total);
+    document.getElementById('kpi-neto').textContent = money(k.neto);
+    document.getElementById('kpi-movimientos').textContent = String(k.movimientos_total || 0);
+    document.getElementById('kpi-ticket').textContent = money(k.ticket_promedio);
+    document.getElementById('kpi-egresos-ingresos').textContent = pct(k.egresos_sobre_ingresos_pct);
+    document.getElementById('kpi-dias-neg').textContent = String(k.dias_neto_negativo || 0);
+    document.getElementById('kpi-rrhh-emps').textContent = String(k.rrhh_empleados_con_adelantos_prestamos || 0);
+    document.getElementById('kpi-rrhh-monto').textContent = money(k.rrhh_monto_adelantos_prestamos);
+    document.getElementById('kpi-rrhh-pendiente').textContent = money(k.rrhh_monto_pendiente_prestamos);
+
+    document.getElementById('max-ingreso').textContent = k.max_ingreso
+      ? `${money(k.max_ingreso.monto)} · ${k.max_ingreso.instrumento || '-'} · ${k.max_ingreso.fecha_hora || ''}`
+      : 'Sin datos';
+    document.getElementById('max-egreso').textContent = k.max_egreso
+      ? `${money(k.max_egreso.monto)} · ${k.max_egreso.instrumento || '-'} · ${k.max_egreso.fecha_hora || ''}`
+      : 'Sin datos';
+
+    // Charts
+    const flujo = s.flujo || { labels: [], ingresos: [], egresos: [], neto: [], granularidad: 'dia' };
+    const flujoLabels = (flujo.labels || []).map(l => formatLabelPeriodo(l, flujo.granularidad || 'dia'));
+
+    if (flujoChart) flujoChart.destroy();
+    flujoChart = new Chart(document.getElementById('flujoChart'), {
+      type: 'bar',
+      data: {
+        labels: flujoLabels,
+        datasets: [
+          {
+            label: 'Ingresos',
+            data: (flujo.ingresos || []).map(x => Number(x || 0)),
+            backgroundColor: 'rgba(34, 197, 94, 0.25)',
+            borderColor: '#16a34a',
+            borderWidth: 1
+          },
+          {
+            label: 'Egresos',
+            data: (flujo.egresos || []).map(x => Number(x || 0)),
+            backgroundColor: 'rgba(239, 68, 68, 0.25)',
+            borderColor: '#dc2626',
+            borderWidth: 1
+          },
+          {
+            label: 'Neto',
+            type: 'line',
+            data: (flujo.neto || []).map(x => Number(x || 0)),
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.10)',
+            tension: 0.35,
+            pointRadius: 2,
+            pointHoverRadius: 3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#111827' } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const v = Number(ctx.parsed?.y ?? ctx.parsed ?? 0);
+                const label = ctx.dataset?.label ? `${ctx.dataset.label}: ` : '';
+                return label + money(v);
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: '#374151' }, grid: { color: 'rgba(55, 65, 81, 0.12)' } },
+          y: {
+            ticks: {
+              color: '#374151',
+              callback: (value) => money(value)
+            },
+            grid: { color: 'rgba(55, 65, 81, 0.12)' }
+          }
+        }
+      }
+    });
+
+    const inst = s.instrumentos || { labels: [], values: [] };
+    if (instrumentosChart) instrumentosChart.destroy();
+    instrumentosChart = new Chart(document.getElementById('instrumentosChart'), {
+      type: 'doughnut',
+      data: {
+        labels: inst.labels || [],
+        datasets: [{
+          data: (inst.values || []).map(x => Number(x || 0)),
+          backgroundColor: [
+            'rgba(59, 130, 246, 0.35)',
+            'rgba(34, 197, 94, 0.35)',
+            'rgba(245, 158, 11, 0.35)',
+            'rgba(236, 72, 153, 0.35)',
+            'rgba(99, 102, 241, 0.35)',
+            'rgba(20, 184, 166, 0.35)',
+            'rgba(239, 68, 68, 0.35)'
+          ],
+          borderColor: ['#3b82f6','#22c55e','#f59e0b','#ec4899','#6366f1','#14b8a6','#ef4444'],
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#111827' } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const label = ctx.label ? `${ctx.label}: ` : '';
+                return label + money(ctx.parsed || 0);
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const defaultPeriod = '30';
+    document.querySelectorAll('[data-period]').forEach(btn => {
+      btn.addEventListener('click', () => fetchData(btn.dataset.period));
+    });
+
+    fetchData(defaultPeriod);
+  });
+</script>
+{% endblock %}

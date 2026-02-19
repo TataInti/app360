@@ -4,114 +4,166 @@
 
 <h1>Dashboard Comercial</h1>
 
-<div class="row mt-4">
+<div class="text-muted small mb-3">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></div>
 
-    <div class="col-md-4">
+<div class="row mt-2 g-3">
+    <div class="col-md-3">
         <div class="card p-3 text-center">
-            <h4>Total de Leads</h4>
-            <p class="display-6">{{ total_leads }}</p>
+            <h6>Total Leads</h6>
+            <p class="display-6" id="kpi-leads-total">0</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <h6>Leads (período)</h6>
+            <p class="display-6" id="kpi-leads-periodo">0</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <h6>Campañas activas</h6>
+            <p class="display-6" id="kpi-campanias">0</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <h6>Conversión (total)</h6>
+            <p class="display-6" id="kpi-conversion">0 %</p>
         </div>
     </div>
 
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card p-3 text-center">
-            <h4>Leads Ganados</h4>
-            <p class="display-6">{{ leads_por_estado['ganado'] }}</p>
+            <h6>Ventas (período)</h6>
+            <p class="display-6" id="kpi-ventas">$0</p>
         </div>
     </div>
-
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card p-3 text-center">
-            <h4>Conversión</h4>
-            <p class="display-6">{{ conversion }} %</p>
+            <h6>Promociones activas</h6>
+            <p class="display-6" id="kpi-promos">0</p>
         </div>
     </div>
-
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <h6>Comisiones (mes)</h6>
+            <p class="display-6" id="kpi-comisiones">$0</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card p-3 text-center">
+            <h6>Objetivos en progreso</h6>
+            <p class="display-6" id="kpi-objetivos">0</p>
+        </div>
+    </div>
 </div>
 
 <hr class="mt-5">
 
 <div class="charts-row">
-    <div class="chart-card">
-        <h3>Leads por Estado</h3>
+    <div class="chart-card chart-card-light">
+        <h3 class="mb-2">Leads por Estado</h3>
         <canvas id="estadoChart" height="300"></canvas>
     </div>
-    <div class="chart-card">
-        <h3>Leads por Unidad</h3>
-        <canvas id="unidadChart" height="300"></canvas>
+    <div class="chart-card chart-card-light">
+        <h3 class="mb-2">Leads por Canal</h3>
+        <canvas id="canalChart" height="300"></canvas>
     </div>
-    <div class="chart-card">
-        <h3>Leads por Origen</h3>
+    <div class="chart-card chart-card-light">
+        <h3 class="mb-2">Leads por Origen</h3>
         <canvas id="origenChart" height="300"></canvas>
     </div>
 </div>
 
+<hr class="mt-5">
+
+<div class="card p-3">
+  <h3 class="mb-3">Top campañas por leads</h3>
+  <div class="table-responsive">
+    <table class="table table-sm">
+      <thead>
+        <tr>
+          <th>Campaña</th>
+          <th>Leads</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-top-campanias">
+        <tr><td colspan="2" class="text-muted">Cargando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <script>
-    const estadoCtx = document.getElementById("estadoChart");
-    new Chart(estadoCtx, {
-        type: 'bar',
-        data: {
-            labels: {{ leads_por_estado.keys() | list | tojson }},
-            datasets: [{
-                label: 'Cantidad',
-                data: {{ leads_por_estado.values() | list | tojson }},
-                backgroundColor: 'rgba(75, 192, 192, 0.8)'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
-        }
-    });
+    let estadoChart, canalChart, origenChart;
 
-    const unidadCtx = document.getElementById("unidadChart");
-    new Chart(unidadCtx, {
-        type: 'bar',
-        data: {
-            labels: [
-                {% for name, qty in leads_por_unidad %}
-                    "{{ name }}",
-                {% endfor %}
-            ],
-            datasets: [{
-                label: 'Leads por unidad',
-                data: [
-                    {% for name, qty in leads_por_unidad %}
-                        {{ qty }},
-                    {% endfor %}
-                ],
-                backgroundColor: 'rgba(54, 162, 235, 0.7)'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
-        }
-    });
+    function money(v) {
+      const n = Number(v || 0);
+      return '$' + (Number.isFinite(n) ? n : 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+    }
 
-    const origenCtx = document.getElementById("origenChart");
-    new Chart(origenCtx, {
+    function renderTopCampanias(rows) {
+      const tbody = document.getElementById('tbody-top-campanias');
+      if (!rows || !rows.length) {
+        tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Sin datos</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(([name, qty]) => `<tr><td>${name}</td><td>${qty}</td></tr>`).join('');
+    }
+
+    async function cargar() {
+      const resp = await fetch('/api/dashboard-comercial-v2?period=30');
+      const data = await resp.json();
+
+      document.getElementById('period-desde').textContent = data.desde || '-';
+      document.getElementById('period-hasta').textContent = data.hasta || '-';
+
+      const k = data.kpis || {};
+      document.getElementById('kpi-leads-total').textContent = String(k.leads_total || 0);
+      document.getElementById('kpi-leads-periodo').textContent = String(k.leads_periodo || 0);
+      document.getElementById('kpi-campanias').textContent = String(k.campanias_activas || 0);
+      document.getElementById('kpi-conversion').textContent = String(k.conversion_total_pct || 0) + ' %';
+      document.getElementById('kpi-ventas').textContent = money(k.ventas_periodo_total || 0);
+      document.getElementById('kpi-promos').textContent = String(k.promociones_activas || 0);
+      document.getElementById('kpi-comisiones').textContent = money(k.comisiones_mes_total || 0);
+      document.getElementById('kpi-objetivos').textContent = String(k.objetivos_en_progreso || 0);
+
+      const s = data.series || {};
+
+      const estadoLabels = Object.keys(s.leads_por_estado || {});
+      const estadoValues = Object.values(s.leads_por_estado || {});
+
+      if (estadoChart) estadoChart.destroy();
+      estadoChart = new Chart(document.getElementById('estadoChart'), {
         type: 'bar',
         data: {
-            labels: [
-                {% for origen, qty in leads_por_origen %}
-                    "{{ origen }}",
-                {% endfor %}
-            ],
-            datasets: [{
-                label: 'Cantidad',
-                data: [
-                    {% for origen, qty in leads_por_origen %}
-                        {{ qty }},
-                    {% endfor %}
-                ],
-                backgroundColor: 'rgba(153, 102, 255, 0.7)'
-            }]
+          labels: estadoLabels,
+          datasets: [{ label: 'Cantidad', data: estadoValues, backgroundColor: 'rgba(75, 192, 192, 0.8)' }]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
-        }
-    });
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      const canalLabels = (s.leads_por_canal || []).map(x => x[0]);
+      const canalValues = (s.leads_por_canal || []).map(x => x[1]);
+      if (canalChart) canalChart.destroy();
+      canalChart = new Chart(document.getElementById('canalChart'), {
+        type: 'doughnut',
+        data: { labels: canalLabels, datasets: [{ data: canalValues }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      const origenLabels = (s.leads_por_origen || []).map(x => x[0]);
+      const origenValues = (s.leads_por_origen || []).map(x => x[1]);
+      if (origenChart) origenChart.destroy();
+      origenChart = new Chart(document.getElementById('origenChart'), {
+        type: 'bar',
+        data: { labels: origenLabels, datasets: [{ label: 'Cantidad', data: origenValues, backgroundColor: 'rgba(153, 102, 255, 0.7)' }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      renderTopCampanias(s.top_campanias_por_leads || []);
+    }
+
+    document.addEventListener('DOMContentLoaded', cargar);
 </script>
 {% endblock %}

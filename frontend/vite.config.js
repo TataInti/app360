@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5173,   // Puerto donde corre React
     proxy: {
       "/api": {
-        target: "http://localhost:5100", // Flask corre acá
+        target: "http://localhost:5001", // Flask corre acá (dev)
         changeOrigin: true,
       },
     },

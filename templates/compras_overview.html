@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1>Panel de Compras</h1>
+    <div class="d-flex gap-2">
+      <a href="/compras/exportar" class="btn btn-outline-secondary">Exportar Excel</a>
+      <a href="/compras/orden-nueva" class="btn btn-primary">Nuevo Registro</a>
+    </div>
+  </div>
+
+  <div class="btn-group mb-3" role="group" aria-label="Período">
+    <button class="btn btn-outline-primary" data-period="7">7d</button>
+    <button class="btn btn-outline-primary" data-period="15">15d</button>
+    <button class="btn btn-outline-primary" data-period="30">30d</button>
+    <button class="btn btn-outline-primary" data-period="ytd">YTD</button>
+  </div>
+
+  <div class="text-muted small mb-4">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="card p-3 text-center">
+        <h6>Órdenes (período)</h6>
+        <div class="display-6" id="kpi-orders">0</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card p-3 text-center">
+        <h6>Monto total</h6>
+        <div class="display-6" id="kpi-monto">$0</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card p-3 text-center">
+        <h6>Ticket promedio</h6>
+        <div class="display-6" id="kpi-ticket">$0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts-row mb-4">
+    <div class="chart-card chart-card-light">
+      <h6 class="mb-3">Órdenes por estado</h6>
+      <canvas id="estadoChart"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>Últimas órdenes</strong>
+      <a href="/compras" class="btn btn-sm btn-outline-secondary">Ver listado completo</a>
+    </div>
+    <div class="card-body table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Fecha</th>
+            <th>Proveedor</th>
+            <th>Estado</th>
+            <th class="text-end">Monto</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-ultimas">
+          <tr><td colspan="5" class="text-muted">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  let estadoChart;
+
+  function money(v) {
+    const n = Number(v || 0);
+    return '$' + (Number.isFinite(n) ? n : 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  }
+
+  function setActivePeriodButton(period) {
+    document.querySelectorAll('[data-period]').forEach(btn => {
+      btn.classList.toggle('btn-primary', btn.dataset.period === period);
+      btn.classList.toggle('btn-outline-primary', btn.dataset.period !== period);
+    });
+  }
+
+  function renderEstadoChart(series) {
+    const labels = Object.keys(series || {});
+    const values = Object.values(series || {});
+    if (estadoChart) estadoChart.destroy();
+    estadoChart = new Chart(document.getElementById('estadoChart'), {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Órdenes', data: values, backgroundColor: 'rgba(59,130,246,0.25)', borderColor: '#3b82f6', borderWidth: 1 }] },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  }
+
+  function renderUltimas(items) {
+    const tbody = document.getElementById('tbody-ultimas');
+    if (!items || !items.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Sin datos</td></tr>';
+      return;
+    }
+    tbody.innerHTML = items.slice(0, 10).map(o => {
+      const fecha = o.order_date ? String(o.order_date).slice(0, 10) : '-';
+      const prov = o.supplier || (o.supplier_id ? `Proveedor ${o.supplier_id}` : '-');
+      const estado = o.status || '-';
+      const monto = o.total_amount !== undefined && o.total_amount !== null ? money(o.total_amount) : '$0';
+      return `<tr><td>${o.id}</td><td>${fecha}</td><td>${prov}</td><td>${estado}</td><td class="text-end">${monto}</td></tr>`;
+    }).join('');
+  }
+
+  async function cargar(period) {
+    setActivePeriodButton(period);
+    const [ovResp, listResp] = await Promise.all([
+      fetch(`/api/compras/overview?period=${encodeURIComponent(period)}`),
+      fetch(`/api/compras?per_page=10`)
+    ]);
+
+    const ov = await ovResp.json();
+    const list = await listResp.json();
+
+    document.getElementById('period-desde').textContent = ov.desde || '-';
+    document.getElementById('period-hasta').textContent = ov.hasta || '-';
+
+    document.getElementById('kpi-orders').textContent = String(ov.kpis?.orders_total || 0);
+    document.getElementById('kpi-monto').textContent = money(ov.kpis?.monto_total || 0);
+    document.getElementById('kpi-ticket').textContent = money(ov.kpis?.ticket_promedio || 0);
+
+    renderEstadoChart(ov.series?.orders_por_estado || {});
+    renderUltimas(list.items || []);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-period]').forEach(btn => {
+      btn.addEventListener('click', () => cargar(btn.dataset.period));
+    });
+    cargar('30');
+  });
+</script>
+{% endblock %}

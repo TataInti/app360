@@ -1,14 +1,36 @@
 // frontend/src/services/api.js
-const API_BASE_URL = 'http://localhost:5001/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
+
+const ACCESS_TOKEN_KEY = 'app360_access_token';
 
 class ApiService {
+  getAccessToken() {
+    try {
+      return localStorage.getItem(ACCESS_TOKEN_KEY);
+    } catch {
+      return null;
+    }
+  }
+
+  setAccessToken(token) {
+    try {
+      if (!token) localStorage.removeItem(ACCESS_TOKEN_KEY);
+      else localStorage.setItem(ACCESS_TOKEN_KEY, token);
+    } catch {
+      // no-op
+    }
+  }
+
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
+    const token = this.getAccessToken();
     const config = {
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
+      credentials: 'include',
       ...options,
     };
 
@@ -17,6 +39,10 @@ class ApiService {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Expected JSON response, got: ${contentType || 'unknown'}`);
+      }
       return await response.json();
     } catch (error) {
       console.error('API request failed:', error);
@@ -24,17 +50,51 @@ class ApiService {
     }
   }
 
+  // Auth endpoints (JWT)
+  async login(credentials) {
+    const data = await this.request('/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    });
+    if (data?.access_token) this.setAccessToken(data.access_token);
+    return data;
+  }
+
+  async logout() {
+    this.setAccessToken(null);
+    return { success: true };
+  }
+
+  async getCurrentUser() {
+    return this.request('/me');
+  }
+
   // Dashboard endpoints
   async getDashboard() {
     return this.request('/dashboard');
+  }
+
+  async getDashboardFinanciero(period = '30') {
+    const p = encodeURIComponent(period);
+    return this.request(`/dashboard-financiero?period=${p}`);
   }
 
   async getDashboardComercial() {
     return this.request('/dashboard-comercial');
   }
 
+  async getDashboardComercialV2(period = '30') {
+    const p = encodeURIComponent(period);
+    return this.request(`/dashboard-comercial-v2?period=${p}`);
+  }
+
   async getPanelEjecutivo() {
     return this.request('/panel-ejecutivo');
+  }
+
+  async getPanelEjecutivoV2(period = 'ytd') {
+    const p = encodeURIComponent(period);
+    return this.request(`/panel-ejecutivo-v2?period=${p}`);
   }
 
   // Inteligencia / BI endpoints
@@ -161,6 +221,11 @@ class ApiService {
   // Compras/Purchases endpoints
   async getPurchases() {
     return this.request('/compras');
+  }
+
+  async getComprasOverview(period = '30') {
+    const p = encodeURIComponent(period);
+    return this.request(`/compras/overview?period=${p}`);
   }
 
   async createPurchase(purchase) {

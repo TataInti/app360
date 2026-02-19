@@ -126,11 +126,6 @@ function Dashboard() {
           }}
         />
       </div>
-    </div>
-  );
-}
-
-export default Dashboard;
 
       <hr className="mt-5" />
 
@@ -152,9 +147,6 @@ export default Dashboard;
           ))}
         </tbody>
       </table>
-
-      {loading && <p>Cargando...</p>}
-      {error && <p>{error}</p>}
     </div>
   );
 }

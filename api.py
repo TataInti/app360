@@ -1,5 +1,9 @@
 # api.py
-from flask import Blueprint, jsonify
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta
+
+from flask import Blueprint, jsonify, request
 from sqlalchemy import func
 
 import models as m
@@ -11,6 +15,37 @@ api = Blueprint("api", __name__, url_prefix="/api")
 def get_model(name):
     """Devuelve la clase de modelo si existe, si no None."""
     return getattr(m, name, None)
+
+
+def _parse_periodo(periodo_raw: str | None) -> tuple[str, date, date]:
+    """Parsea periodo soportado: '7', '15', '30', 'ytd'. Devuelve (key, desde, hasta)."""
+    today = date.today()
+    if not periodo_raw:
+        periodo_raw = "30"
+
+    periodo_key = str(periodo_raw).strip().lower()
+    if periodo_key in {"7", "7d"}:
+        return ("7", today - timedelta(days=6), today)
+    if periodo_key in {"15", "15d"}:
+        return ("15", today - timedelta(days=14), today)
+    if periodo_key in {"30", "30d"}:
+        return ("30", today - timedelta(days=29), today)
+    if periodo_key in {"ytd", "anio", "año"}:
+        return ("ytd", date(today.year, 1, 1), today)
+
+    # fallback seguro
+    return ("30", today - timedelta(days=29), today)
+
+
+def _to_float(value) -> float:
+    try:
+        return float(value or 0)
+    except Exception:
+        return 0.0
+
+
+def _safe_str(value) -> str:
+    return str(value) if value is not None else ""
 
 
 # -----------------------------------------------------------------------------
@@ -205,3 +240,565 @@ def api_panel_ejecutivo():
             "stock_bajo": stock_bajo,
         }
     )
+
+
+# -----------------------------------------------------------------------------
+#  /api/dashboard-financiero
+#  Dashboard Financiero (Tesorería + RRHH) con período 7/15/30/YTD
+# -----------------------------------------------------------------------------
+@api.get("/dashboard-financiero")
+def api_dashboard_financiero():
+    periodo_key, desde, hasta = _parse_periodo(request.args.get("period"))
+
+    MovimientoCaja = get_model("MovimientoCaja")
+    InstrumentoPago = get_model("InstrumentoPago")
+    Adelanto = get_model("Adelanto")
+    Employee = get_model("Employee")
+
+    # Defaults (si faltan modelos, devolvemos todo en 0/[])
+    kpis: dict = {
+        "period": periodo_key,
+        "desde": desde.isoformat(),
+        "hasta": hasta.isoformat(),
+        "ingresos_total": 0.0,
+        "egresos_total": 0.0,
+        "neto": 0.0,
+        "movimientos_total": 0,
+        "movimientos_ingresos": 0,
+        "movimientos_egresos": 0,
+        "ticket_promedio": 0.0,
+        "egresos_sobre_ingresos_pct": 0.0,
+        "dias_neto_negativo": 0,
+        "max_ingreso": None,
+        "max_egreso": None,
+        "rrhh_empleados_con_adelantos_prestamos": 0,
+        "rrhh_monto_adelantos_prestamos": 0.0,
+        "rrhh_monto_pendiente_prestamos": 0.0,
+        "rrhh_breakdown_tipo": {},
+    }
+
+    series: dict = {
+        "flujo": {"labels": [], "ingresos": [], "egresos": [], "neto": [], "granularidad": "dia"},
+        "instrumentos": {"labels": [], "values": []},
+    }
+
+    if MovimientoCaja and InstrumentoPago:
+        dt_desde = datetime.combine(desde, datetime.min.time())
+        dt_hasta = datetime.combine(hasta, datetime.max.time())
+
+        # Agregados principales
+        ingresos_total = (
+            db.session.query(func.sum(MovimientoCaja.monto))
+            .filter(MovimientoCaja.tipo == "ingreso")
+            .filter(MovimientoCaja.fecha_hora >= dt_desde)
+            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .scalar()
+            or 0
+        )
+        egresos_total = (
+            db.session.query(func.sum(MovimientoCaja.monto))
+            .filter(MovimientoCaja.tipo == "egreso")
+            .filter(MovimientoCaja.fecha_hora >= dt_desde)
+            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .scalar()
+            or 0
+        )
+
+        movimientos_total = (
+            db.session.query(func.count(MovimientoCaja.id))
+            .filter(MovimientoCaja.fecha_hora >= dt_desde)
+            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .scalar()
+            or 0
+        )
+        movimientos_ingresos = (
+            db.session.query(func.count(MovimientoCaja.id))
+            .filter(MovimientoCaja.tipo == "ingreso")
+            .filter(MovimientoCaja.fecha_hora >= dt_desde)
+            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .scalar()
+            or 0
+        )
+        movimientos_egresos = (
+            db.session.query(func.count(MovimientoCaja.id))
+            .filter(MovimientoCaja.tipo == "egreso")
+            .filter(MovimientoCaja.fecha_hora >= dt_desde)
+            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .scalar()
+            or 0
+        )
+
+        ingresos_total_f = _to_float(ingresos_total)
+        egresos_total_f = _to_float(egresos_total)
+        neto = ingresos_total_f - egresos_total_f
+
+        ticket_promedio = 0.0
+        if movimientos_total:
+            ticket_promedio = (ingresos_total_f + egresos_total_f) / float(movimientos_total)
+
+        egresos_sobre_ingresos_pct = 0.0
+        if ingresos_total_f > 0:
+            egresos_sobre_ingresos_pct = (egresos_total_f / ingresos_total_f) * 100.0
+
+        # Máximos (opcionales)
+        max_ingreso_row = (
+            db.session.query(MovimientoCaja)
+            .filter(MovimientoCaja.tipo == "ingreso")
+            .filter(MovimientoCaja.fecha_hora >= dt_desde)
+            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .order_by(MovimientoCaja.monto.desc())
+            .first()
+        )
+        max_egreso_row = (
+            db.session.query(MovimientoCaja)
+            .filter(MovimientoCaja.tipo == "egreso")
+            .filter(MovimientoCaja.fecha_hora >= dt_desde)
+            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .order_by(MovimientoCaja.monto.desc())
+            .first()
+        )
+
+        def mov_to_dict(mov):
+            if not mov:
+                return None
+            return {
+                "id": int(mov.id),
+                "fecha_hora": mov.fecha_hora.isoformat() if getattr(mov, "fecha_hora", None) else None,
+                "monto": _to_float(getattr(mov, "monto", 0)),
+                "descripcion": _safe_str(getattr(mov, "descripcion", "")),
+                "instrumento": _safe_str(getattr(getattr(mov, "instrumento", None), "nombre", ""))
+                or _safe_str(getattr(mov, "instrumento", "")),
+            }
+
+        # Series flujo (diaria; para YTD agregamos por mes)
+        rows_by_day = (
+            db.session.query(
+                func.date(MovimientoCaja.fecha_hora).label("dia"),
+                MovimientoCaja.tipo.label("tipo"),
+                func.sum(MovimientoCaja.monto).label("total"),
+            )
+            .filter(MovimientoCaja.fecha_hora >= dt_desde)
+            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .group_by(func.date(MovimientoCaja.fecha_hora), MovimientoCaja.tipo)
+            .all()
+        )
+
+        ingresos_by_day: dict[str, float] = {}
+        egresos_by_day: dict[str, float] = {}
+        for dia, tipo, total in rows_by_day:
+            key = str(dia)
+            if tipo == "ingreso":
+                ingresos_by_day[key] = ingresos_by_day.get(key, 0.0) + _to_float(total)
+            elif tipo == "egreso":
+                egresos_by_day[key] = egresos_by_day.get(key, 0.0) + _to_float(total)
+
+        # Contar días con neto negativo (usando la base diaria)
+        dias_neto_negativo = 0
+        for key in set(list(ingresos_by_day.keys()) + list(egresos_by_day.keys())):
+            if (ingresos_by_day.get(key, 0.0) - egresos_by_day.get(key, 0.0)) < 0:
+                dias_neto_negativo += 1
+
+        if periodo_key == "ytd":
+            # Agregación mensual en Python (DB-agnóstica)
+            mensual: dict[str, dict[str, float]] = {}
+            d = desde
+            while d <= hasta:
+                mensual[d.strftime("%Y-%m")] = {"ingresos": 0.0, "egresos": 0.0}
+                d = d + timedelta(days=1)
+
+            for day_key, val in ingresos_by_day.items():
+                month_key = str(day_key)[:7]
+                if month_key in mensual:
+                    mensual[month_key]["ingresos"] += _to_float(val)
+            for day_key, val in egresos_by_day.items():
+                month_key = str(day_key)[:7]
+                if month_key in mensual:
+                    mensual[month_key]["egresos"] += _to_float(val)
+
+            labels = sorted(mensual.keys())
+            ingresos_series = [mensual[k]["ingresos"] for k in labels]
+            egresos_series = [mensual[k]["egresos"] for k in labels]
+            neto_series = [ingresos_series[i] - egresos_series[i] for i in range(len(labels))]
+            series["flujo"] = {
+                "labels": labels,
+                "ingresos": ingresos_series,
+                "egresos": egresos_series,
+                "neto": neto_series,
+                "granularidad": "mes",
+            }
+        else:
+            labels = []
+            ingresos_series = []
+            egresos_series = []
+            neto_series = []
+            d = desde
+            while d <= hasta:
+                key = d.isoformat()
+                labels.append(key)
+                ing = ingresos_by_day.get(key, 0.0)
+                egr = egresos_by_day.get(key, 0.0)
+                ingresos_series.append(ing)
+                egresos_series.append(egr)
+                neto_series.append(ing - egr)
+                d = d + timedelta(days=1)
+
+            series["flujo"] = {
+                "labels": labels,
+                "ingresos": ingresos_series,
+                "egresos": egresos_series,
+                "neto": neto_series,
+                "granularidad": "dia",
+            }
+
+        # Distribución por instrumento (monto absoluto)
+        instrumentos_rows = (
+            db.session.query(InstrumentoPago.nombre, func.sum(MovimientoCaja.monto))
+            .join(InstrumentoPago, InstrumentoPago.id == MovimientoCaja.instrumento_id)
+            .filter(MovimientoCaja.fecha_hora >= dt_desde)
+            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .group_by(InstrumentoPago.nombre)
+            .order_by(func.sum(MovimientoCaja.monto).desc())
+            .all()
+        )
+        inst_labels = [name or "Sin instrumento" for name, _ in instrumentos_rows]
+        inst_values = [abs(_to_float(total)) for _, total in instrumentos_rows]
+        series["instrumentos"] = {"labels": inst_labels, "values": inst_values}
+
+        kpis.update(
+            {
+                "ingresos_total": ingresos_total_f,
+                "egresos_total": egresos_total_f,
+                "neto": neto,
+                "movimientos_total": int(movimientos_total),
+                "movimientos_ingresos": int(movimientos_ingresos),
+                "movimientos_egresos": int(movimientos_egresos),
+                "ticket_promedio": float(ticket_promedio),
+                "egresos_sobre_ingresos_pct": float(egresos_sobre_ingresos_pct),
+                "dias_neto_negativo": int(dias_neto_negativo),
+                "max_ingreso": mov_to_dict(max_ingreso_row),
+                "max_egreso": mov_to_dict(max_egreso_row),
+            }
+        )
+
+    # RRHH: adelantos/préstamos
+    if Adelanto and Employee:
+        # Período: por fecha_solicitud (si existe) o fallback a conteo global
+        dt_desde = datetime.combine(desde, datetime.min.time())
+        dt_hasta = datetime.combine(hasta, datetime.max.time())
+
+        q = db.session.query(Adelanto)
+        if hasattr(Adelanto, "fecha_solicitud"):
+            q = q.filter(Adelanto.fecha_solicitud >= dt_desde).filter(Adelanto.fecha_solicitud <= dt_hasta)
+
+        adelantos = q.all()
+        empleados_ids = set()
+        monto_total = 0.0
+        breakdown: dict[str, float] = {}
+        for a in adelantos:
+            empleados_ids.add(getattr(a, "empleado_id", None))
+            monto = _to_float(getattr(a, "monto", 0))
+            monto_total += monto
+            tipo = _safe_str(getattr(a, "tipo", "desconocido")) or "desconocido"
+            breakdown[tipo] = breakdown.get(tipo, 0.0) + monto
+
+        # Pendiente préstamos (aprox. usando método del modelo en Python)
+        monto_pendiente = 0.0
+        try:
+            prestamos_no_liquidados = (
+                db.session.query(Adelanto)
+                .filter(Adelanto.tipo == "prestamo")
+                .filter(getattr(Adelanto, "aprobado", True) == True)
+                .filter(getattr(Adelanto, "liquidado", False) == False)
+                .all()
+            )
+            for p in prestamos_no_liquidados:
+                if hasattr(p, "saldo_pendiente"):
+                    monto_pendiente += _to_float(p.saldo_pendiente())
+                else:
+                    monto_pendiente += _to_float(getattr(p, "monto", 0))
+        except Exception:
+            monto_pendiente = 0.0
+
+        kpis.update(
+            {
+                "rrhh_empleados_con_adelantos_prestamos": int(len([x for x in empleados_ids if x is not None])),
+                "rrhh_monto_adelantos_prestamos": float(monto_total),
+                "rrhh_monto_pendiente_prestamos": float(monto_pendiente),
+                "rrhh_breakdown_tipo": {k: float(v) for k, v in breakdown.items()},
+            }
+        )
+
+    return jsonify({"kpis": kpis, "series": series})
+
+
+# -----------------------------------------------------------------------------
+#  /api/dashboard-comercial-v2
+#  Dashboard Comercial v2 (Marketing + Comercial)
+# -----------------------------------------------------------------------------
+@api.get("/dashboard-comercial-v2")
+def api_dashboard_comercial_v2():
+    periodo_key, desde, hasta = _parse_periodo(request.args.get("period"))
+    dt_desde = datetime.combine(desde, datetime.min.time())
+    dt_hasta = datetime.combine(hasta, datetime.max.time())
+
+    Lead = get_model("Lead")
+    Campaign = get_model("Campaign")
+    Venta = get_model("Venta")
+    Promocion = get_model("Promocion")
+    Comision = get_model("Comision")
+    Goal = get_model("Goal")
+
+    payload = {
+        "period": periodo_key,
+        "desde": desde.isoformat(),
+        "hasta": hasta.isoformat(),
+        "kpis": {
+            "leads_total": 0,
+            "leads_periodo": 0,
+            "leads_ganados_total": 0,
+            "conversion_total_pct": 0.0,
+            "campanias_total": 0,
+            "campanias_activas": 0,
+            "ventas_periodo_total": 0.0,
+            "ventas_periodo_count": 0,
+            "ventas_ticket_promedio": 0.0,
+            "promociones_activas": 0,
+            "comisiones_mes_total": 0.0,
+            "objetivos_en_progreso": 0,
+        },
+        "series": {
+            "leads_por_estado": {},
+            "leads_por_origen": [],
+            "leads_por_canal": [],
+            "top_campanias_por_leads": [],
+        },
+    }
+
+    # MARKETING: campañas + leads
+    if Campaign:
+        payload["kpis"]["campanias_total"] = int(db.session.query(func.count(Campaign.id)).scalar() or 0)
+        if hasattr(Campaign, "active"):
+            payload["kpis"]["campanias_activas"] = int(
+                db.session.query(func.count(Campaign.id)).filter(Campaign.active == True).scalar() or 0
+            )
+
+    if Lead:
+        leads_total = int(db.session.query(func.count(Lead.id)).scalar() or 0)
+        payload["kpis"]["leads_total"] = leads_total
+
+        leads_periodo_q = db.session.query(func.count(Lead.id))
+        if hasattr(Lead, "created_at"):
+            leads_periodo_q = leads_periodo_q.filter(Lead.created_at >= dt_desde).filter(Lead.created_at <= dt_hasta)
+        leads_periodo = int(leads_periodo_q.scalar() or 0)
+        payload["kpis"]["leads_periodo"] = leads_periodo
+
+        estados_rows = db.session.query(Lead.status, func.count(Lead.id)).group_by(Lead.status).all()
+        leads_por_estado = {status or "sin_estado": int(qty or 0) for status, qty in estados_rows}
+        payload["series"]["leads_por_estado"] = leads_por_estado
+
+        ganados = int(leads_por_estado.get("ganado", 0))
+        payload["kpis"]["leads_ganados_total"] = ganados
+        payload["kpis"]["conversion_total_pct"] = float(round((ganados / leads_total) * 100, 2)) if leads_total else 0.0
+
+        origen_rows = db.session.query(Lead.source, func.count(Lead.id)).group_by(Lead.source).all()
+        payload["series"]["leads_por_origen"] = [[source or "Sin origen", int(qty or 0)] for source, qty in origen_rows]
+
+        # Leads por canal (vía Campaign.channel)
+        if Campaign and hasattr(Lead, "campaign_id"):
+            canal_rows = (
+                db.session.query(Campaign.channel, func.count(Lead.id))
+                .select_from(Lead)
+                .outerjoin(Campaign, Campaign.id == Lead.campaign_id)
+                .group_by(Campaign.channel)
+                .all()
+            )
+            payload["series"]["leads_por_canal"] = [[channel or "Sin canal", int(qty or 0)] for channel, qty in canal_rows]
+
+            top_campaign_rows = (
+                db.session.query(Campaign.name, func.count(Lead.id))
+                .join(Lead, Lead.campaign_id == Campaign.id)
+                .group_by(Campaign.name)
+                .order_by(func.count(Lead.id).desc())
+                .limit(5)
+                .all()
+            )
+            payload["series"]["top_campanias_por_leads"] = [[name or "(sin nombre)", int(qty or 0)] for name, qty in top_campaign_rows]
+
+    # COMERCIAL: ventas internas, promos, comisiones, objetivos
+    if Venta:
+        ventas_q = db.session.query(Venta)
+        if hasattr(Venta, "fecha"):
+            ventas_q = ventas_q.filter(Venta.fecha >= desde).filter(Venta.fecha <= hasta)
+        ventas = ventas_q.all()
+        payload["kpis"]["ventas_periodo_count"] = int(len(ventas))
+
+        total_ventas = 0.0
+        for v in ventas:
+            try:
+                total_ventas += _to_float(getattr(v, "precio_contrato", 0)) * float(getattr(v, "cantidad", 0) or 0)
+            except Exception:
+                continue
+        payload["kpis"]["ventas_periodo_total"] = float(total_ventas)
+        if len(ventas):
+            payload["kpis"]["ventas_ticket_promedio"] = float(total_ventas / float(len(ventas)))
+
+    if Promocion:
+        # Promos activas en fecha actual (si el modelo tiene los campos)
+        today = date.today()
+        q = db.session.query(func.count(Promocion.id))
+        if hasattr(Promocion, "activo"):
+            q = q.filter(Promocion.activo == True)
+        if hasattr(Promocion, "fecha_inicio"):
+            q = q.filter(Promocion.fecha_inicio <= today)
+        if hasattr(Promocion, "fecha_fin"):
+            q = q.filter(Promocion.fecha_fin >= today)
+        payload["kpis"]["promociones_activas"] = int(q.scalar() or 0)
+
+    if Comision:
+        # Comisiones del mes actual (YYYY-MM)
+        periodo_mes = date.today().strftime("%Y-%m")
+        q = db.session.query(func.sum(Comision.comision_total))
+        if hasattr(Comision, "periodo"):
+            q = q.filter(Comision.periodo == periodo_mes)
+        payload["kpis"]["comisiones_mes_total"] = float(_to_float(q.scalar() or 0))
+
+    if Goal:
+        q = db.session.query(func.count(Goal.id))
+        if hasattr(Goal, "status"):
+            q = q.filter(Goal.status == "en progreso")
+        payload["kpis"]["objetivos_en_progreso"] = int(q.scalar() or 0)
+
+    return jsonify(payload)
+
+
+# -----------------------------------------------------------------------------
+#  /api/panel-ejecutivo-v2
+#  Panel Ejecutivo v2 (rentabilidad + tesorería)
+# -----------------------------------------------------------------------------
+@api.get("/panel-ejecutivo-v2")
+def api_panel_ejecutivo_v2():
+    # Por defecto: YTD
+    periodo_key, desde, hasta = _parse_periodo(request.args.get("period") or "ytd")
+    dt_desde = datetime.combine(desde, datetime.min.time())
+    dt_hasta = datetime.combine(hasta, datetime.max.time())
+
+    MovimientoCaja = get_model("MovimientoCaja")
+    InstrumentoPago = get_model("InstrumentoPago")
+    CuentaCorrienteFriar = get_model("CuentaCorrienteFriar")
+    PagoFriar = get_model("PagoFriar")
+    StgSabiogoVentas = get_model("StgSabiogoVentas")
+
+    result = {
+        "period": periodo_key,
+        "desde": desde.isoformat(),
+        "hasta": hasta.isoformat(),
+        "kpis": {
+            "sabiogo_ingresos": 0.0,
+            "sabiogo_costos": 0.0,
+            "sabiogo_margen": 0.0,
+            "sabiogo_margen_pct": 0.0,
+            "cta_cte_friar_saldo_actual": 0.0,
+            "cta_cte_friar_total": 0.0,
+        },
+        "top_clientes": [],
+        "instrumentos": {"labels": [], "values": []},
+        "friar": {
+            "cuenta": None,
+            "ultimos_pagos": [],
+        },
+    }
+
+    # SabioGo: top 5 clientes por monto (YTD)
+    if StgSabiogoVentas and hasattr(StgSabiogoVentas, "fecha"):
+        monto_col = getattr(StgSabiogoVentas, "subtot", None) or getattr(StgSabiogoVentas, "neto", None)
+        if monto_col is not None:
+            rows = (
+                db.session.query(StgSabiogoVentas.cliente, func.sum(monto_col))
+                .filter(StgSabiogoVentas.fecha >= desde)
+                .filter(StgSabiogoVentas.fecha <= hasta)
+                .filter(getattr(StgSabiogoVentas, "estado", "procesado") == "procesado")
+                .group_by(StgSabiogoVentas.cliente)
+                .order_by(func.sum(monto_col).desc())
+                .limit(5)
+                .all()
+            )
+            result["top_clientes"] = [
+                {"cliente": (cliente or "(sin cliente)"), "monto": float(_to_float(total))}
+                for cliente, total in rows
+            ]
+
+    # Tesorería: distribución de instrumentos (YTD)
+    if MovimientoCaja and InstrumentoPago:
+        instrumentos_rows = (
+            db.session.query(InstrumentoPago.nombre, func.sum(MovimientoCaja.monto))
+            .join(InstrumentoPago, InstrumentoPago.id == MovimientoCaja.instrumento_id)
+            .filter(MovimientoCaja.fecha_hora >= dt_desde)
+            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .group_by(InstrumentoPago.nombre)
+            .order_by(func.sum(MovimientoCaja.monto).desc())
+            .all()
+        )
+        result["instrumentos"]["labels"] = [name or "Sin instrumento" for name, _ in instrumentos_rows]
+        result["instrumentos"]["values"] = [abs(float(_to_float(total))) for _, total in instrumentos_rows]
+
+    # Friar: cuenta corriente y últimos 5 pagos
+    if CuentaCorrienteFriar and PagoFriar:
+        cuenta = db.session.query(CuentaCorrienteFriar).first()
+        if cuenta:
+            total_pagos = (
+                db.session.query(func.sum(PagoFriar.monto))
+                .filter(PagoFriar.cuenta_corriente_id == cuenta.id)
+                .scalar()
+                or 0
+            )
+            saldo_actual = _to_float(getattr(cuenta, "saldo_inicial", 0)) - _to_float(total_pagos)
+            result["friar"]["cuenta"] = {
+                "id": int(cuenta.id),
+                "proveedor": _safe_str(getattr(getattr(cuenta, "proveedor", None), "nombre", None)),
+                "saldo_inicial": float(_to_float(getattr(cuenta, "saldo_inicial", 0))),
+                "total_pagos": float(_to_float(total_pagos)),
+                "saldo_actual": float(saldo_actual),
+            }
+            result["kpis"]["cta_cte_friar_saldo_actual"] = float(saldo_actual)
+            result["kpis"]["cta_cte_friar_total"] = float(_to_float(getattr(cuenta, "saldo_inicial", 0)))
+
+            ultimos = (
+                db.session.query(PagoFriar)
+                .filter(PagoFriar.cuenta_corriente_id == cuenta.id)
+                .order_by(PagoFriar.fecha.desc())
+                .limit(5)
+                .all()
+            )
+            result["friar"]["ultimos_pagos"] = [
+                {
+                    "fecha": p.fecha.isoformat() if getattr(p, "fecha", None) else None,
+                    "monto": float(_to_float(getattr(p, "monto", 0))),
+                    "instrumento": _safe_str(getattr(getattr(p, "instrumento", None), "nombre", None)),
+                    "descripcion": _safe_str(getattr(p, "descripcion", None)),
+                }
+                for p in ultimos
+            ]
+
+    # Opcional: rentabilidad SabioGo (mismos KPIs que BI)
+    try:
+        from services.sabiogo_service import SabiogoService
+
+        sabiogo_service = SabiogoService()
+        resumen = sabiogo_service.get_rentabilidad_resumen(desde, hasta) or {}
+        ingresos = _to_float(resumen.get("total_ingresos", 0))
+        costos = _to_float(resumen.get("total_costos", 0))
+        margen = _to_float(resumen.get("margen_bruto", 0))
+        margen_pct = _to_float(resumen.get("margen_porcentual", 0))
+        result["kpis"].update(
+            {
+                "sabiogo_ingresos": float(ingresos),
+                "sabiogo_costos": float(costos),
+                "sabiogo_margen": float(margen),
+                "sabiogo_margen_pct": float(margen_pct),
+            }
+        )
+    except Exception:
+        # Si no hay tablas SabioGo o el service falla, dejamos en 0
+        pass
+
+    return jsonify(result)

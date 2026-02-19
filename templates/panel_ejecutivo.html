@@ -2,119 +2,165 @@
 
 {% block content %}
 
-<h1>Panel Ejecutivo Global</h1>
+<h1>Panel Ejecutivo</h1>
 
-<div class="row mt-4">
+<div class="text-muted small mb-3">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></div>
 
+<div class="row mt-2 g-3">
     <div class="col-md-3">
         <div class="card p-3 text-center">
-            <h5>Total Leads</h5>
-            <p class="display-6">{{ total_leads }}</p>
+            <h6>Ingresos (SabioGo)</h6>
+            <p class="display-6" id="kpi-ingresos">$0</p>
         </div>
     </div>
-
     <div class="col-md-3">
         <div class="card p-3 text-center">
-            <h5>Total Productos</h5>
-            <p class="display-6">{{ total_products }}</p>
+            <h6>Costos (SabioGo)</h6>
+            <p class="display-6" id="kpi-costos">$0</p>
         </div>
     </div>
-
     <div class="col-md-3">
         <div class="card p-3 text-center">
-            <h5>Total Ubicaciones</h5>
-            <p class="display-6">{{ total_locations }}</p>
+            <h6>Margen (SabioGo)</h6>
+            <p class="display-6" id="kpi-margen">$0</p>
         </div>
     </div>
-
     <div class="col-md-3">
         <div class="card p-3 text-center">
-            <h5>Conversión Comercial</h5>
-            <p class="display-6">{{ conversion }} %</p>
+            <h6>Saldo c/c Friar</h6>
+            <p class="display-6" id="kpi-friar">$0</p>
         </div>
     </div>
 </div>
 
 <hr class="mt-5">
 
-<div class="panel-charts-row">
-    <div class="panel-chart-card">
-        <h3>Leads por Estado</h3>
-        <canvas id="estadoChart" height="400"></canvas>
+<div class="charts-row">
+    <div class="chart-card chart-card-light">
+        <h3 class="mb-2">Distribución de instrumentos</h3>
+        <canvas id="instrumentosChart" height="320"></canvas>
     </div>
-    <div class="panel-chart-card">
-        <h3>Stock por Unidad</h3>
-        <canvas id="stockUnidadChart" height="400"></canvas>
+    <div class="chart-card chart-card-light">
+        <h3 class="mb-2">Top 5 clientes por monto (SabioGo)</h3>
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th class="text-end">Monto</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody-top-clientes">
+                    <tr><td colspan="2" class="text-muted">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<hr class="mt-5">
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card p-3">
+            <h3 class="mb-2">Cuenta Corriente Friar</h3>
+            <div class="small" id="friar-cuenta">Cargando...</div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card p-3">
+            <h3 class="mb-2">Últimos 5 pagos a Friar</h3>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Instrumento</th>
+                            <th class="text-end">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody-friar-pagos">
+                        <tr><td colspan="3" class="text-muted">Cargando...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 
 <script>
-const estadoCtx = document.getElementById("estadoChart");
-new Chart(estadoCtx, {
-    type: 'bar',
-    data: {
-        labels: {{ leads_por_estado.keys() | list | tojson }},
-        datasets: [{
-            label: 'Cantidad',
-            data: {{ leads_por_estado.values() | list | tojson }},
-            backgroundColor: 'rgba(75,192,192,0.8)'
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false
-    }
-});
+  let instrumentosChart;
 
-const stockCtx = document.getElementById("stockUnidadChart");
-new Chart(stockCtx, {
-    type: 'bar',
-    data: {
-        labels: [
-            {% for name, qty in stock_por_unidad %}
-            "{{ name }}",
-            {% endfor %}
-        ],
-        datasets: [{
-            label: 'Stock total',
-            data: [
-                {% for name, qty in stock_por_unidad %}
-                {{ qty }},
-                {% endfor %}
-            ],
-            backgroundColor: 'rgba(54,162,235,0.7)'
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false
+  function money(v) {
+    const n = Number(v || 0);
+    return '$' + (Number.isFinite(n) ? n : 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  }
+
+  function renderCuenta(cuenta) {
+    const el = document.getElementById('friar-cuenta');
+    if (!cuenta) {
+      el.innerHTML = '<span class="text-muted">Sin cuenta configurada</span>';
+      return;
     }
-});
+    el.innerHTML = `
+      <div><strong>Proveedor:</strong> ${cuenta.proveedor || '-'}</div>
+      <div><strong>Saldo inicial:</strong> ${money(cuenta.saldo_inicial)}</div>
+      <div><strong>Total pagos:</strong> ${money(cuenta.total_pagos)}</div>
+      <div><strong>Saldo actual:</strong> ${money(cuenta.saldo_actual)}</div>
+    `;
+  }
+
+  function renderTopClientes(rows) {
+    const tbody = document.getElementById('tbody-top-clientes');
+    if (!rows || !rows.length) {
+      tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Sin datos</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `<tr><td>${r.cliente}</td><td class="text-end">${money(r.monto)}</td></tr>`).join('');
+  }
+
+  function renderPagos(rows) {
+    const tbody = document.getElementById('tbody-friar-pagos');
+    if (!rows || !rows.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-muted">Sin datos</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map((p) => {
+      const fecha = p.fecha ? String(p.fecha).slice(0, 10) : '-';
+      return `<tr><td>${fecha}</td><td>${p.instrumento || '-'}</td><td class="text-end">${money(p.monto)}</td></tr>`;
+    }).join('');
+  }
+
+  async function cargar() {
+    const resp = await fetch('/api/panel-ejecutivo-v2?period=ytd');
+    const data = await resp.json();
+
+    document.getElementById('period-desde').textContent = data.desde || '-';
+    document.getElementById('period-hasta').textContent = data.hasta || '-';
+
+    const k = data.kpis || {};
+    document.getElementById('kpi-ingresos').textContent = money(k.sabiogo_ingresos);
+    document.getElementById('kpi-costos').textContent = money(k.sabiogo_costos);
+    document.getElementById('kpi-margen').textContent = money(k.sabiogo_margen);
+    document.getElementById('kpi-friar').textContent = money(k.cta_cte_friar_saldo_actual);
+
+    renderTopClientes(data.top_clientes || []);
+    renderCuenta(data.friar?.cuenta || null);
+    renderPagos(data.friar?.ultimos_pagos || []);
+
+    const inst = data.instrumentos || { labels: [], values: [] };
+    if (instrumentosChart) instrumentosChart.destroy();
+    instrumentosChart = new Chart(document.getElementById('instrumentosChart'), {
+      type: 'doughnut',
+      data: {
+        labels: inst.labels || [],
+        datasets: [{ data: (inst.values || []).map(x => Number(x || 0)) }]
+      },
+      options: { responsive: true, maintainAspectRatio: false }
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', cargar);
 </script>
-
-<hr class="mt-5">
-
-<h3>Productos con Stock Bajo</h3>
-
-{% if stock_bajo %}
-<table class="table table-bordered">
-    <thead>
-        <tr>
-            <th>Producto</th>
-            <th>Cantidad Total</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for name, qty in stock_bajo %}
-        <tr>
-            <td>{{ name }}</td>
-            <td>{{ qty }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-{% else %}
-<p>No hay productos con stock bajo.</p>
-{% endif %}
 
 {% endblock %}

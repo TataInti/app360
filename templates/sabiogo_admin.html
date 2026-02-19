@@ -115,7 +115,13 @@
         <div class="tab-pane fade" id="productos" role="tabpanel">
             <div class="card">
                 <div class="card-body">
-                    <h5 class="card-title">Mapeo de Productos</h5>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <h5 class="card-title mb-0">Mapeo de Productos</h5>
+                        <button class="btn btn-sm btn-primary" onclick="autogenerarMapeos()">
+                            <i class="bi bi-magic"></i> Autogenerar mapeos faltantes
+                        </button>
+                    </div>
+                    <div id="resultadoAutogeneracion" class="mt-2"></div>
                     <div class="mb-3">
                         <button class="btn btn-sm btn-secondary" onclick="filtrarProductos('todos')">Todos</button>
                         <button class="btn btn-sm btn-success" onclick="filtrarProductos('mapeado')">Mapeados</button>
@@ -399,6 +405,45 @@ async function refreshFacts() {
         }
     } catch (error) {
         resultadoDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+}
+
+async function autogenerarMapeos() {
+    const resultadoDiv = document.getElementById('resultadoAutogeneracion');
+    resultadoDiv.innerHTML = '<div class="alert alert-info py-2 mb-0">Autogenerando mapeos...</div>';
+
+    try {
+        const response = await fetch('/sabiogo/api/autogenerar-mapeos', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
+                'X-CSRF-Token': getCsrfToken()
+            },
+            body: JSON.stringify({})
+        });
+
+        const data = await parseJsonResponse(response);
+        if (!data.success) {
+            throw new Error(data.error || 'No se pudo autogenerar mapeos');
+        }
+
+        const s = data.stats || {};
+        resultadoDiv.innerHTML = `
+            <div class="alert alert-success py-2 mb-0">
+                ✓ Mapeos generados · Productos: ${s.productos_creados || 0} (auto-mapeados: ${s.productos_auto_mapeados || 0}) · Clientes: ${s.clientes_creados || 0} (auto-mapeados: ${s.clientes_auto_mapeados || 0})
+            </div>
+        `;
+
+        // Refrescar vistas de listas
+        await filtrarProductos('todos');
+        // Refrescar clientes si el tab está visible
+        const clientesTab = document.getElementById('clientes');
+        if (clientesTab && clientesTab.classList.contains('active')) {
+            document.getElementById('clientes-tab')?.dispatchEvent(new Event('shown.bs.tab'));
+        }
+    } catch (error) {
+        resultadoDiv.innerHTML = `<div class="alert alert-danger py-2 mb-0">Error: ${error.message}</div>`;
     }
 }
 

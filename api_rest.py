@@ -1,6 +1,7 @@
 # api_rest.py - REST API endpoints for frontend integration
 from flask import Blueprint, jsonify, request, current_app
-from datetime import datetime
+from datetime import datetime, date, timedelta
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from models import db
 from models import (
@@ -608,33 +609,91 @@ def delete_stock(stock_id):
 # -----------------------------------------------------------------------------
 @api_rest.route('/compras', methods=['GET'])
 def get_compras():
-    """Get all purchase orders"""
+    """Get all purchase orders."""
     try:
-        result, error = paginate_query(PurchaseOrder.query)
+        query = PurchaseOrder.query
+        result, error = paginate_query(query)
         if error:
             return error
-        items = [{
-            'id': o.id,
-            'supplier_id': o.supplier_id,
-            'product_id': o.product_id,
-            'quantity': o.quantity,
-            'unit_price': float(o.unit_price) if o.unit_price else None,
-            'total_amount': float(o.total_amount) if o.total_amount else None,
-            'order_date': o.order_date.isoformat() if o.order_date else None,
-            'expected_delivery_date': o.expected_delivery_date.isoformat() if o.expected_delivery_date else None,
-            'status': o.status,
-            'notes': o.notes
-        } for o in result.items]
+
+        items = []
+        for o in result.items:
+            items.append({
+                'id': o.id,
+                'supplier': getattr(o, 'supplier', None),
+                'supplier_id': getattr(o, 'supplier_id', None),
+                'product_id': getattr(o, 'product_id', None),
+                'quantity': getattr(o, 'quantity', None),
+                'unit_price': float(o.unit_price) if getattr(o, 'unit_price', None) is not None else None,
+                'total_amount': float(o.total_amount) if getattr(o, 'total_amount', None) is not None else None,
+                'monto_total': float(o.monto_total) if getattr(o, 'monto_total', None) is not None else None,
+                'order_date': o.order_date.isoformat() if o.order_date else None,
+                'expected_delivery_date': o.expected_delivery_date.isoformat() if o.expected_delivery_date else None,
+                'status': getattr(o, 'status', None),
+                'notes': getattr(o, 'notes', None),
+                'location_id': getattr(o, 'location_id', None),
+                'comprobante_numero': getattr(o, 'comprobante_numero', None),
+                'instrumento_id': getattr(o, 'instrumento_id', None),
+                'tesoreria_movimiento_id': getattr(o, 'tesoreria_movimiento_id', None),
+                'created_at': o.created_at.isoformat() if getattr(o, 'created_at', None) else None,
+            })
+
         return jsonify({
-            "items": items,
-            "page": result.page,
-            "per_page": result.per_page,
-            "total": result.total,
-            "pages": result.pages,
+            'items': items,
+            'page': result.page,
+            'per_page': result.per_page,
+            'total': result.total,
+            'pages': result.pages,
         })
-    except Exception as e:
-        current_app.logger.exception("Failed to list purchase orders")
-        return error_response(500, "Internal server error")
+    except Exception:
+        current_app.logger.exception('Failed to list purchase orders')
+        return error_response(500, 'Internal server error')
+
+
+@api_rest.route('/compras/overview', methods=['GET'])
+def compras_overview():
+    """KPIs simples para panel de compras (similar a paneles estratégicos)."""
+    try:
+        # Período default: últimos 30 días (en base a order_date o created_at)
+        period_raw = request.args.get('period', '30')
+        try:
+            period_days = 30 if str(period_raw).lower() == 'ytd' else int(period_raw)
+        except ValueError:
+            period_days = 30
+
+        today = datetime.utcnow().date()
+        desde = date(today.year, 1, 1) if str(period_raw).lower() == 'ytd' else (today - timedelta(days=period_days - 1))
+
+        q_period = PurchaseOrder.query.filter(
+            PurchaseOrder.order_date >= desde,
+            PurchaseOrder.order_date <= today,
+        )
+
+        total_orders = q_period.count()
+        statuses = dict(
+            q_period.with_entities(PurchaseOrder.status, func.count(PurchaseOrder.id))
+            .group_by(PurchaseOrder.status)
+            .all()
+        )
+
+        total_monto = q_period.with_entities(func.sum(PurchaseOrder.total_amount)).scalar() or 0
+
+        return jsonify({
+            'period': str(period_raw),
+            'desde': desde.isoformat(),
+            'hasta': today.isoformat(),
+            'kpis': {
+                'orders_total': int(total_orders),
+                'monto_total': float(total_monto) if total_monto is not None else 0.0,
+                'ticket_promedio': float(total_monto) / float(total_orders) if total_orders else 0.0,
+            },
+            'series': {
+                'orders_por_estado': { (k or 'sin_estado'): int(v) for k, v in statuses.items() },
+            }
+        })
+    except Exception:
+        current_app.logger.exception('Failed to build compras overview')
+        return error_response(500, 'Internal server error')
 
 @api_rest.route('/compras', methods=['POST'])
 @jwt_required
@@ -649,27 +708,48 @@ def create_compra():
             return missing
         order_date = parse_iso_date(data.get('order_date'), 'order_date')
         expected_delivery_date = parse_iso_date(data.get('expected_delivery_date'), 'expected_delivery_date')
+
+        supplier_id = data.get('supplier_id')
+        supplier_name = data.get('supplier')
+        if not supplier_name and supplier_id:
+            supplier_name = f"Proveedor {supplier_id}"
+
         order = PurchaseOrder(
-            supplier_id=data.get('supplier_id'),
+            supplier_id=supplier_id,
+            supplier=supplier_name,
             product_id=data['product_id'],
             quantity=data['quantity'],
             unit_price=data['unit_price'],
             total_amount=data['total_amount'],
-            order_date=order_date,
-            expected_delivery_date=expected_delivery_date,
+            location_id=data.get('location_id'),
             status=data.get('status', 'pendiente'),
             notes=data.get('notes'),
-            location_id=data.get('location_id')
+            order_date=order_date,
+            expected_delivery_date=expected_delivery_date,
+            monto_total=data.get('monto_total', data.get('total_amount')),
+            comprobante_numero=data.get('comprobante_numero'),
+            instrumento_id=data.get('instrumento_id'),
         )
         db.session.add(order)
+        db.session.flush()
+
+        # Mantener compat con detalle por items
+        try:
+            item = PurchaseOrderItem(order_id=order.id, product_id=data['product_id'], quantity=data['quantity'])
+            db.session.add(item)
+        except Exception:
+            # Si por algún motivo la tabla/relación no está disponible, igual guardamos la OC.
+            pass
         db.session.commit()
         return jsonify({
             'id': order.id,
             'supplier_id': order.supplier_id,
+            'supplier': order.supplier,
             'product_id': order.product_id,
             'quantity': order.quantity,
-            'unit_price': float(order.unit_price) if order.unit_price else None,
-            'total_amount': float(order.total_amount) if order.total_amount else None,
+            'unit_price': float(order.unit_price) if order.unit_price is not None else None,
+            'total_amount': float(order.total_amount) if order.total_amount is not None else None,
+            'monto_total': float(order.monto_total) if order.monto_total is not None else None,
             'order_date': order.order_date.isoformat() if order.order_date else None,
             'expected_delivery_date': order.expected_delivery_date.isoformat() if order.expected_delivery_date else None,
             'status': order.status,
@@ -692,10 +772,12 @@ def update_compra(order_id):
         if not data:
             return error_response(400, "Invalid request body")
         order.supplier_id = data.get('supplier_id', order.supplier_id)
+        order.supplier = data.get('supplier', order.supplier)
         order.product_id = data.get('product_id', order.product_id)
         order.quantity = data.get('quantity', order.quantity)
         order.unit_price = data.get('unit_price', order.unit_price)
         order.total_amount = data.get('total_amount', order.total_amount)
+        order.monto_total = data.get('monto_total', order.monto_total)
         if 'order_date' in data:
             order.order_date = parse_iso_date(data.get('order_date'), 'order_date')
         if 'expected_delivery_date' in data:
@@ -707,10 +789,12 @@ def update_compra(order_id):
         return jsonify({
             'id': order.id,
             'supplier_id': order.supplier_id,
+            'supplier': order.supplier,
             'product_id': order.product_id,
             'quantity': order.quantity,
-            'unit_price': float(order.unit_price) if order.unit_price else None,
-            'total_amount': float(order.total_amount) if order.total_amount else None,
+            'unit_price': float(order.unit_price) if order.unit_price is not None else None,
+            'total_amount': float(order.total_amount) if order.total_amount is not None else None,
+            'monto_total': float(order.monto_total) if order.monto_total is not None else None,
             'order_date': order.order_date.isoformat() if order.order_date else None,
             'expected_delivery_date': order.expected_delivery_date.isoformat() if order.expected_delivery_date else None,
             'status': order.status,
@@ -808,6 +892,7 @@ def get_employees():
             return error
         items = [{
             'id': e.id,
+            'name': e.name,
             'first_name': e.first_name,
             'last_name': e.last_name,
             'email': e.email,
@@ -819,8 +904,10 @@ def get_employees():
             'location_id': e.location_id,
             'is_active': e.is_active
         } for e in result.items]
+        # Compat: algunos templates esperan `employees` en lugar de `items`.
         return jsonify({
             "items": items,
+            "employees": items,
             "page": result.page,
             "per_page": result.per_page,
             "total": result.total,

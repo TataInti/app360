@@ -40,6 +40,9 @@ def login_required(f):
     """Compatibilidad con sistema de sesión propio del proyecto."""
     @wraps(f)
     def decorated(*args, **kwargs):
+        # En desarrollo local permitimos bypass para poder usar la UI sin sesión.
+        if current_app.config.get('LOCAL_DEV_BYPASS_AUTH'):
+            return f(*args, **kwargs)
         if session.get("user"):
             return f(*args, **kwargs)
         return redirect(url_for("auth.login"))
@@ -549,6 +552,8 @@ def listar_ventas_staging():
 
     items = []
     for venta in pagination.items:
+        subtot = float(venta.subtot or 0)
+        moniva = float(getattr(venta, 'moniva', 0) or 0)
         items.append({
             'id': venta.id,
             'fecha': venta.fecha.isoformat() if venta.fecha else None,
@@ -558,8 +563,9 @@ def listar_ventas_staging():
             'sucursal': venta.sucursal,
             'kilos': float(venta.kilos or 0),
             'cajas': float(venta.cajas or 0),
-            'subtot': float(venta.subtot or 0),
-            'total': float(venta.total or 0),
+            'subtot': subtot,
+            # En el staging real no siempre existe columna `total`; derivamos por fallback.
+            'total': subtot + moniva,
             'estado': venta.estado,
         })
 
@@ -577,6 +583,28 @@ def listar_ventas_staging():
 def refresh_facts():
     """Ejecuta REFRESH MATERIALIZED VIEW en facts."""
     try:
+        # Si hay datos cargados pero no procesados, promover estado a 'procesado'
+        # para que las facts (que filtran por estado) muestren datos.
+        promoted_ventas = db.session.execute(
+            text(
+                """
+                UPDATE stg_sabiogo_ventas
+                SET estado = 'procesado'
+                WHERE estado IN ('cargado', 'pendiente')
+                """
+            )
+        ).rowcount
+
+        promoted_compras = db.session.execute(
+            text(
+                """
+                UPDATE stg_sabiogo_compras
+                SET estado = 'procesado'
+                WHERE estado IN ('cargado', 'pendiente')
+                """
+            )
+        ).rowcount
+
         # Refrescar vistas materializadas
         db.session.execute(text("REFRESH MATERIALIZED VIEW fact_ventas_sabiogo"))
         db.session.execute(text("REFRESH MATERIALIZED VIEW fact_costos_sabiogo"))
@@ -584,10 +612,26 @@ def refresh_facts():
         
         return jsonify({
             'success': True,
-            'mensaje': 'Vistas materializadas actualizadas'
+            'mensaje': 'Vistas materializadas actualizadas',
+            'staging_promovidos': {
+                'ventas': int(promoted_ventas or 0),
+                'compras': int(promoted_compras or 0),
+            },
         })
     except Exception as e:
         current_app.logger.error(f"Error refrescando facts: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@sabiogo_bp.route("/api/autogenerar-mapeos", methods=["POST"])
+@login_required
+def autogenerar_mapeos():
+    """Autogenera mapeos faltantes (productos/clientes) desde staging."""
+    try:
+        stats = _autogenerar_mapeos_faltantes()
+        return jsonify({'success': True, 'stats': stats})
+    except Exception as e:
+        current_app.logger.error(f"Error autogenerando mapeos SabioGo: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 

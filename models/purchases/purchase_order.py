@@ -7,6 +7,13 @@ class PurchaseOrder(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     supplier = db.Column(db.String(200), nullable=True)  # Nombre del proveedor
     supplier_id = db.Column(db.Integer, nullable=True)  # ID opcional para proveedor existente
+
+    # Campos principales (compat con esquema actual en DB)
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False, index=True)
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_price = db.Column(db.Numeric(12, 2), nullable=False)
+    total_amount = db.Column(db.Numeric(12, 2), nullable=False)
+
     status = db.Column(db.String(50), default="borrador", index=True)
     notes = db.Column(db.Text, nullable=True)
     location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=True, index=True)
@@ -21,6 +28,7 @@ class PurchaseOrder(db.Model):
     expected_delivery_date = db.Column(db.Date, nullable=True, index=True)
 
     # Relaciones
+    product = db.relationship("Product")
     location = db.relationship("Location")
     instrumento = db.relationship("InstrumentoPago")
     tesoreria_movimiento = db.relationship("MovimientoCaja")

@@ -12,52 +12,52 @@ class StgSabiogoVentas(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     
-    # Campos importados desde XLS
+    # Campos importados desde XLS (alineado al esquema real en Postgres)
     rubro = db.Column(db.String(100), nullable=True)
     fecha = db.Column(db.Date, nullable=False, index=True)
+    subrubro = db.Column(db.String(100), nullable=True)
     codigo = db.Column(db.String(50), nullable=False, index=True)
+    modelo = db.Column(db.String(100), nullable=True)
     producto = db.Column(db.String(200), nullable=True)
+    marca = db.Column(db.String(100), nullable=True)
+    comprobante = db.Column(db.String(100), nullable=True)
+    nro_comprob = db.Column(db.String(50), nullable=True)
     cliente = db.Column(db.String(200), nullable=True, index=True)
+    condicion_iva = db.Column(db.String(50), nullable=True)
     vendedor = db.Column(db.String(100), nullable=True, index=True)
-    sucursal = db.Column(db.String(100), nullable=True, index=True)
     deposito = db.Column(db.String(100), nullable=True)
     uninegocio = db.Column(db.String(100), nullable=True)
-    zona = db.Column(db.String(100), nullable=True)
-    localidad = db.Column(db.String(100), nullable=True)
-    condicion_iva = db.Column(db.String(50), nullable=True)
     forma_pago = db.Column(db.String(50), nullable=True)
+    localidad = db.Column(db.String(100), nullable=True)
+    zona = db.Column(db.String(100), nullable=True)
+    sucursal = db.Column(db.String(100), nullable=True, index=True)
     tipo = db.Column(db.String(50), nullable=True)
-    nro_comprob = db.Column(db.String(50), nullable=True)
     
     # Cantidades
-    kilos = db.Column(db.Numeric(12, 3), default=0)
-    cajas = db.Column(db.Numeric(12, 2), default=0)
+    kilos = db.Column(db.Float, default=0)
+    cajas = db.Column(db.Float, default=0)
     
     # Importes
-    neto = db.Column(db.Numeric(12, 2), default=0)
-    subtot = db.Column(db.Numeric(12, 2), default=0)
-    iva = db.Column(db.Numeric(12, 2), default=0)
-    percep_iva = db.Column(db.Numeric(12, 2), default=0)
-    iibb = db.Column(db.Numeric(12, 2), default=0)
-    total = db.Column(db.Numeric(12, 2), default=0)
-    
-    # Información adicional
-    marca = db.Column(db.String(100), nullable=True)
-    modelo = db.Column(db.String(100), nullable=True)
-    color = db.Column(db.String(50), nullable=True)
-    senia = db.Column(db.Numeric(12, 2), default=0)
+    dtos = db.Column(db.Float, default=0)
+    neto = db.Column(db.Float, default=0)
+    subtot = db.Column(db.Float, default=0)
+    iva = db.Column(db.Float, default=0)
+    moniva = db.Column(db.Float, default=0)
+    numlispre = db.Column(db.Integer, nullable=True)
+    lisprec = db.Column(db.Text, nullable=True)
     
     # Metadatos de importación
     fuente_archivo = db.Column(db.String(255), nullable=True)
     fecha_import = db.Column(db.DateTime, default=now_local, nullable=False, index=True)
     hash_archivo = db.Column(db.String(64), nullable=True, index=True)
     estado = db.Column(db.String(20), default='pendiente', nullable=False, index=True)
-    observaciones = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=now_local, nullable=True)
+    updated_at = db.Column(db.DateTime, default=now_local, nullable=True)
     
     __table_args__ = (
         Index('idx_stg_ventas_fecha_codigo', 'fecha', 'codigo'),
         Index('idx_stg_ventas_cliente_fecha', 'cliente', 'fecha'),
-        CheckConstraint("estado IN ('pendiente', 'procesado', 'duplicado', 'error')", name='chk_ventas_estado'),
+        CheckConstraint("estado IN ('pendiente', 'procesado', 'duplicado', 'error', 'cargado')", name='chk_ventas_estado'),
     )
     
     @classmethod
@@ -113,47 +113,52 @@ class StgSabiogoCompras(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     
-    # Campos importados desde XLS
+    # Campos importados desde XLS (mismo layout que ventas en staging real)
     rubro = db.Column(db.String(100), nullable=True)
     fecha = db.Column(db.Date, nullable=False, index=True)
+    subrubro = db.Column(db.String(100), nullable=True)
     codigo = db.Column(db.String(50), nullable=False, index=True)
+    modelo = db.Column(db.String(100), nullable=True)
     producto = db.Column(db.String(200), nullable=True)
-    proveedor = db.Column(db.String(200), nullable=True, index=True)
-    sucursal = db.Column(db.String(100), nullable=True, index=True)
+    marca = db.Column(db.String(100), nullable=True)
+    comprobante = db.Column(db.String(100), nullable=True)
+    nro_comprob = db.Column(db.String(50), nullable=True)
+    cliente = db.Column(db.String(200), nullable=True, index=True)
+    condicion_iva = db.Column(db.String(50), nullable=True)
+    vendedor = db.Column(db.String(100), nullable=True, index=True)
     deposito = db.Column(db.String(100), nullable=True)
     uninegocio = db.Column(db.String(100), nullable=True)
-    condicion_iva = db.Column(db.String(50), nullable=True)
     forma_pago = db.Column(db.String(50), nullable=True)
+    localidad = db.Column(db.String(100), nullable=True)
+    zona = db.Column(db.String(100), nullable=True)
+    sucursal = db.Column(db.String(100), nullable=True, index=True)
     tipo = db.Column(db.String(50), nullable=True)
-    nro_comprob = db.Column(db.String(50), nullable=True)
     
     # Cantidades
-    kilos = db.Column(db.Numeric(12, 3), default=0)
-    cajas = db.Column(db.Numeric(12, 2), default=0)
+    kilos = db.Column(db.Float, default=0)
+    cajas = db.Column(db.Float, default=0)
     
     # Importes
-    neto = db.Column(db.Numeric(12, 2), default=0)
-    subtot = db.Column(db.Numeric(12, 2), default=0)
-    iva = db.Column(db.Numeric(12, 2), default=0)
-    percep_iva = db.Column(db.Numeric(12, 2), default=0)
-    iibb = db.Column(db.Numeric(12, 2), default=0)
-    total = db.Column(db.Numeric(12, 2), default=0)
-    
-    # Información adicional
-    marca = db.Column(db.String(100), nullable=True)
-    modelo = db.Column(db.String(100), nullable=True)
+    dtos = db.Column(db.Float, default=0)
+    neto = db.Column(db.Float, default=0)
+    subtot = db.Column(db.Float, default=0)
+    iva = db.Column(db.Float, default=0)
+    moniva = db.Column(db.Float, default=0)
+    numlispre = db.Column(db.Integer, nullable=True)
+    lisprec = db.Column(db.Text, nullable=True)
     
     # Metadatos de importación
     fuente_archivo = db.Column(db.String(255), nullable=True)
     fecha_import = db.Column(db.DateTime, default=now_local, nullable=False, index=True)
     hash_archivo = db.Column(db.String(64), nullable=True, index=True)
     estado = db.Column(db.String(20), default='pendiente', nullable=False, index=True)
-    observaciones = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=now_local, nullable=True)
+    updated_at = db.Column(db.DateTime, default=now_local, nullable=True)
     
     __table_args__ = (
         Index('idx_stg_compras_fecha_codigo', 'fecha', 'codigo'),
-        Index('idx_stg_compras_proveedor_fecha', 'proveedor', 'fecha'),
-        CheckConstraint("estado IN ('pendiente', 'procesado', 'duplicado', 'error')", name='chk_compras_estado'),
+        Index('idx_stg_compras_cliente_fecha', 'cliente', 'fecha'),
+        CheckConstraint("estado IN ('pendiente', 'procesado', 'duplicado', 'error', 'cargado')", name='chk_compras_estado'),
     )
     
     @classmethod

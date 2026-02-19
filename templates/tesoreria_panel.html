@@ -60,12 +60,12 @@
 
     <!-- Gráfico de Flujo -->
     <div class="charts-row">
-        <div class="chart-card">
-            <h6 class="text-white mb-3">Flujo de Caja (últimos 7 días)</h6>
+        <div class="chart-card chart-card-light">
+            <h6 class="mb-3">Flujo de Caja (últimos 7 días)</h6>
             <canvas id="flujoChart"></canvas>
         </div>
-        <div class="chart-card">
-            <h6 class="text-white mb-3">Distribución por Instrumento</h6>
+        <div class="chart-card chart-card-light">
+            <h6 class="mb-3">Distribución por Instrumento (últimos 30 días)</h6>
             <canvas id="instrumentosChart"></canvas>
         </div>
     </div>
@@ -230,6 +230,9 @@
             .then(data => actualizarTablaMov(data.movimientos || []))
             .catch(e => console.error('Error movimientos:', e));
 
+        // Cargar charts
+        cargarGraficos();
+
         // Cargar instrumentos
         fetch('/api/tesoreria/instrumentos')
             .then(r => r.json())
@@ -241,6 +244,221 @@
             .then(r => r.json())
             .then(data => actualizarTablaArqueos(data.arqueos || []))
             .catch(e => console.error('Error arqueos:', e));
+    }
+
+    function fmtFechaISO(dateObj) {
+        const y = dateObj.getFullYear();
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const d = String(dateObj.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function getUltimosDias(n) {
+        const days = [];
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        for (let i = n - 1; i >= 0; i--) {
+            const d = new Date(now);
+            d.setDate(now.getDate() - i);
+            days.push(d);
+        }
+        return days;
+    }
+
+    function safeNumber(value) {
+        const n = Number(value);
+        return Number.isFinite(n) ? n : 0;
+    }
+
+    function chartOptionsClaro({ stacked = false } = {}) {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#111827' }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => {
+                            const v = safeNumber(ctx.parsed?.y ?? ctx.parsed ?? 0);
+                            const label = ctx.dataset?.label ? `${ctx.dataset.label}: ` : '';
+                            return label + '$' + v.toLocaleString('es-AR');
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    stacked,
+                    ticks: { color: '#374151' },
+                    grid: { color: 'rgba(55, 65, 81, 0.12)' }
+                },
+                y: {
+                    stacked,
+                    ticks: {
+                        color: '#374151',
+                        callback: (value) => '$' + Number(value).toLocaleString('es-AR')
+                    },
+                    grid: { color: 'rgba(55, 65, 81, 0.12)' }
+                }
+            }
+        };
+    }
+
+    function cargarGraficos() {
+        cargarGraficoFlujo7Dias();
+        cargarGraficoInstrumentos30Dias();
+    }
+
+    async function cargarGraficoFlujo7Dias() {
+        try {
+            const dias = getUltimosDias(7);
+            const desde = fmtFechaISO(dias[0]);
+            const hasta = fmtFechaISO(dias[dias.length - 1]);
+
+            const resp = await fetch(`/api/tesoreria/movimientos?fecha_desde=${desde}&fecha_hasta=${hasta}&per_page=5000`);
+            const data = await resp.json();
+            const movimientos = data.movimientos || [];
+
+            const ingresosPorDia = new Map();
+            const egresosPorDia = new Map();
+            dias.forEach(d => {
+                const key = fmtFechaISO(d);
+                ingresosPorDia.set(key, 0);
+                egresosPorDia.set(key, 0);
+            });
+
+            movimientos.forEach(m => {
+                const key = String(m.fecha_hora || '').split('T')[0];
+                if (!ingresosPorDia.has(key)) return;
+                if (m.tipo === 'ingreso') ingresosPorDia.set(key, ingresosPorDia.get(key) + safeNumber(m.monto));
+                if (m.tipo === 'egreso') egresosPorDia.set(key, egresosPorDia.get(key) + safeNumber(m.monto));
+            });
+
+            const labels = dias.map(d => d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }));
+            const ingresos = dias.map(d => ingresosPorDia.get(fmtFechaISO(d)) || 0);
+            const egresos = dias.map(d => egresosPorDia.get(fmtFechaISO(d)) || 0);
+            const neto = ingresos.map((v, i) => v - egresos[i]);
+
+            const ctx = document.getElementById('flujoChart')?.getContext('2d');
+            if (!ctx) return;
+
+            if (flujoChart) flujoChart.destroy();
+            flujoChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Ingresos',
+                            data: ingresos,
+                            backgroundColor: 'rgba(34, 197, 94, 0.25)',
+                            borderColor: '#16a34a',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Egresos',
+                            data: egresos,
+                            backgroundColor: 'rgba(239, 68, 68, 0.25)',
+                            borderColor: '#dc2626',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Neto',
+                            type: 'line',
+                            data: neto,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.10)',
+                            tension: 0.35,
+                            pointRadius: 2,
+                            pointHoverRadius: 3
+                        }
+                    ]
+                },
+                options: chartOptionsClaro({ stacked: false })
+            });
+        } catch (e) {
+            console.error('Error gráfico flujo:', e);
+        }
+    }
+
+    async function cargarGraficoInstrumentos30Dias() {
+        try {
+            const dias = getUltimosDias(30);
+            const desde = fmtFechaISO(dias[0]);
+            const hasta = fmtFechaISO(dias[dias.length - 1]);
+
+            const resp = await fetch(`/api/tesoreria/movimientos?fecha_desde=${desde}&fecha_hasta=${hasta}&per_page=5000`);
+            const data = await resp.json();
+            const movimientos = data.movimientos || [];
+
+            const totales = new Map();
+            movimientos.forEach(m => {
+                const nombre = m.instrumento || 'Sin instrumento';
+                const current = totales.get(nombre) || 0;
+                totales.set(nombre, current + Math.abs(safeNumber(m.monto)));
+            });
+
+            const labels = Array.from(totales.keys());
+            const values = labels.map(k => totales.get(k) || 0);
+
+            const ctx = document.getElementById('instrumentosChart')?.getContext('2d');
+            if (!ctx) return;
+
+            if (instrumentosChart) instrumentosChart.destroy();
+            instrumentosChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            data: values,
+                            backgroundColor: [
+                                'rgba(59, 130, 246, 0.35)',
+                                'rgba(34, 197, 94, 0.35)',
+                                'rgba(245, 158, 11, 0.35)',
+                                'rgba(236, 72, 153, 0.35)',
+                                'rgba(99, 102, 241, 0.35)',
+                                'rgba(20, 184, 166, 0.35)',
+                                'rgba(239, 68, 68, 0.35)'
+                            ],
+                            borderColor: [
+                                '#3b82f6',
+                                '#22c55e',
+                                '#f59e0b',
+                                '#ec4899',
+                                '#6366f1',
+                                '#14b8a6',
+                                '#ef4444'
+                            ],
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#111827' }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const label = ctx.label ? `${ctx.label}: ` : '';
+                                    const v = safeNumber(ctx.parsed || 0);
+                                    return label + '$' + v.toLocaleString('es-AR');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } catch (e) {
+            console.error('Error gráfico instrumentos:', e);
+        }
     }
 
     function actualizarTablaMov(movimientos) {

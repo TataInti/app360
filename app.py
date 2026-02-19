@@ -8,7 +8,9 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+# En desarrollo local es común tener variables exportadas en la shell; forzamos override
+# para que la app quede alineada a la configuración del proyecto.
+load_dotenv(override=True)
 
 from config import Config
 from models import db
@@ -109,7 +111,7 @@ def create_app():
         app.logger.info("CSRF protection enabled")
 
     # Enable CORS for all routes
-    CORS(app, origins=app.config["CORS_ORIGINS"])
+    CORS(app, origins=app.config["CORS_ORIGINS"], supports_credentials=True)
 
     db.init_app(app)
     migrate.init_app(app, db)
@@ -242,7 +244,8 @@ def create_app():
 
     @app.errorhandler(500)
     def handle_internal_error(e):
-        app.logger.error(f"Internal error: {e}")
+        # Mantener rollback, pero también registrar traceback completo
+        app.logger.exception("Internal error")
         db.session.rollback()
         return jsonify({"error": "Internal server error"}), 500
 

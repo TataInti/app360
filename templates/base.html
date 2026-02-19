@@ -233,10 +233,10 @@
         </div>
 
         {% if can_access('dashboard') %}
-        <a href="/dashboard"
-           class="{% if current.startswith('/dashboard') and not current.startswith('/dashboard-comercial') %}active-link{% endif %}">
+        <a href="/dashboard-financiero"
+           class="{% if current.startswith('/dashboard-financiero') or (current.startswith('/dashboard') and not current.startswith('/dashboard-comercial')) %}active-link{% endif %}">
             <span class="link-icon"><i class="bi bi-speedometer2"></i></span>
-            <span class="link-text">Dashboard Operativo</span>
+            <span class="link-text">Dashboard Financiero</span>
         </a>
         {% endif %}
 
@@ -253,6 +253,14 @@
            class="{% if current.startswith('/panel-ejecutivo') %}active-link{% endif %}">
             <span class="link-icon"><i class="bi bi-compass"></i></span>
             <span class="link-text">Panel Ejecutivo</span>
+        </a>
+        {% endif %}
+
+        {% if can_access('panel') or can_access('bi') %}
+        <a href="/bi"
+           class="{% if current.startswith('/bi') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-bar-chart-line"></i></span>
+            <span class="link-text">BI / Análisis</span>
         </a>
         {% endif %}
 
@@ -442,29 +450,6 @@
         </a>
         {% endif %}
 
-        <hr>
-
-        <!-- Inteligencia de Negocios -->
-        <div class="sidebar-section-title">
-            Inteligencia
-        </div>
-
-        {% if can_access('panel') or can_access('bi') %}
-        <a href="/bi"
-           class="{% if current.startswith('/bi') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-bar-chart-line"></i></span>
-            <span class="link-text">BI / Análisis</span>
-        </a>
-        {% endif %}
-
-        {% if session.get('role') in ['admin', 'manager', 'gerente'] %}
-        <a href="/sabiogo/admin"
-           class="{% if current.startswith('/sabiogo') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-graph-up-arrow"></i></span>
-            <span class="link-text">SabioGo Rentabilidad</span>
-        </a>
-        {% endif %}
-
         <!-- Administración (solo admin) -->
         {% if session.get('role') in ['admin', 'manager', 'gerente'] %}
         <hr>
@@ -475,6 +460,12 @@
            class="{% if current.startswith('/admin') %}active-link{% endif %}">
             <span class="link-icon"><i class="bi bi-gear-fill"></i></span>
             <span class="link-text">Administración</span>
+        </a>
+
+        <a href="/sabiogo/admin"
+           class="{% if current.startswith('/sabiogo') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-graph-up-arrow"></i></span>
+            <span class="link-text">Administración SabioGo - Rentabilidad</span>
         </a>
         {% endif %}
     </div>

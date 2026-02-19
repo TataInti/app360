@@ -171,8 +171,27 @@
     let margenMensualChart;
     let cajaMensualChart;
 
+    const fmtMoneda = new Intl.NumberFormat('es-AR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+
+    const fmtEntero = new Intl.NumberFormat('es-AR', {
+        maximumFractionDigits: 0,
+    });
+
+    const fmtPct = new Intl.NumberFormat('es-AR', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+    });
+
     function formatearMoneda(valor) {
-        return `$${Number(valor || 0).toFixed(2)}`;
+        const n = Number(valor || 0);
+        return `$${fmtMoneda.format(n)}`;
+    }
+
+    function formatearEntero(valor) {
+        return fmtEntero.format(Number(valor || 0));
     }
 
     function formatearEstados(estados) {
@@ -185,11 +204,11 @@
         document.getElementById('kpi-ingresos').textContent = formatearMoneda(kpis.ingresos_sabiogo);
         document.getElementById('kpi-costos').textContent = formatearMoneda(kpis.costos_sabiogo);
         document.getElementById('kpi-margen').textContent = formatearMoneda(kpis.margen_bruto_sabiogo);
-        document.getElementById('kpi-margen-pct').textContent = `${Number(kpis.margen_porcentual_sabiogo || 0).toFixed(1)}%`;
+        document.getElementById('kpi-margen-pct').textContent = `${fmtPct.format(Number(kpis.margen_porcentual_sabiogo || 0))}%`;
         document.getElementById('kpi-gastos').textContent = formatearMoneda(kpis.gastos_finanzas);
         document.getElementById('kpi-caja-neta').textContent = formatearMoneda(kpis.caja_neta);
-        document.getElementById('kpi-movimientos').textContent = Number(kpis.movimientos_caja || 0);
-        document.getElementById('kpi-productos').textContent = Number(kpis.productos_activos_sabiogo || 0);
+        document.getElementById('kpi-movimientos').textContent = formatearEntero(kpis.movimientos_caja || 0);
+        document.getElementById('kpi-productos').textContent = formatearEntero(kpis.productos_activos_sabiogo || 0);
     }
 
     function renderCharts(series) {
@@ -290,7 +309,7 @@
                 <td class="text-end">${formatearMoneda(item.ingresos)}</td>
                 <td class="text-end">${formatearMoneda(item.costos)}</td>
                 <td class="text-end">${formatearMoneda(item.margen_bruto)}</td>
-                <td class="text-end">${Number(item.margen_porcentual || 0).toFixed(1)}%</td>
+                <td class="text-end">${fmtPct.format(Number(item.margen_porcentual || 0))}%</td>
             </tr>
         `).join('') || '<tr><td colspan="6">Sin datos para el período seleccionado</td></tr>';
     }

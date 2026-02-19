@@ -83,6 +83,8 @@
 </div>
 
 <script>
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
 document.addEventListener('DOMContentLoaded', () => {
     const hoy = new Date();
     document.querySelector('input[name="fecha"]').value = hoy.toISOString().split('T')[0];
@@ -165,7 +167,7 @@ document.getElementById('formAusentismo')?.addEventListener('submit', async (e) 
     try {
         const resp = await fetch('/api/rrhh/ausentismo', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify(payload)
         });
 

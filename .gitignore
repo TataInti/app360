@@ -69,6 +69,11 @@ instance/
 *.sqlite3
 excel/
 
+# Backups locales (NO versionar). Los releases versionados viven en backups/db-releases/
+backups/db-sync/
+.env.local_backup*
+.env.*_backup*
+
 # =============================================================================
 # Logs
 # =============================================================================
@@ -95,6 +100,9 @@ BACKLOG.md
 FIXES_*.md
 roadmap.md
 FUNCIONALIDADES.md
+
+# Docs locales (notas personales / accesos / dumps temporales)
+docs/_local/
 
 # =============================================================================
 # Development-only Files
@@ -146,6 +154,3 @@ vps_access.md
 *_secrets*
 *.pem
 *.key
-__pycache__/
-*.pyc
-scripts/seed_local.py

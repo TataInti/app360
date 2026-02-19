@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 
 // Lazy load pages
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const DashboardFinanciero = lazy(() => import("./pages/DashboardFinanciero"));
 const DashboardComercial = lazy(() => import("./pages/DashboardComercial"));
 const PanelEjecutivo = lazy(() => import("./pages/PanelEjecutivo"));
 const Inteligencia = lazy(() => import("./pages/Inteligencia"));
@@ -26,10 +27,11 @@ function App() {
       <Suspense fallback={<LoadingSpinner />}>
         <Routes>
           {/* Redirijo raíz al dashboard operativo */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/dashboard-financiero" replace />} />
 
           {/* Paneles estratégicos */}
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Navigate to="/dashboard-financiero" replace />} />
+          <Route path="/dashboard-financiero" element={<DashboardFinanciero />} />
           <Route path="/dashboard-comercial" element={<DashboardComercial />} />
           <Route path="/panel-ejecutivo" element={<PanelEjecutivo />} />
           <Route path="/inteligencia" element={<Inteligencia />} />
