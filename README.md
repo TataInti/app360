@@ -27,6 +27,15 @@ Guía completa y checklist pre-push/post-pull:
 
 Nota: `scripts/deploy.sh` es seguro de ejecutar en un VPS ya instalado (update), porque no hace seed ni `db.create_all()`; solo instala deps y valida configuración. Los únicos cambios de schema ocurren si se habilita `RUN_MIGRATIONS=true` o si se aplica un release DB versionado.
 
+## Manual técnico y planes operativos
+
+- Manual de developer (exhaustivo):
+    - `docs/MANUAL_DEVELOPER.md`
+- Plan de limpieza profunda (intermedia):
+    - `docs/PLAN_LIMPIEZA_PROFUNDA.md`
+- Plan de consolidación Git local/VPS/GitHub:
+    - `docs/PLAN_CONSOLIDACION_GIT_VPS_GITHUB.md`
+
 ### Archivos locales (no versionar)
 
 El repo está configurado para ignorar:
