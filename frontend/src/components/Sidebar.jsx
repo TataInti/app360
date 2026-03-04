@@ -11,7 +11,7 @@ function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <h2>Silva360</h2>
+      <h2>App360</h2>
 
       {/* Paneles Estratégicos */}
       <div className="sidebar-section-title">Paneles Estratégicos</div>

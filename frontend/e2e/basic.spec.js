@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 test('homepage loads', async ({ page }) => {
   await page.goto('/')
-  await expect(page).toHaveTitle(/Silva 360/)
+  await expect(page).toHaveTitle(/ 360/)
 })
 
 test('navigation works', async ({ page }) => {
@@ -13,6 +13,6 @@ test('navigation works', async ({ page }) => {
 
 test('sidebar navigation', async ({ page }) => {
   await page.goto('/')
-  await expect(page.locator('text=Silva360')).toBeVisible()
+  await expect(page.locator('text=360')).toBeVisible()
   await expect(page.locator('text=Paneles Estratégicos')).toBeVisible()
 })

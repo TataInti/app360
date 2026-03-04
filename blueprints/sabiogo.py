@@ -6,6 +6,7 @@ from werkzeug.utils import secure_filename
 import pandas as pd
 import hashlib
 import os
+import re
 from datetime import datetime, date, timedelta
 from typing import Optional
 from sqlalchemy import text, func
@@ -34,6 +35,44 @@ protect_blueprint(sabiogo_bp, "admin")
 
 
 ALLOWED_EXTENSIONS = {'xls', 'xlsx'}
+
+
+ORIGEN_LEGACY = 'LEGACY'
+ORIGEN_CARNES = 'CARNES'
+ORIGEN_LACTEOS = 'LACTEOS'
+
+
+def infer_origen_from_filename(filename: str) -> Optional[str]:
+    """Inferir origen (CARNES/LACTEOS) desde el nombre de archivo."""
+    if not filename:
+        return None
+    name = filename.lower()
+    if re.search(r"\b(carne|carnes|vyp\s*carnes)\b", name):
+        return ORIGEN_CARNES
+    if re.search(r"\b(lacteo|lácteo|lacteos|lácteos|vyp\s*lacteos)\b", name):
+        return ORIGEN_LACTEOS
+    return None
+
+
+def normalize_codigo(value) -> Optional[str]:
+    """Normaliza `codigo` para que sea comparable (evita .0, espacios, NaN)."""
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+
+    text_value = str(value).strip()
+    if not text_value:
+        return None
+
+    # Excel a veces entrega números como '123.0'
+    if re.fullmatch(r"\d+\.0+", text_value):
+        text_value = text_value.split('.', 1)[0]
+
+    return text_value
 
 
 def login_required(f):
@@ -73,8 +112,9 @@ def _autogenerar_mapeos_faltantes():
         'clientes_auto_mapeados': 0,
     }
 
-    # Productos: unir códigos de ventas y compras
+    # Productos: unir códigos de ventas y compras (por origen)
     codigos_ventas = db.session.query(
+        StgSabiogoVentas.origen,
         StgSabiogoVentas.codigo,
         func.max(StgSabiogoVentas.producto).label('producto'),
         func.max(StgSabiogoVentas.marca).label('marca'),
@@ -82,9 +122,10 @@ def _autogenerar_mapeos_faltantes():
     ).filter(
         StgSabiogoVentas.codigo.isnot(None),
         StgSabiogoVentas.codigo != '',
-    ).group_by(StgSabiogoVentas.codigo).all()
+    ).group_by(StgSabiogoVentas.origen, StgSabiogoVentas.codigo).all()
 
     codigos_compras = db.session.query(
+        StgSabiogoCompras.origen,
         StgSabiogoCompras.codigo,
         func.max(StgSabiogoCompras.producto).label('producto'),
         func.max(StgSabiogoCompras.marca).label('marca'),
@@ -92,28 +133,32 @@ def _autogenerar_mapeos_faltantes():
     ).filter(
         StgSabiogoCompras.codigo.isnot(None),
         StgSabiogoCompras.codigo != '',
-    ).group_by(StgSabiogoCompras.codigo).all()
+    ).group_by(StgSabiogoCompras.origen, StgSabiogoCompras.codigo).all()
 
     codigos_dict = {}
     for row in codigos_ventas + codigos_compras:
+        origen = row.origen or ORIGEN_LEGACY
         codigo = row.codigo
-        if codigo not in codigos_dict:
-            codigos_dict[codigo] = {
+        key = (origen, codigo)
+        if key not in codigos_dict:
+            codigos_dict[key] = {
                 'producto': row.producto,
                 'marca': row.marca,
                 'modelo': row.modelo,
             }
 
     codigos_existentes = {
-        codigo for (codigo,) in db.session.query(SabiogoProductMap.codigo).all()
+        (origen or ORIGEN_LEGACY, codigo)
+        for origen, codigo in db.session.query(SabiogoProductMap.origen, SabiogoProductMap.codigo).all()
     }
 
-    for codigo, info in codigos_dict.items():
-        if codigo in codigos_existentes:
+    for (origen, codigo), info in codigos_dict.items():
+        if (origen, codigo) in codigos_existentes:
             continue
 
         product = Product.query.filter_by(sku=codigo).first()
         nuevo_mapeo = SabiogoProductMap(
+            origen=origen,
             codigo=codigo,
             product_id=product.id if product else None,
             marca=info.get('marca'),
@@ -247,6 +292,7 @@ def cargar_xls():
     try:
         # Guardar archivo temporal
         filename = secure_filename(file.filename)
+        origen = infer_origen_from_filename(filename) or request.form.get('origen') or ORIGEN_LEGACY
         upload_folder = current_app.config.get('UPLOAD_FOLDER', '/tmp')
         if not os.path.exists(upload_folder):
             os.makedirs(upload_folder)
@@ -283,6 +329,12 @@ def cargar_xls():
                 for key, value in data.items():
                     if pd.isna(value):
                         data[key] = None
+
+                # Normalizar codigo y guardar raw
+                codigo_raw = data.get('codigo')
+                data['codigo_raw'] = None if codigo_raw is None else str(codigo_raw)
+                data['codigo'] = normalize_codigo(codigo_raw)
+                data['origen'] = origen
                 
                 # Agregar metadatos
                 data['fuente_archivo'] = filename
@@ -320,8 +372,10 @@ def cargar_xls():
         if tipo == 'ventas':
             sin_mapeo_query = db.session.query(StgSabiogoVentas).filter(
                 StgSabiogoVentas.hash_archivo == hash_archivo,
+                (StgSabiogoVentas.origen == origen) | (StgSabiogoVentas.origen.is_(None)),
                 StgSabiogoVentas.codigo.notin_(
                     db.session.query(SabiogoProductMap.codigo).filter(
+                        (SabiogoProductMap.origen == origen) | (SabiogoProductMap.origen.is_(None)),
                         SabiogoProductMap.activo == True,
                         SabiogoProductMap.product_id.isnot(None)
                     )
@@ -330,8 +384,10 @@ def cargar_xls():
         else:
             sin_mapeo_query = db.session.query(StgSabiogoCompras).filter(
                 StgSabiogoCompras.hash_archivo == hash_archivo,
+                (StgSabiogoCompras.origen == origen) | (StgSabiogoCompras.origen.is_(None)),
                 StgSabiogoCompras.codigo.notin_(
                     db.session.query(SabiogoProductMap.codigo).filter(
+                        (SabiogoProductMap.origen == origen) | (SabiogoProductMap.origen.is_(None)),
                         SabiogoProductMap.activo == True,
                         SabiogoProductMap.product_id.isnot(None)
                     )
@@ -358,6 +414,7 @@ def cargar_xls():
         return jsonify({
             'success': True,
             'mensaje': f'Archivo cargado exitosamente',
+            'origen': origen,
             'filas_insertadas': filas_insertadas,
             'filas_procesadas': filas_procesadas,
             'filas_duplicadas': duplicados,
@@ -384,8 +441,12 @@ def listar_mapeos_productos():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
     estado = request.args.get('estado')  # 'mapeado', 'sin_mapear'
+    origen = request.args.get('origen')
     
     query = SabiogoProductMap.query
+
+    if origen:
+        query = query.filter((SabiogoProductMap.origen == origen) | (SabiogoProductMap.origen.is_(None)))
     
     if estado == 'mapeado':
         query = query.filter(
@@ -405,6 +466,7 @@ def listar_mapeos_productos():
     for mapeo in pagination.items:
         items.append({
             'id': mapeo.id,
+            'origen': mapeo.origen or ORIGEN_LEGACY,
             'codigo': mapeo.codigo,
             'producto_descripcion': mapeo.producto_descripcion,
             'marca': mapeo.marca,
@@ -444,8 +506,12 @@ def actualizar_mapeo_producto(codigo):
     if not product:
         return jsonify({'error': 'Producto no encontrado'}), 404
     
-    # Actualizar mapeo
-    mapeo = SabiogoProductMap.query.filter_by(codigo=codigo).first()
+    origen = request.args.get('origen') or (request.get_json(silent=True) or {}).get('origen')
+    if not origen:
+        return jsonify({'error': 'origen requerido (query param o JSON body)'}), 400
+
+    # Actualizar mapeo (por origen+codigo)
+    mapeo = SabiogoProductMap.query.filter_by(origen=origen, codigo=codigo).first()
     if not mapeo:
         return jsonify({'error': 'Código no encontrado'}), 404
     

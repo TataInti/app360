@@ -9,7 +9,7 @@ from models.sabiogo import (
     SabiogoLocationMap,
     LogSabiogoCarga
 )
-from sqlalchemy import func, text
+from sqlalchemy import func, text, and_
 from datetime import datetime, date
 from typing import Dict, List, Optional, Tuple
 
@@ -37,7 +37,10 @@ class SabiogoRepository:
             func.count(StgSabiogoVentas.id).label('num_transacciones')
         ).join(
             SabiogoProductMap,
-            StgSabiogoVentas.codigo == SabiogoProductMap.codigo
+            and_(
+                StgSabiogoVentas.codigo == SabiogoProductMap.codigo,
+                func.coalesce(StgSabiogoVentas.origen, 'LEGACY') == func.coalesce(SabiogoProductMap.origen, 'LEGACY'),
+            )
         ).filter(
             SabiogoProductMap.product_id == product_id,
             SabiogoProductMap.activo == True,
@@ -72,7 +75,10 @@ class SabiogoRepository:
             func.count(StgSabiogoCompras.id).label('num_transacciones')
         ).join(
             SabiogoProductMap,
-            StgSabiogoCompras.codigo == SabiogoProductMap.codigo
+            and_(
+                StgSabiogoCompras.codigo == SabiogoProductMap.codigo,
+                func.coalesce(StgSabiogoCompras.origen, 'LEGACY') == func.coalesce(SabiogoProductMap.origen, 'LEGACY'),
+            )
         ).filter(
             SabiogoProductMap.product_id == product_id,
             SabiogoProductMap.activo == True,
@@ -112,10 +118,12 @@ class SabiogoRepository:
                 COALESCE(SUM(v.subtot), 0) - COALESCE(SUM(c.subtot), 0) as margen_bruto
             FROM products p
             LEFT JOIN sabiogo_product_map pm ON p.id = pm.product_id AND pm.activo = true
-            LEFT JOIN stg_sabiogo_ventas v ON pm.codigo = v.codigo 
+            LEFT JOIN stg_sabiogo_ventas v ON pm.codigo = v.codigo
+                AND COALESCE(v.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
                 AND v.estado = 'procesado' 
                 AND v.fecha BETWEEN :fecha_inicio AND :fecha_fin
-            LEFT JOIN stg_sabiogo_compras c ON pm.codigo = c.codigo 
+            LEFT JOIN stg_sabiogo_compras c ON pm.codigo = c.codigo
+                AND COALESCE(c.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
                 AND c.estado = 'procesado' 
                 AND c.fecha BETWEEN :fecha_inicio AND :fecha_fin
             WHERE p.category = :categoria
@@ -167,10 +175,12 @@ class SabiogoRepository:
                 COALESCE(SUM(v.kilos), 0) as kilos_vendidos
             FROM products p
             INNER JOIN sabiogo_product_map pm ON p.id = pm.product_id AND pm.activo = true
-            LEFT JOIN stg_sabiogo_ventas v ON pm.codigo = v.codigo 
+            LEFT JOIN stg_sabiogo_ventas v ON pm.codigo = v.codigo
+                AND COALESCE(v.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
                 AND v.estado = 'procesado' 
                 AND v.fecha BETWEEN :fecha_inicio AND :fecha_fin
-            LEFT JOIN stg_sabiogo_compras c ON pm.codigo = c.codigo 
+            LEFT JOIN stg_sabiogo_compras c ON pm.codigo = c.codigo
+                AND COALESCE(c.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
                 AND c.estado = 'procesado' 
                 AND c.fecha BETWEEN :fecha_inicio AND :fecha_fin
             GROUP BY p.id, p.name, p.sku, p.category
@@ -268,9 +278,11 @@ class SabiogoRepository:
                     COUNT(DISTINCT pm.product_id) AS productos_activos_mapeados
                 FROM sabiogo_product_map pm
                 LEFT JOIN stg_sabiogo_ventas v ON pm.codigo = v.codigo
+                    AND COALESCE(v.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
                     AND v.estado = 'procesado'
                     AND v.fecha BETWEEN :fecha_inicio AND :fecha_fin
                 LEFT JOIN stg_sabiogo_compras c ON pm.codigo = c.codigo
+                    AND COALESCE(c.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
                     AND c.estado = 'procesado'
                     AND c.fecha BETWEEN :fecha_inicio AND :fecha_fin
                 WHERE pm.activo = true

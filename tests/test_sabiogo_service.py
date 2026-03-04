@@ -73,6 +73,7 @@ def setup_data(app):
         
         # Crear mapeo de producto
         mapeo_prod = SabiogoProductMap(
+            origen='LEGACY',
             codigo='PROD001',
             product_id=1,
             activo=True
@@ -101,6 +102,7 @@ def setup_data(app):
         fecha_venta = date.today() - timedelta(days=15)
         venta = StgSabiogoVentas(
             fecha=fecha_venta,
+            origen='LEGACY',
             codigo='PROD001',
             producto='Producto Test',
             cliente='Cliente Test',
@@ -118,6 +120,7 @@ def setup_data(app):
         fecha_compra = fecha_venta - timedelta(days=5)
         compra = StgSabiogoCompras(
             fecha=fecha_compra,
+            origen='LEGACY',
             codigo='PROD001',
             producto='Producto Test',
             cliente='Proveedor Test',
@@ -229,6 +232,7 @@ class TestSabiogoService:
             fecha_venta = setup_data['fecha_venta']
             duplicado = StgSabiogoVentas(
                 fecha=fecha_venta,
+                origen='LEGACY',
                 codigo='PROD001',
                 producto='Producto Test',
                 cliente='Cliente Test',
@@ -244,6 +248,7 @@ class TestSabiogoService:
             # Crear otro con datos idénticos
             duplicado2 = StgSabiogoVentas(
                 fecha=fecha_venta,
+                origen='LEGACY',
                 codigo='PROD001',
                 producto='Producto Test',
                 cliente='Cliente Test',
@@ -318,6 +323,7 @@ class TestSabiogoModels:
             
             # Crear mapeo
             mapeo = SabiogoProductMap(
+                origen='LEGACY',
                 codigo='TEST001',
                 product_id=product.id,
                 marca='Test Brand',
@@ -363,6 +369,7 @@ class TestSabiogoModels:
         with app.app_context():
             venta = StgSabiogoVentas(
                 fecha=date.today(),
+                origen='LEGACY',
                 codigo='PROD001',
                 producto='Producto Test',
                 cliente='Cliente Test',
@@ -382,6 +389,7 @@ class TestSabiogoModels:
         with app.app_context():
             compra = StgSabiogoCompras(
                 fecha=date.today(),
+                origen='LEGACY',
                 codigo='PROD001',
                 producto='Producto Test',
                 cliente='Proveedor Test',

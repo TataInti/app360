@@ -258,7 +258,10 @@ def bi_dashboard():
                 """
                 SELECT COUNT(*) AS total
                 FROM stg_sabiogo_ventas v
-                LEFT JOIN sabiogo_product_map pm ON v.codigo = pm.codigo AND pm.activo = true
+                                LEFT JOIN sabiogo_product_map pm
+                                        ON v.codigo = pm.codigo
+                                        AND COALESCE(v.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
+                                        AND pm.activo = true
                 WHERE v.fecha BETWEEN :fecha_desde AND :fecha_hasta
                   AND v.estado = 'procesado'
                   AND pm.product_id IS NULL
@@ -272,7 +275,10 @@ def bi_dashboard():
                 """
                 SELECT COUNT(*) AS total
                 FROM stg_sabiogo_compras c
-                LEFT JOIN sabiogo_product_map pm ON c.codigo = pm.codigo AND pm.activo = true
+                                LEFT JOIN sabiogo_product_map pm
+                                        ON c.codigo = pm.codigo
+                                        AND COALESCE(c.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
+                                        AND pm.activo = true
                 WHERE c.fecha BETWEEN :fecha_desde AND :fecha_hasta
                   AND c.estado = 'procesado'
                   AND pm.product_id IS NULL

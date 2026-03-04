@@ -11,7 +11,9 @@ class SabiogoProductMap(db.Model):
     __tablename__ = 'sabiogo_product_map'
     
     id = db.Column(db.Integer, primary_key=True)
-    codigo = db.Column(db.String(50), nullable=False, unique=True, index=True)
+    # Origen lógico del catálogo (CARNES/LACTEOS/LEGACY)
+    origen = db.Column(db.String(20), nullable=True, index=True)
+    codigo = db.Column(db.String(50), nullable=False, index=True)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=True, index=True)
     
     # Información adicional del producto SabioGo
@@ -28,11 +30,12 @@ class SabiogoProductMap(db.Model):
     product = db.relationship('Product', backref='sabiogo_maps', lazy='select')
     
     __table_args__ = (
+        UniqueConstraint('origen', 'codigo', name='uq_sabiogo_product_map_origen_codigo'),
         Index('idx_sabiogo_product_active', 'activo', 'product_id'),
     )
     
     def __repr__(self):
-        return f'<SabiogoProductMap codigo={self.codigo} product_id={self.product_id}>'
+        return f'<SabiogoProductMap origen={self.origen} codigo={self.codigo} product_id={self.product_id}>'
 
 
 class SabiogoClientMap(db.Model):
