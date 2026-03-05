@@ -10,10 +10,15 @@ class Config:
         "DATABASE_URL", "postgresql://app360:password@localhost:5432/app360"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # pool_pre_ping evita conexiones SSL/TCP stale tras idle prolongado
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_recycle": 900,  # reciclar conexiones cada 15 min
+    }
 
     # En local no forzar SERVER_NAME/HTTPS (rompe cookies y routing con host distinto)
     SERVER_NAME = os.getenv("SERVER_NAME") or (
-        None if _IS_LOCAL else "app360.actioconsultores.com"
+        None if _IS_LOCAL else "vyp.app360.com.ar"
     )
     PREFERRED_URL_SCHEME = os.getenv("PREFERRED_URL_SCHEME") or (
         "http" if _IS_LOCAL else "https"
