@@ -98,6 +98,7 @@
                             <th>Instrumento</th>
                             <th>Destino</th>
                             <th>Descripción</th>
+                            <th>Estado</th>
                             <th>Usuario</th>
                             <th>Acciones</th>
                         </tr>
@@ -160,6 +161,7 @@
 <script>
 const userRole = '{{ session.get("role", "") }}';
 const canEdit = (userRole !== 'director');
+const isAdmin = ['admin', 'manager', 'gerente'].includes(userRole);
 
 document.addEventListener('DOMContentLoaded', function() {
     const hoy = new Date();
@@ -203,6 +205,7 @@ async function cargarMovimientos() {
         
         let ingresos = 0, egresos = 0;
         movimientos.forEach(m => {
+            if (m.estado === 'anulado') return;
             if (m.tipo === 'ingreso') ingresos += parseFloat(m.monto);
             else egresos += parseFloat(m.monto);
         });
@@ -213,24 +216,45 @@ async function cargarMovimientos() {
         
         const tbody = document.getElementById('tablaMovimientos');
         if (movimientos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No hay movimientos</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">No hay movimientos</td></tr>';
         } else {
             tbody.innerHTML = movimientos.map(m => {
                 const destinoId = m.destino_id ? `#${m.destino_id}` : '-';
+                const esAnulado = m.estado === 'anulado';
+                const esPendiente = m.estado === 'pendiente_anulacion';
+                const rowClass = esAnulado ? 'class="text-decoration-line-through text-muted"' : '';
+
+                let estadoBadge = '';
+                if (esAnulado) estadoBadge = '<span class="badge bg-secondary">Anulado</span>';
+                else if (esPendiente) estadoBadge = '<span class="badge bg-warning text-dark">Pend. anulación</span>';
+                else estadoBadge = '<span class="badge bg-primary">Activo</span>';
+
+                let acciones = '';
+                if (canEdit && !esAnulado && !esPendiente) {
+                    acciones = `<button class="btn btn-sm btn-outline-danger" onclick="solicitarAnulacion(${m.id})" title="Solicitar anulación">
+                        <i class="bi bi-x-circle"></i>
+                    </button>`;
+                }
+                if (isAdmin && esPendiente) {
+                    acciones = `<button class="btn btn-sm btn-success me-1" onclick="autorizarAnulacion(${m.id})" title="Autorizar">
+                        <i class="bi bi-check-circle"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="rechazarAnulacion(${m.id})" title="Rechazar">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>`;
+                }
+
                 return `
-                <tr>
+                <tr ${rowClass}>
                     <td>${new Date(m.fecha_hora).toLocaleString('es-AR')}</td>
                     <td><span class="badge ${m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger'}">${m.tipo}</span></td>
                     <td>$${parseFloat(m.monto).toLocaleString('es-AR')}</td>
                     <td>${m.instrumento || '-'}</td>
                     <td>${destinoId}</td>
                     <td>${m.descripcion}</td>
+                    <td>${estadoBadge}</td>
                     <td>${m.usuario || '-'}</td>
-                    <td>
-                        ${canEdit ? `<button class="btn btn-sm btn-outline-danger" onclick="anularMovimiento(${m.id})">
-                            <i class="bi bi-x-circle"></i>
-                        </button>` : ''}
-                    </td>
+                    <td>${acciones}</td>
                 </tr>
             `}).join('');
         }
@@ -324,14 +348,39 @@ document.getElementById('formMovimiento')?.addEventListener('submit', async func
     }
 });
 
-function anularMovimiento(id) {
-    if (confirm('¿Anular este movimiento?')) {
-        fetch(`/api/tesoreria/movimientos/${id}`, { method: 'DELETE' })
-            .then(r => {
-                if (r.ok) cargarMovimientos();
-                else alert('Error al anular');
-            });
-    }
+function solicitarAnulacion(id) {
+    const motivo = prompt('Motivo de la anulación:');
+    if (!motivo || !motivo.trim()) return;
+    fetch(`/api/tesoreria/movimientos/${id}/solicitar-anulacion`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({motivo: motivo.trim()})
+    }).then(r => {
+        if (r.ok) { alert('Solicitud enviada'); cargarMovimientos(); }
+        else r.json().then(d => alert(d.error || 'Error'));
+    }).catch(() => alert('Error de conexión'));
+}
+
+function autorizarAnulacion(id) {
+    if (!confirm('¿Autorizar la anulación de este movimiento?')) return;
+    fetch(`/api/tesoreria/movimientos/${id}/autorizar-anulacion`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    }).then(r => {
+        if (r.ok) { alert('Anulación autorizada'); cargarMovimientos(); }
+        else r.json().then(d => alert(d.error || 'Error'));
+    }).catch(() => alert('Error de conexión'));
+}
+
+function rechazarAnulacion(id) {
+    if (!confirm('¿Rechazar la solicitud de anulación?')) return;
+    fetch(`/api/tesoreria/movimientos/${id}/rechazar-anulacion`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    }).then(r => {
+        if (r.ok) { alert('Solicitud rechazada'); cargarMovimientos(); }
+        else r.json().then(d => alert(d.error || 'Error'));
+    }).catch(() => alert('Error de conexión'));
 }
 </script>
 {% endblock %}

@@ -56,6 +56,15 @@ class MovimientoCaja(db.Model):
     monto = db.Column(db.Numeric(12, 2), nullable=False)
     descripcion = db.Column(db.String(200), nullable=False)
 
+    # Estado: activo | pendiente_anulacion | anulado
+    estado = db.Column(db.String(25), nullable=False, default="activo", server_default="activo")
+
+    # Anulación
+    motivo_anulacion = db.Column(db.Text, nullable=True)
+    anulado_por_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    autorizado_por_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    fecha_anulacion = db.Column(db.DateTime, nullable=True)
+
     # Relaciones
     instrumento_id = db.Column(db.Integer, db.ForeignKey("instrumentos_pago.id"), nullable=False)
     arqueo_id = db.Column(db.Integer, db.ForeignKey("arqueos_caja.id"), nullable=True)  # Puede ser null si no está arqueado
@@ -67,13 +76,16 @@ class MovimientoCaja(db.Model):
     cliente_proveedor = db.Column(db.String(200))  # Nombre del cliente/proveedor
 
     # Relaciones
-    usuario = db.relationship("User")
+    usuario = db.relationship("User", foreign_keys=[usuario_id])
+    anulado_por = db.relationship("User", foreign_keys=[anulado_por_id])
+    autorizado_por = db.relationship("User", foreign_keys=[autorizado_por_id])
 
     # Índices
     __table_args__ = (
         db.Index('idx_movimiento_fecha', 'fecha_hora'),
         db.Index('idx_movimiento_tipo', 'tipo'),
         db.Index('idx_movimiento_instrumento', 'instrumento_id'),
+        db.Index('idx_movimiento_estado', 'estado'),
     )
 
 

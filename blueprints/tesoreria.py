@@ -118,6 +118,8 @@ def movimientos_listar():
             "destino_id": m.destino_id,  # Simple integer para tracking del destino del dinero
             "referencia": m.referencia,
             "cliente_proveedor": m.cliente_proveedor,
+            "estado": m.estado,
+            "motivo_anulacion": m.motivo_anulacion,
             "usuario": m.usuario.username if m.usuario else None
         } for m in movimientos.items],
         "total": movimientos.total,
@@ -251,6 +253,79 @@ def movimientos_crear():
             "instrumento": movimiento.instrumento.nombre
         }
     }), 201
+
+
+# ── Anulación de movimientos ──────────────────────────────
+
+@tesoreria_bp.route("/api/tesoreria/movimientos/<int:mov_id>/solicitar-anulacion", methods=["POST"])
+def movimiento_solicitar_anulacion(mov_id):
+    """Solicitar anulación de un movimiento (soft-delete con autorización)."""
+    movimiento = MovimientoCaja.query.get_or_404(mov_id)
+
+    if movimiento.estado != "activo":
+        return jsonify({"error": f"Movimiento ya está en estado '{movimiento.estado}'"}), 400
+
+    data = request.get_json(silent=True) or {}
+    motivo = data.get("motivo", "").strip()
+    if not motivo:
+        return jsonify({"error": "Motivo de anulación requerido"}), 400
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Sesión inválida, re-logueá"}), 401
+
+    movimiento.estado = "pendiente_anulacion"
+    movimiento.motivo_anulacion = motivo
+    movimiento.anulado_por_id = user_id
+    db.session.commit()
+
+    return jsonify({"message": "Solicitud de anulación enviada, pendiente de autorización"})
+
+
+@tesoreria_bp.route("/api/tesoreria/movimientos/<int:mov_id>/autorizar-anulacion", methods=["POST"])
+def movimiento_autorizar_anulacion(mov_id):
+    """Autorizar anulación — solo admin/manager/gerente."""
+    from security import require_admin
+
+    user_role = session.get("role")
+    if user_role not in ("admin", "manager", "gerente"):
+        return jsonify({"error": "Solo un administrador puede autorizar anulaciones"}), 403
+
+    movimiento = MovimientoCaja.query.get_or_404(mov_id)
+
+    if movimiento.estado != "pendiente_anulacion":
+        return jsonify({"error": "El movimiento no tiene solicitud de anulación pendiente"}), 400
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Sesión inválida"}), 401
+
+    movimiento.estado = "anulado"
+    movimiento.autorizado_por_id = user_id
+    movimiento.fecha_anulacion = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({"message": "Anulación autorizada"})
+
+
+@tesoreria_bp.route("/api/tesoreria/movimientos/<int:mov_id>/rechazar-anulacion", methods=["POST"])
+def movimiento_rechazar_anulacion(mov_id):
+    """Rechazar solicitud de anulación — volver a activo."""
+    user_role = session.get("role")
+    if user_role not in ("admin", "manager", "gerente"):
+        return jsonify({"error": "Solo un administrador puede rechazar anulaciones"}), 403
+
+    movimiento = MovimientoCaja.query.get_or_404(mov_id)
+
+    if movimiento.estado != "pendiente_anulacion":
+        return jsonify({"error": "El movimiento no tiene solicitud pendiente"}), 400
+
+    movimiento.estado = "activo"
+    movimiento.motivo_anulacion = None
+    movimiento.anulado_por_id = None
+    db.session.commit()
+
+    return jsonify({"message": "Solicitud de anulación rechazada, movimiento restaurado"})
 
 
 @tesoreria_bp.route("/api/tesoreria/arqueos", methods=["GET"])
