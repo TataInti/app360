@@ -11,7 +11,7 @@
 
     <!-- Tarjetas de Resumen -->
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card bg-primary text-white">
                 <div class="card-body text-center">
                     <h6>Saldo Inicial</h6>
@@ -20,18 +20,26 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h6>+ Liquidaciones</h6>
+                    <h3 id="totalLiquidaciones">$ 0.00</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
             <div class="card bg-danger text-white">
                 <div class="card-body text-center">
-                    <h6>Total Pagos</h6>
+                    <h6>- Pagos</h6>
                     <h3 id="totalPagos">$ 0.00</h3>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="card bg-success text-white">
                 <div class="card-body text-center">
-                    <h6>Saldo Actual</h6>
+                    <h6>= Saldo Actual</h6>
                     <h3 id="saldoActual">$ 0.00</h3>
                 </div>
             </div>
@@ -50,6 +58,9 @@
             <button class="btn btn-outline-success me-2" onclick="exportarPagos()">
                 <i class="bi bi-file-earmark-excel"></i> Exportar Excel
             </button>
+            <button class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#modalNuevaLiquidacion">
+                <i class="bi bi-plus-circle"></i> Registrar Liquidación
+            </button>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoPago">
                 <i class="bi bi-plus-circle"></i> Registrar Pago
             </button>
@@ -62,11 +73,11 @@
             <div class="row">
                 <div class="col-md-3">
                     <label>Fecha Desde</label>
-                    <input type="date" id="fechaDesde" class="form-control" onchange="cargarPagos()">
+                    <input type="date" id="fechaDesde" class="form-control" onchange="cargarLiquidaciones(); cargarPagos()">
                 </div>
                 <div class="col-md-3">
                     <label>Fecha Hasta</label>
-                    <input type="date" id="fechaHasta" class="form-control" onchange="cargarPagos()">
+                    <input type="date" id="fechaHasta" class="form-control" onchange="cargarLiquidaciones(); cargarPagos()">
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
                     <button class="btn btn-secondary me-2" onclick="limpiarFiltros()">
@@ -77,32 +88,78 @@
         </div>
     </div>
 
-    <!-- Tabla de Pagos -->
-    <div class="card">
-        <div class="card-header">
-            <h5><i class="bi bi-list-ul"></i> Listado de Pagos</h5>
+    <!-- Tabs: Liquidaciones y Pagos -->
+    <ul class="nav nav-tabs mb-3" id="tabsCuentaFriar" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" id="tab-liquidaciones" data-bs-toggle="tab" data-bs-target="#panelLiquidaciones" type="button">
+                <i class="bi bi-file-earmark-text"></i> Liquidaciones
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" id="tab-pagos" data-bs-toggle="tab" data-bs-target="#panelPagos" type="button">
+                <i class="bi bi-cash-stack"></i> Pagos
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Tab Liquidaciones -->
+        <div class="tab-pane fade show active" id="panelLiquidaciones" role="tabpanel">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-file-earmark-text"></i> Liquidaciones recibidas de Friar</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Fecha</th>
+                                    <th>Monto</th>
+                                    <th>Tipo</th>
+                                    <th>Descripción</th>
+                                    <th>Referencia</th>
+                                    <th>Usuario</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaLiquidaciones">
+                                <tr><td colspan="8" class="text-center">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Fecha</th>
-                            <th>Monto</th>
-                            <th>Instrumento</th>
-                            <th>Descripción</th>
-                            <th>Referencia</th>
-                            <th>Usuario</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tablaPagos">
-                        <tr>
-                            <td colspan="8" class="text-center">Cargando pagos...</td>
-                        </tr>
-                    </tbody>
-                </table>
+
+        <!-- Tab Pagos -->
+        <div class="tab-pane fade" id="panelPagos" role="tabpanel">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-list-ul"></i> Listado de Pagos</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Fecha</th>
+                                    <th>Monto</th>
+                                    <th>Instrumento</th>
+                                    <th>Descripción</th>
+                                    <th>Referencia</th>
+                                    <th>Usuario</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaPagos">
+                                <tr><td colspan="8" class="text-center">Cargando pagos...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -200,16 +257,62 @@
     </div>
 </div>
 
+<!-- Modal: Nueva Liquidación -->
+<div class="modal fade" id="modalNuevaLiquidacion" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">Registrar Liquidación Friar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNuevaLiquidacion">
+                    <div class="mb-3">
+                        <label for="fechaLiq" class="form-label">Fecha *</label>
+                        <input type="date" class="form-control" id="fechaLiq" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="montoLiq" class="form-label">Monto *</label>
+                        <input type="number" step="0.01" class="form-control" id="montoLiq" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="tipoLiq" class="form-label">Tipo *</label>
+                        <select class="form-select" id="tipoLiq" required>
+                            <option value="consignado">Consignado</option>
+                            <option value="no_consignado">No Consignado</option>
+                            <option value="ajuste">Ajuste</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="descripcionLiq" class="form-label">Descripción *</label>
+                        <textarea class="form-control" id="descripcionLiq" rows="2" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="referenciaLiq" class="form-label">Nro Liquidación / Referencia</label>
+                        <input type="text" class="form-control" id="referenciaLiq">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" onclick="guardarLiquidacion()">Registrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let cuentaActual = null;
 const isAdmin = {{ 'true' if session.get('role') in ['admin', 'manager', 'gerente'] else 'false' }};
 
 document.addEventListener("DOMContentLoaded", function() {
-    // Establecer fecha de hoy en el modal de pago
+    // Establecer fecha de hoy en los modales
     document.getElementById("fechaPago").valueAsDate = new Date();
+    document.getElementById("fechaLiq").valueAsDate = new Date();
     
     cargarCuentaCorriente();
     cargarInstrumentos();
+    cargarLiquidaciones();
     cargarPagos();
 });
 
@@ -227,6 +330,7 @@ async function cargarCuentaCorriente() {
         
         // Actualizar tarjetas
         document.getElementById("saldoInicial").textContent = `$ ${parseFloat(data.cuenta.saldo_inicial).toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+        document.getElementById("totalLiquidaciones").textContent = `$ ${parseFloat(data.cuenta.total_liquidaciones).toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         document.getElementById("totalPagos").textContent = `$ ${parseFloat(data.cuenta.total_pagos).toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         document.getElementById("saldoActual").textContent = `$ ${parseFloat(data.cuenta.saldo_actual).toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         
@@ -305,9 +409,113 @@ async function cargarPagos() {
     }
 }
 
+async function cargarLiquidaciones() {
+    const fechaDesde = document.getElementById("fechaDesde").value;
+    const fechaHasta = document.getElementById("fechaHasta").value;
+
+    let url = "/api/tesoreria/cta-cte-friar/liquidaciones?";
+    if (fechaDesde) url += `fecha_desde=${fechaDesde}&`;
+    if (fechaHasta) url += `fecha_hasta=${fechaHasta}&`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        const tbody = document.getElementById("tablaLiquidaciones");
+
+        if (data.liquidaciones.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center">No hay liquidaciones</td></tr>';
+            return;
+        }
+
+        const tipoBadge = {consignado: 'bg-info', no_consignado: 'bg-secondary', ajuste: 'bg-dark'};
+        tbody.innerHTML = data.liquidaciones.map(liq => `
+            <tr>
+                <td>${liq.id}</td>
+                <td>${new Date(liq.fecha).toLocaleDateString('es-AR')}</td>
+                <td class="text-end">$ ${parseFloat(liq.monto).toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+                <td><span class="badge ${tipoBadge[liq.tipo] || 'bg-secondary'}">${liq.tipo}</span></td>
+                <td>${liq.descripcion}</td>
+                <td>${liq.referencia || "-"}</td>
+                <td>${liq.usuario || "N/A"}</td>
+                <td>${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="eliminarLiquidacion(${liq.id})"><i class="bi bi-trash"></i></button>` : ''}</td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error("Error al cargar liquidaciones:", error);
+    }
+}
+
+async function guardarLiquidacion() {
+    const fecha = document.getElementById("fechaLiq").value;
+    const monto = document.getElementById("montoLiq").value;
+    const tipo = document.getElementById("tipoLiq").value;
+    const descripcion = document.getElementById("descripcionLiq").value;
+    const referencia = document.getElementById("referenciaLiq").value;
+
+    if (!fecha || !monto || !descripcion.trim()) {
+        alert("Todos los campos obligatorios (*) deben completarse");
+        return;
+    }
+    if (parseFloat(monto) <= 0) {
+        alert("El monto debe ser mayor a cero");
+        return;
+    }
+
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        const response = await fetch("/api/tesoreria/cta-cte-friar/liquidaciones", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(csrfToken ? { "X-CSRFToken": csrfToken } : {})
+            },
+            body: JSON.stringify({
+                fecha, monto: parseFloat(monto), tipo,
+                descripcion: descripcion.trim(),
+                referencia: referencia.trim() || null
+            })
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert(data.message);
+            bootstrap.Modal.getInstance(document.getElementById("modalNuevaLiquidacion")).hide();
+            document.getElementById("formNuevaLiquidacion").reset();
+            document.getElementById("fechaLiq").valueAsDate = new Date();
+            cargarCuentaCorriente();
+            cargarLiquidaciones();
+        } else {
+            alert(data.error || "Error al registrar");
+        }
+    } catch (e) {
+        alert("Error de conexión");
+    }
+}
+
+async function eliminarLiquidacion(id) {
+    if (!confirm("¿Eliminar esta liquidación?")) return;
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        const response = await fetch(`/api/tesoreria/cta-cte-friar/liquidaciones/${id}`, {
+            method: "DELETE",
+            headers: { ...(csrfToken ? { "X-CSRFToken": csrfToken } : {}) }
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert(data.message);
+            cargarCuentaCorriente();
+            cargarLiquidaciones();
+        } else {
+            alert(data.error || "Error");
+        }
+    } catch (e) {
+        alert("Error de conexión");
+    }
+}
+
 function limpiarFiltros() {
     document.getElementById("fechaDesde").value = "";
     document.getElementById("fechaHasta").value = "";
+    cargarLiquidaciones();
     cargarPagos();
 }
 

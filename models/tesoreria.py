@@ -129,10 +129,37 @@ class CuentaCorrienteFriar(db.Model):
     proveedor = db.relationship("Proveedor", foreign_keys=[proveedor_id])
     editado_por = db.relationship("User", foreign_keys=[editado_por_id])
     pagos = db.relationship("PagoFriar", backref="cuenta", cascade="all, delete-orphan")
+    liquidaciones = db.relationship("LiquidacionFriar", backref="cuenta", cascade="all, delete-orphan")
     logs = db.relationship("LogCuentaCorrienteFriar", backref="cuenta", cascade="all, delete-orphan", order_by="LogCuentaCorrienteFriar.fecha_edicion.desc()")
     
     def __repr__(self):
         return f'<CuentaCorrienteFriar proveedor_id={self.proveedor_id}>'
+
+
+class LiquidacionFriar(db.Model):
+    """Liquidaciones recibidas de Friar (aumentan la deuda)"""
+    __tablename__ = "liquidaciones_friar"
+
+    id = db.Column(db.Integer, primary_key=True)
+    cuenta_corriente_id = db.Column(db.Integer, db.ForeignKey("cuenta_corriente_friar.id"), nullable=False)
+    fecha = db.Column(db.DateTime, default=now_local, nullable=False)
+    monto = db.Column(db.Numeric(12, 2), nullable=False)
+    tipo = db.Column(db.String(50), nullable=False, default="consignado")  # consignado, no_consignado, ajuste
+    descripcion = db.Column(db.String(200), nullable=False)
+    referencia = db.Column(db.String(100))  # Nro liquidación Friar
+    usuario_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=now_local, nullable=False)
+
+    # Relaciones
+    usuario = db.relationship("User")
+
+    __table_args__ = (
+        db.Index('idx_liquidacion_friar_fecha', 'fecha'),
+        db.Index('idx_liquidacion_friar_cuenta', 'cuenta_corriente_id'),
+    )
+
+    def __repr__(self):
+        return f'<LiquidacionFriar monto={self.monto} tipo={self.tipo}>'
 
 
 class PagoFriar(db.Model):

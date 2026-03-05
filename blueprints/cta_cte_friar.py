@@ -5,7 +5,7 @@ from decimal import Decimal
 from flask import Blueprint, request, jsonify, render_template, session, send_file
 
 from models import db, User
-from models.tesoreria import CuentaCorrienteFriar, PagoFriar, LogCuentaCorrienteFriar, InstrumentoPago
+from models.tesoreria import CuentaCorrienteFriar, PagoFriar, LiquidacionFriar, LogCuentaCorrienteFriar, InstrumentoPago
 from models.gastos import Proveedor
 from security import protect_blueprint
 
@@ -40,8 +40,13 @@ def cuenta_corriente_obtener():
     total_pagos = db.session.query(db.func.sum(PagoFriar.monto)).filter(
         PagoFriar.cuenta_corriente_id == cuenta.id
     ).scalar() or 0
+
+    # Calcular total de liquidaciones
+    total_liquidaciones = db.session.query(db.func.sum(LiquidacionFriar.monto)).filter(
+        LiquidacionFriar.cuenta_corriente_id == cuenta.id
+    ).scalar() or 0
     
-    saldo_actual = float(cuenta.saldo_inicial) - float(total_pagos)
+    saldo_actual = float(cuenta.saldo_inicial) + float(total_liquidaciones) - float(total_pagos)
     
     return jsonify({
         "cuenta": {
@@ -49,6 +54,7 @@ def cuenta_corriente_obtener():
             "proveedor_id": cuenta.proveedor_id,
             "proveedor": cuenta.proveedor.nombre if cuenta.proveedor else None,
             "saldo_inicial": float(cuenta.saldo_inicial),
+            "total_liquidaciones": float(total_liquidaciones),
             "total_pagos": float(total_pagos),
             "saldo_actual": saldo_actual,
             "observaciones": cuenta.observaciones,
@@ -199,6 +205,118 @@ def cuenta_corriente_logs(id):
 
 
 # =============================================================================
+# ENDPOINTS API - LIQUIDACIONES FRIAR
+# =============================================================================
+
+@cta_cte_friar_bp.route("/api/tesoreria/cta-cte-friar/liquidaciones", methods=["GET"])
+def liquidaciones_listar():
+    """Listar liquidaciones de Friar"""
+    cuenta = CuentaCorrienteFriar.query.first()
+    if not cuenta:
+        return jsonify({"liquidaciones": [], "total": 0})
+
+    fecha_desde = request.args.get("fecha_desde")
+    fecha_hasta = request.args.get("fecha_hasta")
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 50))
+
+    query = LiquidacionFriar.query.filter_by(cuenta_corriente_id=cuenta.id)
+    if fecha_desde:
+        query = query.filter(LiquidacionFriar.fecha >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
+    if fecha_hasta:
+        query = query.filter(LiquidacionFriar.fecha <= datetime.strptime(fecha_hasta + " 23:59:59", "%Y-%m-%d %H:%M:%S"))
+
+    liquidaciones = query.order_by(LiquidacionFriar.fecha.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+
+    return jsonify({
+        "liquidaciones": [{
+            "id": liq.id,
+            "fecha": liq.fecha.isoformat(),
+            "monto": float(liq.monto),
+            "tipo": liq.tipo,
+            "descripcion": liq.descripcion,
+            "referencia": liq.referencia,
+            "usuario": liq.usuario.username if liq.usuario else None
+        } for liq in liquidaciones.items],
+        "total": liquidaciones.total,
+        "pages": liquidaciones.pages,
+        "current_page": liquidaciones.page
+    })
+
+
+@cta_cte_friar_bp.route("/api/tesoreria/cta-cte-friar/liquidaciones", methods=["POST"])
+def liquidaciones_crear():
+    """Registrar nueva liquidación de Friar"""
+    cuenta = CuentaCorrienteFriar.query.first()
+    if not cuenta:
+        return jsonify({"error": "No existe cuenta corriente Friar configurada"}), 400
+
+    data = request.get_json()
+    monto = data.get("monto")
+    tipo = data.get("tipo", "consignado")
+    descripcion = data.get("descripcion")
+
+    if not monto or not descripcion:
+        return jsonify({"error": "Monto y descripción requeridos"}), 400
+
+    if tipo not in ("consignado", "no_consignado", "ajuste"):
+        return jsonify({"error": "Tipo inválido"}), 400
+
+    usuario_id = session.get("user_id")
+    if not usuario_id:
+        return jsonify({"error": "Sesión expirada"}), 401
+
+    try:
+        monto_decimal = Decimal(str(monto))
+        if monto_decimal <= 0:
+            return jsonify({"error": "El monto debe ser mayor a cero"}), 400
+
+        liq = LiquidacionFriar(
+            cuenta_corriente_id=cuenta.id,
+            monto=monto_decimal,
+            tipo=tipo,
+            descripcion=descripcion,
+            referencia=data.get("referencia"),
+            usuario_id=usuario_id,
+            fecha=datetime.strptime(data.get("fecha"), "%Y-%m-%d") if data.get("fecha") else datetime.utcnow()
+        )
+        db.session.add(liq)
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Liquidación registrada",
+            "liquidacion": {
+                "id": liq.id,
+                "monto": float(liq.monto),
+                "fecha": liq.fecha.isoformat()
+            }
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error al registrar liquidación: {str(e)}"}), 500
+
+
+@cta_cte_friar_bp.route("/api/tesoreria/cta-cte-friar/liquidaciones/<int:id>", methods=["DELETE"])
+def liquidaciones_eliminar(id):
+    """Eliminar liquidación (solo admin)"""
+    auth_error = require_admin()
+    if auth_error:
+        return auth_error
+
+    liq = LiquidacionFriar.query.get_or_404(id)
+    try:
+        db.session.delete(liq)
+        db.session.commit()
+        return jsonify({"success": True, "message": "Liquidación eliminada"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Error al eliminar: {str(e)}"}), 500
+
+
+# =============================================================================
 # ENDPOINTS API - PAGOS A FRIAR
 # =============================================================================
 
@@ -322,7 +440,9 @@ def pagos_crear():
         if monto_decimal <= 0:
             return jsonify({"error": "El monto debe ser mayor a cero"}), 400
         
-        usuario_id = session.get("user_id", 1)
+        usuario_id = session.get("user_id")
+        if not usuario_id:
+            return jsonify({"error": "Sesión expirada"}), 401
         
         pago = PagoFriar(
             cuenta_corriente_id=cuenta.id,
