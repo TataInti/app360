@@ -11,7 +11,7 @@ from models import (
     User,
     db,
 )
-from models.tesoreria import LogArqueo
+from models.tesoreria import LogArqueo, ArqueoDetalle
 from security import protect_blueprint
 
 tesoreria_bp = Blueprint("tesoreria", __name__)
@@ -412,17 +412,18 @@ def arqueos_exportar():
 
 @tesoreria_bp.route("/api/tesoreria/arqueos", methods=["POST"])
 def arqueos_crear():
-    """Crear nuevo arqueo de caja"""
+    """Crear nuevo arqueo de caja con detalle por instrumento"""
     data = request.get_json()
 
     fecha_str = data.get("fecha")
     turno = data.get("turno")
     saldo_inicial = data.get("saldo_inicial", 0)
     saldo_final = data.get("saldo_final")
-    
-    # Obtener usuario de la sesión o usar default
-    from flask import session
-    usuario_id = session.get("user_id") or data.get("usuario_id", 1)
+    detalles_input = data.get("detalles", [])  # [{instrumento_id, conteo_real}]
+
+    usuario_id = session.get("user_id")
+    if not usuario_id:
+        return jsonify({"error": "Sesión expirada"}), 401
 
     if not fecha_str or not turno or saldo_final is None:
         return jsonify({"error": "Fecha, turno y saldo final requeridos"}), 400
@@ -434,17 +435,15 @@ def arqueos_crear():
     except Exception as e:
         return jsonify({"error": f"Datos numéricos inválidos: {str(e)}"}), 400
 
-    # Verificar que no exista arqueo para esa fecha y turno
     if ArqueoCaja.query.filter_by(fecha=fecha, turno=turno).first():
         return jsonify({"error": "Ya existe arqueo para esa fecha y turno"}), 400
 
-    # Verificar que el usuario exista
     usuario = User.query.get(usuario_id)
     if not usuario:
         return jsonify({"error": "Usuario no encontrado"}), 404
 
     try:
-        # Calcular ingresos y egresos del día/turno
+        # Rango horario según turno
         fecha_inicio = datetime.combine(fecha, time(0, 0, 0))
         if turno == "mañana":
             fecha_fin = datetime.combine(fecha, time(13, 59, 59))
@@ -455,16 +454,19 @@ def arqueos_crear():
             fecha_inicio = datetime.combine(fecha, time(22, 0, 0))
             fecha_fin = datetime.combine(fecha + timedelta(days=1), time(5, 59, 59))
 
-        ingresos = db.session.query(db.func.sum(MovimientoCaja.monto)).filter(
+        # Filtro base: solo movimientos activos (excluir anulados/pendientes)
+        base_filter = [
             MovimientoCaja.fecha_hora >= fecha_inicio,
             MovimientoCaja.fecha_hora <= fecha_fin,
-            MovimientoCaja.tipo == "ingreso"
+            MovimientoCaja.estado == "activo",
+        ]
+
+        ingresos = db.session.query(db.func.sum(MovimientoCaja.monto)).filter(
+            *base_filter, MovimientoCaja.tipo == "ingreso"
         ).scalar() or 0
 
         egresos = db.session.query(db.func.sum(MovimientoCaja.monto)).filter(
-            MovimientoCaja.fecha_hora >= fecha_inicio,
-            MovimientoCaja.fecha_hora <= fecha_fin,
-            MovimientoCaja.tipo == "egreso"
+            *base_filter, MovimientoCaja.tipo == "egreso"
         ).scalar() or 0
 
         arqueo = ArqueoCaja(
@@ -475,10 +477,41 @@ def arqueos_crear():
             ingresos_total=Decimal(str(ingresos)),
             egresos_total=Decimal(str(egresos)),
             saldo_final=saldo_final,
-            diferencia=saldo_final - (saldo_inicial + Decimal(str(ingresos)) - Decimal(str(egresos)))
+            diferencia=saldo_final - (saldo_inicial + Decimal(str(ingresos)) - Decimal(str(egresos))),
+            observaciones=data.get("observaciones")
         )
-
         db.session.add(arqueo)
+        db.session.flush()  # obtener arqueo.id
+
+        # Detalle por instrumento
+        saldos_por_inst = db.session.query(
+            MovimientoCaja.instrumento_id,
+            db.func.sum(db.case(
+                (MovimientoCaja.tipo == "ingreso", MovimientoCaja.monto), else_=0
+            )) - db.func.sum(db.case(
+                (MovimientoCaja.tipo == "egreso", MovimientoCaja.monto), else_=0
+            ))
+        ).filter(*base_filter).group_by(MovimientoCaja.instrumento_id).all()
+
+        calc_map = {inst_id: float(saldo) for inst_id, saldo in saldos_por_inst}
+
+        # Crear detalle: si hay detalles_input, usamos el conteo_real del usuario;
+        # si no, generamos detalle con conteo_real = saldo_calculado (sin diferencia)
+        instrumentos_activos = InstrumentoPago.query.filter_by(activo=True).all()
+        conteos = {d["instrumento_id"]: float(d.get("conteo_real", 0)) for d in detalles_input}
+
+        for inst in instrumentos_activos:
+            saldo_calc = calc_map.get(inst.id, 0)
+            conteo = conteos.get(inst.id, saldo_calc)  # default: sin diferencia
+            detalle = ArqueoDetalle(
+                arqueo_id=arqueo.id,
+                instrumento_id=inst.id,
+                conteo_real=Decimal(str(conteo)),
+                saldo_calculado=Decimal(str(saldo_calc)),
+                diferencia=Decimal(str(conteo)) - Decimal(str(saldo_calc))
+            )
+            db.session.add(detalle)
+
         db.session.commit()
 
         return jsonify({
@@ -521,6 +554,23 @@ def estado_caja():
         "fecha": fecha,
         "estado_por_instrumento": estado,
         "total_caja": sum(estado.values())
+    })
+
+
+@tesoreria_bp.route("/api/tesoreria/arqueos/<int:id>/detalle", methods=["GET"])
+def arqueo_detalle(id):
+    """Obtener detalle por instrumento de un arqueo"""
+    arqueo = ArqueoCaja.query.get_or_404(id)
+    detalles = ArqueoDetalle.query.filter_by(arqueo_id=id).all()
+
+    return jsonify({
+        "arqueo_id": id,
+        "detalles": [{
+            "instrumento": d.instrumento.nombre if d.instrumento else "?",
+            "conteo_real": float(d.conteo_real),
+            "saldo_calculado": float(d.saldo_calculado),
+            "diferencia": float(d.diferencia)
+        } for d in detalles]
     })
 
 

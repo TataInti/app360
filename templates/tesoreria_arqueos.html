@@ -211,6 +211,14 @@
                             <input type="text" class="form-control" id="diferenciaCalc" readonly>
                         </div>
                     </div>
+
+                    <!-- Detalle por instrumento -->
+                    <div class="mb-3">
+                        <label class="form-label"><i class="bi bi-list-check"></i> Conteo por Instrumento</label>
+                        <div id="detalleInstrumentos" class="border rounded p-2">
+                            <small class="text-muted">Cargando instrumentos...</small>
+                        </div>
+                    </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Observaciones</label>
@@ -226,6 +234,21 @@
     </div>
 </div>
 
+<!-- Modal Detalle por Instrumento -->
+<div class="modal fade" id="modalDetalleArqueo" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-bar-chart"></i> Detalle por Instrumento</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detalleArqueoContent">
+                <p class="text-center">Cargando...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 const userRole = '{{ session.get("role", "") }}';
 const isAdmin = ['admin', 'manager', 'gerente'].includes(userRole);
@@ -233,6 +256,7 @@ const isAdmin = ['admin', 'manager', 'gerente'].includes(userRole);
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelector('input[name="fecha"]').value = new Date().toISOString().split('T')[0];
     cargarArqueos();
+    cargarInstrumentosArqueo();
     
     // Calcular diferencia automáticamente
     const form = document.getElementById('formArqueo');
@@ -240,6 +264,32 @@ document.addEventListener('DOMContentLoaded', function() {
         form.querySelector(`[name="${name}"]`)?.addEventListener('input', calcularDiferencia);
     });
 });
+
+let instrumentosList = [];
+
+async function cargarInstrumentosArqueo() {
+    try {
+        const resp = await fetch('/api/tesoreria/instrumentos');
+        const data = await resp.json();
+        instrumentosList = data.instrumentos || [];
+        const container = document.getElementById('detalleInstrumentos');
+        if (instrumentosList.length === 0) {
+            container.innerHTML = '<small class="text-muted">No hay instrumentos configurados</small>';
+            return;
+        }
+        container.innerHTML = instrumentosList.map(inst => `
+            <div class="row g-2 mb-1 align-items-center">
+                <div class="col-5"><small>${inst.nombre}</small></div>
+                <div class="col-7">
+                    <input type="number" step="0.01" class="form-control form-control-sm"
+                           data-inst-id="${inst.id}" placeholder="Conteo real" value="0">
+                </div>
+            </div>
+        `).join('');
+    } catch(e) {
+        console.error('Error cargando instrumentos:', e);
+    }
+}
 
 function calcularDiferencia() {
     const form = document.getElementById('formArqueo');
@@ -287,7 +337,10 @@ async function cargarArqueos() {
                 const hoy = new Date().toISOString().split('T')[0];
                 const esHoy = a.fecha === hoy;
                 
-                let acciones = `<button class="btn btn-sm btn-info" onclick="verHistorial(${a.id})" title="Ver historial">
+                let acciones = `<button class="btn btn-sm btn-outline-primary me-1" onclick="verDetalleInstrumentos(${a.id})" title="Detalle por instrumento">
+                    <i class="bi bi-bar-chart"></i>
+                </button>
+                <button class="btn btn-sm btn-info" onclick="verHistorial(${a.id})" title="Ver historial">
                     <i class="bi bi-clock-history"></i>
                 </button>`;
                 
@@ -436,8 +489,17 @@ document.getElementById('formArqueo')?.addEventListener('submit', async function
         egresos: egresos,
         saldo_final: real,
         diferencia: real - (inicial + ingresos - egresos),
-        observaciones: formData.get('observaciones')
+        observaciones: formData.get('observaciones'),
+        detalles: []
     };
+
+    // Recoger conteo por instrumento
+    document.querySelectorAll('#detalleInstrumentos input[data-inst-id]').forEach(input => {
+        data.detalles.push({
+            instrumento_id: parseInt(input.dataset.instId),
+            conteo_real: parseFloat(input.value) || 0
+        });
+    });
     
     try {
         const resp = await fetch('/api/tesoreria/arqueos', {
@@ -522,6 +584,41 @@ async function descargarExcel(url, fallbackName) {
         window.URL.revokeObjectURL(blobUrl);
     } catch (e) {
         alert('Error de conexión');
+    }
+}
+
+async function verDetalleInstrumentos(id) {
+    try {
+        const resp = await fetch(`/api/tesoreria/arqueos/${id}/detalle`);
+        const data = await resp.json();
+        const detalles = data.detalles || [];
+
+        let html = '';
+        if (detalles.length === 0) {
+            html = '<p class="text-muted text-center">Sin detalle por instrumento</p>';
+        } else {
+            html = `<table class="table table-sm">
+                <thead class="table-dark">
+                    <tr><th>Instrumento</th><th>Calculado</th><th>Conteo Real</th><th>Diferencia</th></tr>
+                </thead>
+                <tbody>
+                    ${detalles.map(d => {
+                        const difClass = d.diferencia < 0 ? 'text-danger' : d.diferencia > 0 ? 'text-warning' : 'text-success';
+                        return `<tr>
+                            <td>${d.instrumento}</td>
+                            <td>$${d.saldo_calculado.toLocaleString('es-AR')}</td>
+                            <td>$${d.conteo_real.toLocaleString('es-AR')}</td>
+                            <td class="${difClass}"><strong>$${d.diferencia.toLocaleString('es-AR')}</strong></td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>`;
+        }
+
+        document.getElementById('detalleArqueoContent').innerHTML = html;
+        new bootstrap.Modal(document.getElementById('modalDetalleArqueo')).show();
+    } catch(e) {
+        alert('Error al cargar detalle');
     }
 }
 

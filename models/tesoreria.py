@@ -110,6 +110,29 @@ class LogArqueo(db.Model):
         return f'<LogArqueo arqueo_id={self.arqueo_id} fecha={self.fecha_edicion}>'
 
 
+class ArqueoDetalle(db.Model):
+    """Detalle por instrumento de un arqueo de caja"""
+    __tablename__ = "arqueo_detalle"
+
+    id = db.Column(db.Integer, primary_key=True)
+    arqueo_id = db.Column(db.Integer, db.ForeignKey("arqueos_caja.id"), nullable=False)
+    instrumento_id = db.Column(db.Integer, db.ForeignKey("instrumentos_pago.id"), nullable=False)
+    conteo_real = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    saldo_calculado = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+    diferencia = db.Column(db.Numeric(12, 2), nullable=False, default=0)
+
+    # Relaciones
+    arqueo = db.relationship("ArqueoCaja", backref=db.backref("detalles", cascade="all, delete-orphan"))
+    instrumento = db.relationship("InstrumentoPago")
+
+    __table_args__ = (
+        db.UniqueConstraint('arqueo_id', 'instrumento_id', name='unique_arqueo_instrumento'),
+    )
+
+    def __repr__(self):
+        return f'<ArqueoDetalle arqueo={self.arqueo_id} inst={self.instrumento_id}>'
+
+
 class CuentaCorrienteFriar(db.Model):
     """Cuenta corriente con proveedor Friar"""
     __tablename__ = "cuenta_corriente_friar"
