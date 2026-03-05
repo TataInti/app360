@@ -576,14 +576,20 @@ def adelantos_solicitar():
         except:
             return jsonify({"error": "Cantidad de cuotas inválida"}), 400
 
+    # Sanitizar campos numéricos opcionales (el frontend puede enviar "" en vez de null)
+    raw_cuotas = data.get("cantidad_cuotas")
+    cantidad_cuotas = int(raw_cuotas) if raw_cuotas not in (None, "") else None
+    raw_interes = data.get("interes_porcentaje")
+    interes_porcentaje = Decimal(str(raw_interes)) if raw_interes not in (None, "") else None
+
     adelanto = Adelanto(
         empleado_id=data["empleado_id"],
         tipo=tipo,
         monto=monto,
         concepto=data["concepto"],
-        mes_aplicacion=data.get("mes_aplicacion"),
-        cantidad_cuotas=data.get("cantidad_cuotas"),
-        interes_porcentaje=data.get("interes_porcentaje")
+        mes_aplicacion=data.get("mes_aplicacion") or None,
+        cantidad_cuotas=cantidad_cuotas,
+        interes_porcentaje=interes_porcentaje,
     )
 
     db.session.add(adelanto)
@@ -604,13 +610,17 @@ def adelantos_solicitar():
 @rrhh_bp.route("/api/rrhh/adelantos/<int:adelanto_id>/aprobar", methods=["POST"])
 def adelantos_aprobar(adelanto_id):
     """Aprobar adelanto"""
+    from flask import session as flask_session
+
     adelanto = Adelanto.query.get_or_404(adelanto_id)
 
     if adelanto.aprobado:
         return jsonify({"error": "Adelanto ya está aprobado"}), 400
 
-    data = request.get_json()
-    usuario_id = data.get("usuario_id", 1)  # Default admin
+    # Obtener usuario aprobador desde sesión
+    usuario_id = flask_session.get("user_id")
+    if not usuario_id:
+        return jsonify({"error": "Sesión inválida, re-logueá"}), 401
 
     usuario = User.query.get(usuario_id)
     if not usuario:
