@@ -16,7 +16,11 @@ class StgSabiogoVentas(db.Model):
     rubro = db.Column(db.String(100), nullable=True)
     fecha = db.Column(db.Date, nullable=False, index=True)
     subrubro = db.Column(db.String(100), nullable=True)
+    # Origen lógico del archivo/datos (CARNES/LACTEOS/LEGACY)
+    origen = db.Column(db.String(20), nullable=True, index=True)
     codigo = db.Column(db.String(50), nullable=False, index=True)
+    # Código tal como vino del archivo (antes de normalizar)
+    codigo_raw = db.Column(db.String(80), nullable=True)
     modelo = db.Column(db.String(100), nullable=True)
     producto = db.Column(db.String(200), nullable=True)
     marca = db.Column(db.String(100), nullable=True)
@@ -56,6 +60,7 @@ class StgSabiogoVentas(db.Model):
     
     __table_args__ = (
         Index('idx_stg_ventas_fecha_codigo', 'fecha', 'codigo'),
+        Index('idx_stg_ventas_origen_fecha_codigo', 'origen', 'fecha', 'codigo'),
         Index('idx_stg_ventas_cliente_fecha', 'cliente', 'fecha'),
         CheckConstraint("estado IN ('pendiente', 'procesado', 'duplicado', 'error', 'cargado')", name='chk_ventas_estado'),
     )
@@ -117,7 +122,11 @@ class StgSabiogoCompras(db.Model):
     rubro = db.Column(db.String(100), nullable=True)
     fecha = db.Column(db.Date, nullable=False, index=True)
     subrubro = db.Column(db.String(100), nullable=True)
+    # Origen lógico del archivo/datos (CARNES/LACTEOS/LEGACY)
+    origen = db.Column(db.String(20), nullable=True, index=True)
     codigo = db.Column(db.String(50), nullable=False, index=True)
+    # Código tal como vino del archivo (antes de normalizar)
+    codigo_raw = db.Column(db.String(80), nullable=True)
     modelo = db.Column(db.String(100), nullable=True)
     producto = db.Column(db.String(200), nullable=True)
     marca = db.Column(db.String(100), nullable=True)
@@ -157,6 +166,7 @@ class StgSabiogoCompras(db.Model):
     
     __table_args__ = (
         Index('idx_stg_compras_fecha_codigo', 'fecha', 'codigo'),
+        Index('idx_stg_compras_origen_fecha_codigo', 'origen', 'fecha', 'codigo'),
         Index('idx_stg_compras_cliente_fecha', 'cliente', 'fecha'),
         CheckConstraint("estado IN ('pendiente', 'procesado', 'duplicado', 'error', 'cargado')", name='chk_compras_estado'),
     )

@@ -113,6 +113,7 @@ def seed_minimal(app):
         # SabioGo ventas (top clientes)
         venta = StgSabiogoVentas(
             fecha=date.today() - timedelta(days=5),
+            origen="LEGACY",
             codigo="X",
             producto="Prod",
             cliente="Cliente A",

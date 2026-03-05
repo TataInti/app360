@@ -30,12 +30,16 @@ from models.core.location import Location
 from sqlalchemy import func, distinct
 
 
+ORIGEN_LEGACY = 'LEGACY'
+
+
 def extraer_codigos_productos():
     """Extrae códigos únicos de productos desde staging."""
     print("📦 Extrayendo códigos de productos desde staging...")
     
     # Códigos desde ventas
     codigos_ventas = db.session.query(
+        StgSabiogoVentas.origen,
         distinct(StgSabiogoVentas.codigo),
         StgSabiogoVentas.producto,
         StgSabiogoVentas.marca,
@@ -47,6 +51,7 @@ def extraer_codigos_productos():
     
     # Códigos desde compras
     codigos_compras = db.session.query(
+        StgSabiogoCompras.origen,
         distinct(StgSabiogoCompras.codigo),
         StgSabiogoCompras.producto,
         StgSabiogoCompras.marca,
@@ -58,9 +63,11 @@ def extraer_codigos_productos():
     
     # Combinar y deduplicar
     codigos_dict = {}
-    for codigo, producto, marca, modelo in codigos_ventas + codigos_compras:
-        if codigo not in codigos_dict:
-            codigos_dict[codigo] = {
+    for origen, codigo, producto, marca, modelo in codigos_ventas + codigos_compras:
+        origen = origen or ORIGEN_LEGACY
+        key = (origen, codigo)
+        if key not in codigos_dict:
+            codigos_dict[key] = {
                 'producto': producto,
                 'marca': marca,
                 'modelo': modelo
@@ -78,9 +85,9 @@ def mapear_productos(codigos_dict):
     sin_mapear = 0
     sin_mapear_detalle = []
     
-    for codigo, info in codigos_dict.items():
+    for (origen, codigo), info in codigos_dict.items():
         # Verificar si ya existe el mapeo
-        existing = SabiogoProductMap.query.filter_by(codigo=codigo).first()
+        existing = SabiogoProductMap.query.filter_by(origen=origen, codigo=codigo).first()
         if existing:
             continue
         
@@ -88,6 +95,7 @@ def mapear_productos(codigos_dict):
         product = Product.query.filter_by(sku=codigo).first()
         
         mapeo = SabiogoProductMap(
+            origen=origen,
             codigo=codigo,
             product_id=product.id if product else None,
             marca=info['marca'],

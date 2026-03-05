@@ -9,7 +9,7 @@ import sys
 from sqlalchemy import create_engine, MetaData, Table, select, insert, delete
 
 # Configuración de bases de datos
-SQLITE_URL = "sqlite:///instance/silva360.db"
+SQLITE_URL = "sqlite:///instance/360.db"
 POSTGRES_URL = os.getenv("DATABASE_URL", "postgresql://app360:password@localhost:5432/app360")
 
 def migrate_data():
