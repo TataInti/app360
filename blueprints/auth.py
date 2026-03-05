@@ -23,6 +23,7 @@ def login():
 
         if user and user.check_password(password):
             session["user"] = user.username
+            session["user_id"] = user.id
             session["role"] = user.role
             log_login_attempt(username, success=True, ip=request.remote_addr)
             flash("Sesión iniciada correctamente.", "success")

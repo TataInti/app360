@@ -49,12 +49,14 @@
             <a href="/tesoreria/arqueos" class="btn btn-info">
                 <i class="bi bi-calculator"></i> Ver Arqueos
             </a>
+            {% if session.get('role') != 'director' %}
             <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#modalNuevoArqueo">
                 <i class="bi bi-plus-circle"></i> Nuevo Arqueo
             </button>
             <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
                 <i class="bi bi-plus-circle"></i> Registrar Movimiento
             </button>
+            {% endif %}
         </div>
     </div>
 

@@ -11,9 +11,11 @@
             <button class="btn btn-outline-success" onclick="exportarMovimientos()">
                 <i class="bi bi-file-earmark-excel"></i> Exportar Excel
             </button>
+            {% if session.get('role') != 'director' %}
             <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
                 <i class="bi bi-plus-circle"></i> Registrar Movimiento
             </button>
+            {% endif %}
         </div>
     </div>
 
@@ -156,6 +158,8 @@
 </div>
 
 <script>
+const userRole = '{{ session.get("role", "") }}';
+const canEdit = (userRole !== 'director');
 
 document.addEventListener('DOMContentLoaded', function() {
     const hoy = new Date();
@@ -223,9 +227,9 @@ async function cargarMovimientos() {
                     <td>${m.descripcion}</td>
                     <td>${m.usuario || '-'}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-danger" onclick="anularMovimiento(${m.id})">
+                        ${canEdit ? `<button class="btn btn-sm btn-outline-danger" onclick="anularMovimiento(${m.id})">
                             <i class="bi bi-x-circle"></i>
-                        </button>
+                        </button>` : ''}
                     </td>
                 </tr>
             `}).join('');

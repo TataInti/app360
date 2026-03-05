@@ -11,9 +11,11 @@
             <button class="btn btn-outline-success" onclick="exportarArqueos()">
                 <i class="bi bi-file-earmark-excel"></i> Exportar Excel
             </button>
+            {% if session.get('role') != 'director' %}
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoArqueo">
                 <i class="bi bi-plus-circle"></i> Nuevo Arqueo
             </button>
+            {% endif %}
         </div>
     </div>
 
