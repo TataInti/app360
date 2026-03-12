@@ -17,6 +17,7 @@ from models import (
     db,
 )
 from security import protect_blueprint
+from services.sabiogo_service import SabiogoService
 
 comercial_bp = Blueprint("comercial", __name__)
 
@@ -387,35 +388,12 @@ def objetivos_listar():
     
     objetivos = query.order_by(Goal.period.desc(), Employee.first_name, Employee.last_name).all()
     
-    # Calcular ventas reales por empleado en el periodo
+    # El avance oficial sale de Goal.current_value (sincronizado desde PRE SabioGo).
     resultado = []
     for obj in objetivos:
-        # Buscar ventas del empleado en el periodo
-        ventas_empleado = 0
-        if obj.period:
-            # Convertir periodo (ej: 2026-01) a rango de fechas
-            try:
-                año, mes = obj.period.split('-')[:2]
-                fecha_inicio = datetime(int(año), int(mes), 1)
-                if int(mes) == 12:
-                    fecha_fin = datetime(int(año) + 1, 1, 1)
-                else:
-                    fecha_fin = datetime(int(año), int(mes) + 1, 1)
-                
-                # Sumar ventas del vendedor en ese periodo
-                ventas = Venta.query.filter(
-                    Venta.vendedor_id == obj.employee_id,
-                    Venta.fecha >= fecha_inicio,
-                    Venta.fecha < fecha_fin
-                ).all()
-                
-                for v in ventas:
-                    ventas_empleado += float(v.precio_contrato or 0) * float(v.cantidad or 1)
-            except:
-                pass
-        
-        progreso = (obj.current_value / obj.target_value * 100) if obj.target_value else 0
-        progreso_ventas = (ventas_empleado / obj.target_value * 100) if obj.target_value else 0
+        ventas_empleado = float(obj.current_value or 0)
+        progreso = (ventas_empleado / obj.target_value * 100) if obj.target_value else 0
+        progreso_ventas = progreso
         
         resultado.append({
             "id": obj.id,
@@ -432,6 +410,78 @@ def objetivos_listar():
         })
     
     return jsonify({"objetivos": resultado})
+
+
+@comercial_bp.route("/api/comercial/ventas-pre-detalle", methods=["GET"])
+def ventas_pre_detalle():
+    """Detalle comercial basado exclusivamente en comprobantes PRE."""
+    fecha_desde_raw = request.args.get("fecha_desde")
+    fecha_hasta_raw = request.args.get("fecha_hasta")
+    vendedor = request.args.get("vendedor")
+    cliente = request.args.get("cliente")
+    producto = request.args.get("producto")
+    limit = request.args.get("limit", 500, type=int)
+
+    today = datetime.now().date()
+    if not fecha_hasta_raw:
+        fecha_hasta_raw = today.isoformat()
+    if not fecha_desde_raw:
+        fecha_desde_raw = (today - timedelta(days=30)).isoformat()
+
+    try:
+        fecha_desde = datetime.fromisoformat(fecha_desde_raw).date()
+        fecha_hasta = datetime.fromisoformat(fecha_hasta_raw).date()
+    except ValueError:
+        return jsonify({"error": "Formato de fecha inválido"}), 400
+
+    if fecha_desde > fecha_hasta:
+        return jsonify({"error": "fecha_desde no puede ser mayor a fecha_hasta"}), 400
+
+    service = SabiogoService()
+    data = service.get_detalle_ventas_pre(
+        fecha_inicio=fecha_desde,
+        fecha_fin=fecha_hasta,
+        vendedor=vendedor,
+        cliente=cliente,
+        producto=producto,
+        limit=max(1, min(limit, 2000)),
+    )
+
+    return jsonify(
+        {
+            "periodo": {
+                "desde": fecha_desde.isoformat(),
+                "hasta": fecha_hasta.isoformat(),
+            },
+            "filtros": {
+                "vendedor": vendedor,
+                "cliente": cliente,
+                "producto": producto,
+                "limit": max(1, min(limit, 2000)),
+            },
+            "data": data,
+        }
+    )
+
+
+@comercial_bp.route("/api/comercial/objetivos/sincronizar-pre", methods=["POST"])
+def sincronizar_objetivos_pre():
+    """Sincroniza Goal.current_value con ventas PRE por vendedor y período."""
+    payload = request.get_json(silent=True) or {}
+    periodo = payload.get("periodo") or request.args.get("periodo")
+
+    service = SabiogoService()
+    try:
+        resultado = service.sincronizar_objetivos_pre(periodo=periodo)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": f"No se pudo sincronizar objetivos PRE: {exc}"}), 500
+
+    return jsonify({
+        "success": True,
+        "resultado": resultado,
+    })
 
 
 @comercial_bp.route("/api/comercial/objetivos", methods=["POST"])

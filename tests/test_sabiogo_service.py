@@ -1,7 +1,7 @@
 """Tests unitarios para el servicio de rentabilidad SabioGo."""
 
 import pytest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from app import create_app
@@ -16,6 +16,8 @@ from models.sabiogo import (
     SabiogoClientMap,
     SabiogoLocationMap
 )
+from models.hr.employee import Employee
+from models.hr.goal import Goal
 from services.sabiogo_service import SabiogoService
 
 
@@ -305,6 +307,105 @@ class TestSabiogoService:
             assert log.tipo_carga == 'ventas'
             assert log.filas_insertadas == 100
             assert log.filas_duplicadas == 5
+
+    def test_get_resumen_pre_fac(self, app, setup_data):
+        """La métrica Pre/Fac separa PRE de cualquier FAC (no PRE)."""
+        with app.app_context():
+            fecha_base = date.today() - timedelta(days=2)
+
+            db.session.add(
+                StgSabiogoVentas(
+                    fecha=fecha_base,
+                    origen='LEGACY',
+                    codigo='PROD001',
+                    producto='Producto Test',
+                    cliente='Cliente Test',
+                    vendedor='Vendedor Test',
+                    comprobante='PRE',
+                    subtot=Decimal('50.00'),
+                    estado='procesado',
+                )
+            )
+            db.session.add(
+                StgSabiogoVentas(
+                    fecha=fecha_base,
+                    origen='LEGACY',
+                    codigo='PROD001',
+                    producto='Producto Test',
+                    cliente='Cliente Test',
+                    vendedor='Vendedor Test',
+                    comprobante='FAC-B',
+                    subtot=Decimal('70.00'),
+                    estado='procesado',
+                )
+            )
+            db.session.commit()
+
+            service = SabiogoService()
+            resumen = service.get_resumen_pre_fac(date.today())
+
+            # setup_data aporta una venta base de 120 sin comprobante, que cuenta como FAC.
+            assert resumen['pre_acumulado'] == pytest.approx(50.0)
+            assert resumen['fac_acumulado'] == pytest.approx(190.0)
+            assert resumen['saldo_pre_fac'] == pytest.approx(-140.0)
+
+    def test_sincronizar_objetivos_pre(self, app, setup_data):
+        """Sincroniza Goal.current_value usando sólo ventas PRE del periodo."""
+        with app.app_context():
+            empleado = Employee(
+                first_name='Juan',
+                last_name='Perez',
+                email='juan@example.com',
+                is_active=True,
+            )
+            db.session.add(empleado)
+            db.session.flush()
+
+            periodo = datetime.now().strftime('%Y-%m')
+            objetivo = Goal(
+                employee_id=empleado.id,
+                description='Objetivo mensual',
+                period=periodo,
+                target_value=1000,
+                current_value=0,
+            )
+            db.session.add(objetivo)
+
+            fecha_hoy = date.today()
+            db.session.add(
+                StgSabiogoVentas(
+                    fecha=fecha_hoy,
+                    origen='LEGACY',
+                    codigo='PROD001',
+                    producto='Producto Test',
+                    cliente='Cliente Test',
+                    vendedor='Juan Perez',
+                    comprobante='PRE',
+                    subtot=Decimal('300.00'),
+                    estado='procesado',
+                )
+            )
+            db.session.add(
+                StgSabiogoVentas(
+                    fecha=fecha_hoy,
+                    origen='LEGACY',
+                    codigo='PROD001',
+                    producto='Producto Test',
+                    cliente='Cliente Test',
+                    vendedor='Juan Perez',
+                    comprobante='FAC-A',
+                    subtot=Decimal('999.00'),
+                    estado='procesado',
+                )
+            )
+            db.session.commit()
+
+            service = SabiogoService()
+            resultado = service.sincronizar_objetivos_pre(periodo=periodo)
+
+            db.session.refresh(objetivo)
+            assert resultado['objetivos_actualizados'] >= 1
+            assert objetivo.current_value == pytest.approx(300.0)
 
 
 class TestSabiogoModels:

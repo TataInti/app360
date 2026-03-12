@@ -16,6 +16,11 @@ from typing import Dict, List, Optional, Tuple
 
 class SabiogoRepository:
     """Repository para consultas de análisis de rentabilidad SabioGo."""
+
+    @staticmethod
+    def _fac_filter_expr(alias: str = "v") -> str:
+        """Retorna filtro SQL para ventas facturables (todo lo no PRE)."""
+        return f"COALESCE(UPPER(TRIM({alias}.comprobante)), '') <> 'PRE'"
     
     def get_ventas_por_producto(
         self, 
@@ -45,6 +50,7 @@ class SabiogoRepository:
             SabiogoProductMap.product_id == product_id,
             SabiogoProductMap.activo == True,
             StgSabiogoVentas.estado == 'procesado',
+            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), '') != 'PRE',
             StgSabiogoVentas.fecha >= fecha_inicio,
             StgSabiogoVentas.fecha <= fecha_fin
         ).first()
@@ -121,6 +127,7 @@ class SabiogoRepository:
             LEFT JOIN stg_sabiogo_ventas v ON pm.codigo = v.codigo
                 AND COALESCE(v.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
                 AND v.estado = 'procesado' 
+                AND COALESCE(UPPER(TRIM(v.comprobante)), '') <> 'PRE'
                 AND v.fecha BETWEEN :fecha_inicio AND :fecha_fin
             LEFT JOIN stg_sabiogo_compras c ON pm.codigo = c.codigo
                 AND COALESCE(c.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
@@ -178,6 +185,7 @@ class SabiogoRepository:
             LEFT JOIN stg_sabiogo_ventas v ON pm.codigo = v.codigo
                 AND COALESCE(v.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
                 AND v.estado = 'procesado' 
+                AND COALESCE(UPPER(TRIM(v.comprobante)), '') <> 'PRE'
                 AND v.fecha BETWEEN :fecha_inicio AND :fecha_fin
             LEFT JOIN stg_sabiogo_compras c ON pm.codigo = c.codigo
                 AND COALESCE(c.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
@@ -233,6 +241,7 @@ class SabiogoRepository:
             WHERE lm.location_id = :location_id
                 AND lm.activo = true
                 AND v.estado = 'procesado'
+                AND COALESCE(UPPER(TRIM(v.comprobante)), '') <> 'PRE'
                 AND v.fecha BETWEEN :fecha_inicio AND :fecha_fin
         """)
         
@@ -265,6 +274,7 @@ class SabiogoRepository:
                     (SELECT COALESCE(SUM(v.subtot), 0)
                      FROM stg_sabiogo_ventas v
                      WHERE v.estado = 'procesado'
+                              AND COALESCE(UPPER(TRIM(v.comprobante)), '') <> 'PRE'
                        AND v.fecha BETWEEN :fecha_inicio AND :fecha_fin) AS total_ingresos,
                     (SELECT COALESCE(SUM(c.subtot), 0)
                      FROM stg_sabiogo_compras c
@@ -280,6 +290,7 @@ class SabiogoRepository:
                 LEFT JOIN stg_sabiogo_ventas v ON pm.codigo = v.codigo
                     AND COALESCE(v.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
                     AND v.estado = 'procesado'
+                    AND COALESCE(UPPER(TRIM(v.comprobante)), '') <> 'PRE'
                     AND v.fecha BETWEEN :fecha_inicio AND :fecha_fin
                 LEFT JOIN stg_sabiogo_compras c ON pm.codigo = c.codigo
                     AND COALESCE(c.origen, 'LEGACY') = COALESCE(pm.origen, 'LEGACY')
@@ -323,6 +334,167 @@ class SabiogoRepository:
             'ingresos_mapeados': ingresos_mapeados,
             'costos_mapeados': costos_mapeados,
             'productos_activos_mapeados': productos_activos_mapeados,
+        }
+
+    def get_resumen_pre_fac_global(self, fecha_corte: date) -> Dict:
+        """Métrica global Pre/Fac acumulada al corte (ventas procesadas)."""
+        query = text(
+            """
+            SELECT
+                COALESCE(SUM(CASE
+                    WHEN COALESCE(UPPER(TRIM(comprobante)), '') = 'PRE' THEN subtot
+                    ELSE 0
+                END), 0) AS total_pre,
+                COALESCE(SUM(CASE
+                    WHEN COALESCE(UPPER(TRIM(comprobante)), '') <> 'PRE' THEN subtot
+                    ELSE 0
+                END), 0) AS total_fac
+            FROM stg_sabiogo_ventas
+            WHERE estado = 'procesado'
+              AND fecha <= :fecha_corte
+            """
+        )
+
+        result = db.session.execute(query, {'fecha_corte': fecha_corte}).first()
+        total_pre = float(result.total_pre or 0) if result else 0.0
+        total_fac = float(result.total_fac or 0) if result else 0.0
+
+        return {
+            'pre_acumulado': total_pre,
+            'fac_acumulado': total_fac,
+            'saldo_pre_fac': total_pre - total_fac,
+        }
+
+    def get_detalle_ventas_pre(
+        self,
+        fecha_inicio: date,
+        fecha_fin: date,
+        vendedor: Optional[str] = None,
+        cliente: Optional[str] = None,
+        producto: Optional[str] = None,
+        limit: int = 500,
+    ) -> Dict:
+        """Detalle operativo de ventas PRE para panel comercial."""
+        filtros = [
+            StgSabiogoVentas.estado == 'procesado',
+            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), '') == 'PRE',
+            StgSabiogoVentas.fecha >= fecha_inicio,
+            StgSabiogoVentas.fecha <= fecha_fin,
+        ]
+
+        if vendedor:
+            filtros.append(StgSabiogoVentas.vendedor.ilike(f"%{vendedor}%"))
+        if cliente:
+            filtros.append(StgSabiogoVentas.cliente.ilike(f"%{cliente}%"))
+        if producto:
+            filtros.append(StgSabiogoVentas.producto.ilike(f"%{producto}%"))
+
+        rows = db.session.query(
+            StgSabiogoVentas.id,
+            StgSabiogoVentas.fecha,
+            StgSabiogoVentas.comprobante,
+            StgSabiogoVentas.nro_comprob,
+            StgSabiogoVentas.vendedor,
+            StgSabiogoVentas.cliente,
+            StgSabiogoVentas.producto,
+            StgSabiogoVentas.codigo,
+            StgSabiogoVentas.kilos,
+            StgSabiogoVentas.cajas,
+            StgSabiogoVentas.subtot,
+            StgSabiogoVentas.sucursal,
+        ).filter(*filtros).order_by(
+            StgSabiogoVentas.fecha.desc(),
+            StgSabiogoVentas.id.desc(),
+        ).limit(limit).all()
+
+        totales = db.session.query(
+            func.count(StgSabiogoVentas.id).label('cantidad'),
+            func.coalesce(func.sum(StgSabiogoVentas.subtot), 0).label('monto_total'),
+            func.coalesce(func.sum(StgSabiogoVentas.kilos), 0).label('kilos_total'),
+            func.coalesce(func.sum(StgSabiogoVentas.cajas), 0).label('cajas_total'),
+        ).filter(*filtros).first()
+
+        resumen_vendedor = db.session.query(
+            StgSabiogoVentas.vendedor,
+            func.count(StgSabiogoVentas.id).label('operaciones'),
+            func.coalesce(func.sum(StgSabiogoVentas.subtot), 0).label('monto'),
+        ).filter(*filtros).group_by(StgSabiogoVentas.vendedor).order_by(
+            func.coalesce(func.sum(StgSabiogoVentas.subtot), 0).desc()
+        ).all()
+
+        resumen_cliente = db.session.query(
+            StgSabiogoVentas.cliente,
+            func.count(StgSabiogoVentas.id).label('operaciones'),
+            func.coalesce(func.sum(StgSabiogoVentas.subtot), 0).label('monto'),
+        ).filter(*filtros).group_by(StgSabiogoVentas.cliente).order_by(
+            func.coalesce(func.sum(StgSabiogoVentas.subtot), 0).desc()
+        ).all()
+
+        resumen_producto = db.session.query(
+            StgSabiogoVentas.producto,
+            StgSabiogoVentas.codigo,
+            func.count(StgSabiogoVentas.id).label('operaciones'),
+            func.coalesce(func.sum(StgSabiogoVentas.subtot), 0).label('monto'),
+            func.coalesce(func.sum(StgSabiogoVentas.kilos), 0).label('kilos'),
+            func.coalesce(func.sum(StgSabiogoVentas.cajas), 0).label('cajas'),
+        ).filter(*filtros).group_by(
+            StgSabiogoVentas.producto,
+            StgSabiogoVentas.codigo,
+        ).order_by(
+            func.coalesce(func.sum(StgSabiogoVentas.subtot), 0).desc()
+        ).all()
+
+        return {
+            'totales': {
+                'operaciones': int(totales.cantidad or 0) if totales else 0,
+                'monto_total': float(totales.monto_total or 0) if totales else 0,
+                'kilos_total': float(totales.kilos_total or 0) if totales else 0,
+                'cajas_total': float(totales.cajas_total or 0) if totales else 0,
+            },
+            'detalle': [
+                {
+                    'id': row.id,
+                    'fecha': row.fecha.isoformat() if row.fecha else None,
+                    'comprobante': row.comprobante,
+                    'nro_comprob': row.nro_comprob,
+                    'vendedor': row.vendedor,
+                    'cliente': row.cliente,
+                    'producto': row.producto,
+                    'codigo': row.codigo,
+                    'kilos': float(row.kilos or 0),
+                    'cajas': float(row.cajas or 0),
+                    'subtot': float(row.subtot or 0),
+                    'sucursal': row.sucursal,
+                }
+                for row in rows
+            ],
+            'resumen_por_vendedor': [
+                {
+                    'vendedor': row.vendedor,
+                    'operaciones': int(row.operaciones or 0),
+                    'monto': float(row.monto or 0),
+                }
+                for row in resumen_vendedor
+            ],
+            'resumen_por_cliente': [
+                {
+                    'cliente': row.cliente,
+                    'operaciones': int(row.operaciones or 0),
+                    'monto': float(row.monto or 0),
+                }
+                for row in resumen_cliente
+            ],
+            'resumen_por_producto': [
+                {
+                    'producto': row.producto,
+                    'codigo': row.codigo,
+                    'operaciones': int(row.operaciones or 0),
+                    'monto': float(row.monto or 0),
+                    'kilos': float(row.kilos or 0),
+                    'cajas': float(row.cajas or 0),
+                }
+                for row in resumen_producto
+            ],
         }
     
     def registrar_log_carga(

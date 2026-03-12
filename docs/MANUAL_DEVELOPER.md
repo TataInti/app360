@@ -158,13 +158,28 @@ Plantillas:
 
 ### 6.1 Setup local recomendado
 
+**Requisitos de sistema (macOS vía Homebrew):**
+
+```bash
+# Node.js 22 (keg-only: requiere agregar al PATH)
+brew install node@22
+echo 'export PATH="/opt/homebrew/opt/node@22/bin:$PATH"' >> ~/.zshrc
+
+# PostgreSQL 14 (keg-only: requiere agregar al PATH)
+brew install postgresql@14
+echo 'export PATH="/opt/homebrew/opt/postgresql@14/bin:$PATH"' >> ~/.zshrc
+brew services start postgresql@14
+```
+
 Backend:
 
 ```bash
-python -m venv venv
+python3.12 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
 cp .env.example .env
+# Editar .env: generar SECRET_KEY con `openssl rand -base64 32`
 bash scripts/dev_backend.sh
 ```
 
@@ -173,14 +188,14 @@ Frontend:
 ```bash
 cd frontend
 npm install
-echo "VITE_API_BASE_URL=http://localhost:5001/api" > .env
+echo "VITE_API_BASE_URL=http://127.0.0.1:5001/api" > .env
 npm run dev
 ```
 
 ### 6.2 Validación previa a push
 
 ```bash
-pytest
+PYTHONPATH=$PWD pytest
 cd frontend && npm ci && npm run build
 git status
 ```
@@ -294,7 +309,7 @@ sudo journalctl -u app360 -n 200 --no-pager
 Backend:
 
 ```bash
-pytest
+PYTHONPATH=$PWD pytest
 ```
 
 Frontend:

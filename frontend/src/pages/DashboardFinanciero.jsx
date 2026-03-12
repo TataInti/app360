@@ -271,6 +271,17 @@ export default function DashboardFinanciero() {
           </div>
         </div>
 
+        <div className="col-md-6">
+          <div className="card text-center pre-fac-card">
+            <h6 className="mt-3">Pre/Fac (acumulado al cierre)</h6>
+            <p className="mb-1">
+              PRE: <strong>{formatMoney(kpis.pre_acumulado)}</strong> | FAC: <strong>{formatMoney(kpis.fac_acumulado)}</strong>
+            </p>
+            <p className="display-6 pre-fac-saldo">{formatMoney(kpis.pre_fac_saldo)}</p>
+            <small className="text-muted">Saldo = PRE - FAC</small>
+          </div>
+        </div>
+
         <div className="col-md-3">
           <div className="card text-center">
             <h6 className="mt-3">Ticket promedio</h6>

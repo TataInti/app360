@@ -21,6 +21,10 @@ ChartJS.register(
   Legend
 );
 
+function formatMoney(value) {
+  return `$${Number(value || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
+}
+
 function DashboardComercial() {
   const [data, setData] = useState({
     period: "30",
@@ -110,7 +114,7 @@ function DashboardComercial() {
         <div className="col-md-3">
           <div className="card text-center">
             <h6 className="mt-3">Ventas (período)</h6>
-            <p className="display-6">${Number(kpis.ventas_periodo_total || 0).toLocaleString("es-AR")}</p>
+            <p className="display-6">{formatMoney(kpis.ventas_periodo_total)}</p>
           </div>
         </div>
         <div className="col-md-3">
@@ -122,7 +126,24 @@ function DashboardComercial() {
         <div className="col-md-3">
           <div className="card text-center">
             <h6 className="mt-3">Comisiones (mes)</h6>
-            <p className="display-6">${Number(kpis.comisiones_mes_total || 0).toLocaleString("es-AR")}</p>
+            <p className="display-6">{formatMoney(kpis.comisiones_mes_total)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="row mt-3">
+        <div className="col-md-6">
+          <div className="card text-center pre-card-accent">
+            <h6 className="mt-3">Ventas PRE (período)</h6>
+            <p className="display-6">{formatMoney(kpis.ventas_pre_periodo_total)}</p>
+            <small className="text-muted">Operaciones PRE: {kpis.ventas_pre_periodo_count || 0}</small>
+          </div>
+        </div>
+        <div className="col-md-6">
+          <div className="card text-center pre-card-accent-soft">
+            <h6 className="mt-3">Objetivos en progreso</h6>
+            <p className="display-6">{kpis.objetivos_en_progreso || 0}</p>
+            <small className="text-muted">Avance sincronizable desde PRE</small>
           </div>
         </div>
       </div>
@@ -174,6 +195,94 @@ function DashboardComercial() {
 
 
       <hr className="mt-5" />
+
+      <h3>Detalle de Ventas PRE (operativo)</h3>
+      <div style={{ maxWidth: 1100 }}>
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Vendedor</th>
+              <th>Cliente</th>
+              <th>Producto</th>
+              <th>Comprobante</th>
+              <th className="text-end">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(series.pre_detalle || []).length ? (
+              series.pre_detalle.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.fecha || "-"}</td>
+                  <td>{row.vendedor || "Sin vendedor"}</td>
+                  <td>{row.cliente || "Sin cliente"}</td>
+                  <td>{row.producto || "Sin producto"}</td>
+                  <td>{row.comprobante || "PRE"} {row.nro_comprob ? `#${row.nro_comprob}` : ""}</td>
+                  <td className="text-end">{formatMoney(row.subtot)}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} className="text-muted">Sin operaciones PRE para el período</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="row mt-3">
+        <div className="col-md-4">
+          <h5>PRE por vendedor</h5>
+          <table className="table table-sm">
+            <thead>
+              <tr><th>Vendedor</th><th className="text-end">Monto</th></tr>
+            </thead>
+            <tbody>
+              {(series.pre_por_vendedor || []).length ? (
+                series.pre_por_vendedor.map(([nombre, _cant, monto]) => (
+                  <tr key={nombre}><td>{nombre}</td><td className="text-end">{formatMoney(monto)}</td></tr>
+                ))
+              ) : (
+                <tr><td colSpan={2} className="text-muted">Sin datos</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="col-md-4">
+          <h5>PRE por cliente</h5>
+          <table className="table table-sm">
+            <thead>
+              <tr><th>Cliente</th><th className="text-end">Monto</th></tr>
+            </thead>
+            <tbody>
+              {(series.pre_por_cliente || []).length ? (
+                series.pre_por_cliente.map(([nombre, _cant, monto]) => (
+                  <tr key={nombre}><td>{nombre}</td><td className="text-end">{formatMoney(monto)}</td></tr>
+                ))
+              ) : (
+                <tr><td colSpan={2} className="text-muted">Sin datos</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="col-md-4">
+          <h5>PRE por producto</h5>
+          <table className="table table-sm">
+            <thead>
+              <tr><th>Producto</th><th className="text-end">Monto</th></tr>
+            </thead>
+            <tbody>
+              {(series.pre_por_producto || []).length ? (
+                series.pre_por_producto.map(([nombre, _cant, monto]) => (
+                  <tr key={nombre}><td>{nombre}</td><td className="text-end">{formatMoney(monto)}</td></tr>
+                ))
+              ) : (
+                <tr><td colSpan={2} className="text-muted">Sin datos</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <h3>Leads por Canal (Marketing)</h3>
       <div style={{ maxWidth: 500, height: 300 }}>

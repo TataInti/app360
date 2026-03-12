@@ -88,6 +88,10 @@ class ApiService {
     return this.request(`/dashboard-comercial-v2?period=${p}`);
   }
 
+  async getVentasPreDetalle(params = '') {
+    return this.request(`/comercial/ventas-pre-detalle${params ? `?${params}` : ''}`);
+  }
+
   async getPanelEjecutivo() {
     return this.request('/panel-ejecutivo');
   }

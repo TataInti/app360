@@ -89,7 +89,7 @@ Tip: si necesitás guardar accesos/credenciales del VPS, guardalos en `docs/_loc
 ## Requisitos
 
 - Python 3.12+
-- Node.js 18+
+- Node.js 22+
 - PostgreSQL 15+ (recomendado)
 
 ## Instalacion Rapida (Local)

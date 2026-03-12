@@ -111,6 +111,7 @@ def bi_dashboard():
         # 1) Rentabilidad SabioGo (fuente principal)
         sabiogo_service = SabiogoService()
         rentabilidad_resumen = sabiogo_service.get_rentabilidad_resumen(fecha_desde, fecha_hasta)
+        pre_fac_resumen = sabiogo_service.get_resumen_pre_fac(fecha_hasta)
         top_productos = sabiogo_service.get_top_productos_margen(
             limit=10,
             fecha_inicio=fecha_desde,
@@ -171,7 +172,9 @@ def bi_dashboard():
                 WITH ventas AS (
                     SELECT DATE_TRUNC('month', fecha)::date AS periodo, COALESCE(SUM(subtot), 0) AS ingresos
                     FROM stg_sabiogo_ventas
-                    WHERE estado = 'procesado' AND fecha BETWEEN :fecha_desde AND :fecha_hasta
+                                        WHERE estado = 'procesado'
+                                            AND COALESCE(UPPER(TRIM(comprobante)), '') <> 'PRE'
+                                            AND fecha BETWEEN :fecha_desde AND :fecha_hasta
                     GROUP BY DATE_TRUNC('month', fecha)::date
                 ),
                 compras AS (
@@ -336,6 +339,9 @@ def bi_dashboard():
                 "margen_bruto_sabiogo": float(rentabilidad_resumen.get("margen_bruto", 0)),
                 "margen_porcentual_sabiogo": float(rentabilidad_resumen.get("margen_porcentual", 0)),
                 "productos_activos_sabiogo": int(rentabilidad_resumen.get("productos_activos", 0)),
+                "pre_acumulado": float(pre_fac_resumen.get("pre_acumulado", 0)),
+                "fac_acumulado": float(pre_fac_resumen.get("fac_acumulado", 0)),
+                "pre_fac_saldo": float(pre_fac_resumen.get("saldo_pre_fac", 0)),
                 "gastos_finanzas": float(gastos_total),
                 "ingresos_caja": float(ingresos_caja),
                 "egresos_caja": float(egresos_caja),

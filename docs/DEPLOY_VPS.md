@@ -150,6 +150,32 @@ curl -fsS http://127.0.0.1:5000/api/health
 - `scripts/deploy.sh` corre un set de **tests seguros** contra SQLite temporal (`/tmp/app360_test.sqlite`) para no tocar PostgreSQL de producción.
 - Si el frontend se sirve estático, asegurarse de copiar el build a la ruta configurada en Nginx (`/var/www/app360/frontend/dist`).
 
+## Cron nocturno: sincronización PRE -> objetivos comerciales
+
+Se agregó un endpoint dedicado para cron con token:
+
+- `POST /sabiogo/api/sync-objetivos-pre-cron`
+- Header requerido: `X-App360-Cron-Token: <token>`
+- Env requerida en app: `SABIOGO_CRON_TOKEN=<mismo token>`
+
+Script listo para producción:
+
+```bash
+bash scripts/sync_objetivos_pre_cron.sh
+```
+
+Variables soportadas por el script:
+
+- `BASE_URL` (default: `http://127.0.0.1:5000`)
+- `SABIOGO_CRON_TOKEN` (obligatoria)
+- `PERIODO` (default: mes actual `YYYY-MM`)
+
+Ejemplo de crontab (todos los días 02:10):
+
+```bash
+10 2 * * * cd /var/www/app360 && SABIOGO_CRON_TOKEN='TU_TOKEN' BASE_URL='http://127.0.0.1:5000' /usr/bin/bash scripts/sync_objetivos_pre_cron.sh >> /var/www/app360/logs/sync_objetivos_pre_cron.log 2>&1
+```
+
 ## Caso real: VPS ya instalado y corriendo
 
 Para actualizar una instalación existente, normalmente alcanza con:

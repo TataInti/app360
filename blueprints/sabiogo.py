@@ -407,6 +407,37 @@ def cargar_xls():
             filas_error=filas_error,
             usuario_id=usuario.id if usuario else None
         )
+
+        objetivos_sync = None
+        if tipo == 'ventas':
+            fechas_rows = db.session.query(ModelClass.fecha).filter(
+                ModelClass.hash_archivo == hash_archivo,
+                ModelClass.estado == 'procesado',
+                ModelClass.fecha.isnot(None)
+            ).distinct().all()
+
+            periodos = sorted({f"{row.fecha.year:04d}-{row.fecha.month:02d}" for row in fechas_rows if row.fecha})
+            if not periodos:
+                periodos = [datetime.now().strftime('%Y-%m')]
+
+            sync_runs = []
+            for periodo in periodos:
+                try:
+                    sync_runs.append(service.sincronizar_objetivos_pre(periodo=periodo))
+                except Exception as sync_error:
+                    current_app.logger.warning(
+                        "No se pudo sincronizar objetivos PRE para periodo %s: %s",
+                        periodo,
+                        sync_error,
+                    )
+                    sync_runs.append({
+                        'periodo': periodo,
+                        'error': str(sync_error),
+                    })
+
+            objetivos_sync = {
+                'ejecuciones': sync_runs,
+            }
         
         # Limpiar archivo temporal
         os.remove(filepath)
@@ -419,12 +450,58 @@ def cargar_xls():
             'filas_procesadas': filas_procesadas,
             'filas_duplicadas': duplicados,
             'filas_sin_mapeo': sin_mapeo_query,
-            'filas_error': filas_error
+            'filas_error': filas_error,
+            'objetivos_sync': objetivos_sync,
         })
         
     except Exception as e:
         current_app.logger.error(f"Error cargando archivo: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@sabiogo_bp.route('/api/sync-objetivos-pre', methods=['POST'])
+@login_required
+def sync_objetivos_pre():
+    """Endpoint para sincronización manual/nocturna de objetivos desde ventas PRE."""
+    payload = request.get_json(silent=True) or {}
+    periodo = payload.get('periodo') or request.args.get('periodo')
+
+    service = SabiogoService()
+    try:
+        resultado = service.sincronizar_objetivos_pre(periodo=periodo)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.error(f"Error sincronizando objetivos PRE: {exc}", exc_info=True)
+        return jsonify({'error': str(exc)}), 500
+
+    return jsonify({'success': True, 'resultado': resultado})
+
+
+@sabiogo_bp.route('/api/sync-objetivos-pre-cron', methods=['POST'])
+def sync_objetivos_pre_cron():
+    """Endpoint para cron nocturno protegido por token en header."""
+    configured_token = current_app.config.get('SABIOGO_CRON_TOKEN') or os.getenv('SABIOGO_CRON_TOKEN')
+    if not configured_token:
+        return jsonify({'error': 'SABIOGO_CRON_TOKEN no configurado'}), 503
+
+    received_token = request.headers.get('X-App360-Cron-Token', '')
+    if received_token != configured_token:
+        return jsonify({'error': 'Token de cron inválido'}), 401
+
+    payload = request.get_json(silent=True) or {}
+    periodo = payload.get('periodo') or request.args.get('periodo')
+
+    service = SabiogoService()
+    try:
+        resultado = service.sincronizar_objetivos_pre(periodo=periodo)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.error(f"Error en sync_objetivos_pre_cron: {exc}", exc_info=True)
+        return jsonify({'error': str(exc)}), 500
+
+    return jsonify({'success': True, 'resultado': resultado})
 
 
 # ============================================================================

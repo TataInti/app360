@@ -134,6 +134,9 @@ def test_dashboard_financiero_ok(client, seed_minimal):
     data = resp.get_json()
     assert "kpis" in data and "series" in data
     assert data["kpis"]["period"] == "7"
+    assert "pre_acumulado" in data["kpis"]
+    assert "fac_acumulado" in data["kpis"]
+    assert "pre_fac_saldo" in data["kpis"]
     assert "flujo" in data["series"] and "instrumentos" in data["series"]
 
 
@@ -142,7 +145,13 @@ def test_dashboard_comercial_v2_ok(client, seed_minimal):
     assert resp.status_code == 200
     data = resp.get_json()
     assert "kpis" in data and "series" in data
+    assert "ventas_pre_periodo_total" in data["kpis"]
+    assert "ventas_pre_periodo_count" in data["kpis"]
     assert "leads_por_estado" in data["series"]
+    assert "pre_detalle" in data["series"]
+    assert "pre_por_vendedor" in data["series"]
+    assert "pre_por_cliente" in data["series"]
+    assert "pre_por_producto" in data["series"]
 
 
 def test_panel_ejecutivo_v2_ok(client, seed_minimal):
