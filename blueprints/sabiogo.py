@@ -9,7 +9,7 @@ import os
 import re
 from datetime import datetime, date, timedelta
 from typing import Optional
-from sqlalchemy import text, func
+from sqlalchemy import text, func, inspect as sa_inspect
 
 from models import db
 from models.sabiogo import (
@@ -457,6 +457,265 @@ def cargar_xls():
     except Exception as e:
         current_app.logger.error(f"Error cargando archivo: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# HELPERS PARA CARGA GLOBAL DE 4 ARCHIVOS
+# ============================================================================
+
+COLS_REQUERIDAS_TRANS = ['fecha', 'codigo', 'producto']
+COLS_SABIOGO_28 = [
+    'rubro', 'fecha', 'subrubro', 'codigo', 'modelo', 'producto', 'marca', 'comprobante',
+    'nro_comprob', 'cliente', 'condicion_iva', 'vendedor', 'deposito', 'uninegocio',
+    'forma_pago', 'kilos', 'cajas', 'dtos', 'neto', 'localidad', 'zona', 'sucursal',
+    'iva', 'moniva', 'tipo', 'subtot', 'numlispre', 'lisprec',
+]
+
+
+def _get_model_columns(ModelClass):
+    """Devuelve el set de nombres de columna válidas para un modelo SQLAlchemy."""
+    return {c.key for c in sa_inspect(ModelClass).mapper.column_attrs}
+
+
+def _read_excel_robust(path: str) -> pd.DataFrame:
+    """Lee un XLS/XLSX con detección automática de la fila de encabezado.
+
+    Maneja el caso donde SabioGo exporta filas de título/metadata antes
+    del encabezado real (problema común en 'carnes_ventas_globales.xls').
+    Además normaliza los nombres de columnas a lowercase+strip.
+    """
+    ext = os.path.splitext(path)[1].lower()
+    # xlrd maneja .xls (formato antiguo); openpyxl maneja .xlsx
+    engines = ['xlrd'] if ext == '.xls' else ['openpyxl']
+    # Añadimos None como fallback para que pandas elija automáticamente
+    engines.append(None)
+
+    last_error = None
+    for engine in engines:
+        for header_row in range(8):
+            try:
+                kwargs = {'header': header_row}
+                if engine is not None:
+                    kwargs['engine'] = engine
+                df = pd.read_excel(path, **kwargs)
+                # Normalizar nombres de columnas
+                df.columns = [str(c).lower().strip() for c in df.columns]
+                # Si encontramos las columnas clave, es el encabezado correcto
+                if all(col in df.columns for col in COLS_REQUERIDAS_TRANS):
+                    return df
+            except Exception as exc:
+                last_error = exc
+                continue
+
+    for engine in engines:
+        try:
+            kwargs = {'header': None}
+            if engine is not None:
+                kwargs['engine'] = engine
+            df = pd.read_excel(path, **kwargs)
+            if df.shape[1] == len(COLS_SABIOGO_28):
+                df.columns = COLS_SABIOGO_28
+                return df
+        except Exception as exc:
+            last_error = exc
+            continue
+
+    raise ValueError(
+        f"No se pudo detectar encabezado en '{os.path.basename(path)}'. "
+        f"Columnas esperadas: {COLS_REQUERIDAS_TRANS}. "
+        f"Último error: {last_error}"
+    )
+
+
+def _importar_df_a_staging(df: pd.DataFrame, *, ModelClass, origen: str, filename: str, file_sha256: str) -> dict:
+    """Importa un DataFrame ya validado a la tabla de staging correspondiente."""
+    valid_cols = _get_model_columns(ModelClass)
+    filas_insertadas = 0
+    filas_error = 0
+
+    for _, row in df.iterrows():
+        try:
+            data = row.to_dict()
+            # Limpiar NaN
+            for key, value in list(data.items()):
+                try:
+                    if pd.isna(value):
+                        data[key] = None
+                except Exception:
+                    pass
+            # Filtrar solo columnas que el modelo conoce
+            data = {k: v for k, v in data.items() if k in valid_cols}
+
+            codigo_raw = data.get('codigo')
+            data['codigo_raw'] = None if codigo_raw is None else str(codigo_raw)
+            data['codigo'] = normalize_codigo(codigo_raw)
+            data['origen'] = origen
+            data['fuente_archivo'] = filename
+            data['hash_archivo'] = file_sha256
+            data['estado'] = 'pendiente'
+
+            registro = ModelClass(**data)
+            db.session.add(registro)
+            filas_insertadas += 1
+        except Exception as exc:
+            filas_error += 1
+            current_app.logger.debug(f"Error fila {_}: {exc}")
+
+    db.session.commit()
+
+    # Marcar duplicados pendientes
+    try:
+        duplicados = ModelClass.validar_duplicados(db.session)
+    except Exception:
+        duplicados = 0
+
+    # Promover pendientes a procesado
+    filas_procesadas = db.session.query(ModelClass).filter(
+        ModelClass.hash_archivo == file_sha256,
+        ModelClass.estado == 'pendiente',
+    ).update({'estado': 'procesado'}, synchronize_session=False)
+    db.session.commit()
+
+    return {
+        'filas_insertadas': filas_insertadas,
+        'filas_procesadas': int(filas_procesadas or 0),
+        'filas_duplicadas': int(duplicados or 0),
+        'filas_error': filas_error,
+    }
+
+
+@sabiogo_bp.route("/api/cargar-globales", methods=["POST"])
+@login_required
+def cargar_globales():
+    """Carga hasta 4 archivos globales de ventas/compras con reemplazo por origen.
+
+    Form fields esperados (todos opcionales, al menos 1 requerido):
+        carnes_ventas   – XLS ventas unidad Carnes
+        lacteos_ventas  – XLS ventas unidad Lácteos
+        carnes_compras  – XLS compras unidad Carnes
+        lacteos_compras – XLS compras unidad Lácteos
+        replace         – "true" (default) para borrar datos del origen antes de importar
+    """
+    ARCHIVOS_CONFIG = {
+        'carnes_ventas':   (ORIGEN_CARNES,  'ventas',  StgSabiogoVentas),
+        'lacteos_ventas':  (ORIGEN_LACTEOS, 'ventas',  StgSabiogoVentas),
+        'carnes_compras':  (ORIGEN_CARNES,  'compras', StgSabiogoCompras),
+        'lacteos_compras': (ORIGEN_LACTEOS, 'compras', StgSabiogoCompras),
+    }
+
+    replace = request.form.get('replace', 'true').lower() not in ('false', '0', 'no')
+    upload_folder = current_app.config.get('UPLOAD_FOLDER', '/tmp')
+    os.makedirs(upload_folder, exist_ok=True)
+
+    # Determinar qué archivos fueron enviados
+    archivos_recibidos = {
+        key: request.files[key]
+        for key in ARCHIVOS_CONFIG
+        if key in request.files and request.files[key].filename
+    }
+
+    if not archivos_recibidos:
+        return jsonify({'error': 'No se recibió ningún archivo. Envíe al menos uno.'}), 400
+
+    for key, file in archivos_recibidos.items():
+        if not allowed_file(file.filename):
+            return jsonify({'error': f'{key}: extensión no permitida. Use .xls o .xlsx'}), 400
+
+    # ── Reemplazo de datos ──────────────────────────────────────────────────
+    if replace:
+        for key, file in archivos_recibidos.items():
+            origen, _, ModelClass = ARCHIVOS_CONFIG[key]
+            eliminados = db.session.query(ModelClass).filter(
+                ModelClass.origen == origen
+            ).delete(synchronize_session=False)
+            current_app.logger.info(
+                f"[cargar-globales] replace: eliminados {eliminados} registros "
+                f"{ModelClass.__tablename__} origen={origen}"
+            )
+        db.session.commit()
+
+    # ── Importación por archivo ─────────────────────────────────────────────
+    resultados = {}
+    errores = {}
+    tmp_paths = []
+
+    try:
+        for key, file in archivos_recibidos.items():
+            origen, tipo_carga, ModelClass = ARCHIVOS_CONFIG[key]
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(upload_folder, f"global_{key}_{filename}")
+            file.save(filepath)
+            tmp_paths.append(filepath)
+
+            try:
+                hash_archivo = calcular_hash_archivo(filepath)
+                df = _read_excel_robust(filepath)
+                stats = _importar_df_a_staging(
+                    df,
+                    ModelClass=ModelClass,
+                    origen=origen,
+                    filename=filename,
+                    file_sha256=hash_archivo,
+                )
+                resultados[key] = {**stats, 'origen': origen, 'tipo': tipo_carga, 'archivo': filename}
+
+                # Log de auditoría
+                service = SabiogoService()
+                usuario = User.query.filter_by(username=session.get('user')).first()
+                service.registrar_carga(
+                    archivo_nombre=filename,
+                    tipo_carga=tipo_carga,
+                    hash_archivo=hash_archivo,
+                    filas_insertadas=stats['filas_insertadas'],
+                    filas_duplicadas=stats['filas_duplicadas'],
+                    filas_sin_mapeo=0,
+                    filas_error=stats['filas_error'],
+                    usuario_id=usuario.id if usuario else None,
+                )
+            except Exception as exc:
+                current_app.logger.error(f"[cargar-globales] error en {key}: {exc}", exc_info=True)
+                errores[key] = str(exc)
+
+        # Sincronizar objetivos PRE para periodos presentes en ventas nuevas
+        objetivos_sync = None
+        ventas_keys = [k for k in archivos_recibidos if 'ventas' in k and k not in errores]
+        if ventas_keys:
+            try:
+                periodos_q = db.session.query(StgSabiogoVentas.fecha).filter(
+                    StgSabiogoVentas.origen.in_(
+                        [ARCHIVOS_CONFIG[k][0] for k in ventas_keys]
+                    ),
+                    StgSabiogoVentas.estado == 'procesado',
+                    StgSabiogoVentas.fecha.isnot(None),
+                ).distinct().all()
+                periodos = sorted({f"{r.fecha.year:04d}-{r.fecha.month:02d}" for r in periodos_q if r.fecha})
+                service = SabiogoService()
+                sync_runs = []
+                for periodo in periodos[:24]:  # límite de seguridad
+                    try:
+                        sync_runs.append(service.sincronizar_objetivos_pre(periodo=periodo))
+                    except Exception as se:
+                        sync_runs.append({'periodo': periodo, 'error': str(se)})
+                objetivos_sync = {'ejecuciones': sync_runs}
+            except Exception as se:
+                current_app.logger.warning(f"[cargar-globales] sync PRE falló: {se}")
+
+    finally:
+        for p in tmp_paths:
+            try:
+                os.remove(p)
+            except Exception:
+                pass
+
+    total_insertadas = sum(r.get('filas_insertadas', 0) for r in resultados.values())
+    return jsonify({
+        'success': len(errores) == 0,
+        'replace': replace,
+        'archivos': resultados,
+        'errores': errores if errores else None,
+        'total_filas_insertadas': total_insertadas,
+        'objetivos_sync': objetivos_sync,
+    }), (200 if not errores else 207)
 
 
 @sabiogo_bp.route('/api/sync-objetivos-pre', methods=['POST'])

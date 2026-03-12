@@ -10,6 +10,10 @@ export default defineConfig({
         target: "http://localhost:5001", // Flask corre acá (dev)
         changeOrigin: true,
       },
+      "/sabiogo": {
+        target: "http://localhost:5001",
+        changeOrigin: true,
+      },
     },
   },
 })

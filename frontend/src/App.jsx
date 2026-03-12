@@ -15,6 +15,7 @@ const Stock = lazy(() => import("./pages/Stock"));
 const Leads = lazy(() => import("./pages/Leads"));
 const Compras = lazy(() => import("./pages/Compras"));
 const RrhhPanel = lazy(() => import("./pages/RrhhPanel"));
+const SabiogoImport = lazy(() => import("./pages/SabiogoImport"));
 
 // Loading component
 function LoadingSpinner() {
@@ -49,6 +50,9 @@ function App() {
 
           {/* RRHH */}
           <Route path="/rrhh" element={<RrhhPanel />} />
+
+          {/* Administración SabioGo */}
+          <Route path="/sabiogo-import" element={<SabiogoImport />} />
 
           {/* Fallback */}
           <Route path="*" element={<div>Página no encontrada</div>} />

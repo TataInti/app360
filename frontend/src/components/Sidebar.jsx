@@ -87,6 +87,15 @@ function Sidebar() {
       <NavLink to="/rrhh" className={linkClass}>
         Panel RRHH
       </NavLink>
+
+      <hr />
+
+      {/* Administración */}
+      <div className="sidebar-section-title">Administración</div>
+
+      <NavLink to="/sabiogo-import" className={linkClass}>
+        Importar SabioGo
+      </NavLink>
     </aside>
   );
 }
