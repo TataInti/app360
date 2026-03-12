@@ -107,6 +107,55 @@
                         </button>
                     </form>
                     <div id="resultadoCarga" class="mt-3"></div>
+
+                    <hr class="my-4">
+
+                    <h5 class="card-title">Carga Global SabioGo</h5>
+                    <p class="text-muted mb-3">
+                        Suba los 4 archivos de ventas y compras por unidad. Esta opción soporta la carga histórica
+                        y usa el importador robusto para archivos sin encabezado visible.
+                    </p>
+
+                    <form id="formCargaGlobal" enctype="multipart/form-data">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="carnesVentasGlobal" class="form-label">Ventas Carnes</label>
+                                <input type="file" class="form-control" id="carnesVentasGlobal" name="carnes_ventas" accept=".xls,.xlsx">
+                                <div class="form-text">carnes_ventas_globales.xls</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="lacteosVentasGlobal" class="form-label">Ventas Lácteos</label>
+                                <input type="file" class="form-control" id="lacteosVentasGlobal" name="lacteos_ventas" accept=".xls,.xlsx">
+                                <div class="form-text">lacteos_ventas_globales.xls</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="carnesComprasGlobal" class="form-label">Compras Carnes</label>
+                                <input type="file" class="form-control" id="carnesComprasGlobal" name="carnes_compras" accept=".xls,.xlsx">
+                                <div class="form-text">carnes_compras_globales.xls</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="lacteosComprasGlobal" class="form-label">Compras Lácteos</label>
+                                <input type="file" class="form-control" id="lacteosComprasGlobal" name="lacteos_compras" accept=".xls,.xlsx">
+                                <div class="form-text">lacteos_compras_globales.xls</div>
+                            </div>
+                        </div>
+
+                        <div class="form-check form-switch mt-3 mb-3">
+                            <input class="form-check-input" type="checkbox" role="switch" id="replaceGlobalToggle" name="replace" checked>
+                            <label class="form-check-label" for="replaceGlobalToggle">
+                                Reemplazar datos existentes del origen cargado
+                            </label>
+                            <div class="form-text text-warning">
+                                Elimina previamente los registros CARNES/LACTEOS de staging antes de importar.
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-dark">
+                            <i class="bi bi-cloud-upload"></i> Cargar 4 archivos
+                        </button>
+                    </form>
+
+                    <div id="resultadoCargaGlobal" class="mt-3"></div>
                 </div>
             </div>
         </div>
@@ -288,6 +337,99 @@ document.getElementById('formCarga').addEventListener('submit', async function(e
         }
     } catch (error) {
         resultadoDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+    }
+});
+
+document.getElementById('formCargaGlobal').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const resultadoDiv = document.getElementById('resultadoCargaGlobal');
+    const formData = new FormData();
+    const fileFields = [
+        'carnes_ventas',
+        'lacteos_ventas',
+        'carnes_compras',
+        'lacteos_compras'
+    ];
+
+    let filesSelected = 0;
+    fileFields.forEach((fieldName) => {
+        const input = document.querySelector(`#formCargaGlobal input[name="${fieldName}"]`);
+        if (input?.files?.length) {
+            formData.append(fieldName, input.files[0]);
+            filesSelected += 1;
+        }
+    });
+
+    if (filesSelected === 0) {
+        resultadoDiv.innerHTML = '<div class="alert alert-warning">Seleccione al menos un archivo para importar.</div>';
+        return;
+    }
+
+    const replace = document.getElementById('replaceGlobalToggle').checked;
+    formData.append('replace', replace ? 'true' : 'false');
+
+    resultadoDiv.innerHTML = '<div class="alert alert-info">Procesando carga global. Esto puede tardar varios minutos...</div>';
+
+    try {
+        const response = await fetch('/sabiogo/api/cargar-globales', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'X-CSRF-Token': getCsrfToken()
+            },
+            body: formData
+        });
+
+        const data = await parseJsonResponse(response);
+        if (!response.ok && response.status !== 207) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+
+        const archivos = data.archivos || {};
+        const errores = data.errores || {};
+        const filasTotal = Number(data.total_filas_insertadas || 0).toLocaleString('es-AR');
+        let html = `
+            <div class="alert ${data.success ? 'alert-success' : 'alert-warning'}">
+                <strong>${data.success ? '✓ Importación global completada' : '⚠ Importación global con errores parciales'}</strong><br>
+                Total filas insertadas: ${filasTotal}<br>
+                Reemplazo activado: ${data.replace ? 'sí' : 'no'}
+            </div>
+        `;
+
+        Object.entries(archivos).forEach(([key, stats]) => {
+            html += `
+                <div class="card mb-2">
+                    <div class="card-body py-2">
+                        <strong>${stats.archivo || key}</strong>
+                        <div class="small text-muted">${stats.tipo || '-'} · ${stats.origen || '-'}</div>
+                        <div class="small mt-1">
+                            Insertadas: ${Number(stats.filas_insertadas || 0).toLocaleString('es-AR')} ·
+                            Procesadas: ${Number(stats.filas_procesadas || 0).toLocaleString('es-AR')} ·
+                            Duplicadas: ${Number(stats.filas_duplicadas || 0).toLocaleString('es-AR')} ·
+                            Errores: ${Number(stats.filas_error || 0).toLocaleString('es-AR')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        Object.entries(errores).forEach(([key, error]) => {
+            html += `<div class="alert alert-danger py-2"><strong>${key}</strong>: ${escapeHtml(error)}</div>`;
+        });
+
+        if (data.objetivos_sync?.ejecuciones?.length) {
+            html += `<details class="mt-2"><summary>Sincronización PRE (${data.objetivos_sync.ejecuciones.length} períodos)</summary><pre class="small bg-light p-2 border rounded mt-2">${escapeHtml(JSON.stringify(data.objetivos_sync, null, 2))}</pre></details>`;
+        }
+
+        resultadoDiv.innerHTML = html;
+
+        if (data.success) {
+            this.reset();
+            document.getElementById('replaceGlobalToggle').checked = true;
+        }
+    } catch (error) {
+        resultadoDiv.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(error.message)}</div>`;
     }
 });
 
