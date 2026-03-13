@@ -13,8 +13,10 @@ Environment="PATH=/var/www/app360/venv/bin"
 EnvironmentFile=/var/www/app360/.env
 ExecStart=/var/www/app360/venv/bin/gunicorn \
     --bind 127.0.0.1:5000 \
-    --workers 8 \
+    --workers 4 \
     --timeout 180 \
+    --max-requests 800 \
+    --max-requests-jitter 50 \
     --access-logfile /var/www/app360/logs/access.log \
     --error-logfile /var/www/app360/logs/error.log \
     --capture-output \
@@ -26,6 +28,9 @@ TimeoutStopSec=5
 PrivateTmp=true
 Restart=always
 RestartSec=5
+MemoryMax=2G
+MemoryHigh=1536M
+CPUQuota=80%
 
 [Install]
 WantedBy=multi-user.target

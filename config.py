@@ -49,7 +49,10 @@ class Config:
     ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
     LOGIN_TITLE = os.getenv("LOGIN_TITLE", "Welcome to APP360")
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
-    
+
+    # Upload limits (50 MB max)
+    MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", 50 * 1024 * 1024))
+
     # Rate Limiting
     RATELIMIT_ENABLED = os.getenv("RATELIMIT_ENABLED", "True").lower() == "true"
     RATELIMIT_STORAGE_URL = os.getenv("REDIS_URL", "memory://")

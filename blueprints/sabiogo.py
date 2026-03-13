@@ -5,6 +5,7 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 import pandas as pd
 import hashlib
+import gc
 import os
 import re
 from datetime import datetime, date, timedelta
@@ -348,42 +349,46 @@ def _read_excel_robust(path: str) -> pd.DataFrame:
 
 
 def _importar_df_a_staging(df: pd.DataFrame, *, ModelClass, origen: str, filename: str, file_sha256: str) -> dict:
-    """Importa un DataFrame ya validado a la tabla de staging correspondiente."""
+    """Importa un DataFrame ya validado a la tabla de staging correspondiente.
+
+    Optimizado para bajo consumo de memoria: procesa en chunks sin copiar
+    el DataFrame completo.
+    """
     valid_cols = _get_model_columns(ModelClass)
     filas_insertadas = 0
     filas_error = 0
+    batch_size = 1000
+    total_rows = len(df)
 
-    # Carga por lotes para minimizar overhead de ORM fila-a-fila.
-    batch_size = 2500
-    batch_rows = []
-    df_clean = df.where(pd.notna(df), None)
+    for chunk_start in range(0, total_rows, batch_size):
+        chunk = df.iloc[chunk_start:chunk_start + batch_size]
+        batch_rows = []
+        for row_idx, (_, row) in enumerate(chunk.iterrows(), start=chunk_start):
+            try:
+                data = {
+                    k: (None if pd.isna(v) else v)
+                    for k, v in row.items()
+                    if k in valid_cols
+                }
 
-    for row_idx, row in enumerate(df_clean.to_dict(orient='records')):
-        try:
-            data = {k: v for k, v in row.items() if k in valid_cols}
+                codigo_raw = data.get('codigo')
+                data['codigo_raw'] = None if codigo_raw is None else str(codigo_raw)
+                data['codigo'] = normalize_codigo(codigo_raw)
+                data['origen'] = origen
+                data['fuente_archivo'] = filename
+                data['hash_archivo'] = file_sha256
+                data['estado'] = 'pendiente'
 
-            codigo_raw = data.get('codigo')
-            data['codigo_raw'] = None if codigo_raw is None else str(codigo_raw)
-            data['codigo'] = normalize_codigo(codigo_raw)
-            data['origen'] = origen
-            data['fuente_archivo'] = filename
-            data['hash_archivo'] = file_sha256
-            data['estado'] = 'pendiente'
+                batch_rows.append(data)
+                filas_insertadas += 1
+            except Exception as exc:
+                filas_error += 1
+                current_app.logger.debug(f"Error fila {row_idx}: {exc}")
 
-            batch_rows.append(data)
-            filas_insertadas += 1
-
-            if len(batch_rows) >= batch_size:
-                db.session.bulk_insert_mappings(ModelClass, batch_rows)
-                db.session.flush()
-                batch_rows = []
-        except Exception as exc:
-            filas_error += 1
-            current_app.logger.debug(f"Error fila {row_idx}: {exc}")
-
-    if batch_rows:
-        db.session.bulk_insert_mappings(ModelClass, batch_rows)
-        db.session.flush()
+        if batch_rows:
+            db.session.bulk_insert_mappings(ModelClass, batch_rows)
+            db.session.flush()
+            db.session.expire_all()
 
     # Marcar duplicados pendientes
     try:
@@ -444,20 +449,29 @@ def cargar_globales():
             return jsonify({'error': f'{key}: extensión no permitida. Use .xls o .xlsx'}), 400
 
     resultados = {}
+    errores_archivos = {}
     tmp_paths = []
     service = SabiogoService()
     usuario = User.query.filter_by(username=session.get('user')).first()
 
-    try:
-        for key, file in archivos_recibidos.items():
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(upload_folder, f"global_{key}_{filename}")
-            file.save(filepath)
-            tmp_paths.append(filepath)
+    # Guardar archivos a disco primero (no consume mucha RAM).
+    for key, file in archivos_recibidos.items():
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(upload_folder, f"global_{key}_{filename}")
+        file.save(filepath)
+        tmp_paths.append(filepath)
 
-        if replace:
-            for key in archivos_recibidos:
-                origen, _, ModelClass = ARCHIVOS_CONFIG[key]
+    # Procesar cada archivo en su PROPIA transacción para:
+    #  - no acumular 4 DataFrames en RAM simultáneamente
+    #  - no perder datos ya importados si un archivo posterior falla
+    for key in list(archivos_recibidos.keys()):
+        origen, tipo_carga, ModelClass = ARCHIVOS_CONFIG[key]
+        file = archivos_recibidos[key]
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(upload_folder, f"global_{key}_{filename}")
+
+        try:
+            if replace:
                 eliminados = db.session.query(ModelClass).filter(
                     ModelClass.origen == origen
                 ).delete(synchronize_session=False)
@@ -465,12 +479,6 @@ def cargar_globales():
                     f"[cargar-globales] replace: eliminados {eliminados} registros "
                     f"{ModelClass.__tablename__} origen={origen}"
                 )
-
-        for key in archivos_recibidos:
-            origen, tipo_carga, ModelClass = ARCHIVOS_CONFIG[key]
-            file = archivos_recibidos[key]
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(upload_folder, f"global_{key}_{filename}")
 
             hash_archivo = calcular_hash_archivo(filepath)
             df = _read_excel_robust(filepath)
@@ -483,7 +491,6 @@ def cargar_globales():
             )
             resultados[key] = {**stats, 'origen': origen, 'tipo': tipo_carga, 'archivo': filename}
 
-            # Log de auditoría en la misma transacción de la carga.
             service.registrar_carga(
                 archivo_nombre=filename,
                 tipo_carga=tipo_carga,
@@ -496,21 +503,34 @@ def cargar_globales():
                 auto_commit=False,
             )
 
-        db.session.commit()
-    except Exception as exc:
-        db.session.rollback()
-        current_app.logger.error(f"[cargar-globales] transacción revertida por error: {exc}", exc_info=True)
-        for p in tmp_paths:
-            try:
-                os.remove(p)
-            except Exception:
-                pass
+            db.session.commit()
+            current_app.logger.info(f"[cargar-globales] archivo {key} importado OK")
+        except Exception as exc:
+            db.session.rollback()
+            current_app.logger.error(
+                f"[cargar-globales] error en archivo {key}: {exc}", exc_info=True
+            )
+            errores_archivos[key] = str(exc)
+        finally:
+            # Liberar memoria del DataFrame y la sesión ORM inmediatamente.
+            df = None  # noqa: F841
+            db.session.expire_all()
+            gc.collect()
+
+    # Limpiar archivos temporales.
+    for p in tmp_paths:
+        try:
+            os.remove(p)
+        except Exception:
+            pass
+
+    if not resultados:
         return jsonify({
             'success': False,
-            'error': str(exc),
+            'error': 'Todos los archivos fallaron.',
             'replace': replace,
             'archivos': None,
-            'errores': None,
+            'errores': errores_archivos,
             'total_filas_insertadas': 0,
             'sync_objetivos_ejecutado': False,
             'periodos_detectados': [],
@@ -543,18 +563,12 @@ def cargar_globales():
         except Exception as se:
             current_app.logger.warning(f"[cargar-globales] sync PRE falló: {se}")
 
-    for p in tmp_paths:
-        try:
-            os.remove(p)
-        except Exception:
-            pass
-
     total_insertadas = sum(r.get('filas_insertadas', 0) for r in resultados.values())
     return jsonify({
         'success': True,
         'replace': replace,
         'archivos': resultados,
-        'errores': None,
+        'errores': errores_archivos or None,
         'total_filas_insertadas': total_insertadas,
         'sync_objetivos_ejecutado': bool(sync_objetivos),
         'periodos_detectados': periodos_detectados if 'periodos_detectados' in locals() else [],
