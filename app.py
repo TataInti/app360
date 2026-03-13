@@ -93,6 +93,15 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    # Ajustar engine options según el backend real para evitar incompatibilidades
+    # cuando el entorno de tests fuerza SQLite por variable DATABASE_URL.
+    db_uri = (app.config.get("SQLALCHEMY_DATABASE_URI") or "").lower()
+    engine_opts = dict(app.config.get("SQLALCHEMY_ENGINE_OPTIONS") or {})
+    if db_uri.startswith("sqlite"):
+        for key in ("pool_size", "max_overflow", "pool_timeout", "pool_recycle"):
+            engine_opts.pop(key, None)
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = engine_opts
+
     # Setup centralized logging
     setup_logging(app)
     app.logger.info("Application starting...")
