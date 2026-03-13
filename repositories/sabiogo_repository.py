@@ -507,7 +507,8 @@ class SabiogoRepository:
         filas_sin_mapeo: int,
         filas_error: int,
         usuario_id: Optional[int] = None,
-        observaciones: Optional[str] = None
+        observaciones: Optional[str] = None,
+        auto_commit: bool = True,
     ) -> LogSabiogoCarga:
         """Registra un log de carga de datos."""
         log = LogSabiogoCarga(
@@ -522,5 +523,8 @@ class SabiogoRepository:
             observaciones=observaciones
         )
         db.session.add(log)
-        db.session.commit()
+        if auto_commit:
+            db.session.commit()
+        else:
+            db.session.flush()
         return log

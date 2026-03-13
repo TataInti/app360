@@ -107,7 +107,6 @@ class StgSabiogoVentas(db.Model):
             )
         ).update({'estado': 'duplicado'}, synchronize_session=False)
         
-        session.commit()
         return count
 
 
@@ -213,5 +212,4 @@ class StgSabiogoCompras(db.Model):
             )
         ).update({'estado': 'duplicado'}, synchronize_session=False)
         
-        session.commit()
         return count

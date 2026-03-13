@@ -10,6 +10,7 @@ import re
 from datetime import datetime, date, timedelta
 from typing import Optional
 from sqlalchemy import text, func, inspect as sa_inspect
+from sqlalchemy.orm import joinedload
 
 from models import db
 from models.sabiogo import (
@@ -229,23 +230,29 @@ def _autogenerar_mapeos_faltantes():
 @login_required
 def admin_panel():
     """Panel de administración SabioGo."""
-    if SabiogoProductMap.query.count() == 0 or SabiogoClientMap.query.count() == 0:
-        try:
-            auto_stats = _autogenerar_mapeos_faltantes()
-            current_app.logger.info(f"Autogeneración de mapeos SabioGo: {auto_stats}")
-        except Exception as e:
-            current_app.logger.error(f"Error autogenerando mapeos SabioGo: {e}")
+    # Consolidar métricas en una sola ida al motor para evitar latencia en page load.
+    total_productos_map_sq = db.session.query(func.count(SabiogoProductMap.id)).scalar_subquery()
+    productos_mapeados_sq = db.session.query(func.count(SabiogoProductMap.id)).filter(
+        SabiogoProductMap.activo == True,
+        SabiogoProductMap.product_id.isnot(None),
+    ).scalar_subquery()
+    total_clientes_map_sq = db.session.query(func.count(SabiogoClientMap.id)).scalar_subquery()
+    clientes_mapeados_sq = db.session.query(func.count(SabiogoClientMap.id)).filter(
+        SabiogoClientMap.activo == True,
+        SabiogoClientMap.client_id.isnot(None),
+    ).scalar_subquery()
 
-    # Estadísticas básicas
-    total_productos_map = SabiogoProductMap.query.count()
-    productos_mapeados = SabiogoProductMap.query.filter_by(activo=True).filter(
-        SabiogoProductMap.product_id.isnot(None)
-    ).count()
-    
-    total_clientes_map = SabiogoClientMap.query.count()
-    clientes_mapeados = SabiogoClientMap.query.filter_by(activo=True).filter(
-        SabiogoClientMap.client_id.isnot(None)
-    ).count()
+    stats_row = db.session.query(
+        total_productos_map_sq.label('total_productos'),
+        productos_mapeados_sq.label('productos_mapeados'),
+        total_clientes_map_sq.label('total_clientes'),
+        clientes_mapeados_sq.label('clientes_mapeados'),
+    ).one()
+
+    total_productos_map = int(stats_row.total_productos or 0)
+    productos_mapeados = int(stats_row.productos_mapeados or 0)
+    total_clientes_map = int(stats_row.total_clientes or 0)
+    clientes_mapeados = int(stats_row.clientes_mapeados or 0)
     
     return render_template(
         "sabiogo_admin.html",
@@ -368,7 +375,7 @@ def _importar_df_a_staging(df: pd.DataFrame, *, ModelClass, origen: str, filenam
 
             if len(batch_rows) >= batch_size:
                 db.session.bulk_insert_mappings(ModelClass, batch_rows)
-                db.session.commit()
+                db.session.flush()
                 batch_rows = []
         except Exception as exc:
             filas_error += 1
@@ -376,7 +383,7 @@ def _importar_df_a_staging(df: pd.DataFrame, *, ModelClass, origen: str, filenam
 
     if batch_rows:
         db.session.bulk_insert_mappings(ModelClass, batch_rows)
-        db.session.commit()
+        db.session.flush()
 
     # Marcar duplicados pendientes
     try:
@@ -389,7 +396,6 @@ def _importar_df_a_staging(df: pd.DataFrame, *, ModelClass, origen: str, filenam
         ModelClass.hash_archivo == file_sha256,
         ModelClass.estado == 'pendiente',
     ).update({'estado': 'procesado'}, synchronize_session=False)
-    db.session.commit()
 
     return {
         'filas_insertadas': filas_insertadas,
@@ -437,106 +443,123 @@ def cargar_globales():
         if not allowed_file(file.filename):
             return jsonify({'error': f'{key}: extensión no permitida. Use .xls o .xlsx'}), 400
 
-    # ── Reemplazo de datos ──────────────────────────────────────────────────
-    if replace:
-        for key, file in archivos_recibidos.items():
-            origen, _, ModelClass = ARCHIVOS_CONFIG[key]
-            eliminados = db.session.query(ModelClass).filter(
-                ModelClass.origen == origen
-            ).delete(synchronize_session=False)
-            current_app.logger.info(
-                f"[cargar-globales] replace: eliminados {eliminados} registros "
-                f"{ModelClass.__tablename__} origen={origen}"
-            )
-        db.session.commit()
-
-    # ── Importación por archivo ─────────────────────────────────────────────
     resultados = {}
-    errores = {}
     tmp_paths = []
+    service = SabiogoService()
+    usuario = User.query.filter_by(username=session.get('user')).first()
 
     try:
         for key, file in archivos_recibidos.items():
-            origen, tipo_carga, ModelClass = ARCHIVOS_CONFIG[key]
             filename = secure_filename(file.filename)
             filepath = os.path.join(upload_folder, f"global_{key}_{filename}")
             file.save(filepath)
             tmp_paths.append(filepath)
 
-            try:
-                hash_archivo = calcular_hash_archivo(filepath)
-                df = _read_excel_robust(filepath)
-                stats = _importar_df_a_staging(
-                    df,
-                    ModelClass=ModelClass,
-                    origen=origen,
-                    filename=filename,
-                    file_sha256=hash_archivo,
+        if replace:
+            for key in archivos_recibidos:
+                origen, _, ModelClass = ARCHIVOS_CONFIG[key]
+                eliminados = db.session.query(ModelClass).filter(
+                    ModelClass.origen == origen
+                ).delete(synchronize_session=False)
+                current_app.logger.info(
+                    f"[cargar-globales] replace: eliminados {eliminados} registros "
+                    f"{ModelClass.__tablename__} origen={origen}"
                 )
-                resultados[key] = {**stats, 'origen': origen, 'tipo': tipo_carga, 'archivo': filename}
 
-                # Log de auditoría
-                service = SabiogoService()
-                usuario = User.query.filter_by(username=session.get('user')).first()
-                service.registrar_carga(
-                    archivo_nombre=filename,
-                    tipo_carga=tipo_carga,
-                    hash_archivo=hash_archivo,
-                    filas_insertadas=stats['filas_insertadas'],
-                    filas_duplicadas=stats['filas_duplicadas'],
-                    filas_sin_mapeo=0,
-                    filas_error=stats['filas_error'],
-                    usuario_id=usuario.id if usuario else None,
-                )
-            except Exception as exc:
-                current_app.logger.error(f"[cargar-globales] error en {key}: {exc}", exc_info=True)
-                errores[key] = str(exc)
+        for key in archivos_recibidos:
+            origen, tipo_carga, ModelClass = ARCHIVOS_CONFIG[key]
+            file = archivos_recibidos[key]
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(upload_folder, f"global_{key}_{filename}")
 
-        # Sincronización PRE desacoplada de la carga principal.
-        objetivos_sync = None
-        periodos_detectados = []
-        ventas_keys = [k for k in archivos_recibidos if 'ventas' in k and k not in errores]
-        if ventas_keys:
-            try:
-                periodos_q = db.session.query(StgSabiogoVentas.fecha).filter(
-                    StgSabiogoVentas.origen.in_(
-                        [ARCHIVOS_CONFIG[k][0] for k in ventas_keys]
-                    ),
-                    StgSabiogoVentas.estado == 'procesado',
-                    StgSabiogoVentas.fecha.isnot(None),
-                ).distinct().all()
-                periodos = sorted({f"{r.fecha.year:04d}-{r.fecha.month:02d}" for r in periodos_q if r.fecha})
-                periodos_detectados = periodos[:24]
-                if sync_objetivos and periodos_detectados:
-                    service = SabiogoService()
-                    sync_runs = []
-                    for periodo in periodos_detectados:
-                        try:
-                            sync_runs.append(service.sincronizar_objetivos_pre(periodo=periodo))
-                        except Exception as se:
-                            sync_runs.append({'periodo': periodo, 'error': str(se)})
-                    objetivos_sync = {'ejecuciones': sync_runs}
-            except Exception as se:
-                current_app.logger.warning(f"[cargar-globales] sync PRE falló: {se}")
+            hash_archivo = calcular_hash_archivo(filepath)
+            df = _read_excel_robust(filepath)
+            stats = _importar_df_a_staging(
+                df,
+                ModelClass=ModelClass,
+                origen=origen,
+                filename=filename,
+                file_sha256=hash_archivo,
+            )
+            resultados[key] = {**stats, 'origen': origen, 'tipo': tipo_carga, 'archivo': filename}
 
-    finally:
+            # Log de auditoría en la misma transacción de la carga.
+            service.registrar_carga(
+                archivo_nombre=filename,
+                tipo_carga=tipo_carga,
+                hash_archivo=hash_archivo,
+                filas_insertadas=stats['filas_insertadas'],
+                filas_duplicadas=stats['filas_duplicadas'],
+                filas_sin_mapeo=0,
+                filas_error=stats['filas_error'],
+                usuario_id=usuario.id if usuario else None,
+                auto_commit=False,
+            )
+
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.error(f"[cargar-globales] transacción revertida por error: {exc}", exc_info=True)
         for p in tmp_paths:
             try:
                 os.remove(p)
             except Exception:
                 pass
+        return jsonify({
+            'success': False,
+            'error': str(exc),
+            'replace': replace,
+            'archivos': None,
+            'errores': None,
+            'total_filas_insertadas': 0,
+            'sync_objetivos_ejecutado': False,
+            'periodos_detectados': [],
+            'objetivos_sync': None,
+        }), 500
+
+    # Sincronización PRE desacoplada de la carga principal.
+    objetivos_sync = None
+    periodos_detectados = []
+    ventas_keys = [k for k in archivos_recibidos if 'ventas' in k]
+    if ventas_keys:
+        try:
+            periodos_q = db.session.query(StgSabiogoVentas.fecha).filter(
+                StgSabiogoVentas.origen.in_(
+                    [ARCHIVOS_CONFIG[k][0] for k in ventas_keys]
+                ),
+                StgSabiogoVentas.estado == 'procesado',
+                StgSabiogoVentas.fecha.isnot(None),
+            ).distinct().all()
+            periodos = sorted({f"{r.fecha.year:04d}-{r.fecha.month:02d}" for r in periodos_q if r.fecha})
+            periodos_detectados = periodos[:24]
+            if sync_objetivos and periodos_detectados:
+                sync_runs = []
+                for periodo in periodos_detectados:
+                    try:
+                        sync_runs.append(service.sincronizar_objetivos_pre(periodo=periodo))
+                    except Exception as se:
+                        sync_runs.append({'periodo': periodo, 'error': str(se)})
+                objetivos_sync = {'ejecuciones': sync_runs}
+        except Exception as se:
+            current_app.logger.warning(f"[cargar-globales] sync PRE falló: {se}")
+
+    for p in tmp_paths:
+        try:
+            os.remove(p)
+        except Exception:
+            pass
 
     total_insertadas = sum(r.get('filas_insertadas', 0) for r in resultados.values())
     return jsonify({
-        'success': len(errores) == 0,
+        'success': True,
         'replace': replace,
         'archivos': resultados,
-        'errores': errores if errores else None,
+        'errores': None,
         'total_filas_insertadas': total_insertadas,
         'sync_objetivos_ejecutado': bool(sync_objetivos),
         'periodos_detectados': periodos_detectados if 'periodos_detectados' in locals() else [],
         'objetivos_sync': objetivos_sync,
-    }), (200 if not errores else 207)
+    }), 200
 
 
 @sabiogo_bp.route('/api/sync-objetivos-pre', methods=['POST'])
@@ -592,15 +615,12 @@ def sync_objetivos_pre_cron():
 @login_required
 def listar_mapeos_productos():
     """Lista códigos de productos con estado de mapeo."""
-    if SabiogoProductMap.query.count() == 0:
-        _autogenerar_mapeos_faltantes()
-
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
     estado = request.args.get('estado')  # 'mapeado', 'sin_mapear'
     origen = request.args.get('origen')
     
-    query = SabiogoProductMap.query
+    query = SabiogoProductMap.query.options(joinedload(SabiogoProductMap.product))
 
     if origen:
         query = query.filter((SabiogoProductMap.origen == origen) | (SabiogoProductMap.origen.is_(None)))
@@ -690,13 +710,10 @@ def actualizar_mapeo_producto(codigo):
 @login_required
 def listar_mapeos_clientes():
     """Lista clientes con estado de mapeo."""
-    if SabiogoClientMap.query.count() == 0:
-        _autogenerar_mapeos_faltantes()
-
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
     
-    pagination = SabiogoClientMap.query.order_by(
+    pagination = SabiogoClientMap.query.options(joinedload(SabiogoClientMap.client)).order_by(
         SabiogoClientMap.cliente
     ).paginate(
         page=page,
@@ -828,10 +845,20 @@ def refresh_facts():
             )
         ).rowcount
 
-        # Refrescar vistas materializadas
-        db.session.execute(text("REFRESH MATERIALIZED VIEW fact_ventas_sabiogo"))
-        db.session.execute(text("REFRESH MATERIALIZED VIEW fact_costos_sabiogo"))
         db.session.commit()
+
+        # Refrescar vistas materializadas sin bloquear lecturas cuando haya soporte.
+        try:
+            with db.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                conn.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY fact_ventas_sabiogo"))
+                conn.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY fact_costos_sabiogo"))
+        except Exception as refresh_error:
+            current_app.logger.warning(
+                f"Refresh CONCURRENTLY no disponible, usando refresh estándar: {refresh_error}"
+            )
+            db.session.execute(text("REFRESH MATERIALIZED VIEW fact_ventas_sabiogo"))
+            db.session.execute(text("REFRESH MATERIALIZED VIEW fact_costos_sabiogo"))
+            db.session.commit()
         
         return jsonify({
             'success': True,

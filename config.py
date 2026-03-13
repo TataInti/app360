@@ -11,10 +11,16 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # pool_pre_ping evita conexiones SSL/TCP stale tras idle prolongado
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_pre_ping": True,
-        "pool_recycle": 900,  # reciclar conexiones cada 15 min
-    }
+    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+    if not SQLALCHEMY_DATABASE_URI.startswith("sqlite"):
+        SQLALCHEMY_ENGINE_OPTIONS.update(
+            {
+                "pool_recycle": int(os.getenv("DB_POOL_RECYCLE", 1800)),
+                "pool_size": int(os.getenv("DB_POOL_SIZE", 20)),
+                "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", 40)),
+                "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT", 30)),
+            }
+        )
 
     # En local no forzar SERVER_NAME/HTTPS (rompe cookies y routing con host distinto)
     SERVER_NAME = os.getenv("SERVER_NAME") or (

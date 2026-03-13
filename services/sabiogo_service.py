@@ -161,7 +161,8 @@ class SabiogoService:
         filas_sin_mapeo: int = 0,
         filas_error: int = 0,
         usuario_id: Optional[int] = None,
-        observaciones: Optional[str] = None
+        observaciones: Optional[str] = None,
+        auto_commit: bool = True,
     ):
         """Registra un log de carga de datos."""
         return self.repository.registrar_log_carga(
@@ -173,7 +174,8 @@ class SabiogoService:
             filas_sin_mapeo=filas_sin_mapeo,
             filas_error=filas_error,
             usuario_id=usuario_id,
-            observaciones=observaciones
+            observaciones=observaciones,
+            auto_commit=auto_commit,
         )
 
     def get_resumen_pre_fac(self, fecha_corte: Optional[date] = None) -> Dict:
