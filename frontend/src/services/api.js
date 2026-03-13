@@ -83,7 +83,7 @@ class ApiService {
     return this.request('/dashboard');
   }
 
-  async getDashboardFinanciero(filters = { period: '6m' }) {
+  async getDashboardFinanciero(filters = { period: '30' }) {
     const query = this.buildStrategicQuery(filters);
     return this.request(`/dashboard-financiero${query ? `?${query}` : ''}`);
   }
@@ -92,7 +92,7 @@ class ApiService {
     return this.request('/dashboard-comercial');
   }
 
-  async getDashboardComercialV2(filters = { period: '6m' }) {
+  async getDashboardComercialV2(filters = { period: '30' }) {
     const query = this.buildStrategicQuery(filters);
     return this.request(`/dashboard-comercial-v2${query ? `?${query}` : ''}`);
   }
@@ -105,7 +105,7 @@ class ApiService {
     return this.request('/panel-ejecutivo');
   }
 
-  async getPanelEjecutivoV2(filters = { period: '6m' }) {
+  async getPanelEjecutivoV2(filters = { period: '30' }) {
     const query = this.buildStrategicQuery(filters);
     return this.request(`/panel-ejecutivo-v2${query ? `?${query}` : ''}`);
   }

@@ -13,7 +13,7 @@ Environment="PATH=/var/www/app360/venv/bin"
 EnvironmentFile=/var/www/app360/.env
 ExecStart=/var/www/app360/venv/bin/gunicorn \
     --bind 127.0.0.1:5000 \
-    --workers 4 \
+    --workers 8 \
     --timeout 180 \
     --access-logfile /var/www/app360/logs/access.log \
     --error-logfile /var/www/app360/logs/error.log \

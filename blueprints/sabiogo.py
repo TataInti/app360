@@ -419,6 +419,7 @@ def cargar_globales():
     }
 
     replace = request.form.get('replace', 'true').lower() not in ('false', '0', 'no')
+    sync_objetivos = request.form.get('sync_objetivos', 'false').lower() in ('true', '1', 'yes')
     upload_folder = current_app.config.get('UPLOAD_FOLDER', '/tmp')
     os.makedirs(upload_folder, exist_ok=True)
 
@@ -491,8 +492,9 @@ def cargar_globales():
                 current_app.logger.error(f"[cargar-globales] error en {key}: {exc}", exc_info=True)
                 errores[key] = str(exc)
 
-        # Sincronizar objetivos PRE para periodos presentes en ventas nuevas
+        # Sincronización PRE desacoplada de la carga principal.
         objetivos_sync = None
+        periodos_detectados = []
         ventas_keys = [k for k in archivos_recibidos if 'ventas' in k and k not in errores]
         if ventas_keys:
             try:
@@ -504,14 +506,16 @@ def cargar_globales():
                     StgSabiogoVentas.fecha.isnot(None),
                 ).distinct().all()
                 periodos = sorted({f"{r.fecha.year:04d}-{r.fecha.month:02d}" for r in periodos_q if r.fecha})
-                service = SabiogoService()
-                sync_runs = []
-                for periodo in periodos[:24]:  # límite de seguridad
-                    try:
-                        sync_runs.append(service.sincronizar_objetivos_pre(periodo=periodo))
-                    except Exception as se:
-                        sync_runs.append({'periodo': periodo, 'error': str(se)})
-                objetivos_sync = {'ejecuciones': sync_runs}
+                periodos_detectados = periodos[:24]
+                if sync_objetivos and periodos_detectados:
+                    service = SabiogoService()
+                    sync_runs = []
+                    for periodo in periodos_detectados:
+                        try:
+                            sync_runs.append(service.sincronizar_objetivos_pre(periodo=periodo))
+                        except Exception as se:
+                            sync_runs.append({'periodo': periodo, 'error': str(se)})
+                    objetivos_sync = {'ejecuciones': sync_runs}
             except Exception as se:
                 current_app.logger.warning(f"[cargar-globales] sync PRE falló: {se}")
 
@@ -529,6 +533,8 @@ def cargar_globales():
         'archivos': resultados,
         'errores': errores if errores else None,
         'total_filas_insertadas': total_insertadas,
+        'sync_objetivos_ejecutado': bool(sync_objetivos),
+        'periodos_detectados': periodos_detectados if 'periodos_detectados' in locals() else [],
         'objetivos_sync': objetivos_sync,
     }), (200 if not errores else 207)
 

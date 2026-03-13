@@ -57,7 +57,7 @@ function formatLabelPeriodo(label, granularidad) {
 }
 
 export default function DashboardFinanciero() {
-  const [filters, setFilters] = useState({ period: "6m", fechaDesde: "", fechaHasta: "" });
+  const [filters, setFilters] = useState({ period: "30", fechaDesde: "", fechaHasta: "" });
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [loading, setLoading] = useState(true);
@@ -277,10 +277,10 @@ export default function DashboardFinanciero() {
             onClick={() => {
               setFechaDesde("");
               setFechaHasta("");
-              setFilters({ period: "6m", fechaDesde: "", fechaHasta: "" });
+              setFilters({ period: "30", fechaDesde: "", fechaHasta: "" });
             }}
           >
-            Usar 6m
+            Usar 30d
           </button>
         </div>
         <div className="text-muted small mt-2">

@@ -26,11 +26,11 @@ function formatMoney(value) {
 }
 
 function DashboardComercial() {
-  const [filters, setFilters] = useState({ period: "6m", fechaDesde: "", fechaHasta: "" });
+  const [filters, setFilters] = useState({ period: "30", fechaDesde: "", fechaHasta: "" });
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [data, setData] = useState({
-    period: "6m",
+    period: "30",
     desde: null,
     hasta: null,
     kpis: {},
@@ -113,10 +113,10 @@ function DashboardComercial() {
             onClick={() => {
               setFechaDesde("");
               setFechaHasta("");
-              setFilters({ period: "6m", fechaDesde: "", fechaHasta: "" });
+              setFilters({ period: "30", fechaDesde: "", fechaHasta: "" });
             }}
           >
-            Ultimos 6m
+            Ultimos 30d
           </button>
         </div>
         <div className="text-muted small mt-2">

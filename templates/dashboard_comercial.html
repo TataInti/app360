@@ -14,7 +14,7 @@
     <input id="fecha-hasta" type="date" class="form-control form-control-sm" />
   </div>
   <button id="btn-aplicar-rango" class="btn btn-sm btn-primary">Aplicar</button>
-  <button id="btn-ultimos-6m" class="btn btn-sm btn-outline-secondary">Ultimos 6m</button>
+  <button id="btn-ultimos-6m" class="btn btn-sm btn-outline-secondary">Ultimos 30d</button>
 </div>
 
 <div class="text-muted small mb-3">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></div>
@@ -129,7 +129,7 @@
       document.getElementById('fecha-hasta').value = hasta || '';
     }
 
-    async function cargar(period = '6m', fechaDesde = '', fechaHasta = '') {
+    async function cargar(period = '30', fechaDesde = '', fechaHasta = '') {
       const params = new URLSearchParams();
       if (period) params.set('period', period);
       if (fechaDesde) params.set('fecha_desde', fechaDesde);
@@ -197,10 +197,10 @@
 
       document.getElementById('btn-ultimos-6m').addEventListener('click', () => {
         setDateInputs('', '');
-        cargar('6m');
+        cargar('30');
       });
 
-      cargar('6m');
+      cargar('30');
     });
 </script>
 {% endblock %}

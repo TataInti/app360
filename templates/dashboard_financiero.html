@@ -22,7 +22,7 @@
       <input id="fecha-hasta" type="date" class="form-control form-control-sm" />
     </div>
     <button id="btn-aplicar-rango" class="btn btn-sm btn-primary">Aplicar</button>
-    <button id="btn-limpiar-rango" class="btn btn-sm btn-outline-secondary">Usar 6m</button>
+    <button id="btn-limpiar-rango" class="btn btn-sm btn-outline-secondary">Usar 30d</button>
   </div>
 
   <div class="text-muted small mb-4">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></div>
@@ -227,19 +227,6 @@
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-
-          document.getElementById('btn-aplicar-rango').addEventListener('click', () => {
-            const desde = document.getElementById('fecha-desde').value;
-            const hasta = document.getElementById('fecha-hasta').value;
-            fetchData('', desde, hasta);
-          });
-
-          document.getElementById('btn-limpiar-rango').addEventListener('click', () => {
-            setDateInputs('', '');
-            fetchData('6m');
-          });
-
-          fetchData('6m');
           tooltip: {
             callbacks: {
               label: (ctx) => {
@@ -303,12 +290,22 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    const defaultPeriod = '30';
     document.querySelectorAll('[data-period]').forEach(btn => {
       btn.addEventListener('click', () => fetchData(btn.dataset.period));
     });
 
-    fetchData(defaultPeriod);
+    document.getElementById('btn-aplicar-rango').addEventListener('click', () => {
+      const desde = document.getElementById('fecha-desde').value;
+      const hasta = document.getElementById('fecha-hasta').value;
+      fetchData('', desde, hasta);
+    });
+
+    document.getElementById('btn-limpiar-rango').addEventListener('click', () => {
+      setDateInputs('', '');
+      fetchData('30');
+    });
+
+    fetchData('30');
   });
 </script>
 {% endblock %}

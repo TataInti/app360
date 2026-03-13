@@ -21,7 +21,7 @@ def _parse_periodo(periodo_raw: str | None) -> tuple[str, date, date]:
     """Parsea periodo soportado: '7', '15', '30', '6m', 'ytd'. Devuelve (key, desde, hasta)."""
     today = date.today()
     if not periodo_raw:
-        periodo_raw = "6m"
+        periodo_raw = "30"
 
     periodo_key = str(periodo_raw).strip().lower()
     if periodo_key in {"7", "7d"}:
@@ -36,7 +36,7 @@ def _parse_periodo(periodo_raw: str | None) -> tuple[str, date, date]:
         return ("ytd", date(today.year, 1, 1), today)
 
     # fallback seguro
-    return ("6m", today - timedelta(days=179), today)
+    return ("30", today - timedelta(days=29), today)
 
 
 def _parse_iso_date(value: str | None) -> date | None:
@@ -49,7 +49,7 @@ def _parse_iso_date(value: str | None) -> date | None:
 
 
 def _parse_periodo_o_fechas(periodo_raw: str | None, fecha_desde_raw: str | None, fecha_hasta_raw: str | None) -> tuple[str, date, date]:
-    """Prioriza fecha_desde/fecha_hasta, luego periodo; default final últimos 6 meses."""
+    """Prioriza fecha_desde/fecha_hasta, luego periodo; default final últimos 30 días."""
     desde = _parse_iso_date(fecha_desde_raw)
     hasta = _parse_iso_date(fecha_hasta_raw)
 
@@ -62,7 +62,7 @@ def _parse_periodo_o_fechas(periodo_raw: str | None, fecha_desde_raw: str | None
     if desde and not hasta:
         return ("custom", desde, today)
     if hasta and not desde:
-        return ("custom", hasta - timedelta(days=179), hasta)
+        return ("custom", hasta - timedelta(days=29), hasta)
 
     return _parse_periodo(periodo_raw)
 
@@ -868,9 +868,9 @@ def api_dashboard_comercial_v2():
 # -----------------------------------------------------------------------------
 @api.get("/panel-ejecutivo-v2")
 def api_panel_ejecutivo_v2():
-    # Por defecto: últimos 6 meses
+    # Por defecto: últimos 30 días
     periodo_key, desde, hasta = _parse_periodo_o_fechas(
-        request.args.get("period") or "6m",
+        request.args.get("period") or "30",
         request.args.get("fecha_desde"),
         request.args.get("fecha_hasta"),
     )
