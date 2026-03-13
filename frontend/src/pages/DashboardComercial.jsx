@@ -26,8 +26,11 @@ function formatMoney(value) {
 }
 
 function DashboardComercial() {
+  const [filters, setFilters] = useState({ period: "6m", fechaDesde: "", fechaHasta: "" });
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
   const [data, setData] = useState({
-    period: "30",
+    period: "6m",
     desde: null,
     hasta: null,
     kpis: {},
@@ -46,7 +49,7 @@ function DashboardComercial() {
       try {
         setLoading(true);
         setError("");
-        const dashboardData = await apiService.getDashboardComercialV2("30");
+        const dashboardData = await apiService.getDashboardComercialV2(filters);
         setData(dashboardData);
       } catch (err) {
         console.error('Error loading commercial dashboard:', err);
@@ -56,7 +59,7 @@ function DashboardComercial() {
       }
     }
     fetchData();
-  }, []);
+  }, [filters]);
 
   const kpis = data.kpis || {};
   const series = data.series || {};
@@ -75,7 +78,47 @@ function DashboardComercial() {
   return (
     <div className="dashboard-comercial-page">
       <div className="page-header">
-        <h1>Dashboard Comercial</h1>
+        <h1>Panel Ventas</h1>
+        <div className="d-flex flex-wrap gap-2 align-items-end mt-2">
+          <div>
+            <label htmlFor="fecha-desde-comercial" className="form-label form-label-sm mb-1">Desde</label>
+            <input
+              id="fecha-desde-comercial"
+              type="date"
+              className="form-control form-control-sm"
+              value={fechaDesde}
+              onChange={(e) => setFechaDesde(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="fecha-hasta-comercial" className="form-label form-label-sm mb-1">Hasta</label>
+            <input
+              id="fecha-hasta-comercial"
+              type="date"
+              className="form-control form-control-sm"
+              value={fechaHasta}
+              onChange={(e) => setFechaHasta(e.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={() => setFilters({ period: "", fechaDesde, fechaHasta })}
+          >
+            Aplicar
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary"
+            onClick={() => {
+              setFechaDesde("");
+              setFechaHasta("");
+              setFilters({ period: "6m", fechaDesde: "", fechaHasta: "" });
+            }}
+          >
+            Ultimos 6m
+          </button>
+        </div>
         <div className="text-muted small mt-2">
           Período: {data.desde || "-"} → {data.hasta || "-"}
         </div>

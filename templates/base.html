@@ -86,37 +86,31 @@
         }
 
         .sidebar-toggle {
-            background: transparent;
-            border: 1px solid rgba(229, 231, 235, 0.5);
-            padding: 0.35rem;
-            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(229, 231, 235, 0.35);
+            color: #f9fafb;
+            padding: 0.4rem 0.55rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: background 0.2s ease, border-color 0.2s ease;
         }
 
-        .sidebar-toggle-icon {
-            display: block;
-            width: 22px;
-            height: 2px;
-            background: #e5e7eb;
-            position: relative;
-            margin: 0 auto;
+        .sidebar-toggle:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(229, 231, 235, 0.6);
         }
 
-        .sidebar-toggle-icon::before,
-        .sidebar-toggle-icon::after {
-            content: "";
-            position: absolute;
-            width: 22px;
-            height: 2px;
-            background: #e5e7eb;
-            left: 0;
+        .sidebar-toggle .bi {
+            font-size: 0.95rem;
         }
 
-        .sidebar-toggle-icon::before {
-            top: -6px;
-        }
-
-        .sidebar-toggle-icon::after {
-            top: 6px;
+        .sidebar.collapsed .sidebar-toggle-text {
+            display: none;
         }
 
         .sidebar a:hover {
@@ -215,8 +209,9 @@
     <div class="sidebar" id="sidebar">
         <h2>APP360</h2>
 
-        <button id="sidebar-toggle" class="btn btn-outline-light btn-sm mb-3 w-100 sidebar-toggle">
-            <span class="sidebar-toggle-icon"></span>
+        <button id="sidebar-toggle" type="button" class="btn btn-sm mb-3 w-100 sidebar-toggle" aria-label="Contraer barra lateral">
+            <i class="bi bi-layout-sidebar-inset"></i>
+            <span class="sidebar-toggle-text" id="sidebar-toggle-text">Contraer</span>
         </button>
 
         {% if current_user %}
@@ -236,7 +231,7 @@
         <a href="/dashboard-financiero"
            class="{% if current.startswith('/dashboard-financiero') or (current.startswith('/dashboard') and not current.startswith('/dashboard-comercial')) %}active-link{% endif %}">
             <span class="link-icon"><i class="bi bi-speedometer2"></i></span>
-            <span class="link-text">Dashboard Financiero</span>
+            <span class="link-text">Panel Tesoreria</span>
         </a>
         {% endif %}
 
@@ -244,7 +239,7 @@
         <a href="/dashboard-comercial"
            class="{% if current.startswith('/dashboard-comercial') %}active-link{% endif %}">
             <span class="link-icon"><i class="bi bi-graph-up"></i></span>
-            <span class="link-text">Dashboard Comercial</span>
+            <span class="link-text">Panel Ventas</span>
         </a>
         {% endif %}
 
@@ -491,16 +486,27 @@
         (function () {
             const sidebar = document.getElementById("sidebar");
             const toggle = document.getElementById("sidebar-toggle");
+            const toggleText = document.getElementById("sidebar-toggle-text");
             if (!sidebar || !toggle) return;
+
+            function syncSidebarToggleText() {
+                if (!toggleText) return;
+                const collapsedState = sidebar.classList.contains("collapsed");
+                toggleText.textContent = collapsedState ? "Expandir" : "Contraer";
+                toggle.setAttribute("aria-label", collapsedState ? "Expandir barra lateral" : "Contraer barra lateral");
+            }
             
             // Sidebar collapse state
             const collapsed = localStorage.getItem("sidebarCollapsed") === "true";
             if (collapsed) {
                 sidebar.classList.add("collapsed");
             }
+            syncSidebarToggleText();
+
             toggle.addEventListener("click", function () {
                 sidebar.classList.toggle("collapsed");
                 localStorage.setItem("sidebarCollapsed", sidebar.classList.contains("collapsed"));
+                syncSidebarToggleText();
             });
             
             // Restore sidebar scroll position

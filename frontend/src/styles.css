@@ -24,6 +24,40 @@ body {
   overflow-y: auto; /* scroll vertical */
   scrollbar-width: thin; /* Firefox */
   box-sizing: border-box;
+  transition: width 0.25s ease;
+}
+
+.sidebar.collapsed {
+  width: 72px;
+}
+
+.sidebar-toggle-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(229, 231, 235, 0.45);
+  color: #f9fafb;
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  margin: 0 0 0.9rem 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sidebar-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.sidebar-toggle-btn-icon {
+  font-size: 0.85rem;
+}
+
+.sidebar.collapsed .sidebar-toggle-btn {
+  padding: 0.35rem;
 }
 
 .sidebar h2 {
@@ -33,13 +67,29 @@ body {
 }
 
 .sidebar a {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
   padding: 6px 8px; /* más compacto */
   margin-bottom: 4px; /* menos espacio entre botones */
   text-decoration: none;
   color: #e5e7eb;
   border-radius: 4px;
   font-size: 0.9rem;
+}
+
+.sidebar.collapsed a {
+  justify-content: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.sidebar-label {
+  white-space: nowrap;
+}
+
+.sidebar.collapsed .sidebar-label {
+  display: none;
 }
 
 .sidebar a:hover {

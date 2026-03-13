@@ -68,6 +68,7 @@ instance/
 *.sqlite
 *.sqlite3
 excel/
+excel/contenido excel.ipynb
 
 # Backups locales (NO versionar). Los releases versionados viven en backups/db-releases/
 backups/db-sync/

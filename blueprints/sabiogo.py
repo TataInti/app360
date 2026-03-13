@@ -267,196 +267,9 @@ def admin_panel():
 @sabiogo_bp.route("/api/cargar-xls", methods=["POST"])
 @login_required
 def cargar_xls():
-    """
-    Carga archivo XLS de ventas o compras.
-    
-    Form data:
-        - file: archivo XLS
-        - tipo: 'ventas' o 'compras'
-    """
-    if 'file' not in request.files:
-        return jsonify({'error': 'No se envió archivo'}), 400
-    
-    file = request.files['file']
-    tipo = request.form.get('tipo', 'ventas')
-    
-    if file.filename == '':
-        return jsonify({'error': 'Nombre de archivo vacío'}), 400
-    
-    if not allowed_file(file.filename):
-        return jsonify({'error': 'Extensión no permitida. Use .xls o .xlsx'}), 400
-    
-    if tipo not in ['ventas', 'compras']:
-        return jsonify({'error': 'Tipo debe ser "ventas" o "compras"'}), 400
-    
-    try:
-        # Guardar archivo temporal
-        filename = secure_filename(file.filename)
-        origen = infer_origen_from_filename(filename) or request.form.get('origen') or ORIGEN_LEGACY
-        upload_folder = current_app.config.get('UPLOAD_FOLDER', '/tmp')
-        if not os.path.exists(upload_folder):
-            os.makedirs(upload_folder)
-        
-        filepath = os.path.join(upload_folder, filename)
-        file.save(filepath)
-        
-        # Calcular hash
-        hash_archivo = calcular_hash_archivo(filepath)
-        
-        # Leer Excel con pandas
-        df = pd.read_excel(filepath)
-        
-        # Validar columnas requeridas
-        columnas_requeridas = ['fecha', 'codigo', 'producto']
-        if not all(col in df.columns for col in columnas_requeridas):
-            os.remove(filepath)
-            return jsonify({
-                'error': f'Faltan columnas requeridas: {columnas_requeridas}'
-            }), 400
-        
-        # Insertar en staging
-        filas_insertadas = 0
-        filas_error = 0
-        
-        ModelClass = StgSabiogoVentas if tipo == 'ventas' else StgSabiogoCompras
-        
-        for _, row in df.iterrows():
-            try:
-                # Convertir row a dict y limpiar
-                data = row.to_dict()
-                
-                # Limpiar None y NaN
-                for key, value in data.items():
-                    if pd.isna(value):
-                        data[key] = None
-
-                # Normalizar codigo y guardar raw
-                codigo_raw = data.get('codigo')
-                data['codigo_raw'] = None if codigo_raw is None else str(codigo_raw)
-                data['codigo'] = normalize_codigo(codigo_raw)
-                data['origen'] = origen
-                
-                # Agregar metadatos
-                data['fuente_archivo'] = filename
-                data['hash_archivo'] = hash_archivo
-                data['estado'] = 'pendiente'
-                
-                # Crear registro
-                registro = ModelClass(**data)
-                db.session.add(registro)
-                filas_insertadas += 1
-                
-            except Exception as e:
-                filas_error += 1
-                current_app.logger.error(f"Error insertando fila: {e}")
-        
-        db.session.commit()
-        
-        # Ejecutar validación de duplicados
-        try:
-            duplicados = ModelClass.validar_duplicados(db.session)
-            current_app.logger.info(f"Validación de duplicados: {duplicados} registros marcados")
-        except Exception as e:
-            current_app.logger.warning(f"Error en validación de duplicados: {e}")
-            duplicados = 0
-
-        # Promover a procesado los registros válidos del archivo cargado
-        # (los duplicados ya quedan en estado='duplicado')
-        filas_procesadas = db.session.query(ModelClass).filter(
-            ModelClass.hash_archivo == hash_archivo,
-            ModelClass.estado == 'pendiente'
-        ).update({'estado': 'procesado'}, synchronize_session=False)
-        db.session.commit()
-        
-        # Contar registros sin mapeo
-        if tipo == 'ventas':
-            sin_mapeo_query = db.session.query(StgSabiogoVentas).filter(
-                StgSabiogoVentas.hash_archivo == hash_archivo,
-                (StgSabiogoVentas.origen == origen) | (StgSabiogoVentas.origen.is_(None)),
-                StgSabiogoVentas.codigo.notin_(
-                    db.session.query(SabiogoProductMap.codigo).filter(
-                        (SabiogoProductMap.origen == origen) | (SabiogoProductMap.origen.is_(None)),
-                        SabiogoProductMap.activo == True,
-                        SabiogoProductMap.product_id.isnot(None)
-                    )
-                )
-            ).count()
-        else:
-            sin_mapeo_query = db.session.query(StgSabiogoCompras).filter(
-                StgSabiogoCompras.hash_archivo == hash_archivo,
-                (StgSabiogoCompras.origen == origen) | (StgSabiogoCompras.origen.is_(None)),
-                StgSabiogoCompras.codigo.notin_(
-                    db.session.query(SabiogoProductMap.codigo).filter(
-                        (SabiogoProductMap.origen == origen) | (SabiogoProductMap.origen.is_(None)),
-                        SabiogoProductMap.activo == True,
-                        SabiogoProductMap.product_id.isnot(None)
-                    )
-                )
-            ).count()
-        
-        # Registrar log de auditoría
-        service = SabiogoService()
-        usuario = User.query.filter_by(username=session.get('user')).first()
-        service.registrar_carga(
-            archivo_nombre=filename,
-            tipo_carga=tipo,
-            hash_archivo=hash_archivo,
-            filas_insertadas=filas_insertadas,
-            filas_duplicadas=duplicados,
-            filas_sin_mapeo=sin_mapeo_query,
-            filas_error=filas_error,
-            usuario_id=usuario.id if usuario else None
-        )
-
-        objetivos_sync = None
-        if tipo == 'ventas':
-            fechas_rows = db.session.query(ModelClass.fecha).filter(
-                ModelClass.hash_archivo == hash_archivo,
-                ModelClass.estado == 'procesado',
-                ModelClass.fecha.isnot(None)
-            ).distinct().all()
-
-            periodos = sorted({f"{row.fecha.year:04d}-{row.fecha.month:02d}" for row in fechas_rows if row.fecha})
-            if not periodos:
-                periodos = [datetime.now().strftime('%Y-%m')]
-
-            sync_runs = []
-            for periodo in periodos:
-                try:
-                    sync_runs.append(service.sincronizar_objetivos_pre(periodo=periodo))
-                except Exception as sync_error:
-                    current_app.logger.warning(
-                        "No se pudo sincronizar objetivos PRE para periodo %s: %s",
-                        periodo,
-                        sync_error,
-                    )
-                    sync_runs.append({
-                        'periodo': periodo,
-                        'error': str(sync_error),
-                    })
-
-            objetivos_sync = {
-                'ejecuciones': sync_runs,
-            }
-        
-        # Limpiar archivo temporal
-        os.remove(filepath)
-        
-        return jsonify({
-            'success': True,
-            'mensaje': f'Archivo cargado exitosamente',
-            'origen': origen,
-            'filas_insertadas': filas_insertadas,
-            'filas_procesadas': filas_procesadas,
-            'filas_duplicadas': duplicados,
-            'filas_sin_mapeo': sin_mapeo_query,
-            'filas_error': filas_error,
-            'objetivos_sync': objetivos_sync,
-        })
-        
-    except Exception as e:
-        current_app.logger.error(f"Error cargando archivo: {e}")
-        return jsonify({'error': str(e)}), 500
+    return jsonify({
+        'error': 'Endpoint deprecado. Use /sabiogo/api/cargar-globales con 4 archivos por empresa (carnes/lacteos).'
+    }), 410
 
 
 # ============================================================================
@@ -492,7 +305,7 @@ def _read_excel_robust(path: str) -> pd.DataFrame:
 
     last_error = None
     for engine in engines:
-        for header_row in range(8):
+        for header_row in (0, 1, 2):
             try:
                 kwargs = {'header': header_row}
                 if engine is not None:
@@ -533,18 +346,14 @@ def _importar_df_a_staging(df: pd.DataFrame, *, ModelClass, origen: str, filenam
     filas_insertadas = 0
     filas_error = 0
 
-    for _, row in df.iterrows():
+    # Carga por lotes para minimizar overhead de ORM fila-a-fila.
+    batch_size = 2500
+    batch_rows = []
+    df_clean = df.where(pd.notna(df), None)
+
+    for row_idx, row in enumerate(df_clean.to_dict(orient='records')):
         try:
-            data = row.to_dict()
-            # Limpiar NaN
-            for key, value in list(data.items()):
-                try:
-                    if pd.isna(value):
-                        data[key] = None
-                except Exception:
-                    pass
-            # Filtrar solo columnas que el modelo conoce
-            data = {k: v for k, v in data.items() if k in valid_cols}
+            data = {k: v for k, v in row.items() if k in valid_cols}
 
             codigo_raw = data.get('codigo')
             data['codigo_raw'] = None if codigo_raw is None else str(codigo_raw)
@@ -554,14 +363,20 @@ def _importar_df_a_staging(df: pd.DataFrame, *, ModelClass, origen: str, filenam
             data['hash_archivo'] = file_sha256
             data['estado'] = 'pendiente'
 
-            registro = ModelClass(**data)
-            db.session.add(registro)
+            batch_rows.append(data)
             filas_insertadas += 1
+
+            if len(batch_rows) >= batch_size:
+                db.session.bulk_insert_mappings(ModelClass, batch_rows)
+                db.session.commit()
+                batch_rows = []
         except Exception as exc:
             filas_error += 1
-            current_app.logger.debug(f"Error fila {_}: {exc}")
+            current_app.logger.debug(f"Error fila {row_idx}: {exc}")
 
-    db.session.commit()
+    if batch_rows:
+        db.session.bulk_insert_mappings(ModelClass, batch_rows)
+        db.session.commit()
 
     # Marcar duplicados pendientes
     try:

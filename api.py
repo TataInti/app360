@@ -18,10 +18,10 @@ def get_model(name):
 
 
 def _parse_periodo(periodo_raw: str | None) -> tuple[str, date, date]:
-    """Parsea periodo soportado: '7', '15', '30', 'ytd'. Devuelve (key, desde, hasta)."""
+    """Parsea periodo soportado: '7', '15', '30', '6m', 'ytd'. Devuelve (key, desde, hasta)."""
     today = date.today()
     if not periodo_raw:
-        periodo_raw = "30"
+        periodo_raw = "6m"
 
     periodo_key = str(periodo_raw).strip().lower()
     if periodo_key in {"7", "7d"}:
@@ -30,11 +30,41 @@ def _parse_periodo(periodo_raw: str | None) -> tuple[str, date, date]:
         return ("15", today - timedelta(days=14), today)
     if periodo_key in {"30", "30d"}:
         return ("30", today - timedelta(days=29), today)
+    if periodo_key in {"6m", "180", "180d"}:
+        return ("6m", today - timedelta(days=179), today)
     if periodo_key in {"ytd", "anio", "año"}:
         return ("ytd", date(today.year, 1, 1), today)
 
     # fallback seguro
-    return ("30", today - timedelta(days=29), today)
+    return ("6m", today - timedelta(days=179), today)
+
+
+def _parse_iso_date(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value)).date()
+    except Exception:
+        return None
+
+
+def _parse_periodo_o_fechas(periodo_raw: str | None, fecha_desde_raw: str | None, fecha_hasta_raw: str | None) -> tuple[str, date, date]:
+    """Prioriza fecha_desde/fecha_hasta, luego periodo; default final últimos 6 meses."""
+    desde = _parse_iso_date(fecha_desde_raw)
+    hasta = _parse_iso_date(fecha_hasta_raw)
+
+    if desde and hasta:
+        if desde > hasta:
+            desde, hasta = hasta, desde
+        return ("custom", desde, hasta)
+
+    today = date.today()
+    if desde and not hasta:
+        return ("custom", desde, today)
+    if hasta and not desde:
+        return ("custom", hasta - timedelta(days=179), hasta)
+
+    return _parse_periodo(periodo_raw)
 
 
 def _to_float(value) -> float:
@@ -248,7 +278,11 @@ def api_panel_ejecutivo():
 # -----------------------------------------------------------------------------
 @api.get("/dashboard-financiero")
 def api_dashboard_financiero():
-    periodo_key, desde, hasta = _parse_periodo(request.args.get("period"))
+    periodo_key, desde, hasta = _parse_periodo_o_fechas(
+        request.args.get("period"),
+        request.args.get("fecha_desde"),
+        request.args.get("fecha_hasta"),
+    )
 
     MovimientoCaja = get_model("MovimientoCaja")
     InstrumentoPago = get_model("InstrumentoPago")
@@ -570,7 +604,11 @@ def api_dashboard_financiero():
 # -----------------------------------------------------------------------------
 @api.get("/dashboard-comercial-v2")
 def api_dashboard_comercial_v2():
-    periodo_key, desde, hasta = _parse_periodo(request.args.get("period"))
+    periodo_key, desde, hasta = _parse_periodo_o_fechas(
+        request.args.get("period"),
+        request.args.get("fecha_desde"),
+        request.args.get("fecha_hasta"),
+    )
     dt_desde = datetime.combine(desde, datetime.min.time())
     dt_hasta = datetime.combine(hasta, datetime.max.time())
 
@@ -830,8 +868,12 @@ def api_dashboard_comercial_v2():
 # -----------------------------------------------------------------------------
 @api.get("/panel-ejecutivo-v2")
 def api_panel_ejecutivo_v2():
-    # Por defecto: YTD
-    periodo_key, desde, hasta = _parse_periodo(request.args.get("period") or "ytd")
+    # Por defecto: últimos 6 meses
+    periodo_key, desde, hasta = _parse_periodo_o_fechas(
+        request.args.get("period") or "6m",
+        request.args.get("fecha_desde"),
+        request.args.get("fecha_hasta"),
+    )
     dt_desde = datetime.combine(desde, datetime.min.time())
     dt_hasta = datetime.combine(hasta, datetime.max.time())
 

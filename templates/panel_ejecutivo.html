@@ -4,6 +4,19 @@
 
 <h1>Panel Ejecutivo</h1>
 
+<div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+    <div>
+        <label for="fecha-desde" class="form-label form-label-sm mb-1">Desde</label>
+        <input id="fecha-desde" type="date" class="form-control form-control-sm" />
+    </div>
+    <div>
+        <label for="fecha-hasta" class="form-label form-label-sm mb-1">Hasta</label>
+        <input id="fecha-hasta" type="date" class="form-control form-control-sm" />
+    </div>
+    <button id="btn-aplicar-rango" class="btn btn-sm btn-primary">Aplicar</button>
+    <button id="btn-ultimos-6m" class="btn btn-sm btn-outline-secondary">Ultimos 6m</button>
+</div>
+
 <div class="text-muted small mb-3">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></div>
 
 <div class="row mt-2 g-3">
@@ -131,12 +144,23 @@
     }).join('');
   }
 
-  async function cargar() {
-    const resp = await fetch('/api/panel-ejecutivo-v2?period=ytd');
+    function setDateInputs(desde, hasta) {
+        document.getElementById('fecha-desde').value = desde || '';
+        document.getElementById('fecha-hasta').value = hasta || '';
+    }
+
+    async function cargar(period = '6m', fechaDesde = '', fechaHasta = '') {
+        const params = new URLSearchParams();
+        if (period) params.set('period', period);
+        if (fechaDesde) params.set('fecha_desde', fechaDesde);
+        if (fechaHasta) params.set('fecha_hasta', fechaHasta);
+
+        const resp = await fetch(`/api/panel-ejecutivo-v2?${params.toString()}`);
     const data = await resp.json();
 
     document.getElementById('period-desde').textContent = data.desde || '-';
     document.getElementById('period-hasta').textContent = data.hasta || '-';
+        setDateInputs(data.desde || '', data.hasta || '');
 
     const k = data.kpis || {};
     document.getElementById('kpi-ingresos').textContent = money(k.sabiogo_ingresos);
@@ -160,7 +184,20 @@
     });
   }
 
-  document.addEventListener('DOMContentLoaded', cargar);
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('btn-aplicar-rango').addEventListener('click', () => {
+            const desde = document.getElementById('fecha-desde').value;
+            const hasta = document.getElementById('fecha-hasta').value;
+            cargar('', desde, hasta);
+        });
+
+        document.getElementById('btn-ultimos-6m').addEventListener('click', () => {
+            setDateInputs('', '');
+            cargar('6m');
+        });
+
+        cargar('6m');
+    });
 </script>
 
 {% endblock %}

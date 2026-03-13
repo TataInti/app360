@@ -28,6 +28,7 @@ const PERIODS = [
   { key: "7", label: "7d" },
   { key: "15", label: "15d" },
   { key: "30", label: "30d" },
+  { key: "6m", label: "6m" },
   { key: "ytd", label: "YTD" },
 ];
 
@@ -56,7 +57,9 @@ function formatLabelPeriodo(label, granularidad) {
 }
 
 export default function DashboardFinanciero() {
-  const [period, setPeriod] = useState("30");
+  const [filters, setFilters] = useState({ period: "6m", fechaDesde: "", fechaHasta: "" });
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [payload, setPayload] = useState({ kpis: {}, series: {} });
@@ -68,7 +71,7 @@ export default function DashboardFinanciero() {
       try {
         setLoading(true);
         setError("");
-        const data = await apiService.getDashboardFinanciero(period);
+        const data = await apiService.getDashboardFinanciero(filters);
         if (!cancelled) setPayload(data);
       } catch (e) {
         console.error(e);
@@ -86,7 +89,7 @@ export default function DashboardFinanciero() {
     return () => {
       cancelled = true;
     };
-  }, [period]);
+  }, [filters]);
 
   const kpis = payload.kpis || {};
   const series = payload.series || {};
@@ -227,18 +230,58 @@ export default function DashboardFinanciero() {
   return (
     <div className="dashboard-financiero-page">
       <div className="page-header">
-        <h1>Dashboard Financiero</h1>
+        <h1>Panel Tesoreria</h1>
         <div className="btn-group mt-2" role="group" aria-label="Período">
           {PERIODS.map((p) => (
             <button
               key={p.key}
               type="button"
-              className={`btn ${period === p.key ? "btn-primary" : "btn-outline-primary"}`}
-              onClick={() => setPeriod(p.key)}
+              className={`btn ${filters.period === p.key ? "btn-primary" : "btn-outline-primary"}`}
+              onClick={() => setFilters({ period: p.key, fechaDesde: "", fechaHasta: "" })}
             >
               {p.label}
             </button>
           ))}
+        </div>
+        <div className="d-flex flex-wrap gap-2 align-items-end mt-3">
+          <div>
+            <label htmlFor="fecha-desde" className="form-label form-label-sm mb-1">Desde</label>
+            <input
+              id="fecha-desde"
+              type="date"
+              className="form-control form-control-sm"
+              value={fechaDesde}
+              onChange={(e) => setFechaDesde(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="fecha-hasta" className="form-label form-label-sm mb-1">Hasta</label>
+            <input
+              id="fecha-hasta"
+              type="date"
+              className="form-control form-control-sm"
+              value={fechaHasta}
+              onChange={(e) => setFechaHasta(e.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn btn-sm btn-primary"
+            onClick={() => setFilters({ period: "", fechaDesde, fechaHasta })}
+          >
+            Aplicar
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary"
+            onClick={() => {
+              setFechaDesde("");
+              setFechaHasta("");
+              setFilters({ period: "6m", fechaDesde: "", fechaHasta: "" });
+            }}
+          >
+            Usar 6m
+          </button>
         </div>
         <div className="text-muted small mt-2">
           Período: {kpis.desde || "-"} → {kpis.hasta || "-"}

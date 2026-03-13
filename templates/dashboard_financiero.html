@@ -2,13 +2,27 @@
 
 {% block content %}
 <div class="container-fluid">
-  <h1 class="mb-3">Dashboard Financiero</h1>
+  <h1 class="mb-3">Panel Tesoreria</h1>
 
   <div class="btn-group mb-3" role="group" aria-label="Período">
     <button class="btn btn-outline-primary" data-period="7">7d</button>
     <button class="btn btn-outline-primary" data-period="15">15d</button>
     <button class="btn btn-outline-primary" data-period="30">30d</button>
+    <button class="btn btn-outline-primary" data-period="6m">6m</button>
     <button class="btn btn-outline-primary" data-period="ytd">YTD</button>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+    <div>
+      <label for="fecha-desde" class="form-label form-label-sm mb-1">Desde</label>
+      <input id="fecha-desde" type="date" class="form-control form-control-sm" />
+    </div>
+    <div>
+      <label for="fecha-hasta" class="form-label form-label-sm mb-1">Hasta</label>
+      <input id="fecha-hasta" type="date" class="form-control form-control-sm" />
+    </div>
+    <button id="btn-aplicar-rango" class="btn btn-sm btn-primary">Aplicar</button>
+    <button id="btn-limpiar-rango" class="btn btn-sm btn-outline-secondary">Usar 6m</button>
   </div>
 
   <div class="text-muted small mb-4">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></div>
@@ -134,9 +148,18 @@
     });
   }
 
-  async function fetchData(period) {
-    setActivePeriodButton(period);
-    const resp = await fetch(`/api/dashboard-financiero?period=${encodeURIComponent(period)}`);
+  function setDateInputs(desde, hasta) {
+    document.getElementById('fecha-desde').value = desde || '';
+    document.getElementById('fecha-hasta').value = hasta || '';
+  }
+
+  async function fetchData(period, fechaDesde = '', fechaHasta = '') {
+    setActivePeriodButton(period || 'custom');
+    const params = new URLSearchParams();
+    if (period) params.set('period', period);
+    if (fechaDesde) params.set('fecha_desde', fechaDesde);
+    if (fechaHasta) params.set('fecha_hasta', fechaHasta);
+    const resp = await fetch(`/api/dashboard-financiero?${params.toString()}`);
     const data = await resp.json();
 
     const k = data.kpis || {};
@@ -144,6 +167,7 @@
 
     document.getElementById('period-desde').textContent = k.desde || '-';
     document.getElementById('period-hasta').textContent = k.hasta || '-';
+    setDateInputs(k.desde || '', k.hasta || '');
 
     document.getElementById('kpi-ingresos').textContent = money(k.ingresos_total);
     document.getElementById('kpi-egresos').textContent = money(k.egresos_total);
@@ -203,7 +227,19 @@
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { labels: { color: '#111827' } },
+
+          document.getElementById('btn-aplicar-rango').addEventListener('click', () => {
+            const desde = document.getElementById('fecha-desde').value;
+            const hasta = document.getElementById('fecha-hasta').value;
+            fetchData('', desde, hasta);
+          });
+
+          document.getElementById('btn-limpiar-rango').addEventListener('click', () => {
+            setDateInputs('', '');
+            fetchData('6m');
+          });
+
+          fetchData('6m');
           tooltip: {
             callbacks: {
               label: (ctx) => {

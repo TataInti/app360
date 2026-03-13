@@ -23,8 +23,11 @@ function formatMoney(value) {
 }
 
 function PanelEjecutivo() {
+  const [filters, setFilters] = useState({ period: "6m", fechaDesde: "", fechaHasta: "" });
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
   const [data, setData] = useState({
-    period: "ytd",
+    period: "6m",
     desde: null,
     hasta: null,
     kpis: {},
@@ -40,7 +43,7 @@ function PanelEjecutivo() {
       try {
         setLoading(true);
         setError("");
-        const res = await apiService.getPanelEjecutivoV2("ytd");
+        const res = await apiService.getPanelEjecutivoV2(filters);
         setData(res);
       } catch (err) {
         console.error(err);
@@ -50,7 +53,7 @@ function PanelEjecutivo() {
       }
     }
     fetchData();
-  }, []);
+  }, [filters]);
 
   const instrumentosChart = useMemo(() => {
     const labels = data.instrumentos?.labels || [];
@@ -108,6 +111,47 @@ function PanelEjecutivo() {
   return (
     <div>
       <h1>Panel Ejecutivo</h1>
+
+      <div className="d-flex flex-wrap gap-2 align-items-end mt-2">
+        <div>
+          <label htmlFor="fecha-desde-ejecutivo" className="form-label form-label-sm mb-1">Desde</label>
+          <input
+            id="fecha-desde-ejecutivo"
+            type="date"
+            className="form-control form-control-sm"
+            value={fechaDesde}
+            onChange={(e) => setFechaDesde(e.target.value)}
+          />
+        </div>
+        <div>
+          <label htmlFor="fecha-hasta-ejecutivo" className="form-label form-label-sm mb-1">Hasta</label>
+          <input
+            id="fecha-hasta-ejecutivo"
+            type="date"
+            className="form-control form-control-sm"
+            value={fechaHasta}
+            onChange={(e) => setFechaHasta(e.target.value)}
+          />
+        </div>
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          onClick={() => setFilters({ period: "", fechaDesde, fechaHasta })}
+        >
+          Aplicar
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary"
+          onClick={() => {
+            setFechaDesde("");
+            setFechaHasta("");
+            setFilters({ period: "6m", fechaDesde: "", fechaHasta: "" });
+          }}
+        >
+          Ultimos 6m
+        </button>
+      </div>
 
       <div className="text-muted small mt-2">
         Período: {data.desde || "-"} → {data.hasta || "-"}

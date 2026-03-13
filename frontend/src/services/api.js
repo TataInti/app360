@@ -4,6 +4,15 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001
 const ACCESS_TOKEN_KEY = 'app360_access_token';
 
 class ApiService {
+  buildStrategicQuery(filters = {}) {
+    const { period, fechaDesde, fechaHasta } = filters || {};
+    const params = new URLSearchParams();
+    if (period) params.set('period', String(period));
+    if (fechaDesde) params.set('fecha_desde', String(fechaDesde));
+    if (fechaHasta) params.set('fecha_hasta', String(fechaHasta));
+    return params.toString();
+  }
+
   getAccessToken() {
     try {
       return localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -74,18 +83,18 @@ class ApiService {
     return this.request('/dashboard');
   }
 
-  async getDashboardFinanciero(period = '30') {
-    const p = encodeURIComponent(period);
-    return this.request(`/dashboard-financiero?period=${p}`);
+  async getDashboardFinanciero(filters = { period: '6m' }) {
+    const query = this.buildStrategicQuery(filters);
+    return this.request(`/dashboard-financiero${query ? `?${query}` : ''}`);
   }
 
   async getDashboardComercial() {
     return this.request('/dashboard-comercial');
   }
 
-  async getDashboardComercialV2(period = '30') {
-    const p = encodeURIComponent(period);
-    return this.request(`/dashboard-comercial-v2?period=${p}`);
+  async getDashboardComercialV2(filters = { period: '6m' }) {
+    const query = this.buildStrategicQuery(filters);
+    return this.request(`/dashboard-comercial-v2${query ? `?${query}` : ''}`);
   }
 
   async getVentasPreDetalle(params = '') {
@@ -96,9 +105,9 @@ class ApiService {
     return this.request('/panel-ejecutivo');
   }
 
-  async getPanelEjecutivoV2(period = 'ytd') {
-    const p = encodeURIComponent(period);
-    return this.request(`/panel-ejecutivo-v2?period=${p}`);
+  async getPanelEjecutivoV2(filters = { period: '6m' }) {
+    const query = this.buildStrategicQuery(filters);
+    return this.request(`/panel-ejecutivo-v2${query ? `?${query}` : ''}`);
   }
 
   // Inteligencia / BI endpoints

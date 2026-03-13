@@ -1,100 +1,119 @@
 // frontend/src/components/Sidebar.jsx
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 function Sidebar() {
   const location = useLocation();
-  const current = location.pathname;
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const initial = localStorage.getItem("reactSidebarCollapsed") === "true";
+    setCollapsed(initial);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("reactSidebarCollapsed", collapsed ? "true" : "false");
+  }, [collapsed]);
 
   const linkClass = ({ isActive }) =>
     "sidebar-link " + (isActive ? "active-link" : "");
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
       <h2>Silva360</h2>
 
+      <button
+        type="button"
+        className="sidebar-toggle-btn"
+        onClick={() => setCollapsed((prev) => !prev)}
+        aria-label={collapsed ? "Expandir barra lateral" : "Contraer barra lateral"}
+      >
+        <span className="sidebar-toggle-btn-icon">{collapsed ? ">" : "<"}</span>
+        {!collapsed && <span className="sidebar-toggle-btn-text">Contraer</span>}
+      </button>
+
       {/* Paneles Estratégicos */}
-      <div className="sidebar-section-title">Paneles Estratégicos</div>
+      {!collapsed && <div className="sidebar-section-title">Paneles Estratégicos</div>}
 
       <NavLink
         to="/dashboard-financiero"
         className={linkClass}
       >
-        Dashboard Financiero
+        <span className="sidebar-label">Panel Tesoreria</span>
       </NavLink>
 
       <NavLink
         to="/dashboard-comercial"
         className={linkClass}
       >
-        Dashboard Comercial
+        <span className="sidebar-label">Panel Ventas</span>
       </NavLink>
 
       <NavLink
         to="/panel-ejecutivo"
         className={linkClass}
       >
-        Panel Ejecutivo
+        <span className="sidebar-label">Panel Ejecutivo</span>
       </NavLink>
 
       <NavLink
         to="/inteligencia"
         className={linkClass}
       >
-        Inteligencia
+        <span className="sidebar-label">Inteligencia</span>
       </NavLink>
 
-      <hr />
+      {!collapsed && <hr />}
 
       {/* Operaciones */}
-      <div className="sidebar-section-title">Operaciones</div>
+      {!collapsed && <div className="sidebar-section-title">Operaciones</div>}
 
       <NavLink to="/products" className={linkClass}>
-        Productos
+        <span className="sidebar-label">Productos</span>
       </NavLink>
 
       <NavLink to="/locations" className={linkClass}>
-        Ubicaciones
+        <span className="sidebar-label">Ubicaciones</span>
       </NavLink>
 
       <NavLink to="/stock" className={linkClass}>
-        Stock
+        <span className="sidebar-label">Stock</span>
       </NavLink>
 
-      <hr />
+      {!collapsed && <hr />}
 
       {/* Comercial */}
-      <div className="sidebar-section-title">Comercial</div>
+      {!collapsed && <div className="sidebar-section-title">Comercial</div>}
 
       <NavLink to="/leads" className={linkClass}>
-        Leads
+        <span className="sidebar-label">Leads</span>
       </NavLink>
 
-      <hr />
+      {!collapsed && <hr />}
 
       {/* Compras */}
-      <div className="sidebar-section-title">Compras</div>
+      {!collapsed && <div className="sidebar-section-title">Compras</div>}
 
       <NavLink to="/compras" className={linkClass}>
-        Panel de Compras
+        <span className="sidebar-label">Panel de Compras</span>
       </NavLink>
 
-      <hr />
+      {!collapsed && <hr />}
 
       {/* RRHH */}
-      <div className="sidebar-section-title">RRHH</div>
+      {!collapsed && <div className="sidebar-section-title">RRHH</div>}
 
       <NavLink to="/rrhh" className={linkClass}>
-        Panel RRHH
+        <span className="sidebar-label">Panel RRHH</span>
       </NavLink>
 
-      <hr />
+      {!collapsed && <hr />}
 
       {/* Administración */}
-      <div className="sidebar-section-title">Administración</div>
+      {!collapsed && <div className="sidebar-section-title">Administración</div>}
 
       <NavLink to="/sabiogo-import" className={linkClass}>
-        Importar SabioGo
+        <span className="sidebar-label">Importar SabioGo</span>
       </NavLink>
     </aside>
   );
