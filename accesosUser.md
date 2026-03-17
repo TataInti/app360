@@ -8,6 +8,7 @@
 - **Módulos**: Los 12 del sidebar (dashboard, panel ventas, panel ejecutivo, BI, productos, ubicaciones, stock, CRM, compras, RRHH, tesorería, gastos)
 - **Lógica aditiva**: Permisos individuales **suman** al rol. No pueden restringir lo heredado del rol.
 - **Niveles**: `view` (solo lectura), `edit` (lectura+escritura), sin entrada = el rol decide
+- **Tesorería**: Usuarios con rol `caja` deben ver `gastos` para acceder a conceptos creados en administración.
 
 ---
 

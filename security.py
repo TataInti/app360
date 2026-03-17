@@ -26,7 +26,7 @@ ACCESS_MAP = {
     "hr": ["rrhh", "adelantos", "ausentismo", "dotacion", "empleados"],
     "operations": ["compras", "stock", "locations", "products", "dashboard"],
     "finance": ["tesoreria", "arqueos", "movimientos", "gastos", "bi", "panel"],
-    "caja": ["tesoreria", "arqueos", "movimientos"],
+    "caja": ["tesoreria", "arqueos", "movimientos", "gastos"],
     "director": ["tesoreria", "arqueos", "movimientos", "gastos", "bi", "panel",
                  "dashboard", "rrhh", "adelantos", "compras"],
 }
