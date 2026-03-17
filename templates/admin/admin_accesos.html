@@ -74,6 +74,8 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
     // Load current permissions
     fetch('/api/admin/accesos')
         .then(r => r.json())
@@ -101,11 +103,21 @@ document.addEventListener('DOMContentLoaded', function() {
             this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
             fetch('/api/admin/accesos/' + userId, {
                 method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken || ''
+                },
                 body: JSON.stringify({permissions: perms})
             })
-            .then(r => r.json())
-            .then(res => {
+            .then(async (r) => {
+                if (!r.ok) {
+                    let text = '';
+                    try { text = await r.text(); } catch (e) { text = ''; }
+                    throw new Error(text || ('HTTP ' + r.status));
+                }
+                return r.json();
+            })
+            .then((res) => {
                 const toast = document.getElementById('toastAccesos');
                 const body = document.getElementById('toastBody');
                 if (res.success) {
@@ -119,11 +131,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 new bootstrap.Toast(toast).show();
             })
-            .catch(() => {
+            .catch((err) => {
                 const toast = document.getElementById('toastAccesos');
                 toast.classList.remove('text-bg-success');
                 toast.classList.add('text-bg-danger');
-                document.getElementById('toastBody').textContent = 'Error de red.';
+                document.getElementById('toastBody').textContent = 'Error: ' + (err?.message || 'de red');
                 new bootstrap.Toast(toast).show();
             })
             .finally(() => {
