@@ -166,10 +166,12 @@ def create_app():
 
     @app.context_processor
     def inject_user_context():
+        def can_access(module):
+            return module_allowed(module, session.get("role"), session.get("user_id"))
         return {
             "current_user": session.get("user"),
             "current_role": session.get("role"),
-            "can_access": module_allowed,
+            "can_access": can_access,
         }
 
     from blueprints.products import products_bp

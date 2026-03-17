@@ -31,6 +31,21 @@ ACCESS_MAP = {
                  "dashboard", "rrhh", "adelantos", "compras"],
 }
 
+MANAGED_MODULES = {
+    "dashboard": "Panel Tesorería",
+    "dashboard_comercial": "Panel Ventas",
+    "panel": "Panel Ejecutivo",
+    "bi": "BI / Análisis",
+    "products": "Productos",
+    "locations": "Ubicaciones",
+    "stock": "Stock",
+    "crm": "CRM / Ventas",
+    "compras": "Compras",
+    "rrhh": "RRHH",
+    "tesoreria": "Tesorería",
+    "gastos": "Gastos",
+}
+
 MODULE_ROUTES = {
     "dashboard": "/dashboard",
     "dashboard_comercial": "/dashboard-comercial",
@@ -214,17 +229,41 @@ def jwt_optional(f):
 # =============================================================================
 # Module Access Control
 # =============================================================================
-def module_allowed(module, role=None):
+def get_user_module_access(module, user_id, role):
+    """Return 'edit', 'view', or 'none' for a user+module combo."""
+    allowed = ACCESS_MAP.get(role, [])
+    if "all" in allowed:
+        return "edit"
+    if module in allowed:
+        return "edit"
+    # Check individual permission
+    from models.core.user_permission import UserModulePermission
+    perm = UserModulePermission.query.filter_by(
+        user_id=user_id, module=module
+    ).first()
+    if perm:
+        return perm.access_level
+    return "none"
+
+
+def module_allowed(module, role=None, user_id=None):
     if not module:
         return True
     if role is None:
         role = session.get("role")
+    if user_id is None:
+        user_id = session.get("user_id")
     if not role:
         return False
     allowed = ACCESS_MAP.get(role, [])
     if "all" in allowed:
         return True
-    return module in allowed
+    if module in allowed:
+        return True
+    # Check individual permission if user_id available
+    if user_id:
+        return get_user_module_access(module, user_id, role) != "none"
+    return False
 
 
 def protect_blueprint(bp, module):
@@ -237,8 +276,17 @@ def protect_blueprint(bp, module):
 
         if current_app.config.get('LOCAL_DEV_BYPASS_AUTH'):
             return
-            
+
         if module_allowed(module):
+            # Enforce read-only for 'view' level on mutating methods
+            user_id = session.get("user_id")
+            role = session.get("role")
+            if user_id and role and request.method in ("POST", "PUT", "DELETE", "PATCH"):
+                access = get_user_module_access(module, user_id, role)
+                if access == "view":
+                    log_access_denied(session.get("user"), module)
+                    flash("Tu acceso a esta sección es solo lectura.", "warning")
+                    return redirect(request.referrer or url_for("auth.login")), 403
             return  # access granted
         if session.get("user"):
             # Usuario logueado pero sin acceso, redirigir a ruta permitida

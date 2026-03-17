@@ -14,6 +14,9 @@ from models.rrhh import Turno
 from models.hr.employee import Employee
 from models.core import Location, Product, BusinessUnit
 from models.crm import LeadStage
+from models.core.user import User
+from models.core.user_permission import UserModulePermission
+from security import ACCESS_MAP, MANAGED_MODULES, get_user_module_access
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -414,6 +417,89 @@ def api_toggle(modulo, entidad, id):
         item.activo = not item.activo
         db.session.commit()
         return jsonify({"success": True, "activo": item.activo})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================================================
+# Control de Accesos por Usuario
+# =============================================================================
+@admin_bp.route("/admin/accesos")
+@admin_required
+def admin_accesos():
+    """Vista ABM de control de accesos por módulo"""
+    users = User.query.filter_by(active=True).order_by(User.username).all()
+    return render_template(
+        "admin/admin_accesos.html",
+        users=users,
+        managed_modules=MANAGED_MODULES,
+        access_map=ACCESS_MAP,
+    )
+
+
+@admin_bp.route("/api/admin/accesos", methods=["GET"])
+@admin_required
+def api_listar_accesos():
+    """Lista usuarios activos con permisos efectivos"""
+    users = User.query.filter_by(active=True).order_by(User.username).all()
+    result = []
+    for user in users:
+        role_modules = ACCESS_MAP.get(user.role, [])
+        has_all = "all" in role_modules
+        permissions = {}
+        for mod in MANAGED_MODULES:
+            if has_all or mod in role_modules:
+                permissions[mod] = "edit"
+            else:
+                permissions[mod] = get_user_module_access(mod, user.id, user.role)
+        result.append({
+            "id": user.id,
+            "username": user.username,
+            "role": user.role,
+            "permissions": permissions,
+            "role_modules": role_modules,
+        })
+    return jsonify(result)
+
+
+@admin_bp.route("/api/admin/accesos/<int:user_id>", methods=["PUT"])
+@admin_required
+def api_guardar_accesos(user_id):
+    """Guarda permisos individuales para un usuario"""
+    user = User.query.get_or_404(user_id)
+    data = request.get_json() or {}
+    perms = data.get("permissions", {})
+
+    role_modules = ACCESS_MAP.get(user.role, [])
+    has_all = "all" in role_modules
+
+    try:
+        for mod, level in perms.items():
+            if mod not in MANAGED_MODULES:
+                continue
+            # Skip modules already inherited from role
+            if has_all or mod in role_modules:
+                continue
+            if level not in ("view", "edit", "none"):
+                continue
+
+            existing = UserModulePermission.query.filter_by(
+                user_id=user_id, module=mod
+            ).first()
+
+            if level == "none":
+                if existing:
+                    db.session.delete(existing)
+            elif existing:
+                existing.access_level = level
+            else:
+                db.session.add(UserModulePermission(
+                    user_id=user_id, module=mod, access_level=level
+                ))
+
+        db.session.commit()
+        return jsonify({"success": True})
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500

@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-shield-lock"></i> Control de Accesos por Usuario</h1>
+        <a href="/admin" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
+    </div>
+
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i>
+        Los permisos individuales <strong>suman</strong> al rol base. Las celdas marcadas como
+        <span class="badge bg-secondary">rol</span> son heredadas y no pueden modificarse.
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle" id="tblAccesos">
+            <thead class="table-dark">
+                <tr>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    {% for mod, label in managed_modules.items() %}
+                    <th class="text-center" style="min-width:110px">{{ label }}</th>
+                    {% endfor %}
+                    <th class="text-center">Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                {% set role_mods = access_map.get(user.role, []) %}
+                {% set has_all = 'all' in role_mods %}
+                <tr data-user-id="{{ user.id }}">
+                    <td><strong>{{ user.username }}</strong></td>
+                    <td><span class="badge bg-primary">{{ user.role }}</span></td>
+                    {% for mod, label in managed_modules.items() %}
+                    <td class="text-center">
+                        {% if has_all or mod in role_mods %}
+                        {# Heredado del rol — no editable #}
+                        <span class="badge bg-success">Editar</span>
+                        <span class="badge bg-secondary">rol</span>
+                        <input type="hidden" name="{{ mod }}" value="inherited">
+                        {% else %}
+                        <select class="form-select form-select-sm perm-select" name="{{ mod }}">
+                            <option value="none">Sin acceso</option>
+                            <option value="view">Ver</option>
+                            <option value="edit">Editar</option>
+                        </select>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-primary btn-save" data-user-id="{{ user.id }}">
+                            <i class="bi bi-check-lg"></i> Guardar
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Toast de feedback -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="toastAccesos" class="toast align-items-center text-bg-success border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body" id="toastBody">Permisos guardados correctamente.</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load current permissions
+    fetch('/api/admin/accesos')
+        .then(r => r.json())
+        .then(data => {
+            data.forEach(u => {
+                const row = document.querySelector('tr[data-user-id="' + u.id + '"]');
+                if (!row) return;
+                for (const [mod, level] of Object.entries(u.permissions)) {
+                    const sel = row.querySelector('select[name="' + mod + '"]');
+                    if (sel) sel.value = level;
+                }
+            });
+        });
+
+    // Save per-row
+    document.querySelectorAll('.btn-save').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const userId = this.dataset.userId;
+            const row = document.querySelector('tr[data-user-id="' + userId + '"]');
+            const perms = {};
+            row.querySelectorAll('select.perm-select').forEach(sel => {
+                perms[sel.name] = sel.value;
+            });
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            fetch('/api/admin/accesos/' + userId, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({permissions: perms})
+            })
+            .then(r => r.json())
+            .then(res => {
+                const toast = document.getElementById('toastAccesos');
+                const body = document.getElementById('toastBody');
+                if (res.success) {
+                    toast.classList.remove('text-bg-danger');
+                    toast.classList.add('text-bg-success');
+                    body.textContent = 'Permisos guardados correctamente.';
+                } else {
+                    toast.classList.remove('text-bg-success');
+                    toast.classList.add('text-bg-danger');
+                    body.textContent = 'Error: ' + (res.error || 'desconocido');
+                }
+                new bootstrap.Toast(toast).show();
+            })
+            .catch(() => {
+                const toast = document.getElementById('toastAccesos');
+                toast.classList.remove('text-bg-success');
+                toast.classList.add('text-bg-danger');
+                document.getElementById('toastBody').textContent = 'Error de red.';
+                new bootstrap.Toast(toast).show();
+            })
+            .finally(() => {
+                this.disabled = false;
+                this.innerHTML = '<i class="bi bi-check-lg"></i> Guardar';
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

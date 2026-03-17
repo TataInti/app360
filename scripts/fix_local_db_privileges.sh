@@ -34,6 +34,7 @@ fi
 echo "🔐 Aplicando permisos en schema public para rol '$TARGET_ROLE'..."
 psql -w "$LOCAL_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 \
   -c "GRANT USAGE ON SCHEMA public TO ${TARGET_ROLE};" \
+  -c "GRANT CREATE ON SCHEMA public TO ${TARGET_ROLE};" \
   -c "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${TARGET_ROLE};" \
   -c "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO ${TARGET_ROLE};" \
   -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${TARGET_ROLE};" \
@@ -41,7 +42,7 @@ psql -w "$LOCAL_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 \
 
 echo "👑 Asegurando ownership de vistas materializadas (necesario para REFRESH)..."
 psql -w "$LOCAL_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 <<SQL
-DO $$
+DO \$\$
 DECLARE
   mv record;
 BEGIN
@@ -53,7 +54,8 @@ BEGIN
   LOOP
     EXECUTE format('ALTER MATERIALIZED VIEW %I.%I OWNER TO %I', mv.schemaname, mv.matviewname, '${TARGET_ROLE}');
   END LOOP;
-END $$;
+END
+\$\$;
 SQL
 
 echo "✅ Permisos aplicados"

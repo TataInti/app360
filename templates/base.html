@@ -452,9 +452,15 @@
             Configuración
         </div>
         <a href="/admin"
-           class="{% if current.startswith('/admin') %}active-link{% endif %}">
+           class="{% if current == '/admin' %}active-link{% endif %}">
             <span class="link-icon"><i class="bi bi-gear-fill"></i></span>
             <span class="link-text">Administración</span>
+        </a>
+
+        <a href="/admin/accesos"
+           class="{% if current.startswith('/admin/accesos') %}active-link{% endif %}">
+            <span class="link-icon"><i class="bi bi-shield-lock"></i></span>
+            <span class="link-text">Control de Accesos</span>
         </a>
 
         <a href="/sabiogo/admin"
