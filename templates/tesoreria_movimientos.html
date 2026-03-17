@@ -96,7 +96,8 @@
                             <th>Tipo</th>
                             <th>Monto</th>
                             <th>Instrumento</th>
-                            <th>Destino</th>
+                            <th>Categoría</th>
+                            <th>Proveedor</th>
                             <th>Descripción</th>
                             <th>Estado</th>
                             <th>Usuario</th>
@@ -104,7 +105,7 @@
                         </tr>
                     </thead>
                     <tbody id="tablaMovimientos">
-                        <tr><td colspan="8" class="text-center">Cargando...</td></tr>
+                        <tr><td colspan="10" class="text-center">Cargando...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -140,9 +141,16 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Destino ID (opcional)</label>
-                        <input type="number" class="form-control" name="destino_id" id="inputDestino" min="1" placeholder="ID del destino del dinero">
-                        <small class="text-muted">Indica el ID del origen (ingreso) o destino (egreso) del movimiento para tracking</small>
+                        <label class="form-label">Categoría de Gasto (opcional)</label>
+                        <select class="form-select" name="categoria_gasto_id" id="selectCategoriaGasto">
+                            <option value="">Sin categoría</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Proveedor (opcional)</label>
+                        <select class="form-select" name="proveedor_id" id="selectProveedor">
+                            <option value="">Sin proveedor</option>
+                        </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Descripción *</label>
@@ -170,6 +178,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('fechaDesde').value = hace30.toISOString().split('T')[0];
     
     cargarInstrumentos();
+    cargarCategoriasProveedores();
     cargarMovimientos();
 });
 
@@ -185,6 +194,27 @@ async function cargarInstrumentos() {
         });
     } catch(e) {
         console.error('Error:', e);
+    }
+}
+
+async function cargarCategoriasProveedores() {
+    try {
+        const [catResp, provResp] = await Promise.all([
+            fetch('/api/gastos/categorias'),
+            fetch('/api/gastos/proveedores')
+        ]);
+        const catData = await catResp.json();
+        const provData = await provResp.json();
+        const selectCat = document.getElementById('selectCategoriaGasto');
+        const selectProv = document.getElementById('selectProveedor');
+        (catData.categorias || []).forEach(c => {
+            selectCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+        });
+        (provData.proveedores || []).forEach(p => {
+            selectProv.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
+        });
+    } catch(e) {
+        console.error('Error cargando categorías/proveedores:', e);
     }
 }
 
@@ -216,10 +246,11 @@ async function cargarMovimientos() {
         
         const tbody = document.getElementById('tablaMovimientos');
         if (movimientos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">No hay movimientos</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No hay movimientos</td></tr>';
         } else {
             tbody.innerHTML = movimientos.map(m => {
-                const destinoId = m.destino_id ? `#${m.destino_id}` : '-';
+                const destinoCategoria = m.categoria_gasto || '-';
+                const destinoProveedor = m.proveedor || '-';
                 const esAnulado = m.estado === 'anulado';
                 const esPendiente = m.estado === 'pendiente_anulacion';
                 const rowClass = esAnulado ? 'class="text-decoration-line-through text-muted"' : '';
@@ -250,7 +281,8 @@ async function cargarMovimientos() {
                     <td><span class="badge ${m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger'}">${m.tipo}</span></td>
                     <td>$${parseFloat(m.monto).toLocaleString('es-AR')}</td>
                     <td>${m.instrumento || '-'}</td>
-                    <td>${destinoId}</td>
+                    <td>${destinoCategoria}</td>
+                    <td>${destinoProveedor}</td>
                     <td>${m.descripcion}</td>
                     <td>${estadoBadge}</td>
                     <td>${m.usuario || '-'}</td>
@@ -261,7 +293,7 @@ async function cargarMovimientos() {
     } catch(e) {
         console.error('Error:', e);
         document.getElementById('tablaMovimientos').innerHTML = 
-            '<tr><td colspan="8" class="text-center text-danger">Error al cargar datos</td></tr>';
+            '<tr><td colspan="10" class="text-center text-danger">Error al cargar datos</td></tr>';
     }
 }
 
@@ -319,12 +351,14 @@ document.getElementById('formMovimiento')?.addEventListener('submit', async func
     const formData = new FormData(this);
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     
-    const destinoValue = formData.get('destino_id');
+    const catValue = formData.get('categoria_gasto_id');
+    const provValue = formData.get('proveedor_id');
     const data = {
         tipo: formData.get('tipo'),
         monto: parseFloat(formData.get('monto')),
         instrumento_id: parseInt(formData.get('instrumento_id')),
-        destino_id: destinoValue ? parseInt(destinoValue) : null,
+        categoria_gasto_id: catValue ? parseInt(catValue) : null,
+        proveedor_id: provValue ? parseInt(provValue) : null,
         descripcion: formData.get('descripcion')
     };
     

@@ -69,7 +69,8 @@ class MovimientoCaja(db.Model):
     instrumento_id = db.Column(db.Integer, db.ForeignKey("instrumentos_pago.id"), nullable=False)
     arqueo_id = db.Column(db.Integer, db.ForeignKey("arqueos_caja.id"), nullable=True)  # Puede ser null si no está arqueado
     usuario_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    destino_id = db.Column(db.Integer, nullable=True)  # ID del origen o destino del movimiento (sin FK)
+    categoria_gasto_id = db.Column(db.Integer, db.ForeignKey("categoria_gasto.id"), nullable=True)
+    proveedor_id = db.Column(db.Integer, db.ForeignKey("proveedor.id"), nullable=True)
 
     # Datos adicionales
     referencia = db.Column(db.String(100))  # Número de cheque, transacción, etc.
@@ -79,6 +80,8 @@ class MovimientoCaja(db.Model):
     usuario = db.relationship("User", foreign_keys=[usuario_id])
     anulado_por = db.relationship("User", foreign_keys=[anulado_por_id])
     autorizado_por = db.relationship("User", foreign_keys=[autorizado_por_id])
+    categoria_gasto = db.relationship("CategoriaGasto", foreign_keys=[categoria_gasto_id])
+    proveedor = db.relationship("Proveedor", foreign_keys=[proveedor_id])
 
     # Índices
     __table_args__ = (

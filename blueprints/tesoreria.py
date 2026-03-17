@@ -12,6 +12,7 @@ from models import (
     db,
 )
 from models.tesoreria import LogArqueo, ArqueoDetalle
+from models.gastos import CategoriaGasto, Proveedor
 from security import protect_blueprint
 
 tesoreria_bp = Blueprint("tesoreria", __name__)
@@ -115,7 +116,8 @@ def movimientos_listar():
             "monto": float(m.monto),
             "descripcion": m.descripcion,
             "instrumento": m.instrumento.nombre,
-            "destino_id": m.destino_id,  # Simple integer para tracking del destino del dinero
+            "categoria_gasto": m.categoria_gasto.nombre if m.categoria_gasto else None,
+            "proveedor": m.proveedor.nombre if m.proveedor else None,
             "referencia": m.referencia,
             "cliente_proveedor": m.cliente_proveedor,
             "estado": m.estado,
@@ -168,7 +170,8 @@ def movimientos_exportar():
             "Tipo": m.tipo,
             "Monto": float(m.monto),
             "Instrumento": m.instrumento.nombre if m.instrumento else "",
-            "Destino ID": m.destino_id or "",  # ID del destino del dinero
+            "Categoría Gasto": m.categoria_gasto.nombre if m.categoria_gasto else "",
+            "Proveedor": m.proveedor.nombre if m.proveedor else "",
             "Descripcion": m.descripcion,
             "Referencia": m.referencia or "",
             "Cliente/Proveedor": m.cliente_proveedor or "",
@@ -202,7 +205,8 @@ def movimientos_crear():
     monto = data.get("monto")
     descripcion = data.get("descripcion")
     instrumento_id = data.get("instrumento_id")
-    destino_id = data.get("destino_id")  # Nuevo campo opcional
+    categoria_gasto_id = data.get("categoria_gasto_id")
+    proveedor_id = data.get("proveedor_id")
     usuario_id = data.get("usuario_id")
     if not usuario_id:
         session_user = session.get("user")
@@ -234,7 +238,8 @@ def movimientos_crear():
         monto=monto,
         descripcion=descripcion,
         instrumento_id=instrumento_id,
-        destino_id=destino_id,
+        categoria_gasto_id=categoria_gasto_id,
+        proveedor_id=proveedor_id,
         usuario_id=usuario_id,
         referencia=data.get("referencia"),
         cliente_proveedor=data.get("cliente_proveedor")
