@@ -1,6 +1,6 @@
 # Manual de Developer — App360
 
-Última actualización: 2026-03-04
+Última actualización: 2026-03-18
 Estado: Activo
 
 ---
@@ -116,6 +116,10 @@ El control de permisos usa:
 - `require_module(...)`
 
 Roles con acceso total: `admin`, `manager`, `gerente`.
+
+Notas de permisos:
+- El rol `caja` incluye `gastos` para visualizar conceptos/categorías en tesorería.
+- El módulo de gastos usa `protect_blueprint(..., "gastos")` para respetar permisos de `gastos`.
 
 ### 4.3 Seguridad operativa
 
