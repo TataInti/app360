@@ -15,7 +15,7 @@ from security import protect_blueprint
 
 gastos_bp = Blueprint("gastos", __name__)
 
-protect_blueprint(gastos_bp, "compras")  # Usar rol de compras para gastos
+protect_blueprint(gastos_bp, "gastos")  # Permisos de gastos
 
 
 # RUTAS WEB

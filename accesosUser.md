@@ -8,7 +8,7 @@
 - **Módulos**: Los 12 del sidebar (dashboard, panel ventas, panel ejecutivo, BI, productos, ubicaciones, stock, CRM, compras, RRHH, tesorería, gastos)
 - **Lógica aditiva**: Permisos individuales **suman** al rol. No pueden restringir lo heredado del rol.
 - **Niveles**: `view` (solo lectura), `edit` (lectura+escritura), sin entrada = el rol decide
-- **Tesorería**: Usuarios con rol `caja` deben ver `gastos` para acceder a conceptos creados en administración.
+- **Tesorería**: Usuarios con rol `caja` deben ver `gastos` para acceder a conceptos creados en administración (guard de gastos debe usar módulo `gastos`).
 
 ---
 
@@ -146,3 +146,4 @@
 1. **Performance**: Query simple por user_id+module en cada request. Aceptable en fase inicial; si genera carga, cachear en `flask.g`.
 2. **React SPA**: Los endpoints REST quedan listos para cuando la SPA los consuma.
 3. **Roles admin/manager/gerente** tienen "all" → en su ABM todo aparece como heredado, nada editable.
+4. **CSRF**: la UI de accesos envía `X-CSRFToken` para `PUT /api/admin/accesos/<id>`; sin ese header el backend responde 400 y en UI se ve como "error de red".
