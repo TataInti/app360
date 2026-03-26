@@ -115,7 +115,7 @@ function ResultRow({ label, stats, error, color }) {
 
 export default function SabiogoImport() {
   const [files, setFiles] = useState({});
-  const [replace, setReplace] = useState(true);
+  const [replace, setReplace] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [globalError, setGlobalError] = useState("");
