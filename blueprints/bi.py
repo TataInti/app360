@@ -156,6 +156,7 @@ def bi_dashboard():
                     COUNT(*) AS movimientos
                 FROM movimientos_caja
                 WHERE DATE(fecha_hora) BETWEEN :fecha_desde AND :fecha_hasta
+                  AND estado != 'anulado'
                 """
             ),
             {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
@@ -215,6 +216,7 @@ def bi_dashboard():
                     COALESCE(SUM(CASE WHEN tipo = 'egreso' THEN monto ELSE 0 END), 0) AS egresos
                 FROM movimientos_caja
                 WHERE DATE(fecha_hora) BETWEEN :fecha_desde AND :fecha_hasta
+                  AND estado != 'anulado'
                 GROUP BY DATE_TRUNC('month', fecha_hora)::date
                 ORDER BY DATE_TRUNC('month', fecha_hora)::date
                 """

@@ -93,7 +93,7 @@ def movimientos_listar():
     page = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 50))
 
-    query = MovimientoCaja.query
+    query = MovimientoCaja.query.filter(MovimientoCaja.estado != "anulado")
 
     if fecha_desde:
         query = query.filter(MovimientoCaja.fecha_hora >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
@@ -144,7 +144,7 @@ def movimientos_exportar():
     instrumento_id = request.args.get("instrumento_id")
     arqueo_id = request.args.get("arqueo_id")
 
-    query = MovimientoCaja.query
+    query = MovimientoCaja.query.filter(MovimientoCaja.estado != "anulado")
 
     if fecha_desde:
         query = query.filter(MovimientoCaja.fecha_hora >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
@@ -562,7 +562,8 @@ def estado_caja():
         db.func.sum(db.case((MovimientoCaja.tipo == "ingreso", MovimientoCaja.monto), else_=0)) -
         db.func.sum(db.case((MovimientoCaja.tipo == "egreso", MovimientoCaja.monto), else_=0))
     ).join(MovimientoCaja).filter(
-        db.func.date(MovimientoCaja.fecha_hora) == fecha_obj
+        db.func.date(MovimientoCaja.fecha_hora) == fecha_obj,
+        MovimientoCaja.estado != "anulado",
     ).group_by(InstrumentoPago.nombre).all()
 
     estado = {instrumento: float(saldo) for instrumento, saldo in saldos}

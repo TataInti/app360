@@ -324,44 +324,45 @@ def api_dashboard_financiero():
         dt_desde = datetime.combine(desde, datetime.min.time())
         dt_hasta = datetime.combine(hasta, datetime.max.time())
 
-        # Agregados principales
+        # Agregados principales (excluir anulados)
+        base_filters = [
+            MovimientoCaja.fecha_hora >= dt_desde,
+            MovimientoCaja.fecha_hora <= dt_hasta,
+            MovimientoCaja.estado != "anulado",
+        ]
+
         ingresos_total = (
             db.session.query(func.sum(MovimientoCaja.monto))
             .filter(MovimientoCaja.tipo == "ingreso")
-            .filter(MovimientoCaja.fecha_hora >= dt_desde)
-            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .filter(*base_filters)
             .scalar()
             or 0
         )
         egresos_total = (
             db.session.query(func.sum(MovimientoCaja.monto))
             .filter(MovimientoCaja.tipo == "egreso")
-            .filter(MovimientoCaja.fecha_hora >= dt_desde)
-            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .filter(*base_filters)
             .scalar()
             or 0
         )
 
         movimientos_total = (
             db.session.query(func.count(MovimientoCaja.id))
-            .filter(MovimientoCaja.fecha_hora >= dt_desde)
-            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .filter(*base_filters)
             .scalar()
             or 0
         )
         movimientos_ingresos = (
             db.session.query(func.count(MovimientoCaja.id))
             .filter(MovimientoCaja.tipo == "ingreso")
-            .filter(MovimientoCaja.fecha_hora >= dt_desde)
-            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .filter(*base_filters)
             .scalar()
             or 0
         )
         movimientos_egresos = (
             db.session.query(func.count(MovimientoCaja.id))
             .filter(MovimientoCaja.tipo == "egreso")
-            .filter(MovimientoCaja.fecha_hora >= dt_desde)
-            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .filter(*base_filters)
             .scalar()
             or 0
         )
@@ -382,16 +383,14 @@ def api_dashboard_financiero():
         max_ingreso_row = (
             db.session.query(MovimientoCaja)
             .filter(MovimientoCaja.tipo == "ingreso")
-            .filter(MovimientoCaja.fecha_hora >= dt_desde)
-            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .filter(*base_filters)
             .order_by(MovimientoCaja.monto.desc())
             .first()
         )
         max_egreso_row = (
             db.session.query(MovimientoCaja)
             .filter(MovimientoCaja.tipo == "egreso")
-            .filter(MovimientoCaja.fecha_hora >= dt_desde)
-            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .filter(*base_filters)
             .order_by(MovimientoCaja.monto.desc())
             .first()
         )
@@ -415,8 +414,7 @@ def api_dashboard_financiero():
                 MovimientoCaja.tipo.label("tipo"),
                 func.sum(MovimientoCaja.monto).label("total"),
             )
-            .filter(MovimientoCaja.fecha_hora >= dt_desde)
-            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .filter(*base_filters)
             .group_by(func.date(MovimientoCaja.fecha_hora), MovimientoCaja.tipo)
             .all()
         )
@@ -492,8 +490,7 @@ def api_dashboard_financiero():
         instrumentos_rows = (
             db.session.query(InstrumentoPago.nombre, func.sum(MovimientoCaja.monto))
             .join(InstrumentoPago, InstrumentoPago.id == MovimientoCaja.instrumento_id)
-            .filter(MovimientoCaja.fecha_hora >= dt_desde)
-            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
+            .filter(*base_filters)
             .group_by(InstrumentoPago.nombre)
             .order_by(func.sum(MovimientoCaja.monto).desc())
             .all()
