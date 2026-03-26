@@ -304,8 +304,6 @@ def movimiento_solicitar_anulacion(mov_id):
 @tesoreria_bp.route("/api/tesoreria/movimientos/<int:mov_id>/autorizar-anulacion", methods=["POST"])
 def movimiento_autorizar_anulacion(mov_id):
     """Autorizar anulación — solo admin/manager/gerente."""
-    from security import require_admin
-
     user_role = session.get("role")
     if user_role not in ("admin", "manager", "gerente"):
         return jsonify({"error": "Solo un administrador puede autorizar anulaciones"}), 403
