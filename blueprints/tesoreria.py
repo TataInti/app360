@@ -279,6 +279,20 @@ def movimiento_solicitar_anulacion(mov_id):
     if not user_id:
         return jsonify({"error": "Sesión inválida, re-logueá"}), 401
 
+    user_role = session.get("role", "")
+    # Roles con permiso de anulación directa (sin paso de autorización)
+    # caja requiere autorización de un admin/gerente
+    auto_authorize = user_role in ("admin", "manager", "gerente")
+
+    if auto_authorize:
+        movimiento.estado = "anulado"
+        movimiento.motivo_anulacion = motivo
+        movimiento.anulado_por_id = user_id
+        movimiento.autorizado_por_id = user_id
+        movimiento.fecha_anulacion = datetime.utcnow()
+        db.session.commit()
+        return jsonify({"message": "Movimiento anulado"})
+
     movimiento.estado = "pendiente_anulacion"
     movimiento.motivo_anulacion = motivo
     movimiento.anulado_por_id = user_id

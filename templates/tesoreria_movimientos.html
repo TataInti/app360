@@ -170,6 +170,7 @@
 const userRole = '{{ session.get("role", "") }}';
 const canEdit = (userRole !== 'director');
 const isAdmin = ['admin', 'manager', 'gerente'].includes(userRole);
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
 document.addEventListener('DOMContentLoaded', function() {
     const hoy = new Date();
@@ -349,8 +350,6 @@ function exportarMovimientos() {
 document.getElementById('formMovimiento')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     const formData = new FormData(this);
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    
     const catValue = formData.get('categoria_gasto_id');
     const provValue = formData.get('proveedor_id');
     const data = {
@@ -387,19 +386,19 @@ function solicitarAnulacion(id) {
     if (!motivo || !motivo.trim()) return;
     fetch(`/api/tesoreria/movimientos/${id}/solicitar-anulacion`, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
         body: JSON.stringify({motivo: motivo.trim()})
-    }).then(r => {
-        if (r.ok) { alert('Solicitud enviada'); cargarMovimientos(); }
-        else r.json().then(d => alert(d.error || 'Error'));
-    }).catch(() => alert('Error de conexión'));
+    }).then(r => r.json().then(d => {
+        if (r.ok) { alert(d.message); cargarMovimientos(); }
+        else alert(d.error || 'Error');
+    })).catch(() => alert('Error de conexión'));
 }
 
 function autorizarAnulacion(id) {
     if (!confirm('¿Autorizar la anulación de este movimiento?')) return;
     fetch(`/api/tesoreria/movimientos/${id}/autorizar-anulacion`, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'}
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken}
     }).then(r => {
         if (r.ok) { alert('Anulación autorizada'); cargarMovimientos(); }
         else r.json().then(d => alert(d.error || 'Error'));
@@ -410,7 +409,7 @@ function rechazarAnulacion(id) {
     if (!confirm('¿Rechazar la solicitud de anulación?')) return;
     fetch(`/api/tesoreria/movimientos/${id}/rechazar-anulacion`, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'}
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken}
     }).then(r => {
         if (r.ok) { alert('Solicitud rechazada'); cargarMovimientos(); }
         else r.json().then(d => alert(d.error || 'Error'));
