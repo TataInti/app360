@@ -1,206 +1,216 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<div class="container-fluid">
 
-<h1>Panel Ventas</h1>
-
-<div class="d-flex flex-wrap gap-2 align-items-end mb-3">
-  <div>
-    <label for="fecha-desde" class="form-label form-label-sm mb-1">Desde</label>
-    <input id="fecha-desde" type="date" class="form-control form-control-sm" />
+  <!-- Header -->
+  <div class="panel-header">
+    <div>
+      <h1>Panel de Ventas</h1>
+      <span class="panel-subtitle" id="period-label">Período: – → –</span>
+    </div>
   </div>
-  <div>
-    <label for="fecha-hasta" class="form-label form-label-sm mb-1">Hasta</label>
-    <input id="fecha-hasta" type="date" class="form-control form-control-sm" />
+
+  <!-- Period bar -->
+  <div class="period-bar">
+    <div class="period-pills">
+      <button class="pp active" data-period="7">7d</button>
+      <button class="pp" data-period="15">15d</button>
+      <button class="pp" data-period="30">30d</button>
+      <button class="pp" data-period="6m">6m</button>
+      <button class="pp" data-period="ytd">YTD</button>
+    </div>
+    <div class="d-flex align-items-end gap-2 flex-wrap">
+      <div>
+        <label for="sel-empresa" style="font-size:0.78rem;color:#6b7280">Empresa</label>
+        <select id="sel-empresa" class="form-select form-select-sm" style="width:auto;min-width:130px">
+          <option value="TODAS">Todas</option>
+          <option value="CARNES">Carnes</option>
+          <option value="LACTEOS">Lácteos</option>
+        </select>
+      </div>
+      <div class="date-group">
+        <div>
+          <label for="fecha-desde">Desde</label>
+          <input id="fecha-desde" type="date" />
+        </div>
+        <div>
+          <label for="fecha-hasta">Hasta</label>
+          <input id="fecha-hasta" type="date" />
+        </div>
+        <button class="pp active" id="btn-aplicar">Aplicar</button>
+      </div>
+    </div>
   </div>
-  <button id="btn-aplicar-rango" class="btn btn-sm btn-primary">Aplicar</button>
-  <button id="btn-ultimos-6m" class="btn btn-sm btn-outline-secondary">Ultimos 30d</button>
-</div>
 
-<div class="text-muted small mb-3">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></div>
+  <!-- Skeleton -->
+  <div id="skeleton">
+    <div class="kpi-grid"><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div></div>
+    <div class="charts-grid"><div class="skeleton skeleton-chart"></div><div class="skeleton skeleton-chart"></div></div>
+  </div>
 
-<div class="row mt-2 g-3">
-    <div class="col-md-3">
-        <div class="card p-3 text-center">
-            <h6>Total Leads</h6>
-            <p class="display-6" id="kpi-leads-total">0</p>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card p-3 text-center">
-            <h6>Leads (período)</h6>
-            <p class="display-6" id="kpi-leads-periodo">0</p>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card p-3 text-center">
-            <h6>Campañas activas</h6>
-            <p class="display-6" id="kpi-campanias">0</p>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card p-3 text-center">
-            <h6>Conversión (total)</h6>
-            <p class="display-6" id="kpi-conversion">0 %</p>
-        </div>
+  <!-- Content -->
+  <div id="content" style="display:none">
+
+    <!-- KPIs PRE -->
+    <div class="kpi-grid">
+      <div class="kpi-card accent-green"><span class="kpi-label">Total PRE $</span><span class="kpi-value" id="kpi-pre-total">$0</span></div>
+      <div class="kpi-card accent-blue"><span class="kpi-label">Cantidad PRE</span><span class="kpi-value" id="kpi-pre-count">0</span></div>
+      <div class="kpi-card accent-amber"><span class="kpi-label">Ticket Promedio</span><span class="kpi-value" id="kpi-pre-ticket">$0</span></div>
+      <div class="kpi-card accent-purple"><span class="kpi-label">Top Vendedor</span><span class="kpi-value" id="kpi-pre-top-vendedor" style="font-size:1rem">–</span></div>
     </div>
 
-    <div class="col-md-3">
-        <div class="card p-3 text-center">
-            <h6>Ventas (período)</h6>
-            <p class="display-6" id="kpi-ventas">$0</p>
-        </div>
+    <!-- Charts: Vendedor | Cliente -->
+    <div class="charts-grid">
+      <div class="chart-card-v2"><h6>PRE por Vendedor (monto)</h6><canvas id="vendedorChart"></canvas></div>
+      <div class="chart-card-v2"><h6>PRE por Cliente (monto)</h6><canvas id="clienteChart"></canvas></div>
     </div>
-    <div class="col-md-3">
-        <div class="card p-3 text-center">
-            <h6>Promociones activas</h6>
-            <p class="display-6" id="kpi-promos">0</p>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card p-3 text-center">
-            <h6>Comisiones (mes)</h6>
-            <p class="display-6" id="kpi-comisiones">$0</p>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card p-3 text-center">
-            <h6>Objetivos en progreso</h6>
-            <p class="display-6" id="kpi-objetivos">0</p>
-        </div>
-    </div>
-</div>
 
-<hr class="mt-5">
-
-<div class="charts-row">
-    <div class="chart-card chart-card-light">
-        <h3 class="mb-2">Leads por Estado</h3>
-        <canvas id="estadoChart" height="300"></canvas>
+    <!-- Charts: Producto | Evolución diaria -->
+    <div class="charts-grid">
+      <div class="chart-card-v2"><h6>PRE por Producto (monto)</h6><canvas id="productoChart"></canvas></div>
+      <div class="chart-card-v2"><h6>Evolución diaria PRE</h6><canvas id="evolucionChart"></canvas></div>
     </div>
-    <div class="chart-card chart-card-light">
-        <h3 class="mb-2">Leads por Canal</h3>
-        <canvas id="canalChart" height="300"></canvas>
-    </div>
-    <div class="chart-card chart-card-light">
-        <h3 class="mb-2">Leads por Origen</h3>
-        <canvas id="origenChart" height="300"></canvas>
-    </div>
-</div>
 
-<hr class="mt-5">
+    <!-- Tabla detalle PRE -->
+    <div class="table-card mb-3">
+      <div class="table-card-head">Detalle últimas PRE</div>
+      <div style="overflow-x:auto">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Fecha</th><th>Vendedor</th><th>Cliente</th><th>Producto</th><th>Código</th><th class="text-end">Kilos</th><th class="text-end">Cajas</th><th class="text-end">Monto</th></tr></thead>
+          <tbody id="tbody-pre-detalle"><tr><td colspan="8" class="text-muted">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
 
-<div class="card p-3">
-  <h3 class="mb-3">Top campañas por leads</h3>
-  <div class="table-responsive">
-    <table class="table table-sm">
-      <thead>
-        <tr>
-          <th>Campaña</th>
-          <th>Leads</th>
-        </tr>
-      </thead>
-      <tbody id="tbody-top-campanias">
-        <tr><td colspan="2" class="text-muted">Cargando...</td></tr>
-      </tbody>
-    </table>
+    <!-- CRM colapsable -->
+    <div class="accordion mb-3" id="acc-crm">
+      <div class="accordion-item" style="border-color:#e5e7eb">
+        <h2 class="accordion-header">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#crm-body" style="font-size:0.9rem;padding:0.6rem 1rem;background:#f9fafb;color:#374151">
+            CRM · Leads &amp; Campañas
+          </button>
+        </h2>
+        <div id="crm-body" class="accordion-collapse collapse" data-bs-parent="#acc-crm">
+          <div class="accordion-body" style="padding:1rem">
+            <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+              <div class="kpi-card"><span class="kpi-label">Total Leads</span><span class="kpi-value" id="kpi-leads-total">0</span></div>
+              <div class="kpi-card"><span class="kpi-label">Leads (período)</span><span class="kpi-value" id="kpi-leads-periodo">0</span></div>
+              <div class="kpi-card"><span class="kpi-label">Campañas activas</span><span class="kpi-value" id="kpi-campanias">0</span></div>
+              <div class="kpi-card"><span class="kpi-label">Conversión</span><span class="kpi-value" id="kpi-conversion">0 %</span></div>
+            </div>
+            <div class="charts-grid mt-3" style="grid-template-columns:repeat(3,1fr)">
+              <div class="chart-card-v2"><h6>Leads por Estado</h6><canvas id="estadoChart"></canvas></div>
+              <div class="chart-card-v2"><h6>Leads por Canal</h6><canvas id="canalChart"></canvas></div>
+              <div class="chart-card-v2"><h6>Leads por Origen</h6><canvas id="origenChart"></canvas></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
 <script>
-    let estadoChart, canalChart, origenChart;
+  let vendedorChart, clienteChart, productoChart, evolucionChart, estadoChart, canalChart, origenChart;
+  const money = v => { const n=Number(v||0); return '$'+(Number.isFinite(n)?n:0).toLocaleString('es-AR',{maximumFractionDigits:0}); };
+  const CC = ['#3b82f6','#22c55e','#f59e0b','#ec4899','#6366f1','#14b8a6','#ef4444','#a855f7','#0ea5e9','#f97316'];
+  const CB = CC.map(c=>c+'40');
+  const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
-    function money(v) {
-      const n = Number(v || 0);
-      return '$' + (Number.isFinite(n) ? n : 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  function fmtFecha(s){ if(!s)return'-'; const p=String(s).split('-'); return p.length===3?`${p[2]}/${p[1]}`:String(s); }
+
+  function setActive(period){ document.querySelectorAll('.period-pills .pp').forEach(b=>b.classList.toggle('active',b.dataset.period===period)); }
+
+  function hBarOpts(label){
+    return {indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${label}: ${money(ctx.parsed.x)}`}}},scales:{x:{ticks:{color:'#6b7280',callback:v=>money(v),font:{size:11}},grid:{color:'#f1f5f9'}},y:{ticks:{color:'#374151',font:{size:11}},grid:{display:false}}}};
+  }
+
+  function renderPreDetalle(rows){
+    const tb=document.getElementById('tbody-pre-detalle');
+    if(!rows||!rows.length){tb.innerHTML='<tr><td colspan="8" class="text-muted">Sin datos PRE para este período</td></tr>';return;}
+    tb.innerHTML=rows.map(r=>`<tr><td>${fmtFecha(r.fecha)}</td><td>${r.vendedor}</td><td>${r.cliente}</td><td>${r.producto}</td><td>${r.codigo||''}</td><td class="text-end">${Number(r.kilos||0).toLocaleString('es-AR',{maximumFractionDigits:1})}</td><td class="text-end">${Number(r.cajas||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</td><td class="text-end">${money(r.subtot)}</td></tr>`).join('');
+  }
+
+  function destroyAll(){ [vendedorChart,clienteChart,productoChart,evolucionChart,estadoChart,canalChart,origenChart].forEach(c=>{if(c)c.destroy();}); }
+
+  async function load(period, desde='', hasta=''){
+    setActive(period||'');
+    document.getElementById('skeleton').style.display='';
+    document.getElementById('content').style.display='none';
+    const empresa=document.getElementById('sel-empresa').value;
+    const p=new URLSearchParams();
+    if(period)p.set('period',period);
+    if(desde)p.set('fecha_desde',desde);
+    if(hasta)p.set('fecha_hasta',hasta);
+    p.set('empresa',empresa);
+    try{
+      const r=await fetch('/api/dashboard-comercial-v2?'+p), d=await r.json(), k=d.kpis||{}, s=d.series||{};
+      document.getElementById('period-label').textContent=`Período: ${d.desde||'–'} → ${d.hasta||'–'}`;
+      document.getElementById('fecha-desde').value=d.desde||'';
+      document.getElementById('fecha-hasta').value=d.hasta||'';
+
+      // KPIs PRE
+      document.getElementById('kpi-pre-total').textContent=money(k.ventas_pre_periodo_total);
+      document.getElementById('kpi-pre-count').textContent=String(k.ventas_pre_periodo_count||0);
+      document.getElementById('kpi-pre-ticket').textContent=money(k.ventas_pre_ticket_promedio);
+      document.getElementById('kpi-pre-top-vendedor').textContent=k.ventas_pre_top_vendedor||'–';
+
+      // CRM KPIs
+      document.getElementById('kpi-leads-total').textContent=String(k.leads_total||0);
+      document.getElementById('kpi-leads-periodo').textContent=String(k.leads_periodo||0);
+      document.getElementById('kpi-campanias').textContent=String(k.campanias_activas||0);
+      document.getElementById('kpi-conversion').textContent=String(k.conversion_total_pct||0)+' %';
+
+      destroyAll();
+
+      // PRE por Vendedor (horizontal bar)
+      const vL=(s.pre_por_vendedor||[]).map(x=>x[0]), vV=(s.pre_por_vendedor||[]).map(x=>x[2]);
+      vendedorChart=new Chart(document.getElementById('vendedorChart'),{type:'bar',data:{labels:vL,datasets:[{label:'Monto',data:vV,backgroundColor:'rgba(34,197,94,0.25)',borderColor:'#16a34a',borderWidth:1}]},options:hBarOpts('Monto')});
+
+      // PRE por Cliente (horizontal bar)
+      const cLb=(s.pre_por_cliente||[]).map(x=>x[0]), cVb=(s.pre_por_cliente||[]).map(x=>x[2]);
+      clienteChart=new Chart(document.getElementById('clienteChart'),{type:'bar',data:{labels:cLb,datasets:[{label:'Monto',data:cVb,backgroundColor:'rgba(59,130,246,0.25)',borderColor:'#3b82f6',borderWidth:1}]},options:hBarOpts('Monto')});
+
+      // PRE por Producto (horizontal bar)
+      const pL=(s.pre_por_producto||[]).map(x=>x[0]), pV=(s.pre_por_producto||[]).map(x=>x[2]);
+      productoChart=new Chart(document.getElementById('productoChart'),{type:'bar',data:{labels:pL,datasets:[{label:'Monto',data:pV,backgroundColor:'rgba(245,158,11,0.25)',borderColor:'#f59e0b',borderWidth:1}]},options:hBarOpts('Monto')});
+
+      // Evolución diaria PRE (line)
+      const evo=s.pre_evolucion_diaria||[], eL=evo.map(x=>fmtFecha(x.fecha)), eM=evo.map(x=>x.monto||0), eQ=evo.map(x=>x.cantidad||0);
+      evolucionChart=new Chart(document.getElementById('evolucionChart'),{type:'line',data:{labels:eL,datasets:[
+        {label:'Monto',data:eM,borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,0.08)',tension:0.35,pointRadius:2,yAxisID:'y'},
+        {label:'Cantidad',data:eQ,borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,0.08)',tension:0.35,pointRadius:2,yAxisID:'y1'}
+      ]},options:{responsive:true,plugins:{tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='Monto'?`Monto: ${money(ctx.parsed.y)}`:`Cant: ${ctx.parsed.y}`}}},scales:{x:{ticks:{color:'#6b7280',font:{size:10},maxRotation:45},grid:{display:false}},y:{position:'left',ticks:{color:'#16a34a',callback:v=>money(v),font:{size:10}},grid:{color:'#f1f5f9'}},y1:{position:'right',ticks:{color:'#6366f1',font:{size:10}},grid:{display:false}}}}});
+
+      // Detalle PRE
+      renderPreDetalle(s.pre_detalle||[]);
+
+      // CRM Charts
+      const eEL=Object.keys(s.leads_por_estado||{}), eEV=Object.values(s.leads_por_estado||{});
+      estadoChart=new Chart(document.getElementById('estadoChart'),{type:'bar',data:{labels:eEL,datasets:[{label:'Cantidad',data:eEV,backgroundColor:CB.slice(0,eEL.length),borderColor:CC.slice(0,eEL.length),borderWidth:1}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b7280',font:{size:11}},grid:{display:false}},y:{ticks:{color:'#6b7280',font:{size:11}},grid:{color:'#f1f5f9'}}}}});
+
+      const cnL=(s.leads_por_canal||[]).map(x=>x[0]), cnV=(s.leads_por_canal||[]).map(x=>x[1]);
+      canalChart=new Chart(document.getElementById('canalChart'),{type:'doughnut',data:{labels:cnL,datasets:[{data:cnV,backgroundColor:CB,borderColor:CC,borderWidth:1}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{color:'#374151',font:{size:11}}}}}});
+
+      const oL=(s.leads_por_origen||[]).map(x=>x[0]), oV=(s.leads_por_origen||[]).map(x=>x[1]);
+      origenChart=new Chart(document.getElementById('origenChart'),{type:'bar',data:{labels:oL,datasets:[{label:'Cantidad',data:oV,backgroundColor:'rgba(99,102,241,0.25)',borderColor:'#6366f1',borderWidth:1}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b7280',font:{size:11}},grid:{display:false}},y:{ticks:{color:'#6b7280',font:{size:11}},grid:{color:'#f1f5f9'}}}}});
+
+    }catch(e){console.error(e);}finally{
+      document.getElementById('skeleton').style.display='none';
+      document.getElementById('content').style.display='';
     }
+  }
 
-    function renderTopCampanias(rows) {
-      const tbody = document.getElementById('tbody-top-campanias');
-      if (!rows || !rows.length) {
-        tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Sin datos</td></tr>';
-        return;
-      }
-      tbody.innerHTML = rows.map(([name, qty]) => `<tr><td>${name}</td><td>${qty}</td></tr>`).join('');
-    }
-
-    function setDateInputs(desde, hasta) {
-      document.getElementById('fecha-desde').value = desde || '';
-      document.getElementById('fecha-hasta').value = hasta || '';
-    }
-
-    async function cargar(period = '30', fechaDesde = '', fechaHasta = '') {
-      const params = new URLSearchParams();
-      if (period) params.set('period', period);
-      if (fechaDesde) params.set('fecha_desde', fechaDesde);
-      if (fechaHasta) params.set('fecha_hasta', fechaHasta);
-
-      const resp = await fetch(`/api/dashboard-comercial-v2?${params.toString()}`);
-      const data = await resp.json();
-
-      document.getElementById('period-desde').textContent = data.desde || '-';
-      document.getElementById('period-hasta').textContent = data.hasta || '-';
-      setDateInputs(data.desde || '', data.hasta || '');
-
-      const k = data.kpis || {};
-      document.getElementById('kpi-leads-total').textContent = String(k.leads_total || 0);
-      document.getElementById('kpi-leads-periodo').textContent = String(k.leads_periodo || 0);
-      document.getElementById('kpi-campanias').textContent = String(k.campanias_activas || 0);
-      document.getElementById('kpi-conversion').textContent = String(k.conversion_total_pct || 0) + ' %';
-      document.getElementById('kpi-ventas').textContent = money(k.ventas_periodo_total || 0);
-      document.getElementById('kpi-promos').textContent = String(k.promociones_activas || 0);
-      document.getElementById('kpi-comisiones').textContent = money(k.comisiones_mes_total || 0);
-      document.getElementById('kpi-objetivos').textContent = String(k.objetivos_en_progreso || 0);
-
-      const s = data.series || {};
-
-      const estadoLabels = Object.keys(s.leads_por_estado || {});
-      const estadoValues = Object.values(s.leads_por_estado || {});
-
-      if (estadoChart) estadoChart.destroy();
-      estadoChart = new Chart(document.getElementById('estadoChart'), {
-        type: 'bar',
-        data: {
-          labels: estadoLabels,
-          datasets: [{ label: 'Cantidad', data: estadoValues, backgroundColor: 'rgba(75, 192, 192, 0.8)' }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-      });
-
-      const canalLabels = (s.leads_por_canal || []).map(x => x[0]);
-      const canalValues = (s.leads_por_canal || []).map(x => x[1]);
-      if (canalChart) canalChart.destroy();
-      canalChart = new Chart(document.getElementById('canalChart'), {
-        type: 'doughnut',
-        data: { labels: canalLabels, datasets: [{ data: canalValues }] },
-        options: { responsive: true, maintainAspectRatio: false }
-      });
-
-      const origenLabels = (s.leads_por_origen || []).map(x => x[0]);
-      const origenValues = (s.leads_por_origen || []).map(x => x[1]);
-      if (origenChart) origenChart.destroy();
-      origenChart = new Chart(document.getElementById('origenChart'), {
-        type: 'bar',
-        data: { labels: origenLabels, datasets: [{ label: 'Cantidad', data: origenValues, backgroundColor: 'rgba(153, 102, 255, 0.7)' }] },
-        options: { responsive: true, maintainAspectRatio: false }
-      });
-
-      renderTopCampanias(s.top_campanias_por_leads || []);
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('btn-aplicar-rango').addEventListener('click', () => {
-        const desde = document.getElementById('fecha-desde').value;
-        const hasta = document.getElementById('fecha-hasta').value;
-        cargar('', desde, hasta);
-      });
-
-      document.getElementById('btn-ultimos-6m').addEventListener('click', () => {
-        setDateInputs('', '');
-        cargar('30');
-      });
-
-      cargar('30');
+  document.addEventListener('DOMContentLoaded',()=>{
+    document.querySelectorAll('.period-pills .pp').forEach(b=>b.addEventListener('click',()=>load(b.dataset.period)));
+    document.getElementById('btn-aplicar').addEventListener('click',()=>load('',document.getElementById('fecha-desde').value,document.getElementById('fecha-hasta').value));
+    document.getElementById('sel-empresa').addEventListener('change',()=>{
+      const act=document.querySelector('.period-pills .pp.active');
+      if(act)load(act.dataset.period); else load('',document.getElementById('fecha-desde').value,document.getElementById('fecha-hasta').value);
     });
+    load('30');
+  });
 </script>
 {% endblock %}

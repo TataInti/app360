@@ -1,203 +1,143 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<div class="container-fluid">
 
-<h1>Panel Ejecutivo</h1>
-
-<div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+  <!-- Header -->
+  <div class="panel-header">
     <div>
-        <label for="fecha-desde" class="form-label form-label-sm mb-1">Desde</label>
-        <input id="fecha-desde" type="date" class="form-control form-control-sm" />
+      <h1>Panel Ejecutivo</h1>
+      <span class="panel-subtitle" id="period-label">Período: – → –</span>
     </div>
-    <div>
-        <label for="fecha-hasta" class="form-label form-label-sm mb-1">Hasta</label>
-        <input id="fecha-hasta" type="date" class="form-control form-control-sm" />
-    </div>
-    <button id="btn-aplicar-rango" class="btn btn-sm btn-primary">Aplicar</button>
-    <button id="btn-ultimos-6m" class="btn btn-sm btn-outline-secondary">Ultimos 30d</button>
-</div>
+  </div>
 
-<div class="text-muted small mb-3">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></div>
+  <!-- Period bar -->
+  <div class="period-bar">
+    <div class="period-pills">
+      <button class="pp active" data-period="7">7d</button>
+      <button class="pp" data-period="15">15d</button>
+      <button class="pp" data-period="30">30d</button>
+      <button class="pp" data-period="6m">6m</button>
+      <button class="pp" data-period="ytd">YTD</button>
+    </div>
+    <div class="date-group">
+      <div>
+        <label for="fecha-desde">Desde</label>
+        <input id="fecha-desde" type="date" />
+      </div>
+      <div>
+        <label for="fecha-hasta">Hasta</label>
+        <input id="fecha-hasta" type="date" />
+      </div>
+      <button class="pp active" id="btn-aplicar">Aplicar</button>
+    </div>
+  </div>
 
-<div class="row mt-2 g-3">
-    <div class="col-md-3">
-        <div class="card p-3 text-center">
-            <h6>Ingresos (SabioGo)</h6>
-            <p class="display-6" id="kpi-ingresos">$0</p>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card p-3 text-center">
-            <h6>Costos (SabioGo)</h6>
-            <p class="display-6" id="kpi-costos">$0</p>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card p-3 text-center">
-            <h6>Margen (SabioGo)</h6>
-            <p class="display-6" id="kpi-margen">$0</p>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card p-3 text-center">
-            <h6>Saldo c/c Friar</h6>
-            <p class="display-6" id="kpi-friar">$0</p>
-        </div>
-    </div>
-</div>
+  <!-- Skeleton -->
+  <div id="skeleton">
+    <div class="kpi-grid"><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div></div>
+    <div class="charts-grid"><div class="skeleton skeleton-chart"></div><div class="skeleton skeleton-chart"></div></div>
+  </div>
 
-<hr class="mt-5">
+  <!-- Content -->
+  <div id="content" style="display:none">
+    <div class="kpi-grid">
+      <div class="kpi-card accent-green"><span class="kpi-label">Ingresos SabioGo</span><span class="kpi-value" id="kpi-ingresos">$0</span></div>
+      <div class="kpi-card accent-red"><span class="kpi-label">Costos SabioGo</span><span class="kpi-value" id="kpi-costos">$0</span></div>
+      <div class="kpi-card accent-blue"><span class="kpi-label">Margen SabioGo</span><span class="kpi-value" id="kpi-margen">$0</span></div>
+      <div class="kpi-card accent-amber"><span class="kpi-label">Saldo c/c Friar</span><span class="kpi-value" id="kpi-friar">$0</span></div>
+    </div>
 
-<div class="charts-row">
-    <div class="chart-card chart-card-light">
-        <h3 class="mb-2">Distribución de instrumentos</h3>
-        <canvas id="instrumentosChart" height="320"></canvas>
+    <div class="charts-grid">
+      <div class="chart-card-v2"><h6>Distribución de instrumentos</h6><canvas id="instrumentosChart"></canvas></div>
+      <div class="table-card">
+        <div class="table-card-head">Top 5 clientes por monto (SabioGo)</div>
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Cliente</th><th class="text-end">Monto</th></tr></thead>
+          <tbody id="tbody-top-clientes"><tr><td colspan="2" class="text-muted">Cargando…</td></tr></tbody>
+        </table>
+      </div>
     </div>
-    <div class="chart-card chart-card-light">
-        <h3 class="mb-2">Top 5 clientes por monto (SabioGo)</h3>
-        <div class="table-responsive">
-            <table class="table table-sm">
-                <thead>
-                    <tr>
-                        <th>Cliente</th>
-                        <th class="text-end">Monto</th>
-                    </tr>
-                </thead>
-                <tbody id="tbody-top-clientes">
-                    <tr><td colspan="2" class="text-muted">Cargando...</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
 
-<hr class="mt-5">
-
-<div class="row g-3">
-    <div class="col-lg-6">
-        <div class="card p-3">
-            <h3 class="mb-2">Cuenta Corriente Friar</h3>
-            <div class="small" id="friar-cuenta">Cargando...</div>
+    <div class="row g-3 mt-1">
+      <div class="col-lg-6">
+        <div class="table-card">
+          <div class="table-card-head">Cuenta Corriente Friar</div>
+          <div style="padding:0.75rem 1rem;font-size:0.85rem;color:#374151" id="friar-cuenta">Cargando…</div>
         </div>
-    </div>
-    <div class="col-lg-6">
-        <div class="card p-3">
-            <h3 class="mb-2">Últimos 5 pagos a Friar</h3>
-            <div class="table-responsive">
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Instrumento</th>
-                            <th class="text-end">Monto</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tbody-friar-pagos">
-                        <tr><td colspan="3" class="text-muted">Cargando...</td></tr>
-                    </tbody>
-                </table>
-            </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="table-card">
+          <div class="table-card-head">Últimos 5 pagos a Friar</div>
+          <table class="table table-sm mb-0">
+            <thead><tr><th>Fecha</th><th>Instrumento</th><th class="text-end">Monto</th></tr></thead>
+            <tbody id="tbody-friar-pagos"><tr><td colspan="3" class="text-muted">Cargando…</td></tr></tbody>
+          </table>
         </div>
+      </div>
     </div>
+  </div>
 </div>
 
 <script>
   let instrumentosChart;
+  const money = v => { const n=Number(v||0); return '$'+(Number.isFinite(n)?n:0).toLocaleString('es-AR',{maximumFractionDigits:0}); };
+  const CC = ['#3b82f6','#22c55e','#f59e0b','#ec4899','#6366f1','#14b8a6','#ef4444'];
+  const CB = CC.map(c=>c+'40');
 
-  function money(v) {
-    const n = Number(v || 0);
-    return '$' + (Number.isFinite(n) ? n : 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  function setActive(period){ document.querySelectorAll('.period-pills .pp').forEach(b=>b.classList.toggle('active',b.dataset.period===period)); }
+
+  function renderTopClientes(rows){
+    const tb=document.getElementById('tbody-top-clientes');
+    if(!rows||!rows.length){tb.innerHTML='<tr><td colspan="2" class="text-muted">Sin datos</td></tr>';return;}
+    tb.innerHTML=rows.map(r=>`<tr><td>${r.cliente}</td><td class="text-end">${money(r.monto)}</td></tr>`).join('');
   }
 
-  function renderCuenta(cuenta) {
-    const el = document.getElementById('friar-cuenta');
-    if (!cuenta) {
-      el.innerHTML = '<span class="text-muted">Sin cuenta configurada</span>';
-      return;
+  function renderCuenta(c){
+    const el=document.getElementById('friar-cuenta');
+    if(!c){el.innerHTML='<span class="text-muted">Sin cuenta configurada</span>';return;}
+    el.innerHTML=`<div><strong>Proveedor:</strong> ${c.proveedor||'-'}</div><div><strong>Saldo inicial:</strong> ${money(c.saldo_inicial)}</div><div><strong>Total pagos:</strong> ${money(c.total_pagos)}</div><div><strong>Saldo actual:</strong> ${money(c.saldo_actual)}</div>`;
+  }
+
+  function renderPagos(rows){
+    const tb=document.getElementById('tbody-friar-pagos');
+    if(!rows||!rows.length){tb.innerHTML='<tr><td colspan="3" class="text-muted">Sin datos</td></tr>';return;}
+    tb.innerHTML=rows.map(p=>{const f=p.fecha?String(p.fecha).slice(0,10):'-';return `<tr><td>${f}</td><td>${p.instrumento||'-'}</td><td class="text-end">${money(p.monto)}</td></tr>`;}).join('');
+  }
+
+  async function load(period, desde='', hasta=''){
+    setActive(period||'');
+    document.getElementById('skeleton').style.display='';
+    document.getElementById('content').style.display='none';
+    const p=new URLSearchParams();
+    if(period)p.set('period',period); if(desde)p.set('fecha_desde',desde); if(hasta)p.set('fecha_hasta',hasta);
+    try{
+      const r=await fetch('/api/panel-ejecutivo-v2?'+p), d=await r.json(), k=d.kpis||{};
+      document.getElementById('period-label').textContent=`Período: ${d.desde||'–'} → ${d.hasta||'–'}`;
+      document.getElementById('fecha-desde').value=d.desde||'';
+      document.getElementById('fecha-hasta').value=d.hasta||'';
+      document.getElementById('kpi-ingresos').textContent=money(k.sabiogo_ingresos);
+      document.getElementById('kpi-costos').textContent=money(k.sabiogo_costos);
+      document.getElementById('kpi-margen').textContent=money(k.sabiogo_margen);
+      document.getElementById('kpi-friar').textContent=money(k.cta_cte_friar_saldo_actual);
+
+      renderTopClientes(d.top_clientes||[]);
+      renderCuenta(d.friar?.cuenta||null);
+      renderPagos(d.friar?.ultimos_pagos||[]);
+
+      const inst=d.instrumentos||{};
+      if(instrumentosChart)instrumentosChart.destroy();
+      instrumentosChart=new Chart(document.getElementById('instrumentosChart'),{type:'doughnut',data:{labels:inst.labels||[],datasets:[{data:(inst.values||[]).map(x=>Number(x||0)),backgroundColor:CB,borderColor:CC,borderWidth:1}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{color:'#374151',font:{size:11}}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${money(ctx.parsed)}`}}}}});
+    }catch(e){console.error(e);}finally{
+      document.getElementById('skeleton').style.display='none';
+      document.getElementById('content').style.display='';
     }
-    el.innerHTML = `
-      <div><strong>Proveedor:</strong> ${cuenta.proveedor || '-'}</div>
-      <div><strong>Saldo inicial:</strong> ${money(cuenta.saldo_inicial)}</div>
-      <div><strong>Total pagos:</strong> ${money(cuenta.total_pagos)}</div>
-      <div><strong>Saldo actual:</strong> ${money(cuenta.saldo_actual)}</div>
-    `;
   }
 
-  function renderTopClientes(rows) {
-    const tbody = document.getElementById('tbody-top-clientes');
-    if (!rows || !rows.length) {
-      tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Sin datos</td></tr>';
-      return;
-    }
-    tbody.innerHTML = rows.map(r => `<tr><td>${r.cliente}</td><td class="text-end">${money(r.monto)}</td></tr>`).join('');
-  }
-
-  function renderPagos(rows) {
-    const tbody = document.getElementById('tbody-friar-pagos');
-    if (!rows || !rows.length) {
-      tbody.innerHTML = '<tr><td colspan="3" class="text-muted">Sin datos</td></tr>';
-      return;
-    }
-    tbody.innerHTML = rows.map((p) => {
-      const fecha = p.fecha ? String(p.fecha).slice(0, 10) : '-';
-      return `<tr><td>${fecha}</td><td>${p.instrumento || '-'}</td><td class="text-end">${money(p.monto)}</td></tr>`;
-    }).join('');
-  }
-
-    function setDateInputs(desde, hasta) {
-        document.getElementById('fecha-desde').value = desde || '';
-        document.getElementById('fecha-hasta').value = hasta || '';
-    }
-
-    async function cargar(period = '30', fechaDesde = '', fechaHasta = '') {
-        const params = new URLSearchParams();
-        if (period) params.set('period', period);
-        if (fechaDesde) params.set('fecha_desde', fechaDesde);
-        if (fechaHasta) params.set('fecha_hasta', fechaHasta);
-
-        const resp = await fetch(`/api/panel-ejecutivo-v2?${params.toString()}`);
-    const data = await resp.json();
-
-    document.getElementById('period-desde').textContent = data.desde || '-';
-    document.getElementById('period-hasta').textContent = data.hasta || '-';
-        setDateInputs(data.desde || '', data.hasta || '');
-
-    const k = data.kpis || {};
-    document.getElementById('kpi-ingresos').textContent = money(k.sabiogo_ingresos);
-    document.getElementById('kpi-costos').textContent = money(k.sabiogo_costos);
-    document.getElementById('kpi-margen').textContent = money(k.sabiogo_margen);
-    document.getElementById('kpi-friar').textContent = money(k.cta_cte_friar_saldo_actual);
-
-    renderTopClientes(data.top_clientes || []);
-    renderCuenta(data.friar?.cuenta || null);
-    renderPagos(data.friar?.ultimos_pagos || []);
-
-    const inst = data.instrumentos || { labels: [], values: [] };
-    if (instrumentosChart) instrumentosChart.destroy();
-    instrumentosChart = new Chart(document.getElementById('instrumentosChart'), {
-      type: 'doughnut',
-      data: {
-        labels: inst.labels || [],
-        datasets: [{ data: (inst.values || []).map(x => Number(x || 0)) }]
-      },
-      options: { responsive: true, maintainAspectRatio: false }
-    });
-  }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        document.getElementById('btn-aplicar-rango').addEventListener('click', () => {
-            const desde = document.getElementById('fecha-desde').value;
-            const hasta = document.getElementById('fecha-hasta').value;
-            cargar('', desde, hasta);
-        });
-
-        document.getElementById('btn-ultimos-6m').addEventListener('click', () => {
-            setDateInputs('', '');
-            cargar('30');
-        });
-
-        cargar('30');
-    });
+  document.addEventListener('DOMContentLoaded',()=>{
+    document.querySelectorAll('.period-pills .pp').forEach(b=>b.addEventListener('click',()=>load(b.dataset.period)));
+    document.getElementById('btn-aplicar').addEventListener('click',()=>load('',document.getElementById('fecha-desde').value,document.getElementById('fecha-hasta').value));
+    load('30');
+  });
 </script>
-
 {% endblock %}

@@ -2,310 +2,144 @@
 
 {% block content %}
 <div class="container-fluid">
-  <h1 class="mb-3">Panel Tesoreria</h1>
 
-  <div class="btn-group mb-3" role="group" aria-label="Período">
-    <button class="btn btn-outline-primary" data-period="7">7d</button>
-    <button class="btn btn-outline-primary" data-period="15">15d</button>
-    <button class="btn btn-outline-primary" data-period="30">30d</button>
-    <button class="btn btn-outline-primary" data-period="6m">6m</button>
-    <button class="btn btn-outline-primary" data-period="ytd">YTD</button>
-  </div>
-
-  <div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+  <!-- Header -->
+  <div class="panel-header">
     <div>
-      <label for="fecha-desde" class="form-label form-label-sm mb-1">Desde</label>
-      <input id="fecha-desde" type="date" class="form-control form-control-sm" />
-    </div>
-    <div>
-      <label for="fecha-hasta" class="form-label form-label-sm mb-1">Hasta</label>
-      <input id="fecha-hasta" type="date" class="form-control form-control-sm" />
-    </div>
-    <button id="btn-aplicar-rango" class="btn btn-sm btn-primary">Aplicar</button>
-    <button id="btn-limpiar-rango" class="btn btn-sm btn-outline-secondary">Usar 30d</button>
-  </div>
-
-  <div class="text-muted small mb-4">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></div>
-
-  <div class="row g-3 mb-4">
-    <div class="col-md-3">
-      <div class="card p-3 text-center">
-        <h6>Ingresos</h6>
-        <div class="display-6" id="kpi-ingresos">$0</div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card p-3 text-center">
-        <h6>Egresos</h6>
-        <div class="display-6" id="kpi-egresos">$0</div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card p-3 text-center">
-        <h6>Neto</h6>
-        <div class="display-6" id="kpi-neto">$0</div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card p-3 text-center">
-        <h6>Movimientos</h6>
-        <div class="display-6" id="kpi-movimientos">0</div>
-      </div>
-    </div>
-
-    <div class="col-md-3">
-      <div class="card p-3 text-center">
-        <h6>Ticket promedio</h6>
-        <div class="display-6" id="kpi-ticket">$0</div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card p-3 text-center">
-        <h6>Egresos/Ingresos</h6>
-        <div class="display-6" id="kpi-egresos-ingresos">0 %</div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card p-3 text-center">
-        <h6>Días neto negativo</h6>
-        <div class="display-6" id="kpi-dias-neg">0</div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card p-3 text-center">
-        <h6>Empleados con adelantos/préstamos</h6>
-        <div class="display-6" id="kpi-rrhh-emps">0</div>
-      </div>
-    </div>
-
-    <div class="col-md-6">
-      <div class="card p-3 text-center">
-        <h6>Monto adelantos/préstamos (período)</h6>
-        <div class="display-6" id="kpi-rrhh-monto">$0</div>
-      </div>
-    </div>
-    <div class="col-md-6">
-      <div class="card p-3 text-center">
-        <h6>Saldo pendiente préstamos (global)</h6>
-        <div class="display-6" id="kpi-rrhh-pendiente">$0</div>
-      </div>
+      <h1>Panel Tesorería</h1>
+      <span class="panel-subtitle" id="period-label">Período: – → –</span>
     </div>
   </div>
 
-  <div class="charts-row mb-4">
-    <div class="chart-card chart-card-light">
-      <h6 class="mb-3">Flujo de caja</h6>
-      <canvas id="flujoChart"></canvas>
+  <!-- Period bar -->
+  <div class="period-bar">
+    <div class="period-pills">
+      <button class="pp active" data-period="7">7d</button>
+      <button class="pp" data-period="15">15d</button>
+      <button class="pp" data-period="30">30d</button>
+      <button class="pp" data-period="6m">6m</button>
+      <button class="pp" data-period="ytd">YTD</button>
     </div>
-    <div class="chart-card chart-card-light">
-      <h6 class="mb-3">Distribución por instrumento</h6>
-      <canvas id="instrumentosChart"></canvas>
+    <div class="date-group">
+      <div>
+        <label for="fecha-desde">Desde</label>
+        <input id="fecha-desde" type="date" />
+      </div>
+      <div>
+        <label for="fecha-hasta">Hasta</label>
+        <input id="fecha-hasta" type="date" />
+      </div>
+      <button class="pp active" id="btn-aplicar">Aplicar</button>
     </div>
   </div>
 
-  <div class="row g-3">
-    <div class="col-lg-6">
-      <div class="card p-3">
-        <h5>Máximo ingreso</h5>
-        <div class="text-muted" id="max-ingreso">Sin datos</div>
-      </div>
+  <!-- Skeleton -->
+  <div id="skeleton">
+    <div class="kpi-grid"><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div></div>
+    <div class="charts-grid"><div class="skeleton skeleton-chart"></div><div class="skeleton skeleton-chart"></div></div>
+  </div>
+
+  <!-- Content -->
+  <div id="content" style="display:none">
+    <div class="kpi-grid">
+      <div class="kpi-card accent-green"><span class="kpi-label">Ingresos</span><span class="kpi-value" id="kpi-ingresos">$0</span></div>
+      <div class="kpi-card accent-red"><span class="kpi-label">Egresos</span><span class="kpi-value" id="kpi-egresos">$0</span></div>
+      <div class="kpi-card accent-blue"><span class="kpi-label">Neto</span><span class="kpi-value" id="kpi-neto">$0</span></div>
+      <div class="kpi-card accent-sky"><span class="kpi-label">Movimientos</span><span class="kpi-value" id="kpi-movimientos">0</span><span class="kpi-sub" id="kpi-mov-detail"></span></div>
     </div>
-    <div class="col-lg-6">
-      <div class="card p-3">
-        <h5>Máximo egreso</h5>
-        <div class="text-muted" id="max-egreso">Sin datos</div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card"><span class="kpi-label">Ticket promedio</span><span class="kpi-value" id="kpi-ticket">$0</span></div>
+      <div class="kpi-card accent-amber"><span class="kpi-label">Egresos / Ingresos</span><span class="kpi-value" id="kpi-ratio">0 %</span></div>
+      <div class="kpi-card accent-red"><span class="kpi-label">Días neto negativo</span><span class="kpi-value" id="kpi-dias-neg">0</span></div>
+      <div class="kpi-card accent-purple"><span class="kpi-label">Empleados c/adelantos</span><span class="kpi-value" id="kpi-rrhh-emps">0</span></div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(2,1fr)">
+      <div class="kpi-card"><span class="kpi-label">Monto adelantos/préstamos (período)</span><span class="kpi-value" id="kpi-rrhh-monto">$0</span></div>
+      <div class="kpi-card"><span class="kpi-label">Saldo pendiente préstamos (global)</span><span class="kpi-value" id="kpi-rrhh-pendiente">$0</span></div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card-v2"><h6>Flujo de caja</h6><canvas id="flujoChart"></canvas></div>
+      <div class="chart-card-v2"><h6>Distribución por instrumento</h6><canvas id="instrumentosChart"></canvas></div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="table-card">
+          <div class="table-card-head">Máximo ingreso</div>
+          <div style="padding:0.75rem 1rem;font-size:0.85rem;color:#374151" id="max-ingreso">Sin datos</div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="table-card">
+          <div class="table-card-head">Máximo egreso</div>
+          <div style="padding:0.75rem 1rem;font-size:0.85rem;color:#374151" id="max-egreso">Sin datos</div>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-  let flujoChart;
-  let instrumentosChart;
+  let flujoChart, instrumentosChart;
+  const money = v => { const n=Number(v||0); return '$'+(Number.isFinite(n)?n:0).toLocaleString('es-AR',{maximumFractionDigits:0}); };
+  const pct   = v => (Number(v||0)).toFixed(1)+' %';
+  const CC = ['#3b82f6','#22c55e','#f59e0b','#ec4899','#6366f1','#14b8a6','#ef4444'];
+  const CB = CC.map(c=>c+'40');
 
-  function money(v) {
-    const n = Number(v || 0);
-    return '$' + (Number.isFinite(n) ? n : 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  function fmtL(l,g){ if(!l)return'-'; const p=String(l).split('-'); if(g==='mes'&&p.length>=2){const m=parseInt(p[1],10); if(m>=1&&m<=12)return MESES[m-1]+' '+p[0];} return p.length===3?`${p[2]}/${p[1]}`:String(l); }
+
+  function setActive(period){ document.querySelectorAll('.period-pills .pp').forEach(b=>b.classList.toggle('active',b.dataset.period===period)); }
+
+  async function load(period, desde='', hasta=''){
+    setActive(period||'');
+    document.getElementById('skeleton').style.display='';
+    document.getElementById('content').style.display='none';
+    const p=new URLSearchParams();
+    if(period)p.set('period',period); if(desde)p.set('fecha_desde',desde); if(hasta)p.set('fecha_hasta',hasta);
+    try{
+      const r=await fetch('/api/dashboard-financiero?'+p), d=await r.json(), k=d.kpis||{}, s=d.series||{};
+      document.getElementById('period-label').textContent=`Período: ${k.desde||'–'} → ${k.hasta||'–'}`;
+      document.getElementById('fecha-desde').value=k.desde||'';
+      document.getElementById('fecha-hasta').value=k.hasta||'';
+      document.getElementById('kpi-ingresos').textContent=money(k.ingresos_total);
+      document.getElementById('kpi-egresos').textContent=money(k.egresos_total);
+      document.getElementById('kpi-neto').textContent=money(k.neto);
+      document.getElementById('kpi-movimientos').textContent=String(k.movimientos_total||0);
+      document.getElementById('kpi-mov-detail').textContent=`${k.movimientos_ingresos||0} ing · ${k.movimientos_egresos||0} egr`;
+      document.getElementById('kpi-ticket').textContent=money(k.ticket_promedio);
+      document.getElementById('kpi-ratio').textContent=pct(k.egresos_sobre_ingresos_pct);
+      document.getElementById('kpi-dias-neg').textContent=String(k.dias_neto_negativo||0);
+      document.getElementById('kpi-rrhh-emps').textContent=String(k.rrhh_empleados_con_adelantos_prestamos||0);
+      document.getElementById('kpi-rrhh-monto').textContent=money(k.rrhh_monto_adelantos_prestamos);
+      document.getElementById('kpi-rrhh-pendiente').textContent=money(k.rrhh_monto_pendiente_prestamos);
+      document.getElementById('max-ingreso').textContent=k.max_ingreso?`${money(k.max_ingreso.monto)} · ${k.max_ingreso.instrumento||'-'} · ${k.max_ingreso.fecha_hora||''}`:'Sin datos';
+      document.getElementById('max-egreso').textContent=k.max_egreso?`${money(k.max_egreso.monto)} · ${k.max_egreso.instrumento||'-'} · ${k.max_egreso.fecha_hora||''}`:'Sin datos';
+
+      const fl=s.flujo||{}, labels=(fl.labels||[]).map(l=>fmtL(l,fl.granularidad));
+      if(flujoChart)flujoChart.destroy();
+      flujoChart=new Chart(document.getElementById('flujoChart'),{type:'bar',data:{labels,datasets:[
+        {label:'Ingresos',data:fl.ingresos||[],backgroundColor:'rgba(22,163,74,0.2)',borderColor:'#16a34a',borderWidth:1},
+        {label:'Egresos',data:fl.egresos||[],backgroundColor:'rgba(220,38,38,0.2)',borderColor:'#dc2626',borderWidth:1},
+        {label:'Neto',type:'line',data:fl.neto||[],borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.08)',tension:0.35,pointRadius:2}
+      ]},options:{responsive:true,plugins:{tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${money(ctx.parsed.y)}`}}},scales:{x:{ticks:{color:'#6b7280',font:{size:11}},grid:{display:false}},y:{ticks:{color:'#6b7280',callback:v=>money(v),font:{size:11}},grid:{color:'#f1f5f9'}}}}});
+
+      const inst=s.instrumentos||{};
+      if(instrumentosChart)instrumentosChart.destroy();
+      instrumentosChart=new Chart(document.getElementById('instrumentosChart'),{type:'doughnut',data:{labels:inst.labels||[],datasets:[{data:inst.values||[],backgroundColor:CB,borderColor:CC,borderWidth:1}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{color:'#374151',font:{size:11}}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${money(ctx.parsed)}`}}}}});
+    }catch(e){console.error(e);}finally{
+      document.getElementById('skeleton').style.display='none';
+      document.getElementById('content').style.display='';
+    }
   }
 
-  function pct(v) {
-    const n = Number(v || 0);
-    return (Number.isFinite(n) ? n : 0).toFixed(1) + ' %';
-  }
-
-  function formatLabelPeriodo(label, granularidad) {
-    if (!label) return '-';
-    if (granularidad === 'mes') return String(label);
-    const parts = String(label).split('-');
-    if (parts.length !== 3) return String(label);
-    return `${parts[2]}/${parts[1]}`;
-  }
-
-  function setActivePeriodButton(period) {
-    document.querySelectorAll('[data-period]').forEach(btn => {
-      btn.classList.toggle('btn-primary', btn.dataset.period === period);
-      btn.classList.toggle('btn-outline-primary', btn.dataset.period !== period);
-    });
-  }
-
-  function setDateInputs(desde, hasta) {
-    document.getElementById('fecha-desde').value = desde || '';
-    document.getElementById('fecha-hasta').value = hasta || '';
-  }
-
-  async function fetchData(period, fechaDesde = '', fechaHasta = '') {
-    setActivePeriodButton(period || 'custom');
-    const params = new URLSearchParams();
-    if (period) params.set('period', period);
-    if (fechaDesde) params.set('fecha_desde', fechaDesde);
-    if (fechaHasta) params.set('fecha_hasta', fechaHasta);
-    const resp = await fetch(`/api/dashboard-financiero?${params.toString()}`);
-    const data = await resp.json();
-
-    const k = data.kpis || {};
-    const s = data.series || {};
-
-    document.getElementById('period-desde').textContent = k.desde || '-';
-    document.getElementById('period-hasta').textContent = k.hasta || '-';
-    setDateInputs(k.desde || '', k.hasta || '');
-
-    document.getElementById('kpi-ingresos').textContent = money(k.ingresos_total);
-    document.getElementById('kpi-egresos').textContent = money(k.egresos_total);
-    document.getElementById('kpi-neto').textContent = money(k.neto);
-    document.getElementById('kpi-movimientos').textContent = String(k.movimientos_total || 0);
-    document.getElementById('kpi-ticket').textContent = money(k.ticket_promedio);
-    document.getElementById('kpi-egresos-ingresos').textContent = pct(k.egresos_sobre_ingresos_pct);
-    document.getElementById('kpi-dias-neg').textContent = String(k.dias_neto_negativo || 0);
-    document.getElementById('kpi-rrhh-emps').textContent = String(k.rrhh_empleados_con_adelantos_prestamos || 0);
-    document.getElementById('kpi-rrhh-monto').textContent = money(k.rrhh_monto_adelantos_prestamos);
-    document.getElementById('kpi-rrhh-pendiente').textContent = money(k.rrhh_monto_pendiente_prestamos);
-
-    document.getElementById('max-ingreso').textContent = k.max_ingreso
-      ? `${money(k.max_ingreso.monto)} · ${k.max_ingreso.instrumento || '-'} · ${k.max_ingreso.fecha_hora || ''}`
-      : 'Sin datos';
-    document.getElementById('max-egreso').textContent = k.max_egreso
-      ? `${money(k.max_egreso.monto)} · ${k.max_egreso.instrumento || '-'} · ${k.max_egreso.fecha_hora || ''}`
-      : 'Sin datos';
-
-    // Charts
-    const flujo = s.flujo || { labels: [], ingresos: [], egresos: [], neto: [], granularidad: 'dia' };
-    const flujoLabels = (flujo.labels || []).map(l => formatLabelPeriodo(l, flujo.granularidad || 'dia'));
-
-    if (flujoChart) flujoChart.destroy();
-    flujoChart = new Chart(document.getElementById('flujoChart'), {
-      type: 'bar',
-      data: {
-        labels: flujoLabels,
-        datasets: [
-          {
-            label: 'Ingresos',
-            data: (flujo.ingresos || []).map(x => Number(x || 0)),
-            backgroundColor: 'rgba(34, 197, 94, 0.25)',
-            borderColor: '#16a34a',
-            borderWidth: 1
-          },
-          {
-            label: 'Egresos',
-            data: (flujo.egresos || []).map(x => Number(x || 0)),
-            backgroundColor: 'rgba(239, 68, 68, 0.25)',
-            borderColor: '#dc2626',
-            borderWidth: 1
-          },
-          {
-            label: 'Neto',
-            type: 'line',
-            data: (flujo.neto || []).map(x => Number(x || 0)),
-            borderColor: '#3b82f6',
-            backgroundColor: 'rgba(59, 130, 246, 0.10)',
-            tension: 0.35,
-            pointRadius: 2,
-            pointHoverRadius: 3
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                const v = Number(ctx.parsed?.y ?? ctx.parsed ?? 0);
-                const label = ctx.dataset?.label ? `${ctx.dataset.label}: ` : '';
-                return label + money(v);
-              }
-            }
-          }
-        },
-        scales: {
-          x: { ticks: { color: '#374151' }, grid: { color: 'rgba(55, 65, 81, 0.12)' } },
-          y: {
-            ticks: {
-              color: '#374151',
-              callback: (value) => money(value)
-            },
-            grid: { color: 'rgba(55, 65, 81, 0.12)' }
-          }
-        }
-      }
-    });
-
-    const inst = s.instrumentos || { labels: [], values: [] };
-    if (instrumentosChart) instrumentosChart.destroy();
-    instrumentosChart = new Chart(document.getElementById('instrumentosChart'), {
-      type: 'doughnut',
-      data: {
-        labels: inst.labels || [],
-        datasets: [{
-          data: (inst.values || []).map(x => Number(x || 0)),
-          backgroundColor: [
-            'rgba(59, 130, 246, 0.35)',
-            'rgba(34, 197, 94, 0.35)',
-            'rgba(245, 158, 11, 0.35)',
-            'rgba(236, 72, 153, 0.35)',
-            'rgba(99, 102, 241, 0.35)',
-            'rgba(20, 184, 166, 0.35)',
-            'rgba(239, 68, 68, 0.35)'
-          ],
-          borderColor: ['#3b82f6','#22c55e','#f59e0b','#ec4899','#6366f1','#14b8a6','#ef4444'],
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom', labels: { color: '#111827' } },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                const label = ctx.label ? `${ctx.label}: ` : '';
-                return label + money(ctx.parsed || 0);
-              }
-            }
-          }
-        }
-      }
-    });
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('[data-period]').forEach(btn => {
-      btn.addEventListener('click', () => fetchData(btn.dataset.period));
-    });
-
-    document.getElementById('btn-aplicar-rango').addEventListener('click', () => {
-      const desde = document.getElementById('fecha-desde').value;
-      const hasta = document.getElementById('fecha-hasta').value;
-      fetchData('', desde, hasta);
-    });
-
-    document.getElementById('btn-limpiar-rango').addEventListener('click', () => {
-      setDateInputs('', '');
-      fetchData('30');
-    });
-
-    fetchData('30');
+  document.addEventListener('DOMContentLoaded',()=>{
+    document.querySelectorAll('.period-pills .pp').forEach(b=>b.addEventListener('click',()=>load(b.dataset.period)));
+    document.getElementById('btn-aplicar').addEventListener('click',()=>load('',document.getElementById('fecha-desde').value,document.getElementById('fecha-hasta').value));
+    load('30');
   });
 </script>
 {% endblock %}

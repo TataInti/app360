@@ -2,383 +2,200 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="mb-0">BI Unificado · Rentabilidad & Finanzas</h1>
+
+  <!-- Header -->
+  <div class="panel-header">
+    <div>
+      <h1>BI Unificado · Rentabilidad & Finanzas</h1>
+      <span class="panel-subtitle" id="period-label">Período: –</span>
+    </div>
+  </div>
+
+  <!-- Period bar -->
+  <div class="period-bar">
+    <div class="period-pills">
+      <button class="pp" data-period="7">7d</button>
+      <button class="pp" data-period="15">15d</button>
+      <button class="pp active" data-period="30">30d</button>
+      <button class="pp" data-period="6m">6m</button>
+      <button class="pp" data-period="ytd">YTD</button>
+    </div>
+    <div class="date-group">
+      <div>
+        <label for="fecha-desde">Desde</label>
+        <input id="fecha-desde" type="date" />
+      </div>
+      <div>
+        <label for="fecha-hasta">Hasta</label>
+        <input id="fecha-hasta" type="date" />
+      </div>
+      <button class="pp active" id="btn-aplicar">Aplicar</button>
+    </div>
+  </div>
+
+  <div id="bi-warning" class="alert alert-warning d-none" role="alert"></div>
+
+  <!-- Skeleton -->
+  <div id="skeleton">
+    <div class="kpi-grid"><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div></div>
+    <div class="charts-grid"><div class="skeleton skeleton-chart"></div><div class="skeleton skeleton-chart"></div></div>
+  </div>
+
+  <!-- Content -->
+  <div id="content" style="display:none">
+    <div class="kpi-grid">
+      <div class="kpi-card accent-green"><span class="kpi-label">Ingresos SabioGo</span><span class="kpi-value" id="kpi-ingresos">$0</span></div>
+      <div class="kpi-card accent-red"><span class="kpi-label">Costos SabioGo</span><span class="kpi-value" id="kpi-costos">$0</span></div>
+      <div class="kpi-card accent-blue"><span class="kpi-label">Margen Bruto</span><span class="kpi-value" id="kpi-margen">$0</span></div>
+      <div class="kpi-card accent-purple"><span class="kpi-label">Margen %</span><span class="kpi-value" id="kpi-margen-pct">0 %</span></div>
     </div>
 
-    <div class="row mb-4">
-        <div class="col-md-8">
-            <div class="input-group">
-                <label class="input-group-text">Desde</label>
-                <input type="date" id="fecha-desde" class="form-control">
-                <label class="input-group-text">Hasta</label>
-                <input type="date" id="fecha-hasta" class="form-control">
-                <button class="btn btn-primary" onclick="cargarDatos()">Actualizar</button>
-            </div>
-        </div>
-        <div class="col-md-4 text-end">
-            <small class="text-muted" id="periodo-label">Período: -</small>
-        </div>
+    <div class="kpi-grid">
+      <div class="kpi-card accent-amber"><span class="kpi-label">Gastos Finanzas</span><span class="kpi-value" id="kpi-gastos">$0</span></div>
+      <div class="kpi-card accent-sky"><span class="kpi-label">Caja Neta</span><span class="kpi-value" id="kpi-caja-neta">$0</span></div>
+      <div class="kpi-card"><span class="kpi-label">Movimientos de Caja</span><span class="kpi-value" id="kpi-movimientos">0</span></div>
+      <div class="kpi-card"><span class="kpi-label">Productos Activos (SabioGo)</span><span class="kpi-value" id="kpi-productos">0</span></div>
     </div>
 
-    <div id="bi-warning" class="alert alert-warning d-none" role="alert"></div>
-
-    <div class="row mb-4 g-3">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Ingresos SabioGo</h6>
-                    <h4 id="kpi-ingresos">$0.00</h4>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-danger text-white h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Costos SabioGo</h6>
-                    <h4 id="kpi-costos">$0.00</h4>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Margen Bruto SabioGo</h6>
-                    <h4 id="kpi-margen">$0.00</h4>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-dark text-white h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Margen % SabioGo</h6>
-                    <h4 id="kpi-margen-pct">0.0%</h4>
-                </div>
-            </div>
-        </div>
+    <div class="charts-grid">
+      <div class="chart-card-v2"><h6>Evolución mensual · Ingresos, Costos y Margen</h6><canvas id="margenMensualChart"></canvas></div>
+      <div class="chart-card-v2"><h6>Caja mensual · Ingresos vs Egresos</h6><canvas id="cajaMensualChart"></canvas></div>
     </div>
 
-    <div class="row mb-4 g-3">
-        <div class="col-md-3">
-            <div class="card bg-secondary text-white h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Gastos Finanzas</h6>
-                    <h4 id="kpi-gastos">$0.00</h4>
-                </div>
-            </div>
+    <div class="row g-3 mb-3">
+      <div class="col-lg-7">
+        <div class="table-card">
+          <div class="table-card-head">Top productos por margen (SabioGo)</div>
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Producto</th><th>SKU</th><th class="text-end">Ingresos</th><th class="text-end">Costos</th><th class="text-end">Margen</th><th class="text-end">Margen %</th></tr></thead>
+            <tbody id="tbody-top-productos"><tr><td colspan="6" class="text-muted">Cargando…</td></tr></tbody>
+          </table>
         </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Caja Neta</h6>
-                    <h4 id="kpi-caja-neta">$0.00</h4>
-                </div>
-            </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="table-card mb-3">
+          <div class="table-card-head">Gastos por categoría (Finanzas)</div>
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Categoría</th><th class="text-end">Monto</th></tr></thead>
+            <tbody id="tbody-gastos-categoria"><tr><td colspan="2" class="text-muted">Cargando…</td></tr></tbody>
+          </table>
         </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-dark h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Movimientos de Caja</h6>
-                    <h4 id="kpi-movimientos">0</h4>
-                </div>
-            </div>
+        <div class="table-card">
+          <div class="table-card-head">Calidad de datos SabioGo</div>
+          <div style="padding:0.75rem 1rem;font-size:0.85rem;color:#374151">
+            <div class="mb-1"><strong>Ventas por estado:</strong> <span id="q-ventas-estados">-</span></div>
+            <div class="mb-1"><strong>Compras por estado:</strong> <span id="q-compras-estados">-</span></div>
+            <div class="mb-1"><strong>Ventas global:</strong> <span id="q-ventas-estados-global">-</span></div>
+            <div class="mb-1"><strong>Compras global:</strong> <span id="q-compras-estados-global">-</span></div>
+            <div class="mb-1"><strong>Sin mapeo ventas:</strong> <span id="q-sin-mapeo-ventas">0</span></div>
+            <div><strong>Sin mapeo compras:</strong> <span id="q-sin-mapeo-compras">0</span></div>
+          </div>
         </div>
-        <div class="col-md-3">
-            <div class="card bg-light h-100">
-                <div class="card-body">
-                    <h6 class="card-title">Productos Activos (SabioGo)</h6>
-                    <h4 id="kpi-productos">0</h4>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
-
-    <div class="charts-row mb-4">
-        <div class="chart-card chart-card-light">
-            <h6 class="mb-3">Evolución mensual · Ingresos, Costos y Margen</h6>
-            <canvas id="margenMensualChart"></canvas>
-        </div>
-        <div class="chart-card chart-card-light">
-            <h6 class="mb-3">Caja mensual · Ingresos vs Egresos</h6>
-            <canvas id="cajaMensualChart"></canvas>
-        </div>
-    </div>
-
-    <div class="row g-3 mb-4">
-        <div class="col-lg-7">
-            <div class="card">
-                <div class="card-header">
-                    <strong>Top productos por margen (SabioGo)</strong>
-                </div>
-                <div class="card-body table-responsive">
-                    <table class="table table-sm align-middle">
-                        <thead>
-                            <tr>
-                                <th>Producto</th>
-                                <th>SKU</th>
-                                <th class="text-end">Ingresos</th>
-                                <th class="text-end">Costos</th>
-                                <th class="text-end">Margen</th>
-                                <th class="text-end">Margen %</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-top-productos">
-                            <tr><td colspan="6">Cargando...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-5">
-            <div class="card mb-3">
-                <div class="card-header">
-                    <strong>Gastos por categoría (Finanzas)</strong>
-                </div>
-                <div class="card-body table-responsive">
-                    <table class="table table-sm align-middle">
-                        <thead>
-                            <tr>
-                                <th>Categoría</th>
-                                <th class="text-end">Monto</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-gastos-categoria">
-                            <tr><td colspan="2">Cargando...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <strong>Calidad de datos SabioGo</strong>
-                </div>
-                <div class="card-body">
-                    <div class="small mb-2"><strong>Ventas por estado:</strong> <span id="q-ventas-estados">-</span></div>
-                    <div class="small mb-2"><strong>Compras por estado:</strong> <span id="q-compras-estados">-</span></div>
-                    <div class="small mb-2"><strong>Ventas global:</strong> <span id="q-ventas-estados-global">-</span></div>
-                    <div class="small mb-2"><strong>Compras global:</strong> <span id="q-compras-estados-global">-</span></div>
-                    <div class="small mb-2"><strong>Sin mapeo ventas:</strong> <span id="q-sin-mapeo-ventas">0</span></div>
-                    <div class="small"><strong>Sin mapeo compras:</strong> <span id="q-sin-mapeo-compras">0</span></div>
-                </div>
-            </div>
-        </div>
-    </div>
+  </div>
 </div>
 
 <script>
-    let margenMensualChart;
-    let cajaMensualChart;
+  let margenMensualChart, cajaMensualChart;
+  const money = v => { const n=Number(v||0); return '$'+(Number.isFinite(n)?n:0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  const pct  = v => Number(v||0).toFixed(1)+' %';
+  const fmtInt = v => Number(v||0).toLocaleString('es-AR',{maximumFractionDigits:0});
+  const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  function fmtMes(s){ if(!s)return'-'; const p=String(s).split('-'); if(p.length>=2){const m=parseInt(p[1],10); if(m>=1&&m<=12)return MESES[m-1]+' '+p[0];} return String(s); }
 
-    const fmtMoneda = new Intl.NumberFormat('es-AR', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
+  function setActive(period){ document.querySelectorAll('.period-pills .pp').forEach(b=>b.classList.toggle('active',b.dataset.period===period)); }
 
-    const fmtEntero = new Intl.NumberFormat('es-AR', {
-        maximumFractionDigits: 0,
-    });
+  function formatearEstados(es){ const e=Object.entries(es||{}); if(!e.length)return'-'; return e.map(([k,v])=>`${k}: ${v}`).join(' · '); }
 
-    const fmtPct = new Intl.NumberFormat('es-AR', {
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1,
-    });
+  function renderTopProductos(items){
+    const tb=document.getElementById('tbody-top-productos');
+    tb.innerHTML=(items||[]).map(i=>`<tr><td>${i.producto||'N/A'}</td><td>${i.sku||''}</td><td class="text-end">${money(i.ingresos)}</td><td class="text-end">${money(i.costos)}</td><td class="text-end">${money(i.margen_bruto)}</td><td class="text-end">${pct(i.margen_porcentual)}</td></tr>`).join('')||'<tr><td colspan="6" class="text-muted">Sin datos</td></tr>';
+  }
 
-    function formatearMoneda(valor) {
-        const n = Number(valor || 0);
-        return `$${fmtMoneda.format(n)}`;
+  function renderGastosCategoria(items){
+    const tb=document.getElementById('tbody-gastos-categoria');
+    tb.innerHTML=(items||[]).map(i=>`<tr><td>${i.categoria||'Sin categoría'}</td><td class="text-end">${money(i.monto_total)}</td></tr>`).join('')||'<tr><td colspan="2" class="text-muted">Sin datos</td></tr>';
+  }
+
+  function renderCalidad(c){
+    document.getElementById('q-ventas-estados').textContent=formatearEstados(c.ventas_por_estado);
+    document.getElementById('q-compras-estados').textContent=formatearEstados(c.compras_por_estado);
+    document.getElementById('q-ventas-estados-global').textContent=formatearEstados(c.ventas_por_estado_global);
+    document.getElementById('q-compras-estados-global').textContent=formatearEstados(c.compras_por_estado_global);
+    document.getElementById('q-sin-mapeo-ventas').textContent=c.sin_mapeo_ventas||0;
+    document.getElementById('q-sin-mapeo-compras').textContent=c.sin_mapeo_compras||0;
+  }
+
+  function periodToDates(period){
+    const h=new Date(), d=new Date();
+    if(period==='ytd'){d.setMonth(0);d.setDate(1);}
+    else if(period==='6m') d.setMonth(d.getMonth()-6);
+    else d.setDate(d.getDate()-Number(period));
+    const fmt=x=>x.toISOString().slice(0,10);
+    return{desde:fmt(d),hasta:fmt(h)};
+  }
+
+  async function load(period, desde='', hasta=''){
+    setActive(period||'');
+    document.getElementById('skeleton').style.display='';
+    document.getElementById('content').style.display='none';
+    if(period&&!desde){const dd=periodToDates(period);desde=dd.desde;hasta=dd.hasta;}
+    const p=new URLSearchParams();
+    if(desde)p.set('fecha_desde',desde); if(hasta)p.set('fecha_hasta',hasta);
+    try{
+      const r=await fetch('/api/bi/dashboard?'+p), data=await r.json();
+      if(data.error)throw new Error(data.error+(data.detail?' | '+data.detail:''));
+
+      document.getElementById('period-label').textContent=`Período: ${data.periodo.desde} a ${data.periodo.hasta}`;
+      document.getElementById('fecha-desde').value=data.periodo.desde;
+      document.getElementById('fecha-hasta').value=data.periodo.hasta;
+
+      const w=document.getElementById('bi-warning');
+      if(data.warning){w.textContent=data.warning;w.classList.remove('d-none');}else{w.textContent='';w.classList.add('d-none');}
+
+      const k=data.kpis||{};
+      document.getElementById('kpi-ingresos').textContent=money(k.ingresos_sabiogo);
+      document.getElementById('kpi-costos').textContent=money(k.costos_sabiogo);
+      document.getElementById('kpi-margen').textContent=money(k.margen_bruto_sabiogo);
+      document.getElementById('kpi-margen-pct').textContent=pct(k.margen_porcentual_sabiogo);
+      document.getElementById('kpi-gastos').textContent=money(k.gastos_finanzas);
+      document.getElementById('kpi-caja-neta').textContent=money(k.caja_neta);
+      document.getElementById('kpi-movimientos').textContent=fmtInt(k.movimientos_caja);
+      document.getElementById('kpi-productos').textContent=fmtInt(k.productos_activos_sabiogo);
+
+      // Charts
+      const s=data.series||{}, md=s.margen_mensual||[], mL=md.map(x=>fmtMes(x.periodo));
+      const cOpts={responsive:true,plugins:{legend:{labels:{color:'#374151',font:{size:11}}},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${money(ctx.parsed.y)}`}}},scales:{x:{ticks:{color:'#6b7280',font:{size:11}},grid:{display:false}},y:{ticks:{color:'#6b7280',callback:v=>money(v),font:{size:11}},grid:{color:'#f1f5f9'}}}};
+
+      if(margenMensualChart)margenMensualChart.destroy();
+      margenMensualChart=new Chart(document.getElementById('margenMensualChart'),{type:'line',data:{labels:mL,datasets:[
+        {label:'Ingresos',data:md.map(x=>x.ingresos||0),borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,0.08)',tension:0.35,pointRadius:3},
+        {label:'Costos',data:md.map(x=>x.costos||0),borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,0.08)',tension:0.35,pointRadius:3},
+        {label:'Margen',data:md.map(x=>x.margen||0),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.08)',tension:0.35,pointRadius:3}
+      ]},options:cOpts});
+
+      const cd=s.caja_mensual||[], cL=cd.map(x=>fmtMes(x.periodo));
+      if(cajaMensualChart)cajaMensualChart.destroy();
+      cajaMensualChart=new Chart(document.getElementById('cajaMensualChart'),{type:'bar',data:{labels:cL,datasets:[
+        {label:'Ingresos caja',data:cd.map(x=>x.ingresos||0),backgroundColor:'rgba(22,163,74,0.25)',borderColor:'#16a34a',borderWidth:1},
+        {label:'Egresos caja',data:cd.map(x=>x.egresos||0),backgroundColor:'rgba(220,38,38,0.25)',borderColor:'#dc2626',borderWidth:1},
+        {label:'Neto',data:cd.map(x=>x.neto||0),backgroundColor:'rgba(59,130,246,0.25)',borderColor:'#3b82f6',borderWidth:1}
+      ]},options:cOpts});
+
+      renderTopProductos((data.detalles&&data.detalles.top_productos_margen)||[]);
+      renderGastosCategoria((data.detalles&&data.detalles.gastos_por_categoria)||[]);
+      renderCalidad((data.detalles&&data.detalles.calidad_sabiogo)||{});
+    }catch(e){console.error('Error en BI:',e);}finally{
+      document.getElementById('skeleton').style.display='none';
+      document.getElementById('content').style.display='';
     }
+  }
 
-    function formatearEntero(valor) {
-        return fmtEntero.format(Number(valor || 0));
-    }
-
-    function formatearEstados(estados) {
-        const entries = Object.entries(estados || {});
-        if (!entries.length) return '-';
-        return entries.map(([estado, total]) => `${estado}: ${total}`).join(' · ');
-    }
-
-    function renderKPIs(kpis) {
-        document.getElementById('kpi-ingresos').textContent = formatearMoneda(kpis.ingresos_sabiogo);
-        document.getElementById('kpi-costos').textContent = formatearMoneda(kpis.costos_sabiogo);
-        document.getElementById('kpi-margen').textContent = formatearMoneda(kpis.margen_bruto_sabiogo);
-        document.getElementById('kpi-margen-pct').textContent = `${fmtPct.format(Number(kpis.margen_porcentual_sabiogo || 0))}%`;
-        document.getElementById('kpi-gastos').textContent = formatearMoneda(kpis.gastos_finanzas);
-        document.getElementById('kpi-caja-neta').textContent = formatearMoneda(kpis.caja_neta);
-        document.getElementById('kpi-movimientos').textContent = formatearEntero(kpis.movimientos_caja || 0);
-        document.getElementById('kpi-productos').textContent = formatearEntero(kpis.productos_activos_sabiogo || 0);
-    }
-
-    function renderCharts(series) {
-        const margenData = series.margen_mensual || [];
-        const margenLabels = margenData.map(x => x.periodo || 'N/A');
-        const commonChartOptions = {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    labels: {
-                        color: '#111827'
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    ticks: { color: '#374151' },
-                    grid: { color: 'rgba(55, 65, 81, 0.12)' }
-                },
-                y: {
-                    ticks: { color: '#374151' },
-                    grid: { color: 'rgba(55, 65, 81, 0.12)' }
-                }
-            }
-        };
-
-        const margenCtx = document.getElementById('margenMensualChart').getContext('2d');
-        if (margenMensualChart) margenMensualChart.destroy();
-        margenMensualChart = new Chart(margenCtx, {
-            type: 'line',
-            data: {
-                labels: margenLabels,
-                datasets: [
-                    {
-                        label: 'Ingresos',
-                        data: margenData.map(x => x.ingresos || 0),
-                        borderColor: '#22c55e',
-                        backgroundColor: 'rgba(34, 197, 94, 0.15)',
-                        tension: 0.3
-                    },
-                    {
-                        label: 'Costos',
-                        data: margenData.map(x => x.costos || 0),
-                        borderColor: '#ef4444',
-                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                        tension: 0.3
-                    },
-                    {
-                        label: 'Margen',
-                        data: margenData.map(x => x.margen || 0),
-                        borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                        tension: 0.3
-                    }
-                ]
-            },
-            options: commonChartOptions
-        });
-
-        const cajaData = series.caja_mensual || [];
-        const cajaLabels = cajaData.map(x => x.periodo || 'N/A');
-
-        const cajaCtx = document.getElementById('cajaMensualChart').getContext('2d');
-        if (cajaMensualChart) cajaMensualChart.destroy();
-        cajaMensualChart = new Chart(cajaCtx, {
-            type: 'bar',
-            data: {
-                labels: cajaLabels,
-                datasets: [
-                    {
-                        label: 'Ingresos caja',
-                        data: cajaData.map(x => x.ingresos || 0),
-                        backgroundColor: '#22c55e'
-                    },
-                    {
-                        label: 'Egresos caja',
-                        data: cajaData.map(x => x.egresos || 0),
-                        backgroundColor: '#ef4444'
-                    },
-                    {
-                        label: 'Neto',
-                        data: cajaData.map(x => x.neto || 0),
-                        backgroundColor: '#3b82f6'
-                    }
-                ]
-            },
-            options: commonChartOptions
-        });
-    }
-
-    function renderTopProductos(items) {
-        const tbody = document.getElementById('tbody-top-productos');
-        tbody.innerHTML = (items || []).map(item => `
-            <tr>
-                <td>${item.producto || 'N/A'}</td>
-                <td>${item.sku || ''}</td>
-                <td class="text-end">${formatearMoneda(item.ingresos)}</td>
-                <td class="text-end">${formatearMoneda(item.costos)}</td>
-                <td class="text-end">${formatearMoneda(item.margen_bruto)}</td>
-                <td class="text-end">${fmtPct.format(Number(item.margen_porcentual || 0))}%</td>
-            </tr>
-        `).join('') || '<tr><td colspan="6">Sin datos para el período seleccionado</td></tr>';
-    }
-
-    function renderGastosCategoria(items) {
-        const tbody = document.getElementById('tbody-gastos-categoria');
-        tbody.innerHTML = (items || []).map(item => `
-            <tr>
-                <td>${item.categoria || 'Sin categoría'}</td>
-                <td class="text-end">${formatearMoneda(item.monto_total)}</td>
-            </tr>
-        `).join('') || '<tr><td colspan="2">Sin datos para el período seleccionado</td></tr>';
-    }
-
-    function renderCalidad(calidad) {
-        document.getElementById('q-ventas-estados').textContent = formatearEstados(calidad.ventas_por_estado);
-        document.getElementById('q-compras-estados').textContent = formatearEstados(calidad.compras_por_estado);
-        document.getElementById('q-ventas-estados-global').textContent = formatearEstados(calidad.ventas_por_estado_global);
-        document.getElementById('q-compras-estados-global').textContent = formatearEstados(calidad.compras_por_estado_global);
-        document.getElementById('q-sin-mapeo-ventas').textContent = calidad.sin_mapeo_ventas || 0;
-        document.getElementById('q-sin-mapeo-compras').textContent = calidad.sin_mapeo_compras || 0;
-    }
-
-    function cargarDatos() {
-        const fechaDesde = document.getElementById('fecha-desde').value;
-        const fechaHasta = document.getElementById('fecha-hasta').value;
-        let url = '/api/bi/dashboard';
-        if (fechaDesde || fechaHasta) {
-            const params = new URLSearchParams();
-            if (fechaDesde) params.append('fecha_desde', fechaDesde);
-            if (fechaHasta) params.append('fecha_hasta', fechaHasta);
-            url += `?${params.toString()}`;
-        }
-
-        fetch(url)
-            .then(r => r.json())
-            .then(data => {
-                if (data.error) {
-                    const detail = data.detail ? ` | ${data.detail}` : '';
-                    throw new Error(`${data.error}${detail}`);
-                }
-
-                document.getElementById('periodo-label').textContent = `Período: ${data.periodo.desde} a ${data.periodo.hasta}`;
-                document.getElementById('fecha-desde').value = data.periodo.desde;
-                document.getElementById('fecha-hasta').value = data.periodo.hasta;
-
-                const warningEl = document.getElementById('bi-warning');
-                if (data.warning) {
-                    warningEl.textContent = data.warning;
-                    warningEl.classList.remove('d-none');
-                } else {
-                    warningEl.textContent = '';
-                    warningEl.classList.add('d-none');
-                }
-
-                renderKPIs(data.kpis || {});
-                renderCharts(data.series || {});
-                renderTopProductos((data.detalles && data.detalles.top_productos_margen) || []);
-                renderGastosCategoria((data.detalles && data.detalles.gastos_por_categoria) || []);
-                renderCalidad((data.detalles && data.detalles.calidad_sabiogo) || {});
-            })
-            .catch(error => {
-                console.error('Error en BI dashboard:', error);
-                alert(`Error cargando BI: ${error.message}`);
-            });
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-        cargarDatos();
-    });
+  document.addEventListener('DOMContentLoaded',()=>{
+    document.querySelectorAll('.period-pills .pp').forEach(b=>b.addEventListener('click',()=>load(b.dataset.period)));
+    document.getElementById('btn-aplicar').addEventListener('click',()=>load('',document.getElementById('fecha-desde').value,document.getElementById('fecha-hasta').value));
+    load('30');
+  });
 </script>
 {% endblock %}
