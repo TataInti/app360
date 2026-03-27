@@ -130,6 +130,55 @@ def movimientos_listar():
     })
 
 
+@tesoreria_bp.route("/api/tesoreria/movimientos/resumen-instrumento", methods=["GET"])
+def movimientos_resumen_instrumento():
+    """Resumen de movimientos agrupados por instrumento con filtros de fecha y usuario"""
+    from sqlalchemy import func
+    
+    fecha_desde = request.args.get("fecha_desde")
+    fecha_hasta = request.args.get("fecha_hasta")
+    usuario_id = request.args.get("usuario_id")
+    
+    # Por defecto: hoy
+    if not fecha_desde and not fecha_hasta:
+        fecha_desde = date.today().isoformat()
+        fecha_hasta = date.today().isoformat()
+    
+    dt_desde = datetime.combine(datetime.strptime(fecha_desde, "%Y-%m-%d").date(), datetime.min.time()) if fecha_desde else datetime.combine(date.today(), datetime.min.time())
+    dt_hasta = datetime.combine(datetime.strptime(fecha_hasta, "%Y-%m-%d").date(), datetime.max.time()) if fecha_hasta else datetime.combine(date.today(), datetime.max.time())
+    
+    query = db.session.query(
+        InstrumentoPago.nombre.label('instrumento'),
+        func.sum(MovimientoCaja.monto).label('total')
+    ).join(
+        InstrumentoPago, MovimientoCaja.instrumento_id == InstrumentoPago.id
+    ).filter(
+        MovimientoCaja.estado != "anulado",
+        MovimientoCaja.fecha_hora >= dt_desde,
+        MovimientoCaja.fecha_hora <= dt_hasta
+    )
+    
+    if usuario_id:
+        query = query.filter(MovimientoCaja.usuario_id == usuario_id)
+    
+    query = query.group_by(
+        InstrumentoPago.nombre
+    ).order_by(
+        func.sum(MovimientoCaja.monto).desc()
+    )
+    
+    resultados = query.all()
+    
+    return jsonify({
+        "movimientos": [{
+            "instrumento": row.instrumento,
+            "total": float(row.total or 0)
+        } for row in resultados],
+        "fecha_desde": fecha_desde,
+        "fecha_hasta": fecha_hasta
+    })
+
+
 @tesoreria_bp.route("/api/tesoreria/movimientos/exportar", methods=["GET"])
 def movimientos_exportar():
     """Exportar movimientos de caja a Excel"""

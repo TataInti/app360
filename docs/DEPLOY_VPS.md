@@ -39,6 +39,12 @@ git push
 
 Si el VPS ya está instalado y corriendo, esta sección sirve como referencia para auditar configuración. No hace falta re-crear todo.
 
+### 0) Acceso al VPS
+- Acceso SSH con usuario root:
+```
+ssh root@72.61.47.19
+```
+
 ### 1) Código
 
 - Path esperado: `/var/www/app360`
