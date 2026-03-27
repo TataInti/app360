@@ -62,70 +62,50 @@
       <div class="chart-card-v2"><h6>Caja mensual · Ingresos vs Egresos</h6><canvas id="cajaMensualChart"></canvas></div>
     </div>
 
-    <div class="row g-3 mb-3">
-      <div class="col-lg-7">
-        <div class="table-card">
-          <div class="table-card-head">Top productos por margen (SabioGo)</div>
-          <table class="table table-sm align-middle mb-0">
-            <thead><tr><th>Producto</th><th>SKU</th><th class="text-end">Ingresos</th><th class="text-end">Costos</th><th class="text-end">Margen</th><th class="text-end">Margen %</th></tr></thead>
-            <tbody id="tbody-top-productos"><tr><td colspan="6" class="text-muted">Cargando…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="col-lg-5">
-        <div class="table-card mb-3">
-          <div class="table-card-head">Gastos por categoría (Finanzas)</div>
-          <table class="table table-sm align-middle mb-0">
-            <thead><tr><th>Categoría</th><th class="text-end">Monto</th></tr></thead>
-            <tbody id="tbody-gastos-categoria"><tr><td colspan="2" class="text-muted">Cargando…</td></tr></tbody>
-          </table>
-        </div>
-        <div class="table-card">
-          <div class="table-card-head">Calidad de datos SabioGo</div>
-          <div style="padding:0.75rem 1rem;font-size:0.85rem;color:#374151">
-            <div class="mb-1"><strong>Ventas por estado:</strong> <span id="q-ventas-estados">-</span></div>
-            <div class="mb-1"><strong>Compras por estado:</strong> <span id="q-compras-estados">-</span></div>
-            <div class="mb-1"><strong>Ventas global:</strong> <span id="q-ventas-estados-global">-</span></div>
-            <div class="mb-1"><strong>Compras global:</strong> <span id="q-compras-estados-global">-</span></div>
-            <div class="mb-1"><strong>Sin mapeo ventas:</strong> <span id="q-sin-mapeo-ventas">0</span></div>
-            <div><strong>Sin mapeo compras:</strong> <span id="q-sin-mapeo-compras">0</span></div>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </div>
 
 <script>
   let margenMensualChart, cajaMensualChart;
-  const money = v => { const n=Number(v||0); return '$'+(Number.isFinite(n)?n:0).toLocaleString('es-AR',{maximumFractionDigits:0}); };
-  const pct  = v => Number(v||0).toFixed(1)+' %';
+  const money  = v => { const n=Number(v||0); return '$'+(Number.isFinite(n)?n:0).toLocaleString('es-AR',{maximumFractionDigits:0}); };
+  const pct    = v => Number(v||0).toFixed(1)+' %';
   const fmtInt = v => Number(v||0).toLocaleString('es-AR',{maximumFractionDigits:0});
-  const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const MESES  = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   function fmtMes(s){ if(!s)return'-'; const p=String(s).split('-'); if(p.length>=2){const m=parseInt(p[1],10); if(m>=1&&m<=12)return MESES[m-1]+' '+p[0];} return String(s); }
+  function fmtNumAbbr(n){ const v=parseFloat(n)||0; if(Math.abs(v)>=1e6) return '$'+(v/1e6).toFixed(1).replace(/\.0$/,'')+'M'; if(Math.abs(v)>=1e3) return '$'+Math.round(v/1e3)+'K'; return '$'+Math.round(v).toLocaleString('es-AR'); }
+
+  // Plugin: etiquetas pequeñas por punto en gráfico de líneas.
+  // Cada dataset usa un offset Y distinto para evitar superposición cuando los valores son cercanos.
+  const lineLabelsPlugin = {
+    id: 'lineLabels',
+    afterDatasetsDraw(chart) {
+      const n = (chart.data.datasets[0]?.data || []).length;
+      if (!n || n > 14) return; // sin etiquetas si hay demasiados puntos
+      const {ctx} = chart;
+      // Ingresos: arriba | Costos: abajo | Margen: arriba con desplazamiento derecha
+      const cfg = [
+        {yOff:-13, xOff:0, align:'center'},
+        {yOff: 14, xOff:0, align:'center'},
+        {yOff: -5, xOff: 7, align:'left'}
+      ];
+      chart.data.datasets.forEach((ds, di) => {
+        const meta = chart.getDatasetMeta(di);
+        if (meta.hidden) return;
+        const {yOff, xOff, align} = cfg[di] || {yOff:-10, xOff:0, align:'center'};
+        ctx.save();
+        ctx.font = '9px sans-serif';
+        ctx.fillStyle = ds.borderColor;
+        ctx.textAlign = align;
+        meta.data.forEach((pt, i) => {
+          if (!ds.data[i]) return;
+          ctx.fillText(fmtNumAbbr(ds.data[i]), pt.x + xOff, pt.y + yOff);
+        });
+        ctx.restore();
+      });
+    }
+  };
 
   function setActive(period){ document.querySelectorAll('.period-pills .pp').forEach(b=>b.classList.toggle('active',b.dataset.period===period)); }
-
-  function formatearEstados(es){ const e=Object.entries(es||{}); if(!e.length)return'-'; return e.map(([k,v])=>`${k}: ${v}`).join(' · '); }
-
-  function renderTopProductos(items){
-    const tb=document.getElementById('tbody-top-productos');
-    tb.innerHTML=(items||[]).map(i=>`<tr><td>${i.producto||'N/A'}</td><td>${i.sku||''}</td><td class="text-end">${money(i.ingresos)}</td><td class="text-end">${money(i.costos)}</td><td class="text-end">${money(i.margen_bruto)}</td><td class="text-end">${pct(i.margen_porcentual)}</td></tr>`).join('')||'<tr><td colspan="6" class="text-muted">Sin datos</td></tr>';
-  }
-
-  function renderGastosCategoria(items){
-    const tb=document.getElementById('tbody-gastos-categoria');
-    tb.innerHTML=(items||[]).map(i=>`<tr><td>${i.categoria||'Sin categoría'}</td><td class="text-end">${money(i.monto_total)}</td></tr>`).join('')||'<tr><td colspan="2" class="text-muted">Sin datos</td></tr>';
-  }
-
-  function renderCalidad(c){
-    document.getElementById('q-ventas-estados').textContent=formatearEstados(c.ventas_por_estado);
-    document.getElementById('q-compras-estados').textContent=formatearEstados(c.compras_por_estado);
-    document.getElementById('q-ventas-estados-global').textContent=formatearEstados(c.ventas_por_estado_global);
-    document.getElementById('q-compras-estados-global').textContent=formatearEstados(c.compras_por_estado_global);
-    document.getElementById('q-sin-mapeo-ventas').textContent=c.sin_mapeo_ventas||0;
-    document.getElementById('q-sin-mapeo-compras').textContent=c.sin_mapeo_compras||0;
-  }
 
   function periodToDates(period){
     const h=new Date(), d=new Date();
@@ -133,7 +113,7 @@
     else if(period==='6m') d.setMonth(d.getMonth()-6);
     else d.setDate(d.getDate()-Number(period));
     const fmt=x=>x.toISOString().slice(0,10);
-    return{desde:fmt(d),hasta:fmt(h)};
+    return {desde:fmt(d), hasta:fmt(h)};
   }
 
   async function load(period, desde='', hasta=''){
@@ -164,28 +144,55 @@
       document.getElementById('kpi-movimientos').textContent=fmtInt(k.movimientos_caja);
       document.getElementById('kpi-productos').textContent=fmtInt(k.productos_activos_sabiogo);
 
-      // Charts
+      // — Evolución mensual (líneas + etiquetas abreviadas) —
       const s=data.series||{}, md=s.margen_mensual||[], mL=md.map(x=>fmtMes(x.periodo));
-      const cOpts={responsive:true,plugins:{legend:{labels:{color:'#374151',font:{size:11}}},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${money(ctx.parsed.y)}`}}},scales:{x:{ticks:{color:'#6b7280',font:{size:11}},grid:{display:false}},y:{ticks:{color:'#6b7280',callback:v=>money(v),font:{size:11}},grid:{color:'#f1f5f9'}}}};
+      const lineOpts = {
+        responsive: true,
+        plugins: {
+          legend:  {labels:{color:'#374151',font:{size:11}}},
+          tooltip: {callbacks:{label:ctx=>`${ctx.dataset.label}: ${money(ctx.parsed.y)}`}}
+        },
+        scales: {
+          x: {ticks:{color:'#6b7280',font:{size:11}}, grid:{display:false}},
+          y: {ticks:{color:'#6b7280', callback:v=>fmtNumAbbr(v), font:{size:11}}, grid:{color:'#f1f5f9'}}
+        }
+      };
+      if(margenMensualChart) margenMensualChart.destroy();
+      margenMensualChart = new Chart(document.getElementById('margenMensualChart'), {
+        type: 'line',
+        plugins: [lineLabelsPlugin],
+        data: {labels:mL, datasets:[
+          {label:'Ingresos', data:md.map(x=>x.ingresos||0), borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.08)', tension:0.35, pointRadius:3},
+          {label:'Costos',   data:md.map(x=>x.costos||0),   borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,0.08)',  tension:0.35, pointRadius:3},
+          {label:'Margen',   data:md.map(x=>x.margen||0),   borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.08)', tension:0.35, pointRadius:3}
+        ]},
+        options: lineOpts
+      });
 
-      if(margenMensualChart)margenMensualChart.destroy();
-      margenMensualChart=new Chart(document.getElementById('margenMensualChart'),{type:'line',data:{labels:mL,datasets:[
-        {label:'Ingresos',data:md.map(x=>x.ingresos||0),borderColor:'#22c55e',backgroundColor:'rgba(34,197,94,0.08)',tension:0.35,pointRadius:3},
-        {label:'Costos',data:md.map(x=>x.costos||0),borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,0.08)',tension:0.35,pointRadius:3},
-        {label:'Margen',data:md.map(x=>x.margen||0),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.08)',tension:0.35,pointRadius:3}
-      ]},options:cOpts});
-
+      // — Caja mensual (barras) —
       const cd=s.caja_mensual||[], cL=cd.map(x=>fmtMes(x.periodo));
-      if(cajaMensualChart)cajaMensualChart.destroy();
-      cajaMensualChart=new Chart(document.getElementById('cajaMensualChart'),{type:'bar',data:{labels:cL,datasets:[
-        {label:'Ingresos caja',data:cd.map(x=>x.ingresos||0),backgroundColor:'rgba(22,163,74,0.25)',borderColor:'#16a34a',borderWidth:1},
-        {label:'Egresos caja',data:cd.map(x=>x.egresos||0),backgroundColor:'rgba(220,38,38,0.25)',borderColor:'#dc2626',borderWidth:1},
-        {label:'Neto',data:cd.map(x=>x.neto||0),backgroundColor:'rgba(59,130,246,0.25)',borderColor:'#3b82f6',borderWidth:1}
-      ]},options:cOpts});
+      const barOpts = {
+        responsive: true,
+        plugins: {
+          legend:  {labels:{color:'#374151',font:{size:11}}},
+          tooltip: {callbacks:{label:ctx=>`${ctx.dataset.label}: ${money(ctx.parsed.y)}`}}
+        },
+        scales: {
+          x: {ticks:{color:'#6b7280',font:{size:11}}, grid:{display:false}},
+          y: {beginAtZero:true, ticks:{color:'#6b7280', callback:v=>fmtNumAbbr(v), font:{size:11}}, grid:{color:'#f1f5f9'}}
+        }
+      };
+      if(cajaMensualChart) cajaMensualChart.destroy();
+      cajaMensualChart = new Chart(document.getElementById('cajaMensualChart'), {
+        type: 'bar',
+        data: {labels:cL, datasets:[
+          {label:'Ingresos caja', data:cd.map(x=>parseFloat(x.ingresos)||0), backgroundColor:'rgba(22,163,74,0.25)',  borderColor:'#16a34a', borderWidth:1},
+          {label:'Egresos caja',  data:cd.map(x=>parseFloat(x.egresos)||0),  backgroundColor:'rgba(220,38,38,0.25)',  borderColor:'#dc2626', borderWidth:1},
+          {label:'Neto',          data:cd.map(x=>parseFloat(x.neto)||0),     backgroundColor:'rgba(59,130,246,0.25)', borderColor:'#3b82f6', borderWidth:1}
+        ]},
+        options: barOpts
+      });
 
-      renderTopProductos((data.detalles&&data.detalles.top_productos_margen)||[]);
-      renderGastosCategoria((data.detalles&&data.detalles.gastos_por_categoria)||[]);
-      renderCalidad((data.detalles&&data.detalles.calidad_sabiogo)||{});
     }catch(e){console.error('Error en BI:',e);}finally{
       document.getElementById('skeleton').style.display='none';
       document.getElementById('content').style.display='';
