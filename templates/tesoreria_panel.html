@@ -272,6 +272,13 @@
         return Number.isFinite(n) ? n : 0;
     }
 
+    function fmtNumAbbr(n) {
+        const abs = Math.abs(n);
+        if (abs >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
+        if (abs >= 1000) return '$' + (n / 1000).toFixed(0) + 'K';
+        return '$' + Math.round(n).toLocaleString('es-AR');
+    }
+
     function chartOptionsClaro({ stacked = false } = {}) {
         return {
             responsive: true,
@@ -347,6 +354,28 @@
             if (!ctx) return;
 
             if (flujoChart) flujoChart.destroy();
+            const dataLabelsPlugin = {
+                afterDatasetsDraw(chart) {
+                    const ctx = chart.ctx;
+                    chart.data.datasets.forEach((dataset, i) => {
+                        const meta = chart.getDatasetMeta(i);
+                        if (meta.hidden) return;
+                        meta.data.forEach((datapoint, index) => {
+                            const v = dataset.data[index];
+                            if (v === null || v === undefined) return;
+                            const label = fmtNumAbbr(v);
+                            ctx.fillStyle = '#111827';
+                            ctx.font = 'bold 11px Arial';
+                            ctx.textAlign = 'center';
+                            if (dataset.type === 'line') {
+                                ctx.fillText(label, datapoint.x, datapoint.y - 8);
+                            } else {
+                                ctx.fillText(label, datapoint.x, datapoint.y - 5);
+                            }
+                        });
+                    });
+                }
+            };
             flujoChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -378,7 +407,8 @@
                         }
                     ]
                 },
-                options: chartOptionsClaro({ stacked: false })
+                options: chartOptionsClaro({ stacked: false }),
+                plugins: [dataLabelsPlugin]
             });
         } catch (e) {
             console.error('Error gráfico flujo:', e);
@@ -409,6 +439,27 @@
             if (!ctx) return;
 
             if (instrumentosChart) instrumentosChart.destroy();
+            const doughnutLabelsPlugin = {
+                afterDatasetsDraw(chart) {
+                    const ctx = chart.ctx;
+                    const centerX = (chart.chartArea.left + chart.chartArea.right) / 2;
+                    const centerY = (chart.chartArea.top + chart.chartArea.bottom) / 2;
+                    chart.getDatasetMeta(0).data.forEach((datapoint, index) => {
+                        const v = chart.data.datasets[0].data[index];
+                        if (v === null || v === undefined) return;
+                        const label = fmtNumAbbr(v);
+                        const angle = (datapoint.startAngle + datapoint.endAngle) / 2;
+                        const radius = (datapoint.innerRadius + datapoint.outerRadius) / 2;
+                        const x = centerX + Math.cos(angle) * radius;
+                        const y = centerY + Math.sin(angle) * radius;
+                        ctx.fillStyle = '#fff';
+                        ctx.font = 'bold 11px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(label, x, y);
+                    });
+                }
+            };
             instrumentosChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
@@ -456,7 +507,8 @@
                             }
                         }
                     }
-                }
+                },
+                plugins: [doughnutLabelsPlugin]
             });
         } catch (e) {
             console.error('Error gráfico instrumentos:', e);
@@ -476,9 +528,9 @@
             else egresos += parseFloat(m.monto);
         });
         
-        document.getElementById('ingresos-hoy').textContent = '$' + ingresos.toLocaleString('es-AR');
-        document.getElementById('egresos-hoy').textContent = '$' + egresos.toLocaleString('es-AR');
-        document.getElementById('saldo-actual').textContent = '$' + (ingresos - egresos).toLocaleString('es-AR');
+        document.getElementById('ingresos-hoy').textContent = '$' + ingresos.toLocaleString('es-AR', {maximumFractionDigits:0});
+        document.getElementById('egresos-hoy').textContent = '$' + egresos.toLocaleString('es-AR', {maximumFractionDigits:0});
+        document.getElementById('saldo-actual').textContent = '$' + (ingresos - egresos).toLocaleString('es-AR', {maximumFractionDigits:0});
         
         tbody.innerHTML = movimientos.map(m => `
             <tr>

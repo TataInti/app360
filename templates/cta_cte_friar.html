@@ -329,10 +329,10 @@ async function cargarCuentaCorriente() {
         cuentaActual = data.cuenta;
         
         // Actualizar tarjetas
-        document.getElementById("saldoInicial").textContent = `$ ${parseFloat(data.cuenta.saldo_inicial).toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-        document.getElementById("totalLiquidaciones").textContent = `$ ${parseFloat(data.cuenta.total_liquidaciones).toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-        document.getElementById("totalPagos").textContent = `$ ${parseFloat(data.cuenta.total_pagos).toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-        document.getElementById("saldoActual").textContent = `$ ${parseFloat(data.cuenta.saldo_actual).toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+        document.getElementById("saldoInicial").textContent = `$ ${parseFloat(data.cuenta.saldo_inicial).toLocaleString('es-AR', {maximumFractionDigits:0})}`;
+        document.getElementById("totalLiquidaciones").textContent = `$ ${parseFloat(data.cuenta.total_liquidaciones).toLocaleString('es-AR', {maximumFractionDigits:0})}`;
+        document.getElementById("totalPagos").textContent = `$ ${parseFloat(data.cuenta.total_pagos).toLocaleString('es-AR', {maximumFractionDigits:0})}`;
+        document.getElementById("saldoActual").textContent = `$ ${parseFloat(data.cuenta.saldo_actual).toLocaleString('es-AR', {maximumFractionDigits:0})}`;
         
         // Mostrar fecha de última edición
         if (data.cuenta.fecha_edicion) {

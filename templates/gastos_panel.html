@@ -269,6 +269,13 @@ document.addEventListener('DOMContentLoaded', function() {
     cargarGastos();
 });
 
+function fmtNumAbbr(n) {
+    const abs = Math.abs(n);
+    if (abs >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
+    if (abs >= 1000) return '$' + (n / 1000).toFixed(0) + 'K';
+    return '$' + Math.round(n).toLocaleString('es-AR');
+}
+
 async function cargarCategorias() {
     try {
         const resp = await fetch('/api/gastos/categorias');
@@ -325,10 +332,10 @@ async function cargarGastos() {
             else if (g.estado === 'pagado') pagados++;
         });
         
-        document.getElementById('totalGastos').textContent = '$' + total.toLocaleString('es-AR');
+        document.getElementById('totalGastos').textContent = '$' + total.toLocaleString('es-AR', {maximumFractionDigits:0});
         document.getElementById('gastosPendientes').textContent = pendientes;
         document.getElementById('gastosPagados').textContent = pagados;
-        document.getElementById('promedioMensual').textContent = '$' + (total / 1).toLocaleString('es-AR');
+        document.getElementById('promedioMensual').textContent = '$' + (total / 1).toLocaleString('es-AR', {maximumFractionDigits:0});
         
         // Actualizar tabla
         const tbody = document.getElementById('tablaGastos');
@@ -373,6 +380,49 @@ function actualizarGraficos(gastos) {
     const valores = Object.values(porCategoria);
     const colores = ['#dc3545', '#fd7e14', '#ffc107', '#28a745', '#17a2b8', '#6f42c1', '#e83e8c'];
     
+    // Plugin personalizado para etiquetas en barras
+    const barLabelsPlugin = {
+        afterDatasetsDraw(chart) {
+            const ctx = chart.ctx;
+            chart.data.datasets.forEach((dataset, i) => {
+                const meta = chart.getDatasetMeta(i);
+                if (meta.hidden) return;
+                meta.data.forEach((datapoint, index) => {
+                    const v = dataset.data[index];
+                    if (v === null || v === undefined) return;
+                    const label = fmtNumAbbr(v);
+                    ctx.fillStyle = '#111827';
+                    ctx.font = 'bold 11px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(label, datapoint.x, datapoint.y - 5);
+                });
+            });
+        }
+    };
+    
+    // Plugin personalizado para etiquetas en doughnut
+    const doughnutLabelsPlugin = {
+        afterDatasetsDraw(chart) {
+            const ctx = chart.ctx;
+            const centerX = (chart.chartArea.left + chart.chartArea.right) / 2;
+            const centerY = (chart.chartArea.top + chart.chartArea.bottom) / 2;
+            chart.getDatasetMeta(0).data.forEach((datapoint, index) => {
+                const v = chart.data.datasets[0].data[index];
+                if (v === null || v === undefined) return;
+                const label = fmtNumAbbr(v);
+                const angle = (datapoint.startAngle + datapoint.endAngle) / 2;
+                const radius = (datapoint.innerRadius + datapoint.outerRadius) / 2;
+                const x = centerX + Math.cos(angle) * radius;
+                const y = centerY + Math.sin(angle) * radius;
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 11px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(label, x, y);
+            });
+        }
+    };
+    
     // Gráfico de barras
     if (chartCategorias) chartCategorias.destroy();
     const ctx1 = document.getElementById('chartCategorias').getContext('2d');
@@ -389,7 +439,8 @@ function actualizarGraficos(gastos) {
         options: {
             responsive: true,
             plugins: { legend: { display: false } }
-        }
+        },
+        plugins: [barLabelsPlugin]
     });
     
     // Gráfico de torta
@@ -407,7 +458,8 @@ function actualizarGraficos(gastos) {
         options: {
             responsive: true,
             plugins: { legend: { position: 'bottom' } }
-        }
+        },
+        plugins: [doughnutLabelsPlugin]
     });
 }
 

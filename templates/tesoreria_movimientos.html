@@ -241,9 +241,9 @@ async function cargarMovimientos() {
             else egresos += parseFloat(m.monto);
         });
         
-        document.getElementById('totalIngresos').textContent = '$' + ingresos.toLocaleString('es-AR');
-        document.getElementById('totalEgresos').textContent = '$' + egresos.toLocaleString('es-AR');
-        document.getElementById('balanceNeto').textContent = '$' + (ingresos - egresos).toLocaleString('es-AR');
+        document.getElementById('totalIngresos').textContent = '$' + ingresos.toLocaleString('es-AR', {maximumFractionDigits:0});
+        document.getElementById('totalEgresos').textContent = '$' + egresos.toLocaleString('es-AR', {maximumFractionDigits:0});
+        document.getElementById('balanceNeto').textContent = '$' + (ingresos - egresos).toLocaleString('es-AR', {maximumFractionDigits:0});
         
         const tbody = document.getElementById('tablaMovimientos');
         if (movimientos.length === 0) {
