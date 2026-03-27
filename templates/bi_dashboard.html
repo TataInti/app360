@@ -74,6 +74,28 @@
   function fmtMes(s){ if(!s)return'-'; const p=String(s).split('-'); if(p.length>=2){const m=parseInt(p[1],10); if(m>=1&&m<=12)return MESES[m-1]+' '+p[0];} return String(s); }
   function fmtNumAbbr(n){ const v=parseFloat(n)||0; if(Math.abs(v)>=1e6) return '$'+(v/1e6).toFixed(1).replace(/\.0$/,'')+'M'; if(Math.abs(v)>=1e3) return '$'+Math.round(v/1e3)+'K'; return '$'+Math.round(v).toLocaleString('es-AR'); }
 
+  // Plugin: etiquetas abreviadas encima de cada barra.
+  const barLabelsPlugin = {
+    id: 'barLabels',
+    afterDatasetsDraw(chart) {
+      const {ctx} = chart;
+      chart.data.datasets.forEach((ds, di) => {
+        const meta = chart.getDatasetMeta(di);
+        if (meta.hidden) return;
+        ctx.save();
+        ctx.font = '9px sans-serif';
+        ctx.fillStyle = ds.borderColor;
+        ctx.textAlign = 'center';
+        meta.data.forEach((bar, i) => {
+          const v = ds.data[i];
+          if (!v) return;
+          ctx.fillText(fmtNumAbbr(v), bar.x, bar.y - 4);
+        });
+        ctx.restore();
+      });
+    }
+  };
+
   // Plugin: etiquetas pequeñas por punto en gráfico de líneas.
   // Cada dataset usa un offset Y distinto para evitar superposición cuando los valores son cercanos.
   const lineLabelsPlugin = {
@@ -185,6 +207,7 @@
       if(cajaMensualChart) cajaMensualChart.destroy();
       cajaMensualChart = new Chart(document.getElementById('cajaMensualChart'), {
         type: 'bar',
+        plugins: [barLabelsPlugin],
         data: {labels:cL, datasets:[
           {label:'Ingresos caja', data:cd.map(x=>parseFloat(x.ingresos)||0), backgroundColor:'rgba(22,163,74,0.25)',  borderColor:'#16a34a', borderWidth:1},
           {label:'Egresos caja',  data:cd.map(x=>parseFloat(x.egresos)||0),  backgroundColor:'rgba(220,38,38,0.25)',  borderColor:'#dc2626', borderWidth:1},
