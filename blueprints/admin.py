@@ -43,6 +43,39 @@ def admin_required(f):
     return decorated_function
 
 
+_FULL_ADMIN_ROLES = ("admin", "manager", "gerente")
+
+
+def admin_or_hr_required(f):
+    """Decorador: permite admin/manager/gerente y también hr (con restricciones de módulo)."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        env = (current_app.config.get("FLASK_ENV") or "").lower()
+        if current_app.config.get("LOCAL_DEV_BYPASS_AUTH") and env in {"development", "dev", "local"}:
+            return f(*args, **kwargs)
+        if "user" not in session:
+            flash("Debe iniciar sesión.", "warning")
+            return redirect(url_for("auth.login"))
+        if session.get("role") not in (*_FULL_ADMIN_ROLES, "hr"):
+            flash("Acceso denegado.", "danger")
+            return redirect(url_for("dashboard.dashboard"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def _hr_modulo_allowed(modulo):
+    """Para rol hr: solo permite módulo rrhh. Retorna respuesta de error o None si OK."""
+    role = session.get("role", "")
+    if role in _FULL_ADMIN_ROLES:
+        return None
+    if role == "hr" and modulo == "rrhh":
+        return None
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Acceso denegado a este módulo"}), 403
+    flash("Acceso denegado. El rol RRHH solo puede administrar el módulo RRHH.", "danger")
+    return redirect(url_for("admin.admin_modulo", modulo="rrhh"))
+
+
 # =============================================================================
 # Mapeo de modelos por módulo
 # =============================================================================
@@ -149,9 +182,11 @@ EMPLOYEE_FIELD_LABELS = {
 # Rutas Web
 # =============================================================================
 @admin_bp.route("/admin")
-@admin_required
+@admin_or_hr_required
 def admin_dashboard():
     """Dashboard principal de administración"""
+    if session.get("role") == "hr":
+        return redirect(url_for("admin.admin_modulo", modulo="rrhh"))
     stats = {}
     for modulo, entidades in ADMIN_MODELS.items():
         stats[modulo] = {}
@@ -172,9 +207,12 @@ def admin_dashboard():
 
 
 @admin_bp.route("/admin/<modulo>")
-@admin_required
+@admin_or_hr_required
 def admin_modulo(modulo):
     """Vista de administración para un módulo específico"""
+    err = _hr_modulo_allowed(modulo)
+    if err:
+        return err
     if modulo not in ADMIN_MODELS:
         flash("Módulo no encontrado.", "warning")
         return redirect(url_for("admin.admin_dashboard"))
@@ -271,9 +309,12 @@ def get_or_create_friar_proveedor_id() -> int:
 # APIs REST para CRUD
 # =============================================================================
 @admin_bp.route("/api/admin/<modulo>/<entidad>", methods=["GET"])
-@admin_required
+@admin_or_hr_required
 def api_listar(modulo, entidad):
     """Listar todos los registros de una entidad"""
+    err = _hr_modulo_allowed(modulo)
+    if err:
+        return err
     if modulo not in ADMIN_MODELS or entidad not in ADMIN_MODELS[modulo]:
         return jsonify({"error": "Entidad no encontrada"}), 404
     
@@ -310,9 +351,12 @@ def api_listar(modulo, entidad):
 
 
 @admin_bp.route("/api/admin/<modulo>/<entidad>", methods=["POST"])
-@admin_required
+@admin_or_hr_required
 def api_crear(modulo, entidad):
     """Crear un nuevo registro"""
+    err = _hr_modulo_allowed(modulo)
+    if err:
+        return err
     if modulo not in ADMIN_MODELS or entidad not in ADMIN_MODELS[modulo]:
         return jsonify({"error": "Entidad no encontrada"}), 404
     
@@ -350,9 +394,12 @@ def api_crear(modulo, entidad):
 
 
 @admin_bp.route("/api/admin/<modulo>/<entidad>/<int:id>", methods=["PUT"])
-@admin_required
+@admin_or_hr_required
 def api_actualizar(modulo, entidad, id):
     """Actualizar un registro existente"""
+    err = _hr_modulo_allowed(modulo)
+    if err:
+        return err
     if modulo not in ADMIN_MODELS or entidad not in ADMIN_MODELS[modulo]:
         return jsonify({"error": "Entidad no encontrada"}), 404
     
@@ -380,9 +427,12 @@ def api_actualizar(modulo, entidad, id):
 
 
 @admin_bp.route("/api/admin/<modulo>/<entidad>/<int:id>", methods=["DELETE"])
-@admin_required
+@admin_or_hr_required
 def api_eliminar(modulo, entidad, id):
     """Eliminar un registro"""
+    err = _hr_modulo_allowed(modulo)
+    if err:
+        return err
     if modulo not in ADMIN_MODELS or entidad not in ADMIN_MODELS[modulo]:
         return jsonify({"error": "Entidad no encontrada"}), 404
     
@@ -400,9 +450,12 @@ def api_eliminar(modulo, entidad, id):
 
 
 @admin_bp.route("/api/admin/<modulo>/<entidad>/<int:id>/toggle", methods=["PATCH"])
-@admin_required
+@admin_or_hr_required
 def api_toggle(modulo, entidad, id):
     """Activar/Desactivar un registro"""
+    err = _hr_modulo_allowed(modulo)
+    if err:
+        return err
     if modulo not in ADMIN_MODELS or entidad not in ADMIN_MODELS[modulo]:
         return jsonify({"error": "Entidad no encontrada"}), 404
     
