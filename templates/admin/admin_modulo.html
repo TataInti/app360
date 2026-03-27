@@ -86,7 +86,11 @@
                                     {% endfor %}
                                     <td>
                                         <div class="btn-group btn-group-sm">
-                                            <button class="btn btn-outline-primary" onclick="editarItem('{{ entidad }}', {{ item.id }}, {{ data.fields|tojson }})">
+                                            <button class="btn btn-outline-primary"
+                                                    data-entidad="{{ entidad }}"
+                                                    data-id="{{ item.id }}"
+                                                    data-fields='{{ data.fields|tojson }}'
+                                                    onclick="editarDesdeBtn(this)">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
                                             {% if 'activo' in data.fields %}
@@ -277,6 +281,13 @@ function abrirModalNuevo(entidad, fields, required) {
         console.error('Error en abrirModalNuevo:', e);
         alert('Error abriendo formulario: ' + e.message);
     }
+}
+
+function editarDesdeBtn(btn) {
+    const entidad = btn.dataset.entidad;
+    const id = parseInt(btn.dataset.id, 10);
+    const fields = JSON.parse(btn.dataset.fields);
+    editarItem(entidad, id, fields);
 }
 
 async function editarItem(entidad, id, fields) {
