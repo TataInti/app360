@@ -82,6 +82,18 @@
         </div>
     </div>
 
+    <!-- Gráfico por Instrumento -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5><i class="bi bi-bar-chart"></i> Movimientos por Instrumento</h5>
+        </div>
+        <div class="card-body">
+            <div style="height:320px">
+                <canvas id="movimientosChart"></canvas>
+            </div>
+        </div>
+    </div>
+
     <!-- Tabla de Movimientos -->
     <div class="card">
         <div class="card-header">
@@ -107,6 +119,13 @@
                     <tbody id="tablaMovimientos">
                         <tr><td colspan="10" class="text-center">Cargando...</td></tr>
                     </tbody>
+                    <tfoot id="tfootMovimientos" class="d-none">
+                        <tr class="table-light fw-bold">
+                            <td colspan="2">Subtotal <small id="subtotalCount" class="text-muted fw-normal"></small></td>
+                            <td id="subtotalMonto"></td>
+                            <td colspan="7"></td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
@@ -171,6 +190,14 @@ const userRole = '{{ session.get("role", "") }}';
 const canEdit = (userRole !== 'director');
 const isAdmin = ['admin', 'manager', 'gerente'].includes(userRole);
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+let movimientosChart = null;
+
+function fmtNumAbbr(n) {
+    const abs = Math.abs(n);
+    if (abs >= 1e6) return '$' + (n/1e6).toFixed(1).replace('.0','') + 'M';
+    if (abs >= 1e3) return '$' + (n/1e3).toFixed(0) + 'K';
+    return '$' + n.toFixed(0);
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     const hoy = new Date();
@@ -219,13 +246,64 @@ async function cargarCategoriasProveedores() {
     }
 }
 
+function actualizarGraficoMovimientos(movimientos) {
+    const agrupado = {};
+    movimientos.forEach(m => {
+        if (m.estado === 'anulado') return;
+        const inst = m.instrumento || 'Sin instrumento';
+        if (!agrupado[inst]) agrupado[inst] = {ingresos: 0, egresos: 0};
+        if (m.tipo === 'ingreso') agrupado[inst].ingresos += parseFloat(m.monto);
+        else agrupado[inst].egresos += parseFloat(m.monto);
+    });
+    const labels = Object.keys(agrupado);
+    const dataIngresos = labels.map(l => agrupado[l].ingresos);
+    const dataEgresos = labels.map(l => agrupado[l].egresos);
+    if (movimientosChart) movimientosChart.destroy();
+    const ctx = document.getElementById('movimientosChart').getContext('2d');
+    movimientosChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                { label: 'Ingresos', data: dataIngresos, backgroundColor: 'rgba(25,135,84,0.75)', borderRadius: 4 },
+                { label: 'Egresos', data: dataEgresos, backgroundColor: 'rgba(220,53,69,0.75)', borderRadius: 4 }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, ticks: { callback: v => fmtNumAbbr(v) } } },
+            plugins: { tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': $' + ctx.parsed.y.toLocaleString('es-AR') } } }
+        },
+        plugins: [{
+            id: 'movLabels',
+            afterDatasetsDraw(chart) {
+                const { ctx } = chart;
+                chart.data.datasets.forEach((ds, i) => {
+                    const meta = chart.getDatasetMeta(i);
+                    meta.data.forEach((bar, idx) => {
+                        const val = ds.data[idx];
+                        if (!val) return;
+                        ctx.save();
+                        ctx.fillStyle = '#333';
+                        ctx.font = 'bold 11px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(fmtNumAbbr(val), bar.x, bar.y - 5);
+                        ctx.restore();
+                    });
+                });
+            }
+        }]
+    });
+}
+
 async function cargarMovimientos() {
     const desde = document.getElementById('fechaDesde').value;
     const hasta = document.getElementById('fechaHasta').value;
     const tipo = document.getElementById('tipoFiltro').value;
     const instrumento = document.getElementById('instrumentoFiltro').value;
     
-    let url = `/api/tesoreria/movimientos?fecha_desde=${desde}&fecha_hasta=${hasta}`;
+    let url = `/api/tesoreria/movimientos?fecha_desde=${desde}&fecha_hasta=${hasta}&per_page=5000`;
     if (tipo) url += `&tipo=${tipo}`;
     if (instrumento) url += `&instrumento_id=${instrumento}`;
     
@@ -290,6 +368,21 @@ async function cargarMovimientos() {
                     <td>${acciones}</td>
                 </tr>
             `}).join('');
+        }
+
+        // Actualizar gráfico y subtotal
+        actualizarGraficoMovimientos(movimientos);
+        const tfoot = document.getElementById('tfootMovimientos');
+        if (movimientos.length > 0) {
+            const activos = movimientos.filter(m => m.estado !== 'anulado');
+            document.getElementById('subtotalCount').textContent = `(${activos.length} activos)`;
+            document.getElementById('subtotalMonto').innerHTML =
+                `<span class="text-success">+$${ingresos.toLocaleString('es-AR', {maximumFractionDigits:0})}</span> ` +
+                `<span class="text-danger">-$${egresos.toLocaleString('es-AR', {maximumFractionDigits:0})}</span> = ` +
+                `<span class="text-primary">$${(ingresos - egresos).toLocaleString('es-AR', {maximumFractionDigits:0})}</span>`;
+            tfoot.classList.remove('d-none');
+        } else {
+            tfoot.classList.add('d-none');
         }
     } catch(e) {
         console.error('Error:', e);
