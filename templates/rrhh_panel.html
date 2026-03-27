@@ -1,55 +1,409 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>Panel de RRHH</h1>
+<div class="container-fluid">
+    <h1 class="mb-4"><i class="bi bi-people"></i> Panel de RRHH</h1>
 
-<div class="row mt-4">
-    <div class="col-md-4">
-        <div class="card p-3 text-center">
-            <h5>Dotación Total (últimos registros)</h5>
-            <p class="display-6">{{ total_headcount }}</p>
+    <!-- ── KPIs ─────────────────────────────────────────── -->
+    <div class="row mb-4 g-3">
+        <div class="col-md-3">
+            <div class="card rrhh-kpi-card border-left-primary">
+                <div class="card-body">
+                    <h6 class="card-title text-muted mb-1">Empleados Activos</h6>
+                    <h3 class="text-primary mb-0" id="kpi-empleados">—</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card rrhh-kpi-card border-left-warning">
+                <div class="card-body">
+                    <h6 class="card-title text-muted mb-1">Mov. Pendientes de Aprobación</h6>
+                    <h3 class="text-warning mb-0" id="kpi-pendientes">—</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card rrhh-kpi-card border-left-danger">
+                <div class="card-body">
+                    <h6 class="card-title text-muted mb-1">Saldo Pendiente Préstamos</h6>
+                    <h3 class="text-danger mb-0" id="kpi-saldo-prestamos">—</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card rrhh-kpi-card border-left-success">
+                <div class="card-body">
+                    <h6 class="card-title text-muted mb-1">Asistencias Hoy</h6>
+                    <h3 class="text-success mb-0" id="kpi-asistencias">—</h3>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="col-md-4">
-        <div class="card p-3 text-center">
-            <h5>Días Perdidos por Ausentismo</h5>
-            <p class="display-6">{{ total_days_lost }}</p>
+    <!-- ── Fila principal: Empleados | Adelantos ─────────── -->
+    <div class="row mb-4 g-3">
+
+        <!-- Empleados -->
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-person-lines-fill me-1"></i>Empleados</h5>
+                    <div class="d-flex gap-2 align-items-center">
+                        <select id="filtroEstadoEmp" class="form-select form-select-sm"
+                                style="width:auto;" onchange="cargarEmpleados()">
+                            <option value="">Todos</option>
+                            <option value="activo" selected>Solo activos</option>
+                            <option value="inactivo">Solo inactivos</option>
+                        </select>
+                        <a href="/rrhh/empleados" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="rrhh-scroll-table">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Puesto</th>
+                                    <th>Departamento</th>
+                                    <th>Ingreso</th>
+                                    <th class="text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-empleados">
+                                <tr><td colspan="5" class="text-center p-3 text-muted">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer text-muted small" id="pie-empleados">—</div>
+            </div>
+        </div>
+
+        <!-- Adelantos y Préstamos -->
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-cash-coin me-1"></i>Adelantos y Préstamos</h5>
+                    <a href="/rrhh/adelantos" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+                <div class="card-body">
+                    <!-- Chips resumen por tipo -->
+                    <div class="d-flex gap-2 flex-wrap mb-3">
+                        <span class="badge bg-secondary fs-6 px-3 py-2" id="chip-efectivo">Efectivo: —</span>
+                        <span class="badge bg-info text-dark fs-6 px-3 py-2" id="chip-mercaderia">Mercadería: —</span>
+                        <span class="badge bg-warning text-dark fs-6 px-3 py-2" id="chip-prestamo">Préstamos: —</span>
+                    </div>
+                    <!-- Filtros -->
+                    <div class="d-flex gap-2 mb-3">
+                        <select id="filtroTipoAdel" class="form-select form-select-sm"
+                                onchange="cargarAdelantos()">
+                            <option value="">Todos los tipos</option>
+                            <option value="adelanto_efectivo">Adelanto Efectivo</option>
+                            <option value="adelanto_mercaderia">Adelanto Mercadería</option>
+                            <option value="prestamo">Préstamo</option>
+                        </select>
+                        <select id="filtroEstadoAdel" class="form-select form-select-sm"
+                                onchange="cargarAdelantos()">
+                            <option value="">Todos los estados</option>
+                            <option value="pendiente">Pendiente aprobación</option>
+                            <option value="aprobado">Aprobado (no pagado)</option>
+                            <option value="pagado">Pagado</option>
+                        </select>
+                    </div>
+                    <!-- Tabla -->
+                    <div class="rrhh-scroll-table" style="max-height:310px;">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Empleado</th>
+                                    <th>Tipo</th>
+                                    <th class="text-end">Monto</th>
+                                    <th>Concepto</th>
+                                    <th class="text-center">Estado</th>
+                                    <th>Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-adelantos">
+                                <tr><td colspan="6" class="text-center p-3 text-muted">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer text-muted small" id="pie-adelantos">—</div>
+            </div>
         </div>
     </div>
 
-    <div class="col-md-4">
-        <div class="card p-3 text-center">
-            <h5>Ratio Días Perdidos / Dotación</h5>
-            <p class="display-6">{{ avg_absence }}</p>
+    <!-- ── Liquidaciones ─────────────────────────────────── -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-receipt-cutoff me-1"></i>Liquidaciones de Sueldos</h5>
+                    <div class="d-flex gap-2 align-items-center">
+                        <input type="month" id="periodoLiquidacion" class="form-control form-control-sm"
+                               style="width:160px;" onchange="cargarLiquidaciones()">
+                        <a href="/rrhh/liquidaciones" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-arrow-right"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Empleado</th>
+                                    <th class="text-end">Sueldo Base</th>
+                                    <th class="text-end">Desc. Ad. Efectivo</th>
+                                    <th class="text-end">Desc. Ad. Mercadería</th>
+                                    <th class="text-end">Desc. Cuota Préstamo</th>
+                                    <th class="text-end">Sueldo Neto</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-liquidaciones">
+                                <tr><td colspan="6" class="text-center p-3 text-muted">Seleccioná un período</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer text-muted small" id="pie-liquidaciones">—</div>
+            </div>
         </div>
     </div>
-</div>
 
-<div class="row mt-4">
-    <div class="col-md-6">
-        <div class="card p-3 text-center">
-            <h5>Empleados activos</h5>
-            <p class="display-4">{{ total_employees }}</p>
-        </div>
-    </div>
+</div><!-- /container-fluid -->
 
-    <div class="col-md-6">
-        <div class="card p-3 text-center">
-            <h5>Asistencias registradas hoy</h5>
-            <p class="display-4">{{ attendance_today }}</p>
-        </div>
-    </div>
-</div>
+<style>
+.border-left-primary { border-left: 4px solid #2563eb; }
+.border-left-warning { border-left: 4px solid #f59e0b; }
+.border-left-danger  { border-left: 4px solid #ef4444; }
+.border-left-success { border-left: 4px solid #10b981; }
+.rrhh-kpi-card .card-body { padding: .85rem 1rem; }
+.rrhh-scroll-table {
+    max-height: 420px;
+    overflow-y: auto;
+}
+.rrhh-scroll-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+</style>
 
-<div class="row mt-4">
-    <div class="col-md-8">
-        <!-- Tarjeta de encuestas removida - módulo aún no implementado -->
-</div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    document.getElementById('periodoLiquidacion').value = ym;
 
-<p class="mt-4">
-    Este panel es un resumen global. El detalle se gestiona en las secciones de
-    <a href="/rrhh/empleados">Empleados</a>,
-    <a href="/rrhh/adelantos">Adelantos</a> y <a href="/rrhh/ausentismo">Ausentismo</a>.
-</p>
+    cargarKPIs();
+    cargarEmpleados();
+    cargarAdelantos();
+    cargarLiquidaciones();
+});
+
+/* ─── Helpers ─────────────────────────────────────────── */
+function fmtMoney(n) {
+    const v = parseFloat(n) || 0;
+    return '$' + v.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+}
+
+function fmtFecha(s) {
+    if (!s) return '—';
+    return String(s).slice(0, 10).split('-').reverse().join('/');
+}
+
+function badgeTipoAdelanto(tipo) {
+    const map = {
+        adelanto_efectivo:   ['bg-secondary',       'Efectivo'],
+        adelanto_mercaderia: ['bg-info text-dark',   'Mercadería'],
+        prestamo:            ['bg-warning text-dark','Préstamo'],
+    };
+    const [cls, lbl] = map[tipo] || ['bg-light text-dark', tipo || '—'];
+    return `<span class="badge ${cls}">${lbl}</span>`;
+}
+
+function badgeEstadoAdelanto(a) {
+    if (a.liquidado) return `<span class="badge bg-dark">Liquidado</span>`;
+    if (a.pagado)    return `<span class="badge bg-success">Pagado</span>`;
+    if (a.aprobado)  return `<span class="badge bg-primary">Aprobado</span>`;
+    return `<span class="badge bg-danger">Pendiente</span>`;
+}
+
+/* ─── KPIs ────────────────────────────────────────────── */
+async function cargarKPIs() {
+    try {
+        const r = await fetch('/api/v1/rrhh');
+        if (r.ok) {
+            const d = await r.json();
+            document.getElementById('kpi-empleados').textContent  = d.employee_count  ?? '—';
+            document.getElementById('kpi-asistencias').textContent = d.attendance_today ?? '—';
+        }
+    } catch (e) { console.error('KPI rrhh error:', e); }
+
+    try {
+        const r = await fetch('/api/rrhh/adelantos?limite=1000');
+        if (r.ok) {
+            const d = await r.json();
+            const items = d.adelantos || [];
+            const pendientes = items.filter(a => !a.aprobado && !a.liquidado).length;
+            const saldo = items
+                .filter(a => a.tipo === 'prestamo' && !a.liquidado)
+                .reduce((s, a) => s + parseFloat(a.saldo_pendiente || 0), 0);
+            document.getElementById('kpi-pendientes').textContent      = pendientes;
+            document.getElementById('kpi-saldo-prestamos').textContent = fmtMoney(saldo);
+        }
+    } catch (e) { console.error('KPI adelantos error:', e); }
+}
+
+/* ─── Empleados ───────────────────────────────────────── */
+async function cargarEmpleados() {
+    const filtro = document.getElementById('filtroEstadoEmp').value;
+    document.getElementById('tabla-empleados').innerHTML =
+        '<tr><td colspan="5" class="text-center p-3 text-muted">Cargando...</td></tr>';
+    try {
+        const r = await fetch('/api/v1/rrhh/empleados?per_page=200');
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        let todos  = d.items || d.employees || [];
+        let items  = todos;
+        if (filtro === 'activo')   items = todos.filter(e => e.is_active);
+        if (filtro === 'inactivo') items = todos.filter(e => !e.is_active);
+
+        const activos = todos.filter(e => e.is_active).length;
+        document.getElementById('pie-empleados').textContent =
+            `${items.length} empleados mostrados — ${activos} activos en total`;
+
+        const tbody = document.getElementById('tabla-empleados');
+        if (!items.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center p-3 text-muted">Sin empleados</td></tr>';
+            return;
+        }
+        tbody.innerHTML = items.map(e => {
+            const nombre = e.name || `${e.first_name || ''} ${e.last_name || ''}`.trim() || '—';
+            return `<tr>
+                <td class="fw-semibold">${nombre}</td>
+                <td>${e.position || '—'}</td>
+                <td>${e.department || '—'}</td>
+                <td>${fmtFecha(e.hire_date)}</td>
+                <td class="text-center">${e.is_active
+                    ? '<span class="badge bg-success">Activo</span>'
+                    : '<span class="badge bg-secondary">Inactivo</span>'}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        document.getElementById('tabla-empleados').innerHTML =
+            '<tr><td colspan="5" class="text-center text-danger p-3">Error al cargar</td></tr>';
+        console.error('Empleados error:', e);
+    }
+}
+
+/* ─── Adelantos ───────────────────────────────────────── */
+async function cargarAdelantos() {
+    const tipo   = document.getElementById('filtroTipoAdel').value;
+    const estado = document.getElementById('filtroEstadoAdel').value;
+    document.getElementById('tabla-adelantos').innerHTML =
+        '<tr><td colspan="6" class="text-center p-3 text-muted">Cargando...</td></tr>';
+    try {
+        let url = '/api/rrhh/adelantos?limite=500';
+        if (tipo)             url += `&tipo=${tipo}`;
+        if (estado === 'pendiente') url += '&aprobado=false';
+        if (estado === 'aprobado')  url += '&aprobado=true&pagado=false';
+        if (estado === 'pagado')    url += '&pagado=true';
+
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        const items = d.adelantos || [];
+
+        /* chips de conteo solo en carga inicial sin filtros */
+        if (!tipo && !estado) {
+            document.getElementById('chip-efectivo').textContent =
+                'Efectivo: ' + items.filter(a => a.tipo === 'adelanto_efectivo').length;
+            document.getElementById('chip-mercaderia').textContent =
+                'Mercadería: ' + items.filter(a => a.tipo === 'adelanto_mercaderia').length;
+            document.getElementById('chip-prestamo').textContent =
+                'Préstamos: ' + items.filter(a => a.tipo === 'prestamo').length;
+        }
+
+        const totalMonto = items.reduce((s, a) => s + parseFloat(a.monto || 0), 0);
+        document.getElementById('pie-adelantos').textContent =
+            `${items.length} registros — Total: ${fmtMoney(totalMonto)}`;
+
+        const tbody = document.getElementById('tabla-adelantos');
+        if (!items.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center p-3 text-muted">Sin registros</td></tr>';
+            return;
+        }
+        tbody.innerHTML = items.map(a => `<tr>
+            <td class="fw-semibold">${a.empleado?.nombre || '—'}</td>
+            <td>${badgeTipoAdelanto(a.tipo)}</td>
+            <td class="text-end">${fmtMoney(a.monto)}</td>
+            <td class="text-truncate" style="max-width:130px;" title="${a.concepto || ''}">${a.concepto || '—'}</td>
+            <td class="text-center">${badgeEstadoAdelanto(a)}</td>
+            <td>${fmtFecha(a.fecha_solicitud)}</td>
+        </tr>`).join('');
+    } catch (e) {
+        document.getElementById('tabla-adelantos').innerHTML =
+            '<tr><td colspan="6" class="text-center text-danger p-3">Error al cargar</td></tr>';
+        console.error('Adelantos error:', e);
+    }
+}
+
+/* ─── Liquidaciones ───────────────────────────────────── */
+async function cargarLiquidaciones() {
+    const periodo = document.getElementById('periodoLiquidacion').value;
+    if (!periodo) return;
+    document.getElementById('tabla-liquidaciones').innerHTML =
+        '<tr><td colspan="6" class="text-center p-3 text-muted">Cargando...</td></tr>';
+    try {
+        const r = await fetch(`/api/rrhh/liquidaciones/${periodo}`);
+        if (r.status === 404) {
+            document.getElementById('tabla-liquidaciones').innerHTML =
+                `<tr><td colspan="6" class="text-center p-3 text-muted">Sin liquidaciones para ${periodo}</td></tr>`;
+            document.getElementById('pie-liquidaciones').textContent = `Período ${periodo} — sin registros`;
+            return;
+        }
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        const items = d.liquidaciones || [];
+
+        if (!items.length) {
+            document.getElementById('tabla-liquidaciones').innerHTML =
+                `<tr><td colspan="6" class="text-center p-3 text-muted">Sin liquidaciones para ${periodo}</td></tr>`;
+            document.getElementById('pie-liquidaciones').textContent = `Período ${periodo} — sin registros`;
+            return;
+        }
+
+        const totalNeto = items.reduce((s, l) => s + parseFloat(l.sueldo_neto || 0), 0);
+        document.getElementById('pie-liquidaciones').textContent =
+            `${items.length} liquidaciones — Neto total: ${fmtMoney(totalNeto)}`;
+
+        document.getElementById('tabla-liquidaciones').innerHTML = items.map(l => {
+            const nombre = l.empleado?.nombre || l.empleado_nombre || '—';
+            const dEf  = parseFloat(l.descuento_adelanto_efectivo   || 0);
+            const dMer = parseFloat(l.descuento_adelanto_mercaderia  || 0);
+            const dCta = parseFloat(l.descuento_cuota_prestamo       || 0);
+            return `<tr>
+                <td class="fw-semibold">${nombre}</td>
+                <td class="text-end">${fmtMoney(l.sueldo_base)}</td>
+                <td class="text-end ${dEf  > 0 ? 'text-danger' : 'text-muted'}">${dEf  > 0 ? '−'+fmtMoney(dEf)  : '—'}</td>
+                <td class="text-end ${dMer > 0 ? 'text-danger' : 'text-muted'}">${dMer > 0 ? '−'+fmtMoney(dMer) : '—'}</td>
+                <td class="text-end ${dCta > 0 ? 'text-warning': 'text-muted'}">${dCta > 0 ? '−'+fmtMoney(dCta) : '—'}</td>
+                <td class="text-end fw-bold text-success">${fmtMoney(l.sueldo_neto)}</td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        document.getElementById('tabla-liquidaciones').innerHTML =
+            '<tr><td colspan="6" class="text-center text-danger p-3">Error al cargar</td></tr>';
+        console.error('Liquidaciones error:', e);
+    }
+}
+</script>
 {% endblock %}
