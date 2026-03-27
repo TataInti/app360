@@ -239,7 +239,7 @@ function badgeEstadoAdelanto(a) {
 /* ─── KPIs ────────────────────────────────────────────── */
 async function cargarKPIs() {
     try {
-        const r = await fetch('/api/v1/rrhh');
+        const r = await fetch('/api/rrhh');
         if (r.ok) {
             const d = await r.json();
             document.getElementById('kpi-empleados').textContent  = d.employee_count  ?? '—';
@@ -268,7 +268,7 @@ async function cargarEmpleados() {
     document.getElementById('tabla-empleados').innerHTML =
         '<tr><td colspan="5" class="text-center p-3 text-muted">Cargando...</td></tr>';
     try {
-        const r = await fetch('/api/v1/rrhh/empleados?per_page=200');
+        const r = await fetch('/api/rrhh/empleados?per_page=200');
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const d = await r.json();
         let todos  = d.items || d.employees || [];
