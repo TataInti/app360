@@ -14,6 +14,8 @@ class Employee(db.Model):
     salary = db.Column(db.Numeric(10, 2), nullable=True)
     location_id = db.Column(db.Integer, db.ForeignKey("locations.id"), nullable=True, index=True)
     is_active = db.Column(db.Boolean, default=True, index=True)
+    clock_id = db.Column(db.String(50), nullable=True, unique=True, index=True)
+    turno_id = db.Column(db.Integer, db.ForeignKey("turnos.id"), nullable=True)
 
     # Property for backward compatibility
     @property
@@ -26,6 +28,7 @@ class Employee(db.Model):
         return f"{self.first_name} {self.last_name}"
 
     location = db.relationship("Location")
+    turno = db.relationship("Turno")
     attendances = db.relationship("Attendance", back_populates="employee")
     goals = db.relationship("Goal", back_populates="employee")
     survey_responses = db.relationship("SurveyResponse", back_populates="employee")

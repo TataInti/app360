@@ -112,14 +112,14 @@ ADMIN_MODELS = {
         "empleados": {
             "model": Employee,
             "name": "Empleados",
-            "fields": ["first_name", "last_name", "email", "phone", "position", "department", "hire_date", "salary", "location_id", "is_active"],
+            "fields": ["first_name", "last_name", "email", "phone", "position", "department", "hire_date", "salary", "location_id", "clock_id", "turno_id", "is_active"],
             "required": ["first_name", "last_name"],
         },
         "turnos": {
             "model": Turno,
             "name": "Turnos",
-            "fields": ["nombre", "descripcion", "hora_inicio", "hora_fin", "dias_semana", "activo"],
-            "required": ["nombre", "hora_inicio", "hora_fin"],
+            "fields": ["nombre", "descripcion", "activo"],
+            "required": ["nombre"],
         },
     },
     "stock": {
@@ -174,6 +174,8 @@ EMPLOYEE_FIELD_LABELS = {
     "hire_date": "Fecha ingreso",
     "salary": "Salario",
     "location_id": "Ubicacion",
+    "clock_id": "ID Reloj",
+    "turno_id": "Turno",
     "is_active": "Estado",
 }
 
@@ -242,6 +244,7 @@ def admin_modulo(modulo):
     locations = []
     employee_positions = []
     field_labels = {}
+    employee_turnos = []
     if modulo == "rrhh":
         locations = [
             {"id": loc.id, "name": loc.name}
@@ -249,6 +252,10 @@ def admin_modulo(modulo):
         ]
         employee_positions = EMPLOYEE_POSITION_OPTIONS
         field_labels = EMPLOYEE_FIELD_LABELS
+        employee_turnos = [
+            {"id": t.id, "nombre": t.nombre}
+            for t in Turno.query.filter_by(activo=True).order_by(Turno.nombre).all()
+        ]
 
     return render_template(
         "admin/admin_modulo.html",
@@ -258,6 +265,7 @@ def admin_modulo(modulo):
         locations=locations,
         employee_positions=employee_positions,
         field_labels=field_labels,
+        employee_turnos=employee_turnos,
     )
 
 

@@ -79,6 +79,8 @@
                                             {% endif %}
                                         {% elif field == 'location_id' and item.location is defined and item.location %}
                                             {{ item.location.name }}
+                                        {% elif field == 'turno_id' and item.turno is defined and item.turno %}
+                                            {{ item.turno.nombre }}
                                         {% elif val is not none %}
                                             {{ val }}
                                         {% endif %}
@@ -96,6 +98,11 @@
                                             {% if 'activo' in data.fields %}
                                             <button class="btn btn-outline-warning" onclick="toggleItem('{{ entidad }}', {{ item.id }})">
                                                 <i class="bi bi-toggle-on"></i>
+                                            </button>
+                                            {% endif %}
+                                            {% if entidad == 'turnos' %}
+                                            <button class="btn btn-outline-info" onclick="abrirModalTurnoDias({{ item.id }}, '{{ item.nombre }}')" title="Configurar Horarios">
+                                                <i class="bi bi-clock"></i> Horarios
                                             </button>
                                             {% endif %}
                                             <button class="btn btn-outline-danger" onclick="eliminarItem('{{ entidad }}', {{ item.id }})">
@@ -145,12 +152,49 @@
     </div>
 </div>
 
+<!-- Modal Configurar Horarios por Día (Turnos) -->
+<div class="modal fade" id="modalTurnoDias" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Configurar Horarios: <span id="turnoDiasNombre"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="turnoDiasId">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle" id="tablaTurnoDias">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Día</th>
+                                <th class="text-center">Trabaja</th>
+                                <th class="text-center">Cortado</th>
+                                <th>Ingreso 1</th>
+                                <th>Salida 1</th>
+                                <th>Ingreso 2</th>
+                                <th>Salida 2</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bodyTurnoDias"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarTurnoDias()">Guardar Horarios</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 const MODULO = '{{ modulo }}';
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 const EMPLOYEE_POSITIONS = {{ employee_positions|tojson }};
 const EMPLOYEE_LOCATIONS = {{ locations|tojson }};
+const EMPLOYEE_TURNOS = {{ employee_turnos|tojson }};
 const FIELD_LABELS = {{ field_labels|tojson }};
+const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
 function isEmployeeEntity(entidad) {
     return MODULO === 'rrhh' && entidad === 'empleados';
@@ -222,6 +266,31 @@ function appendField(container, entidad, field, value, required) {
                     { value: 'false', label: 'Inactivo' }
                 ], selectedValue)}
             </select>
+        `;
+        container.appendChild(div);
+        return;
+    }
+
+    if (isEmployeeEntity(entidad) && field === 'turno_id') {
+        const options = EMPLOYEE_TURNOS.map(t => ({ value: t.id, label: t.nombre }));
+        div.innerHTML = `
+            <label class="form-label">${label} ${required ? '*' : ''}</label>
+            <select class="form-select" name="${field}" id="field-${field}" ${required ? 'required' : ''}>
+                <option value="">Sin turno asignado</option>
+                ${buildSelectOptions(options, value)}
+            </select>
+        `;
+        container.appendChild(div);
+        return;
+    }
+
+    if (isEmployeeEntity(entidad) && field === 'clock_id') {
+        const safeValue = value !== undefined && value !== null ? value : '';
+        div.innerHTML = `
+            <label class="form-label">${label} ${required ? '*' : ''}</label>
+            <input type="text" class="form-control" name="${field}" id="field-${field}" 
+                   value="${safeValue}" placeholder="ID del reloj biométrico"
+                   ${required ? 'required' : ''}>
         `;
         container.appendChild(div);
         return;
@@ -379,6 +448,12 @@ document.getElementById('formEntidad')?.addEventListener('submit', async functio
     if (data.location_id === '') {
         delete data.location_id;
     }
+    if (data.turno_id === '') {
+        delete data.turno_id;
+    }
+    if (data.clock_id === '') {
+        delete data.clock_id;
+    }
     if (data.salary === '') {
         delete data.salary;
     }
@@ -396,12 +471,180 @@ document.getElementById('formEntidad')?.addEventListener('submit', async functio
         
         if (result.success || result.id) {
             bootstrap.Modal.getInstance(document.getElementById('modalEntidad')).hide();
+            // Si se creó un turno nuevo, abrir modal de horarios automáticamente
+            if (!id && isTurnoEntity(entidad) && result.id) {
+                sessionStorage.setItem('openTurnoDias', JSON.stringify({id: result.id, nombre: data.nombre || 'Nuevo Turno'}));
+            }
             location.reload();
         } else {
             alert('Error: ' + (result.error || 'No se pudo guardar'));
         }
     } catch(e) {
         alert('Error: ' + e.message);
+    }
+});
+
+// =============================================
+// Turno Días - Configuración de horarios por día
+// =============================================
+function isTurnoEntity(entidad) {
+    return MODULO === 'rrhh' && entidad === 'turnos';
+}
+
+async function abrirModalTurnoDias(turnoId, turnoNombre) {
+    document.getElementById('turnoDiasId').value = turnoId;
+    document.getElementById('turnoDiasNombre').textContent = turnoNombre;
+
+    try {
+        const resp = await fetch(`/api/rrhh/turnos/${turnoId}/dias`);
+        const data = await resp.json();
+        renderTurnoDias(data.dias || []);
+        new bootstrap.Modal(document.getElementById('modalTurnoDias')).show();
+    } catch(e) {
+        alert('Error cargando horarios: ' + e.message);
+    }
+}
+
+function renderTurnoDias(dias) {
+    const tbody = document.getElementById('bodyTurnoDias');
+    tbody.innerHTML = '';
+
+    for (let i = 0; i < 7; i++) {
+        const dia = dias.find(d => d.dia_semana === i) || {
+            dia_semana: i, activo: false, es_cortado: false,
+            hora_inicio_1: null, hora_fin_1: null, hora_inicio_2: null, hora_fin_2: null
+        };
+
+        const actChecked = dia.activo ? 'checked' : '';
+        const cortChecked = dia.es_cortado ? 'checked' : '';
+        const disabled = dia.activo ? '' : 'disabled';
+        const disabled2 = (dia.activo && dia.es_cortado) ? '' : 'disabled';
+
+        const tr = document.createElement('tr');
+        tr.id = `turno-dia-${i}`;
+        tr.innerHTML = `
+            <td><strong>${DIAS_SEMANA[i]}</strong></td>
+            <td class="text-center">
+                <input type="checkbox" class="form-check-input td-activo" data-dia="${i}" ${actChecked}
+                       onchange="toggleDiaActivo(${i})">
+            </td>
+            <td class="text-center">
+                <input type="checkbox" class="form-check-input td-cortado" data-dia="${i}" ${cortChecked} ${disabled}
+                       onchange="toggleDiaCortado(${i})">
+            </td>
+            <td><input type="time" class="form-control form-control-sm td-hi1" data-dia="${i}" 
+                       value="${dia.hora_inicio_1 || ''}" ${disabled}></td>
+            <td><input type="time" class="form-control form-control-sm td-hf1" data-dia="${i}" 
+                       value="${dia.hora_fin_1 || ''}" ${disabled}></td>
+            <td><input type="time" class="form-control form-control-sm td-hi2" data-dia="${i}" 
+                       value="${dia.hora_inicio_2 || ''}" ${disabled2}></td>
+            <td><input type="time" class="form-control form-control-sm td-hf2" data-dia="${i}" 
+                       value="${dia.hora_fin_2 || ''}" ${disabled2}></td>
+        `;
+        tbody.appendChild(tr);
+    }
+}
+
+function toggleDiaActivo(dia) {
+    const row = document.getElementById(`turno-dia-${dia}`);
+    const activo = row.querySelector('.td-activo').checked;
+    const cortado = row.querySelector('.td-cortado');
+    const hi1 = row.querySelector('.td-hi1');
+    const hf1 = row.querySelector('.td-hf1');
+    const hi2 = row.querySelector('.td-hi2');
+    const hf2 = row.querySelector('.td-hf2');
+
+    cortado.disabled = !activo;
+    hi1.disabled = !activo;
+    hf1.disabled = !activo;
+
+    if (!activo) {
+        cortado.checked = false;
+        hi1.value = ''; hf1.value = '';
+        hi2.value = ''; hf2.value = '';
+        hi2.disabled = true; hf2.disabled = true;
+    } else {
+        hi2.disabled = !cortado.checked;
+        hf2.disabled = !cortado.checked;
+    }
+}
+
+function toggleDiaCortado(dia) {
+    const row = document.getElementById(`turno-dia-${dia}`);
+    const cortado = row.querySelector('.td-cortado').checked;
+    const hi2 = row.querySelector('.td-hi2');
+    const hf2 = row.querySelector('.td-hf2');
+    hi2.disabled = !cortado;
+    hf2.disabled = !cortado;
+    if (!cortado) {
+        hi2.value = '';
+        hf2.value = '';
+    }
+}
+
+async function guardarTurnoDias() {
+    const turnoId = document.getElementById('turnoDiasId').value;
+    const dias = [];
+
+    for (let i = 0; i < 7; i++) {
+        const row = document.getElementById(`turno-dia-${i}`);
+        const activo = row.querySelector('.td-activo').checked;
+        const es_cortado = row.querySelector('.td-cortado').checked;
+
+        const obj = { dia_semana: i, activo, es_cortado };
+
+        if (activo) {
+            obj.hora_inicio_1 = row.querySelector('.td-hi1').value;
+            obj.hora_fin_1 = row.querySelector('.td-hf1').value;
+            if (!obj.hora_inicio_1 || !obj.hora_fin_1) {
+                alert(`${DIAS_SEMANA[i]}: debe indicar horario de ingreso y salida`);
+                return;
+            }
+            if (es_cortado) {
+                obj.hora_inicio_2 = row.querySelector('.td-hi2').value;
+                obj.hora_fin_2 = row.querySelector('.td-hf2').value;
+                if (!obj.hora_inicio_2 || !obj.hora_fin_2) {
+                    alert(`${DIAS_SEMANA[i]}: debe indicar segundo horario de ingreso y salida`);
+                    return;
+                }
+            }
+        }
+
+        dias.push(obj);
+    }
+
+    try {
+        const resp = await fetch(`/api/rrhh/turnos/${turnoId}/dias`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ dias })
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            alert('Horarios guardados correctamente');
+            bootstrap.Modal.getInstance(document.getElementById('modalTurnoDias')).hide();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo guardar'));
+        }
+    } catch(e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+// Al cargar la página, verificar si hay que abrir el modal de horarios (post-creación de turno)
+document.addEventListener('DOMContentLoaded', function() {
+    const pending = sessionStorage.getItem('openTurnoDias');
+    if (pending) {
+        sessionStorage.removeItem('openTurnoDias');
+        try {
+            const info = JSON.parse(pending);
+            // Activar el tab de turnos primero
+            const tabTurnos = document.getElementById('tab-turnos');
+            if (tabTurnos) {
+                new bootstrap.Tab(tabTurnos).show();
+            }
+            setTimeout(() => abrirModalTurnoDias(info.id, info.nombre), 300);
+        } catch(e) { /* ignore */ }
     }
 });
 </script>

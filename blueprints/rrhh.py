@@ -12,7 +12,7 @@ from models import (
     User,
     db,
 )
-from models.rrhh import LiquidacionSueldo
+from models.rrhh import LiquidacionSueldo, TurnoDia
 from security import protect_blueprint
 
 rrhh_bp = Blueprint("rrhh", __name__)
@@ -95,19 +95,33 @@ def rrhh_ausentismo():
 
 # Endpoints para Turnos
 
+DIAS_SEMANA_NOMBRES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+
+
+def _serializar_turno_dia(td):
+    return {
+        "dia_semana": td.dia_semana,
+        "nombre_dia": DIAS_SEMANA_NOMBRES[td.dia_semana],
+        "activo": td.activo,
+        "es_cortado": td.es_cortado,
+        "hora_inicio_1": td.hora_inicio_1.strftime("%H:%M") if td.hora_inicio_1 else None,
+        "hora_fin_1": td.hora_fin_1.strftime("%H:%M") if td.hora_fin_1 else None,
+        "hora_inicio_2": td.hora_inicio_2.strftime("%H:%M") if td.hora_inicio_2 else None,
+        "hora_fin_2": td.hora_fin_2.strftime("%H:%M") if td.hora_fin_2 else None,
+    }
+
+
 @rrhh_bp.route("/api/rrhh/turnos", methods=["GET"])
 def turnos_listar():
     """Listar turnos activos"""
-    turnos = Turno.query.filter_by(activo=True).order_by(Turno.hora_inicio).all()
+    turnos = Turno.query.filter_by(activo=True).order_by(Turno.nombre).all()
 
     return jsonify({
         "turnos": [{
             "id": t.id,
             "nombre": t.nombre,
             "descripcion": t.descripcion,
-            "hora_inicio": t.hora_inicio.strftime("%H:%M"),
-            "hora_fin": t.hora_fin.strftime("%H:%M"),
-            "dias_semana": t.dias_semana
+            "dias": [_serializar_turno_dia(d) for d in t.dias],
         } for t in turnos]
     })
 
@@ -117,35 +131,28 @@ def turnos_crear():
     """Crear nuevo turno"""
     data = request.get_json()
 
-    required_fields = ["nombre", "hora_inicio", "hora_fin"]
-    for field in required_fields:
-        if field not in data:
-            return jsonify({"error": f"Campo requerido: {field}"}), 400
-
-    nombre = data["nombre"].strip()
+    nombre = (data.get("nombre") or "").strip()
     if not nombre:
-        return jsonify({"error": "Nombre no puede estar vacío"}), 400
+        return jsonify({"error": "Campo requerido: nombre"}), 400
 
     # Verificar que no exista
     existente = Turno.query.filter_by(nombre=nombre).first()
     if existente:
         return jsonify({"error": "Ya existe un turno con ese nombre"}), 400
 
-    try:
-        hora_inicio = datetime.strptime(data["hora_inicio"], "%H:%M").time()
-        hora_fin = datetime.strptime(data["hora_fin"], "%H:%M").time()
-    except ValueError:
-        return jsonify({"error": "Formato de hora inválido (HH:MM)"}), 400
-
     turno = Turno(
         nombre=nombre,
         descripcion=data.get("descripcion", ""),
-        hora_inicio=hora_inicio,
-        hora_fin=hora_fin,
-        dias_semana=data.get("dias_semana", "1,2,3,4,5")  # Lunes a viernes por defecto
     )
 
     db.session.add(turno)
+    db.session.flush()  # para obtener turno.id
+
+    # Crear 7 días con valores por defecto (inactivos)
+    for dia in range(7):
+        td = TurnoDia(turno_id=turno.id, dia_semana=dia, activo=False)
+        db.session.add(td)
+
     db.session.commit()
 
     return jsonify({
@@ -153,8 +160,6 @@ def turnos_crear():
         "turno": {
             "id": turno.id,
             "nombre": turno.nombre,
-            "hora_inicio": turno.hora_inicio.strftime("%H:%M"),
-            "hora_fin": turno.hora_fin.strftime("%H:%M")
         }
     }), 201
 
@@ -167,6 +172,75 @@ def turnos_eliminar(turno_id):
     db.session.commit()
 
     return jsonify({"message": "Turno desactivado"})
+
+
+@rrhh_bp.route("/api/rrhh/turnos/<int:turno_id>/dias", methods=["GET"])
+def turno_dias_listar(turno_id):
+    """Listar configuración de días de un turno"""
+    turno = Turno.query.get_or_404(turno_id)
+    return jsonify({
+        "turno_id": turno.id,
+        "nombre": turno.nombre,
+        "dias": [_serializar_turno_dia(d) for d in turno.dias],
+    })
+
+
+@rrhh_bp.route("/api/rrhh/turnos/<int:turno_id>/dias", methods=["PUT"])
+def turno_dias_actualizar(turno_id):
+    """Actualizar configuración de días de un turno (reemplaza todos)"""
+    turno = Turno.query.get_or_404(turno_id)
+    data = request.get_json() or {}
+    dias_data = data.get("dias", [])
+
+    if not isinstance(dias_data, list) or len(dias_data) != 7:
+        return jsonify({"error": "Se requieren exactamente 7 días (0=lunes .. 6=domingo)"}), 400
+
+    # Indexar días existentes
+    dias_existentes = {d.dia_semana: d for d in turno.dias}
+
+    for dia_info in dias_data:
+        dia_semana = dia_info.get("dia_semana")
+        if dia_semana is None or not (0 <= dia_semana <= 6):
+            return jsonify({"error": f"dia_semana inválido: {dia_semana}"}), 400
+
+        activo = bool(dia_info.get("activo", False))
+        es_cortado = bool(dia_info.get("es_cortado", False))
+
+        hora_inicio_1 = None
+        hora_fin_1 = None
+        hora_inicio_2 = None
+        hora_fin_2 = None
+
+        if activo:
+            try:
+                hora_inicio_1 = datetime.strptime(dia_info["hora_inicio_1"], "%H:%M").time()
+                hora_fin_1 = datetime.strptime(dia_info["hora_fin_1"], "%H:%M").time()
+                if es_cortado:
+                    hora_inicio_2 = datetime.strptime(dia_info["hora_inicio_2"], "%H:%M").time()
+                    hora_fin_2 = datetime.strptime(dia_info["hora_fin_2"], "%H:%M").time()
+            except (KeyError, ValueError, TypeError):
+                nombre_dia = DIAS_SEMANA_NOMBRES[dia_semana]
+                return jsonify({"error": f"Horarios inválidos para {nombre_dia}"}), 400
+
+        if dia_semana in dias_existentes:
+            td = dias_existentes[dia_semana]
+        else:
+            td = TurnoDia(turno_id=turno.id, dia_semana=dia_semana)
+            db.session.add(td)
+
+        td.activo = activo
+        td.es_cortado = es_cortado
+        td.hora_inicio_1 = hora_inicio_1
+        td.hora_fin_1 = hora_fin_1
+        td.hora_inicio_2 = hora_inicio_2
+        td.hora_fin_2 = hora_fin_2
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Horarios actualizados",
+        "dias": [_serializar_turno_dia(d) for d in turno.dias],
+    })
 
 
 # Endpoints para Asistencia
@@ -428,7 +502,7 @@ def ausentismo_crear():
             return jsonify({"error": "Turno no encontrado o inactivo"}), 404
         turno_id = turno.id
     else:
-        turno = Turno.query.filter_by(activo=True).order_by(Turno.hora_inicio).first()
+        turno = Turno.query.filter_by(activo=True).order_by(Turno.nombre).first()
         if not turno:
             return jsonify({"error": "Debe existir al menos un turno activo"}), 400
         turno_id = turno.id

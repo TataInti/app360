@@ -11,16 +11,40 @@ class Turno(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     descripcion = db.Column(db.Text)
-    hora_inicio = db.Column(db.Time, nullable=False)
-    hora_fin = db.Column(db.Time, nullable=False)
-    dias_semana = db.Column(db.String(20))  # Ej: "1,2,3,4,5" (lunes a viernes)
     activo = db.Column(db.Boolean, default=True)
 
     # Relaciones
     asistencias = db.relationship("Asistencia", back_populates="turno")
+    dias = db.relationship("TurnoDia", back_populates="turno", cascade="all, delete-orphan",
+                           order_by="TurnoDia.dia_semana")
 
     def __repr__(self):
         return f'<Turno {self.nombre}>'
+
+
+class TurnoDia(db.Model):
+    """Configuración de horario por día de la semana para un turno"""
+    __tablename__ = 'turno_dias'
+    __table_args__ = (
+        db.UniqueConstraint('turno_id', 'dia_semana', name='uq_turno_dia'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    turno_id = db.Column(db.Integer, db.ForeignKey('turnos.id'), nullable=False)
+    dia_semana = db.Column(db.Integer, nullable=False)  # 0=lunes .. 6=domingo
+    activo = db.Column(db.Boolean, default=True)  # ¿se trabaja este día?
+    es_cortado = db.Column(db.Boolean, default=False)  # jornada cortada (2 bloques)
+    hora_inicio_1 = db.Column(db.Time)
+    hora_fin_1 = db.Column(db.Time)
+    hora_inicio_2 = db.Column(db.Time)  # solo si es_cortado
+    hora_fin_2 = db.Column(db.Time)    # solo si es_cortado
+
+    turno = db.relationship("Turno", back_populates="dias")
+
+    def __repr__(self):
+        dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+        nombre_dia = dias[self.dia_semana] if 0 <= self.dia_semana <= 6 else '?'
+        return f'<TurnoDia {self.turno_id} {nombre_dia}>'
 
 
 class Asistencia(db.Model):
