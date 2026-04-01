@@ -108,6 +108,7 @@
                             <th>Tipo</th>
                             <th>Monto</th>
                             <th>Instrumento</th>
+                            <th>Portador</th>
                             <th>Categoría</th>
                             <th>Proveedor</th>
                             <th>Descripción</th>
@@ -117,13 +118,13 @@
                         </tr>
                     </thead>
                     <tbody id="tablaMovimientos">
-                        <tr><td colspan="10" class="text-center">Cargando...</td></tr>
+                        <tr><td colspan="11" class="text-center">Cargando...</td></tr>
                     </tbody>
                     <tfoot id="tfootMovimientos" class="d-none">
                         <tr class="table-light fw-bold">
                             <td colspan="2">Subtotal <small id="subtotalCount" class="text-muted fw-normal"></small></td>
                             <td id="subtotalMonto"></td>
-                            <td colspan="7"></td>
+                            <td colspan="8"></td>
                         </tr>
                     </tfoot>
                 </table>
@@ -159,6 +160,15 @@
                             <option value="">Seleccionar...</option>
                         </select>
                     </div>
+                    <div class="mb-3" id="portadorGroup" style="display:none">
+                        <label class="form-label">Portador *</label>
+                        <div class="input-group">
+                            <select class="form-select" name="portador_id" id="selectPortador">
+                                <option value="">Seleccionar...</option>
+                            </select>
+                            <button type="button" class="btn btn-outline-success btn-sm" onclick="crearPortadorInline()" title="Nuevo portador">+</button>
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Categoría de Gasto (opcional)</label>
                         <select class="form-select" name="categoria_gasto_id" id="selectCategoriaGasto">
@@ -191,6 +201,7 @@ const canEdit = (userRole !== 'director');
 const isAdmin = ['admin', 'manager', 'gerente'].includes(userRole);
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 let movimientosChart = null;
+let _instrumentos = [];
 
 function fmtNumAbbr(n) {
     const abs = Math.abs(n);
@@ -207,16 +218,33 @@ document.addEventListener('DOMContentLoaded', function() {
     
     cargarInstrumentos();
     cargarCategoriasProveedores();
+    cargarPortadores();
     cargarMovimientos();
+
+    // Toggle portador field based on instrument
+    document.getElementById('selectInstrumento').addEventListener('change', function() {
+        const inst = _instrumentos.find(i => i.id == this.value);
+        const pg = document.getElementById('portadorGroup');
+        const sp = document.getElementById('selectPortador');
+        if (inst && inst.requiere_portador) {
+            pg.style.display = '';
+            sp.required = true;
+        } else {
+            pg.style.display = 'none';
+            sp.required = false;
+            sp.value = '';
+        }
+    });
 });
 
 async function cargarInstrumentos() {
     try {
         const resp = await fetch('/api/tesoreria/instrumentos');
         const data = await resp.json();
+        _instrumentos = data.instrumentos || [];
         const select = document.getElementById('selectInstrumento');
         const filtro = document.getElementById('instrumentoFiltro');
-        (data.instrumentos || []).forEach(i => {
+        _instrumentos.forEach(i => {
             select.innerHTML += `<option value="${i.id}">${i.nombre}</option>`;
             filtro.innerHTML += `<option value="${i.id}">${i.nombre}</option>`;
         });
@@ -325,7 +353,7 @@ async function cargarMovimientos() {
         
         const tbody = document.getElementById('tablaMovimientos');
         if (movimientos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No hay movimientos</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">No hay movimientos</td></tr>';
         } else {
             tbody.innerHTML = movimientos.map(m => {
                 const destinoCategoria = m.categoria_gasto || '-';
@@ -360,6 +388,7 @@ async function cargarMovimientos() {
                     <td><span class="badge ${m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger'}">${m.tipo}</span></td>
                     <td>$${parseFloat(m.monto).toLocaleString('es-AR')}</td>
                     <td>${m.instrumento || '-'}</td>
+                    <td>${m.portador || '-'}</td>
                     <td>${destinoCategoria}</td>
                     <td>${destinoProveedor}</td>
                     <td>${m.descripcion}</td>
@@ -453,6 +482,8 @@ document.getElementById('formMovimiento')?.addEventListener('submit', async func
         proveedor_id: provValue ? parseInt(provValue) : null,
         descripcion: formData.get('descripcion')
     };
+    const portValue = formData.get('portador_id');
+    if (portValue) data.portador_id = parseInt(portValue);
     
     try {
         const resp = await fetch('/api/tesoreria/movimientos', {
@@ -464,6 +495,7 @@ document.getElementById('formMovimiento')?.addEventListener('submit', async func
         if (resp.ok) {
             bootstrap.Modal.getInstance(document.getElementById('modalNuevoMovimiento')).hide();
             this.reset();
+            document.getElementById('portadorGroup').style.display = 'none';
             cargarMovimientos();
         } else {
             const err = await resp.json();
@@ -507,6 +539,40 @@ function rechazarAnulacion(id) {
         if (r.ok) { alert('Solicitud rechazada'); cargarMovimientos(); }
         else r.json().then(d => alert(d.error || 'Error'));
     }).catch(() => alert('Error de conexión'));
+}
+
+async function cargarPortadores() {
+    try {
+        const resp = await fetch('/api/tesoreria/portadores');
+        const data = await resp.json();
+        const select = document.getElementById('selectPortador');
+        (data.portadores || []).forEach(p => {
+            select.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
+        });
+    } catch(e) {
+        console.error('Error cargando portadores:', e);
+    }
+}
+
+async function crearPortadorInline() {
+    const nombre = prompt('Nombre del portador:');
+    if (!nombre || !nombre.trim()) return;
+    try {
+        const resp = await fetch('/api/tesoreria/portadores', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            body: JSON.stringify({nombre: nombre.trim()})
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            const select = document.getElementById('selectPortador');
+            select.innerHTML += `<option value="${data.portador.id}">${data.portador.nombre}</option>`;
+            select.value = data.portador.id;
+        } else {
+            const err = await resp.json();
+            alert('Error: ' + (err.error || 'No se pudo crear'));
+        }
+    } catch(e) { alert('Error de conexión'); }
 }
 </script>
 {% endblock %}

@@ -9,7 +9,7 @@ from flask import current_app
 
 from models import db
 from models.gastos import CategoriaGasto, Proveedor
-from models.tesoreria import InstrumentoPago, CuentaCorrienteFriar
+from models.tesoreria import InstrumentoPago, CuentaCorrienteFriar, PortadorInstrumento
 from models.rrhh import Turno
 from models.hr.employee import Employee
 from models.core import Location, Product, BusinessUnit
@@ -98,7 +98,13 @@ ADMIN_MODELS = {
         "instrumentos": {
             "model": InstrumentoPago,
             "name": "Instrumentos de Pago",
-            "fields": ["nombre", "descripcion", "activo"],
+            "fields": ["nombre", "descripcion", "requiere_portador", "activo"],
+            "required": ["nombre"],
+        },
+        "portadores": {
+            "model": PortadorInstrumento,
+            "name": "Portadores de Instrumento",
+            "fields": ["nombre", "documento", "telefono", "notas", "activo"],
             "required": ["nombre"],
         },
         "cuenta_friar": {

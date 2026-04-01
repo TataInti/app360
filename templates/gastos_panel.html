@@ -2,128 +2,114 @@
 {% block title %}Panel de Gastos{% endblock %}
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
         <h1><i class="bi bi-cash-stack"></i> Panel de Gastos</h1>
         <div>
-            <button class="btn btn-outline-success me-2" onclick="exportarGastos()">
-                <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+            <button class="btn btn-outline-success btn-sm me-2" onclick="exportarGastos()">
+                <i class="bi bi-file-earmark-excel"></i> Exportar
             </button>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#nuevoGastoModal">
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoGasto">
                 <i class="bi bi-plus-circle"></i> Registrar Gasto
             </button>
         </div>
     </div>
 
     <!-- Filtros -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="row g-3">
-                <div class="col-md-3">
-                    <label class="form-label">Fecha Desde</label>
-                    <input type="date" id="fechaDesde" class="form-control">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Fecha Hasta</label>
-                    <input type="date" id="fechaHasta" class="form-control">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Categoría</label>
-                    <select id="categoriaFiltro" class="form-select">
-                        <option value="">Todas</option>
-                    </select>
-                </div>
-                <div class="col-md-3 d-flex align-items-end">
-                    <button class="btn btn-secondary w-100" onclick="cargarGastos()">
-                        <i class="bi bi-search"></i> Filtrar
-                    </button>
-                </div>
-            </div>
-        </div>
+    <div class="period-bar mb-3">
+        <select id="selCategoria" style="min-width:130px"><option value="">Categoría</option></select>
+        <select id="selProveedor" style="min-width:130px"><option value="">Proveedor</option></select>
+        <select id="selInstrumento" style="min-width:120px"><option value="">Instrumento</option></select>
+        <span class="filter-sep"></span>
+        <span class="pp active" data-period="30">30d</span>
+        <span class="pp" data-period="60">60d</span>
+        <span class="pp" data-period="90">90d</span>
+        <span class="filter-sep"></span>
+        <input type="date" id="dateDesde" style="width:130px">
+        <input type="date" id="dateHasta" style="width:130px">
+        <span class="pp pp-month" id="btn-este-mes">📅 Este mes</span>
+        <span class="pp pp-action" id="btn-aplicar">✓ Aplicar</span>
     </div>
 
     <!-- KPIs -->
-    <div class="row mb-4">
+    <div class="row mb-3 g-2">
         <div class="col-md-3">
             <div class="card bg-danger text-white">
-                <div class="card-body text-center">
-                    <h6>Total Gastos (Período)</h6>
-                    <h2 id="totalGastos">$0</h2>
+                <div class="card-body text-center py-2">
+                    <small>Total Gastos</small>
+                    <h4 id="kpiTotal" class="mb-0">$0</h4>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card bg-warning text-dark">
-                <div class="card-body text-center">
-                    <h6>Gastos Pendientes</h6>
-                    <h2 id="gastosPendientes">0</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body text-center">
-                    <h6>Gastos Pagados</h6>
-                    <h2 id="gastosPagados">0</h2>
+                <div class="card-body text-center py-2">
+                    <small>Cantidad</small>
+                    <h4 id="kpiCantidad" class="mb-0">0</h4>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="card bg-info text-white">
-                <div class="card-body text-center">
-                    <h6>Promedio Mensual</h6>
-                    <h2 id="promedioMensual">$0</h2>
+                <div class="card-body text-center py-2">
+                    <small>Promedio x Gasto</small>
+                    <h4 id="kpiPromedio" class="mb-0">$0</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-dark text-white">
+                <div class="card-body text-center py-2">
+                    <small>Top Categoría</small>
+                    <h4 id="kpiTopCat" class="mb-0">-</h4>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Gráfico -->
-    <div class="row mb-4">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h5><i class="bi bi-bar-chart"></i> Gastos por Categoría</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="chartCategorias" height="250"></canvas>
-                </div>
-            </div>
+    <!-- Gráficos -->
+    <div class="row mb-3 g-2">
+        <div class="col-md-4">
+            <div class="card"><div class="card-body" style="height:280px">
+                <h6 class="mb-1"><i class="bi bi-bar-chart"></i> Por Categoría</h6>
+                <canvas id="chartCat"></canvas>
+            </div></div>
         </div>
         <div class="col-md-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5><i class="bi bi-pie-chart"></i> Distribución</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="chartDistribucion" height="250"></canvas>
-                </div>
-            </div>
+            <div class="card"><div class="card-body" style="height:280px">
+                <h6 class="mb-1"><i class="bi bi-pie-chart"></i> Por Proveedor</h6>
+                <canvas id="chartProv"></canvas>
+            </div></div>
+        </div>
+        <div class="col-md-4">
+            <div class="card"><div class="card-body" style="height:280px">
+                <h6 class="mb-1"><i class="bi bi-graph-up"></i> Evolución Diaria</h6>
+                <canvas id="chartEvo"></canvas>
+            </div></div>
         </div>
     </div>
 
-    <!-- Tabla de Gastos -->
+    <!-- Tabla -->
     <div class="card">
-        <div class="card-header">
-            <h5><i class="bi bi-table"></i> Listado de Gastos</h5>
+        <div class="card-header py-2">
+            <h6 class="mb-0"><i class="bi bi-table"></i> Gastos registrados</h6>
         </div>
-        <div class="card-body">
+        <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-dark">
                         <tr>
                             <th>Fecha</th>
                             <th>Descripción</th>
                             <th>Categoría</th>
                             <th>Proveedor</th>
-                            <th>Monto</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
+                            <th>Instrumento</th>
+                            <th>Portador</th>
+                            <th class="text-end">Monto</th>
+                            <th>Usuario</th>
                         </tr>
                     </thead>
-                    <tbody id="tablaGastos">
-                        <tr>
-                            <td colspan="7" class="text-center">Cargando...</td>
-                        </tr>
+                    <tbody id="tbodyGastos">
+                        <tr><td colspan="8" class="text-center text-muted">Cargando...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -132,467 +118,299 @@
 </div>
 
 <!-- Modal Nuevo Gasto -->
-<div class="modal fade" id="nuevoGastoModal" tabindex="-1">
+<div class="modal fade" id="modalNuevoGasto" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Registrar Nuevo Gasto</h5>
+                <h5 class="modal-title">Registrar Gasto</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-                <form id="formNuevoGasto">
+            <form id="formGasto">
+                <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Descripción *</label>
-                        <input type="text" name="descripcion" class="form-control" required>
+                        <input type="text" class="form-control" name="descripcion" required>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Categoría *</label>
-                        <select name="categoria_id" id="categoriaSelect" class="form-select" required>
-                            <option value="">Seleccionar...</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Proveedor *</label>
-                        <select name="proveedor_id" id="proveedorSelect" class="form-select" required>
-                            <option value="">Seleccionar...</option>
-                        </select>
-                    </div>
-                    <div class="row">
+                    <div class="row g-2">
                         <div class="col-md-6 mb-3">
+                            <label class="form-label">Categoría *</label>
+                            <select class="form-select" name="categoria_gasto_id" id="frmCategoria" required>
+                                <option value="">Seleccionar...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Proveedor *</label>
+                            <select class="form-select" name="proveedor_id" id="frmProveedor" required>
+                                <option value="">Seleccionar...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">Monto *</label>
-                            <input type="number" name="monto" class="form-control" step="0.01" min="0" required>
+                            <input type="number" class="form-control" name="monto" step="0.01" min="0.01" required>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Fecha *</label>
-                            <input type="date" name="fecha" class="form-control" required>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Instrumento *</label>
+                            <select class="form-select" name="instrumento_id" id="frmInstrumento" required>
+                                <option value="">Seleccionar...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3" id="portadorGroup" style="display:none">
+                            <label class="form-label">Portador *</label>
+                            <select class="form-select" name="portador_id" id="frmPortador">
+                                <option value="">Seleccionar...</option>
+                            </select>
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Estado</label>
-                        <select name="estado" class="form-select">
-                            <option value="pendiente">Pendiente</option>
-                            <option value="pagado">Pagado</option>
-                        </select>
+                        <label class="form-label">Referencia (nro cheque, etc.)</label>
+                        <input type="text" class="form-control" name="referencia">
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Notas</label>
-                        <textarea name="notas" class="form-control" rows="2"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="guardarGasto()">Guardar</button>
-            </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
-<!-- Modal Editar Gasto -->
-<div class="modal fade" id="editarGastoModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Editar Gasto</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="formEditarGasto">
-                    <input type="hidden" name="gasto_id" id="editGastoId">
-                    <div class="mb-3">
-                        <label class="form-label">Descripción *</label>
-                        <input type="text" name="descripcion" id="editDescripcion" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Categoría *</label>
-                        <select name="categoria_id" id="editCategoriaSelect" class="form-select" required>
-                            <option value="">Seleccionar...</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Proveedor *</label>
-                        <select name="proveedor_id" id="editProveedorSelect" class="form-select" required>
-                            <option value="">Seleccionar...</option>
-                        </select>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Monto *</label>
-                            <input type="number" name="monto" id="editMonto" class="form-control" step="0.01" min="0" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Fecha *</label>
-                            <input type="date" name="fecha" id="editFecha" class="form-control" required>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Estado</label>
-                        <select name="estado" id="editEstado" class="form-select">
-                            <option value="pendiente">Pendiente</option>
-                            <option value="pagado">Pagado</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Número de factura</label>
-                        <input type="text" name="numero_factura" id="editNumeroFactura" class="form-control">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Fecha vencimiento</label>
-                        <input type="date" name="fecha_vencimiento" id="editFechaVencimiento" class="form-control">
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="actualizarGasto()">Guardar cambios</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-let chartCategorias = null;
-let chartDistribucion = null;
+let chartCat = null, chartProv = null, chartEvo = null;
+let _instrumentos = [];
 
-document.addEventListener('DOMContentLoaded', function() {
-    // Fechas por defecto (último mes)
-    const hoy = new Date();
-    const hace30 = new Date(hoy.getTime() - 30*24*60*60*1000);
-    document.getElementById('fechaHasta').value = hoy.toISOString().split('T')[0];
-    document.getElementById('fechaDesde').value = hace30.toISOString().split('T')[0];
-    document.querySelector('input[name="fecha"]').value = hoy.toISOString().split('T')[0];
-    
-    cargarCategorias();
-    cargarProveedores();
-    cargarGastos();
+function fmtAbbr(n) {
+    const a = Math.abs(n);
+    if (a >= 1e6) return '$'+(n/1e6).toFixed(1)+'M';
+    if (a >= 1e3) return '$'+Math.round(n/1e3)+'K';
+    return '$'+Math.round(n).toLocaleString('es-AR');
+}
+
+const COLORES = ['#dc3545','#fd7e14','#ffc107','#20c997','#0dcaf0','#6f42c1','#e83e8c','#198754','#0d6efd','#6c757d','#adb5bd','#343a40'];
+
+/* ── init ── */
+document.addEventListener('DOMContentLoaded', () => {
+    const hoy = new Date(), h30 = new Date(hoy - 30*864e5);
+    document.getElementById('dateHasta').value = hoy.toISOString().split('T')[0];
+    document.getElementById('dateDesde').value = h30.toISOString().split('T')[0];
+
+    cargarRefs();
+    load('30');
+
+    // pills
+    document.querySelectorAll('.period-bar .pp[data-period]').forEach(b => b.addEventListener('click', () => {
+        document.querySelectorAll('.period-bar .pp[data-period]').forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        load(b.dataset.period);
+    }));
+
+    document.getElementById('btn-aplicar').addEventListener('click', () => {
+        document.querySelectorAll('.period-bar .pp[data-period]').forEach(x => x.classList.remove('active'));
+        load();
+    });
+
+    document.getElementById('btn-este-mes').addEventListener('click', () => {
+        const hoy = new Date();
+        document.getElementById('dateDesde').value = hoy.toISOString().split('T')[0].slice(0,8) + '01';
+        document.getElementById('dateHasta').value = hoy.toISOString().split('T')[0];
+        document.querySelectorAll('.period-bar .pp[data-period]').forEach(x => x.classList.remove('active'));
+        load();
+    });
+
+    ['selCategoria','selProveedor','selInstrumento'].forEach(id =>
+        document.getElementById(id).addEventListener('change', () => load())
+    );
+
+    // form: instrumento change → toggle portador
+    document.getElementById('frmInstrumento').addEventListener('change', function() {
+        const inst = _instrumentos.find(i => i.id == this.value);
+        const pg = document.getElementById('portadorGroup');
+        const fp = document.getElementById('frmPortador');
+        if (inst && inst.requiere_portador) {
+            pg.style.display = '';
+            fp.required = true;
+        } else {
+            pg.style.display = 'none';
+            fp.required = false;
+            fp.value = '';
+        }
+    });
+
+    // form submit
+    document.getElementById('formGasto').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        const data = {};
+        fd.forEach((v,k) => { if(v) data[k] = v; });
+        data.monto = parseFloat(data.monto);
+        data.categoria_gasto_id = parseInt(data.categoria_gasto_id);
+        data.proveedor_id = parseInt(data.proveedor_id);
+        data.instrumento_id = parseInt(data.instrumento_id);
+        if (data.portador_id) data.portador_id = parseInt(data.portador_id);
+
+        try {
+            const r = await fetch('/api/gastos/registrar', {
+                method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken},
+                body: JSON.stringify(data)
+            });
+            if (r.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('modalNuevoGasto')).hide();
+                this.reset();
+                document.getElementById('portadorGroup').style.display = 'none';
+                load();
+            } else {
+                const err = await r.json();
+                alert('Error: '+(err.error||'No se pudo guardar'));
+            }
+        } catch(ex) { alert('Error de conexión'); }
+    });
 });
 
-function fmtNumAbbr(n) {
-    const abs = Math.abs(n);
-    if (abs >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
-    if (abs >= 1000) return '$' + (n / 1000).toFixed(0) + 'K';
-    return '$' + Math.round(n).toLocaleString('es-AR');
+async function cargarRefs() {
+    const [catR, provR, instR, portR] = await Promise.all([
+        fetch('/api/gastos/categorias'), fetch('/api/gastos/proveedores'),
+        fetch('/api/tesoreria/instrumentos'), fetch('/api/tesoreria/portadores')
+    ]);
+    const [catD, provD, instD, portD] = await Promise.all([catR.json(), provR.json(), instR.json(), portR.json()]);
+
+    _instrumentos = instD.instrumentos || [];
+
+    // Filtros
+    const sCat = document.getElementById('selCategoria');
+    const sProv = document.getElementById('selProveedor');
+    const sInst = document.getElementById('selInstrumento');
+    (catD.categorias||[]).forEach(c => sCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
+    (provD.proveedores||[]).forEach(p => sProv.innerHTML += `<option value="${p.id}">${p.nombre}</option>`);
+    _instrumentos.forEach(i => sInst.innerHTML += `<option value="${i.id}">${i.nombre}</option>`);
+
+    // Modal selects
+    const fCat = document.getElementById('frmCategoria');
+    const fProv = document.getElementById('frmProveedor');
+    const fInst = document.getElementById('frmInstrumento');
+    const fPort = document.getElementById('frmPortador');
+    (catD.categorias||[]).forEach(c => fCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
+    (provD.proveedores||[]).forEach(p => fProv.innerHTML += `<option value="${p.id}">${p.nombre}</option>`);
+    _instrumentos.forEach(i => fInst.innerHTML += `<option value="${i.id}">${i.nombre}</option>`);
+    (portD.portadores||[]).forEach(p => fPort.innerHTML += `<option value="${p.id}">${p.nombre}</option>`);
 }
 
-async function cargarCategorias() {
-    try {
-        const resp = await fetch('/api/gastos/categorias');
-        const data = await resp.json();
-        const select = document.getElementById('categoriaSelect');
-        const filtro = document.getElementById('categoriaFiltro');
-        const editSelect = document.getElementById('editCategoriaSelect');
-        data.categorias.forEach(c => {
-            select.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
-            filtro.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
-            editSelect.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
-        });
-    } catch(e) {
-        console.error('Error cargando categorías:', e);
+async function load(period) {
+    let desde = document.getElementById('dateDesde').value;
+    let hasta = document.getElementById('dateHasta').value;
+    if (period) {
+        const h = new Date(), d = new Date(h - parseInt(period)*864e5);
+        desde = d.toISOString().split('T')[0];
+        hasta = h.toISOString().split('T')[0];
+        document.getElementById('dateDesde').value = desde;
+        document.getElementById('dateHasta').value = hasta;
     }
-}
 
-async function cargarProveedores() {
-    try {
-        const resp = await fetch('/api/gastos/proveedores');
-        const data = await resp.json();
-        const select = document.getElementById('proveedorSelect');
-        const editSelect = document.getElementById('editProveedorSelect');
-        if (data.proveedores) {
-            data.proveedores.forEach(p => {
-                select.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
-                editSelect.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
-            });
-        }
-    } catch(e) {
-        console.error('Error cargando proveedores:', e);
-    }
-}
+    const cat = document.getElementById('selCategoria').value;
+    const prov = document.getElementById('selProveedor').value;
+    const inst = document.getElementById('selInstrumento').value;
 
-async function cargarGastos() {
-    const desde = document.getElementById('fechaDesde').value;
-    const hasta = document.getElementById('fechaHasta').value;
-    const categoria = document.getElementById('categoriaFiltro').value;
-    
     let url = `/api/gastos/listar?fecha_desde=${desde}&fecha_hasta=${hasta}`;
-    if (categoria) url += `&categoria_id=${categoria}`;
-    
-    try {
-        const resp = await fetch(url);
-        const data = await resp.json();
-        
-        // Actualizar KPIs
-        let total = 0, pendientes = 0, pagados = 0;
-        const gastos = data.gastos || [];
-        
-        gastos.forEach(g => {
-            total += parseFloat(g.monto);
-            if (g.estado === 'pendiente') pendientes++;
-            else if (g.estado === 'pagado') pagados++;
-        });
-        
-        document.getElementById('totalGastos').textContent = '$' + total.toLocaleString('es-AR', {maximumFractionDigits:0});
-        document.getElementById('gastosPendientes').textContent = pendientes;
-        document.getElementById('gastosPagados').textContent = pagados;
-        document.getElementById('promedioMensual').textContent = '$' + (total / 1).toLocaleString('es-AR', {maximumFractionDigits:0});
-        
-        // Actualizar tabla
-        const tbody = document.getElementById('tablaGastos');
-        if (gastos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay gastos registrados</td></tr>';
-        } else {
-            tbody.innerHTML = gastos.map(g => `
-                <tr>
-                    <td>${g.fecha}</td>
-                    <td>${g.descripcion}</td>
-                    <td>${g.categoria_nombre || g.categoria?.nombre || '-'}</td>
-                    <td>${g.proveedor_nombre || g.proveedor?.nombre || '-'}</td>
-                    <td>$${parseFloat(g.monto).toLocaleString('es-AR')}</td>
-                    <td><span class="badge ${g.estado === 'pagado' ? 'bg-success' : 'bg-warning'}">${g.estado}</span></td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="editarGasto(${g.id})">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
-        }
-        
-        // Actualizar gráficos
-        actualizarGraficos(gastos);
-    } catch(e) {
-        console.error('Error cargando gastos:', e);
-        document.getElementById('tablaGastos').innerHTML = 
-            '<tr><td colspan="7" class="text-center text-danger">Error al cargar datos</td></tr>';
+    if (cat) url += `&categoria_id=${cat}`;
+    if (prov) url += `&proveedor_id=${prov}`;
+    if (inst) url += `&instrumento_id=${inst}`;
+
+    let urlR = `/api/gastos/resumen?fecha_desde=${desde}&fecha_hasta=${hasta}`;
+
+    const [listR, resR] = await Promise.all([fetch(url), fetch(urlR)]);
+    const listD = await listR.json();
+    const resD = await resR.json();
+
+    // KPIs
+    document.getElementById('kpiTotal').textContent = fmtAbbr(resD.total || 0);
+    document.getElementById('kpiCantidad').textContent = resD.cantidad || 0;
+    document.getElementById('kpiPromedio').textContent = fmtAbbr(resD.promedio || 0);
+    const cats = resD.por_categoria || {};
+    const topCat = Object.entries(cats).sort((a,b) => b[1]-a[1])[0];
+    document.getElementById('kpiTopCat').textContent = topCat ? topCat[0] : '-';
+
+    // Table
+    const gastos = listD.gastos || [];
+    const tbody = document.getElementById('tbodyGastos');
+    if (!gastos.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Sin gastos en el período</td></tr>';
+    } else {
+        tbody.innerHTML = gastos.map(g => `<tr>
+            <td>${g.fecha}</td>
+            <td>${g.descripcion}</td>
+            <td>${g.categoria_nombre}</td>
+            <td>${g.proveedor_nombre}</td>
+            <td>${g.instrumento}</td>
+            <td>${g.portador || '-'}</td>
+            <td class="text-end">$${parseFloat(g.monto).toLocaleString('es-AR')}</td>
+            <td>${g.usuario || '-'}</td>
+        </tr>`).join('');
     }
+
+    // Charts
+    renderCharts(resD);
 }
 
-function actualizarGraficos(gastos) {
-    // Agrupar por categoría
-    const porCategoria = {};
-    gastos.forEach(g => {
-        const cat = g.categoria || 'Sin categoría';
-        porCategoria[cat] = (porCategoria[cat] || 0) + parseFloat(g.monto);
-    });
-    
-    const labels = Object.keys(porCategoria);
-    const valores = Object.values(porCategoria);
-    const colores = ['#dc3545', '#fd7e14', '#ffc107', '#28a745', '#17a2b8', '#6f42c1', '#e83e8c'];
-    
-    // Plugin personalizado para etiquetas en barras
-    const barLabelsPlugin = {
-        afterDatasetsDraw(chart) {
-            const ctx = chart.ctx;
-            chart.data.datasets.forEach((dataset, i) => {
-                const meta = chart.getDatasetMeta(i);
-                if (meta.hidden) return;
-                meta.data.forEach((datapoint, index) => {
-                    const v = dataset.data[index];
-                    if (v === null || v === undefined) return;
-                    const label = fmtNumAbbr(v);
-                    ctx.fillStyle = '#111827';
-                    ctx.font = 'bold 11px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(label, datapoint.x, datapoint.y - 5);
-                });
+function renderCharts(d) {
+    const barPlugin = {
+        id:'gastosBarLbl',
+        afterDatasetsDraw(chart){
+            const ctx=chart.ctx;
+            chart.getDatasetMeta(0).data.forEach((bar,i)=>{
+                const v=chart.data.datasets[0].data[i]; if(!v) return;
+                ctx.save(); ctx.fillStyle='#333'; ctx.font='bold 10px sans-serif'; ctx.textAlign='center';
+                ctx.fillText(fmtAbbr(v), bar.x, bar.y-4); ctx.restore();
             });
         }
     };
-    
-    // Plugin personalizado para etiquetas en doughnut
-    const doughnutLabelsPlugin = {
-        afterDatasetsDraw(chart) {
-            const ctx = chart.ctx;
-            const centerX = (chart.chartArea.left + chart.chartArea.right) / 2;
-            const centerY = (chart.chartArea.top + chart.chartArea.bottom) / 2;
-            chart.getDatasetMeta(0).data.forEach((datapoint, index) => {
-                const v = chart.data.datasets[0].data[index];
-                if (v === null || v === undefined) return;
-                const label = fmtNumAbbr(v);
-                const angle = (datapoint.startAngle + datapoint.endAngle) / 2;
-                const radius = (datapoint.innerRadius + datapoint.outerRadius) / 2;
-                const x = centerX + Math.cos(angle) * radius;
-                const y = centerY + Math.sin(angle) * radius;
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 11px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(label, x, y);
-            });
-        }
-    };
-    
-    // Gráfico de barras
-    if (chartCategorias) chartCategorias.destroy();
-    const ctx1 = document.getElementById('chartCategorias').getContext('2d');
-    chartCategorias = new Chart(ctx1, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Monto ($)',
-                data: valores,
-                backgroundColor: colores.slice(0, labels.length)
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: { legend: { display: false } }
-        },
-        plugins: [barLabelsPlugin]
+
+    // Por categoría (bar)
+    const catL = Object.keys(d.por_categoria||{});
+    const catV = Object.values(d.por_categoria||{});
+    if(chartCat) chartCat.destroy();
+    chartCat = new Chart(document.getElementById('chartCat'), {
+        type:'bar', data:{ labels:catL, datasets:[{data:catV, backgroundColor:COLORES.slice(0,catL.length), borderRadius:4}] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+            scales:{y:{beginAtZero:true, ticks:{callback:v=>fmtAbbr(v)}}} },
+        plugins:[barPlugin]
     });
-    
-    // Gráfico de torta
-    if (chartDistribucion) chartDistribucion.destroy();
-    const ctx2 = document.getElementById('chartDistribucion').getContext('2d');
-    chartDistribucion = new Chart(ctx2, {
-        type: 'doughnut',
-        data: {
-            labels: labels,
-            datasets: [{
-                data: valores,
-                backgroundColor: colores.slice(0, labels.length)
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: { legend: { position: 'bottom' } }
-        },
-        plugins: [doughnutLabelsPlugin]
+
+    // Por proveedor (doughnut)
+    const provL = Object.keys(d.por_proveedor||{});
+    const provV = Object.values(d.por_proveedor||{});
+    if(chartProv) chartProv.destroy();
+    chartProv = new Chart(document.getElementById('chartProv'), {
+        type:'doughnut', data:{ labels:provL, datasets:[{data:provV, backgroundColor:COLORES.slice(0,provL.length)}] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{font:{size:10}}}} }
     });
-}
 
-async function guardarGasto() {
-    const form = document.getElementById('formNuevoGasto');
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    
-    try {
-        const resp = await fetch('/api/gastos/registrar', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify(data)
-        });
-        
-        if (resp.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('nuevoGastoModal')).hide();
-            form.reset();
-            cargarGastos();
-            alert('Gasto registrado');
-        } else {
-            const err = await resp.json();
-            alert('Error: ' + (err.error || 'No se pudo guardar'));
-        }
-    } catch(e) {
-        alert('Error de conexión');
-    }
-}
-
-async function descargarExcel(url, fallbackName) {
-    try {
-        const resp = await fetch(url);
-        const contentType = resp.headers.get('content-type') || '';
-
-        if (!resp.ok || contentType.includes('application/json')) {
-            const data = contentType.includes('application/json') ? await resp.json() : { error: await resp.text() };
-            alert('Error: ' + (data.error || 'No se pudo exportar'));
-            return;
-        }
-
-        const blob = await resp.blob();
-        const disposition = resp.headers.get('content-disposition') || '';
-        const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
-        const filename = match ? decodeURIComponent(match[1]) : fallbackName;
-
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.URL.revokeObjectURL(blobUrl);
-    } catch (e) {
-        alert('Error de conexión');
-    }
+    // Evolución diaria (line)
+    const evoEntries = Object.entries(d.evolucion_diaria||{}).sort((a,b)=>a[0].localeCompare(b[0]));
+    if(chartEvo) chartEvo.destroy();
+    chartEvo = new Chart(document.getElementById('chartEvo'), {
+        type:'line',
+        data:{ labels:evoEntries.map(e=>e[0].slice(5)), datasets:[{
+            label:'Gastos', data:evoEntries.map(e=>e[1]),
+            borderColor:'#dc3545', backgroundColor:'rgba(220,53,69,0.1)', fill:true, tension:0.3
+        }] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+            scales:{y:{beginAtZero:true, ticks:{callback:v=>fmtAbbr(v)}}} }
+    });
 }
 
 function exportarGastos() {
-    const desde = document.getElementById('fechaDesde').value;
-    const hasta = document.getElementById('fechaHasta').value;
-    const categoria = document.getElementById('categoriaFiltro').value;
-
-    const params = new URLSearchParams();
-    if (desde) params.append('fecha_desde', desde);
-    if (hasta) params.append('fecha_hasta', hasta);
-    if (categoria) params.append('categoria_id', categoria);
-
-    const query = params.toString();
-    const url = query ? `/api/gastos/exportar?${query}` : '/api/gastos/exportar';
-    descargarExcel(url, 'gastos.xlsx');
-}
-
-function editarGasto(id) {
-    cargarGastoDetalle(id);
-}
-
-async function cargarGastoDetalle(id) {
-    try {
-        const resp = await fetch(`/api/gastos/${id}`);
-        const data = await resp.json();
-        if (!resp.ok) {
-            alert(data.error || 'No se pudo cargar el gasto');
-            return;
-        }
-
-        document.getElementById('editGastoId').value = data.id;
-        document.getElementById('editDescripcion').value = data.descripcion || '';
-        document.getElementById('editCategoriaSelect').value = data.categoria_id || '';
-        document.getElementById('editProveedorSelect').value = data.proveedor_id || '';
-        document.getElementById('editMonto').value = data.monto || 0;
-        document.getElementById('editFecha').value = data.fecha || '';
-        document.getElementById('editEstado').value = data.estado || (data.pagado ? 'pagado' : 'pendiente');
-        document.getElementById('editNumeroFactura').value = data.numero_factura || '';
-        document.getElementById('editFechaVencimiento').value = data.fecha_vencimiento || '';
-
-        new bootstrap.Modal(document.getElementById('editarGastoModal')).show();
-    } catch (e) {
-        alert('Error de conexión');
-    }
-}
-
-async function actualizarGasto() {
-    const id = document.getElementById('editGastoId').value;
-    const data = {
-        descripcion: document.getElementById('editDescripcion').value,
-        categoria_id: document.getElementById('editCategoriaSelect').value,
-        proveedor_id: document.getElementById('editProveedorSelect').value,
-        monto: document.getElementById('editMonto').value,
-        fecha: document.getElementById('editFecha').value,
-        estado: document.getElementById('editEstado').value,
-        numero_factura: document.getElementById('editNumeroFactura').value,
-        fecha_vencimiento: document.getElementById('editFechaVencimiento').value
-    };
-
-    try {
-        const resp = await fetch(`/api/gastos/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify(data)
-        });
-        const result = await resp.json();
-        if (!resp.ok) {
-            alert(result.error || 'No se pudo actualizar el gasto');
-            return;
-        }
-
-        bootstrap.Modal.getInstance(document.getElementById('editarGastoModal')).hide();
-        cargarGastos();
-    } catch (e) {
-        alert('Error de conexión');
-    }
+    const desde = document.getElementById('dateDesde').value;
+    const hasta = document.getElementById('dateHasta').value;
+    const cat = document.getElementById('selCategoria').value;
+    const prov = document.getElementById('selProveedor').value;
+    const p = new URLSearchParams();
+    if(desde) p.append('fecha_desde', desde);
+    if(hasta) p.append('fecha_hasta', hasta);
+    if(cat) p.append('categoria_id', cat);
+    if(prov) p.append('proveedor_id', prov);
+    window.location.href = '/api/gastos/exportar?' + p.toString();
 }
 </script>
 {% endblock %}

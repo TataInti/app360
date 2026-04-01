@@ -8,9 +8,27 @@ class InstrumentoPago(db.Model):
     nombre = db.Column(db.String(50), nullable=False, unique=True)  # efectivo, cheque, tarjeta, etc.
     descripcion = db.Column(db.String(200))
     activo = db.Column(db.Boolean, default=True)
+    requiere_portador = db.Column(db.Boolean, default=False, server_default="0")
 
     # Relaciones
     movimientos = db.relationship("MovimientoCaja", backref="instrumento", cascade="all, delete-orphan")
+
+
+class PortadorInstrumento(db.Model):
+    """Tercero externo que porta un instrumento (ej: persona que trae un cheque)"""
+    __tablename__ = "portador_instrumento"
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(200), nullable=False)
+    documento = db.Column(db.String(30))
+    telefono = db.Column(db.String(50))
+    notas = db.Column(db.Text)
+    activo = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=now_local)
+
+    movimientos = db.relationship("MovimientoCaja", backref="portador")
+
+    def __repr__(self):
+        return f'<PortadorInstrumento {self.nombre}>'
 
 
 class ArqueoCaja(db.Model):
@@ -71,6 +89,7 @@ class MovimientoCaja(db.Model):
     usuario_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     categoria_gasto_id = db.Column(db.Integer, db.ForeignKey("categoria_gasto.id"), nullable=True)
     proveedor_id = db.Column(db.Integer, db.ForeignKey("proveedor.id"), nullable=True)
+    portador_id = db.Column(db.Integer, db.ForeignKey("portador_instrumento.id"), nullable=True)
 
     # Datos adicionales
     referencia = db.Column(db.String(100))  # Número de cheque, transacción, etc.

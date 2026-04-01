@@ -11,7 +11,7 @@ from models import (
     User,
     db,
 )
-from models.tesoreria import LogArqueo, ArqueoDetalle
+from models.tesoreria import LogArqueo, ArqueoDetalle, PortadorInstrumento
 from models.gastos import CategoriaGasto, Proveedor
 from security import protect_blueprint
 
@@ -49,7 +49,8 @@ def instrumentos_listar():
         "instrumentos": [{
             "id": i.id,
             "nombre": i.nombre,
-            "descripcion": i.descripcion
+            "descripcion": i.descripcion,
+            "requiere_portador": i.requiere_portador
         } for i in instrumentos]
     })
 
@@ -118,6 +119,7 @@ def movimientos_listar():
             "instrumento": m.instrumento.nombre,
             "categoria_gasto": m.categoria_gasto.nombre if m.categoria_gasto else None,
             "proveedor": m.proveedor.nombre if m.proveedor else None,
+            "portador": m.portador.nombre if m.portador else None,
             "referencia": m.referencia,
             "cliente_proveedor": m.cliente_proveedor,
             "estado": m.estado,
@@ -282,6 +284,15 @@ def movimientos_crear():
     if not instrumento:
         return jsonify({"error": "Instrumento no encontrado"}), 404
 
+    # Validar portador si instrumento lo requiere
+    portador_id = data.get("portador_id")
+    if instrumento.requiere_portador and not portador_id:
+        return jsonify({"error": "Este instrumento requiere indicar un portador"}), 400
+    if portador_id:
+        portador = PortadorInstrumento.query.get(portador_id)
+        if not portador or not portador.activo:
+            return jsonify({"error": "Portador no encontrado o inactivo"}), 404
+
     movimiento = MovimientoCaja(
         tipo=tipo,
         monto=monto,
@@ -289,6 +300,7 @@ def movimientos_crear():
         instrumento_id=instrumento_id,
         categoria_gasto_id=categoria_gasto_id,
         proveedor_id=proveedor_id,
+        portador_id=portador_id if portador_id else None,
         usuario_id=usuario_id,
         referencia=data.get("referencia"),
         cliente_proveedor=data.get("cliente_proveedor")
@@ -751,3 +763,43 @@ def arqueos_logs(id):
             }
         } for log in logs]
     })
+
+
+# ── Portadores de Instrumentos ──────────────────────────────
+
+@tesoreria_bp.route("/api/tesoreria/portadores", methods=["GET"])
+def portadores_listar():
+    """Listar portadores activos"""
+    portadores = PortadorInstrumento.query.filter_by(activo=True).order_by(PortadorInstrumento.nombre).all()
+    return jsonify({
+        "portadores": [{
+            "id": p.id,
+            "nombre": p.nombre,
+            "documento": p.documento,
+            "telefono": p.telefono,
+            "notas": p.notas,
+        } for p in portadores]
+    })
+
+
+@tesoreria_bp.route("/api/tesoreria/portadores", methods=["POST"])
+def portadores_crear():
+    """Crear nuevo portador de instrumento"""
+    data = request.get_json()
+    nombre = (data.get("nombre") or "").strip()
+    if not nombre:
+        return jsonify({"error": "Nombre requerido"}), 400
+
+    portador = PortadorInstrumento(
+        nombre=nombre,
+        documento=(data.get("documento") or "").strip() or None,
+        telefono=(data.get("telefono") or "").strip() or None,
+        notas=(data.get("notas") or "").strip() or None,
+    )
+    db.session.add(portador)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Portador creado",
+        "portador": {"id": portador.id, "nombre": portador.nombre}
+    }), 201

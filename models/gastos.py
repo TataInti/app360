@@ -16,9 +16,6 @@ class CategoriaGasto(db.Model):
     descripcion = Column(Text)
     activo = Column(db.Boolean, default=True)
 
-    # Relaciones
-    gastos = relationship("Gasto", back_populates="categoria")
-
     def __repr__(self):
         return f'<CategoriaGasto {self.nombre}>'
 
@@ -35,41 +32,5 @@ class Proveedor(db.Model):
     direccion = Column(Text)
     activo = Column(db.Boolean, default=True)
 
-    # Relaciones
-    gastos = relationship("Gasto", back_populates="proveedor")
-
     def __repr__(self):
         return f'<Proveedor {self.nombre}>'
-
-
-class Gasto(db.Model):
-    """Registro de gastos"""
-    __tablename__ = 'gasto'
-
-    id = Column(Integer, primary_key=True)
-    fecha = Column(Date, nullable=False, default=today_local_date)
-    descripcion = Column(String(300), nullable=False)
-    monto = Column(Numeric(12, 2), nullable=False)
-    categoria_id = Column(Integer, ForeignKey('categoria_gasto.id'), nullable=False)
-    proveedor_id = Column(Integer, ForeignKey('proveedor.id'), nullable=False)
-
-    # Información adicional
-    numero_factura = Column(String(50))
-    fecha_vencimiento = Column(Date)
-    pagado = Column(db.Boolean, default=False)
-    fecha_pago = Column(DateTime)
-
-    # Usuario que registró el gasto
-    usuario_id = Column(Integer, ForeignKey('users.id'), nullable=True)
-
-    # Timestamps
-    created_at = Column(DateTime, default=now_local)
-    updated_at = Column(DateTime, default=now_local, onupdate=now_local)
-
-    # Relaciones
-    categoria = relationship("CategoriaGasto", back_populates="gastos")
-    proveedor = relationship("Proveedor", back_populates="gastos")
-    usuario = relationship("User")
-
-    def __repr__(self):
-        return f'<Gasto {self.descripcion} - ${self.monto}>'

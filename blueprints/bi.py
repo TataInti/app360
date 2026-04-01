@@ -13,7 +13,6 @@ from models import (
     CategoriaGasto,
     Client,
     Employee,
-    Gasto,
     Lead,
     Location,
     MovimientoCaja,
@@ -56,6 +55,55 @@ def _month_key(dt: date):
 
 def _month_label(dt: date):
     return dt.strftime("%b")
+
+
+def _gastos_sum(desde=None, hasta=None) -> float:
+    """Suma de movimientos de caja con categoría de gasto (reemplaza tabla gasto)."""
+    q = db.session.query(func.sum(MovimientoCaja.monto)).filter(
+        MovimientoCaja.categoria_gasto_id.isnot(None),
+        MovimientoCaja.estado != "anulado",
+    )
+    if desde is not None and hasta is not None:
+        q = q.filter(MovimientoCaja.fecha.between(desde, hasta))
+    elif hasta is not None:
+        q = q.filter(MovimientoCaja.fecha <= hasta)
+    return float(q.scalar() or 0)
+
+
+def _gastos_mes_q(desde, hasta):
+    """Serie mensual de gastos agrupada por año/mes."""
+    return (
+        db.session.query(
+            extract('year', MovimientoCaja.fecha).label('y'),
+            extract('month', MovimientoCaja.fecha).label('m'),
+            func.sum(MovimientoCaja.monto),
+        )
+        .filter(
+            MovimientoCaja.categoria_gasto_id.isnot(None),
+            MovimientoCaja.estado != "anulado",
+            MovimientoCaja.fecha.between(desde, hasta),
+        )
+        .group_by('y', 'm')
+        .order_by('y', 'm')
+        .all()
+    )
+
+
+def _gastos_cat_q(desde, hasta):
+    """Mix de gastos por categoría."""
+    return (
+        db.session.query(
+            func.coalesce(CategoriaGasto.nombre, 'Otros'),
+            func.sum(MovimientoCaja.monto),
+        )
+        .join(CategoriaGasto, MovimientoCaja.categoria_gasto_id == CategoriaGasto.id)
+        .filter(
+            MovimientoCaja.estado != "anulado",
+            MovimientoCaja.fecha.between(desde, hasta),
+        )
+        .group_by(func.coalesce(CategoriaGasto.nombre, 'Otros'))
+        .all()
+    )
 
 
 # RUTAS WEB
@@ -157,23 +205,37 @@ def bi_dashboard():
             fecha_fin=fecha_hasta,
         )
 
-        # 2) Gastos internos (módulo finanzas)
+        # 2) Gastos internos — movimientos con categoria_gasto_id asignada
+        _gq = (
+            db.session.query(MovimientoCaja)
+            .filter(
+                MovimientoCaja.categoria_gasto_id.isnot(None),
+                MovimientoCaja.fecha.between(fecha_desde, fecha_hasta),
+                MovimientoCaja.estado != "anulado",
+            )
+        )
         gastos_total = (
-            db.session.query(func.sum(Gasto.monto))
-            .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
-            .scalar()
-            or 0
+            db.session.query(func.sum(MovimientoCaja.monto))
+            .filter(
+                MovimientoCaja.categoria_gasto_id.isnot(None),
+                MovimientoCaja.fecha.between(fecha_desde, fecha_hasta),
+                MovimientoCaja.estado != "anulado",
+            )
+            .scalar() or 0
         )
 
         gastos_categoria_rows = (
             db.session.query(
                 CategoriaGasto.nombre,
-                func.sum(Gasto.monto).label("monto_total")
+                func.sum(MovimientoCaja.monto).label("monto_total")
             )
-            .join(CategoriaGasto, Gasto.categoria_id == CategoriaGasto.id)
-            .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
+            .join(CategoriaGasto, MovimientoCaja.categoria_gasto_id == CategoriaGasto.id)
+            .filter(
+                MovimientoCaja.fecha.between(fecha_desde, fecha_hasta),
+                MovimientoCaja.estado != "anulado",
+            )
             .group_by(CategoriaGasto.nombre)
-            .order_by(desc(func.sum(Gasto.monto)))
+            .order_by(desc(func.sum(MovimientoCaja.monto)))
             .all()
         )
 
@@ -483,24 +545,14 @@ def bi_overview():
         .scalar()
         or 0
     )
-    gastos_total = float(
-        db.session.query(func.sum(Gasto.monto))
-        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
-        .scalar()
-        or 0
-    )
+    gastos_total = _gastos_sum(fecha_desde, fecha_hasta)
     ventas_prev = float(
         db.session.query(func.sum(Venta.precio_efectivo * Venta.cantidad))
         .filter(Venta.fecha.between(prev_desde, prev_hasta))
         .scalar()
         or 0
     )
-    gastos_prev = float(
-        db.session.query(func.sum(Gasto.monto))
-        .filter(Gasto.fecha.between(prev_desde, prev_hasta))
-        .scalar()
-        or 0
-    )
+    gastos_prev = _gastos_sum(prev_desde, prev_hasta)
 
     margen_bruto = ventas_total - gastos_total
     net_margin = (margen_bruto / ventas_total) if ventas_total else 0
@@ -563,17 +615,7 @@ def bi_overview():
         .order_by('y', 'm')
         .all()
     )
-    gastos_mes = (
-        db.session.query(
-            extract('year', Gasto.fecha).label('y'),
-            extract('month', Gasto.fecha).label('m'),
-            func.sum(Gasto.monto)
-        )
-        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
-        .group_by('y', 'm')
-        .order_by('y', 'm')
-        .all()
-    )
+    gastos_mes = _gastos_mes_q(fecha_desde, fecha_hasta)
 
     ventas_map = {f"{int(y)}-{int(m):02d}": float(total or 0) for y, m, total in ventas_mes}
     gastos_map = {f"{int(y)}-{int(m):02d}": float(total or 0) for y, m, total in gastos_mes}
@@ -621,12 +663,7 @@ def bi_rentabilidad():
         .scalar()
         or 0
     )
-    gastos_total = (
-        db.session.query(func.sum(Gasto.monto))
-        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
-        .scalar()
-        or 0
-    )
+    gastos_total = _gastos_sum(fecha_desde, fecha_hasta)
     margen_bruto = ventas_total - gastos_total
     gross_margin = (margen_bruto / ventas_total) if ventas_total else 0
     net_margin = gross_margin  # no tenemos impuestos/costos financieros separados
@@ -668,16 +705,7 @@ def bi_rentabilidad():
         neto_list.append(neto)
 
     # Mix de costos por categoría de gasto
-    costos_mix_raw = (
-        db.session.query(
-            func.coalesce(CategoriaGasto.nombre, "Otros"),
-            func.sum(Gasto.monto)
-        )
-        .join(CategoriaGasto, CategoriaGasto.id == Gasto.categoria_id)
-        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
-        .group_by(func.coalesce(CategoriaGasto.nombre, "Otros"))
-        .all()
-    )
+    costos_mix_raw = _gastos_cat_q(fecha_desde, fecha_hasta)
     mix_labels = []
     mix_valores = []
     for cat, total in costos_mix_raw:
@@ -696,17 +724,7 @@ def bi_rentabilidad():
         .order_by('y', 'm')
         .all()
     )
-    gastos_mes = (
-        db.session.query(
-            extract('year', Gasto.fecha).label('y'),
-            extract('month', Gasto.fecha).label('m'),
-            func.sum(Gasto.monto)
-        )
-        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
-        .group_by('y', 'm')
-        .order_by('y', 'm')
-        .all()
-    )
+    gastos_mes = _gastos_mes_q(fecha_desde, fecha_hasta)
     ventas_map = {f"{int(y)}-{int(m):02d}": float(total or 0) for y, m, total in ventas_mes}
     gastos_map = {f"{int(y)}-{int(m):02d}": float(total or 0) for y, m, total in gastos_mes}
 
@@ -777,12 +795,7 @@ def bi_eficiencia():
         .scalar()
         or 0
     )
-    cash_out = float(
-        db.session.query(func.sum(Gasto.monto))
-        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
-        .scalar()
-        or 0
-    )
+    cash_out = _gastos_sum(fecha_desde, fecha_hasta)
     cash_balance = cash_in - cash_out
 
     months = max(1, (fecha_hasta - fecha_desde).days / 30)
@@ -826,17 +839,7 @@ def bi_eficiencia():
         .order_by('y', 'm')
         .all()
     )
-    gastos_mes = (
-        db.session.query(
-            extract('year', Gasto.fecha).label('y'),
-            extract('month', Gasto.fecha).label('m'),
-            func.sum(Gasto.monto)
-        )
-        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
-        .group_by('y', 'm')
-        .order_by('y', 'm')
-        .all()
-    )
+    gastos_mes = _gastos_mes_q(fecha_desde, fecha_hasta)
     ventas_map = {f"{int(y)}-{int(m):02d}": float(total or 0) for y, m, total in ventas_mes}
     gastos_map = {f"{int(y)}-{int(m):02d}": float(total or 0) for y, m, total in gastos_mes}
 
@@ -868,16 +871,7 @@ def bi_eficiencia():
     }
 
     # Mix de gastos por categoría
-    gastos_mix_raw = (
-        db.session.query(
-            func.coalesce(CategoriaGasto.nombre, "Otros"),
-            func.sum(Gasto.monto)
-        )
-        .join(CategoriaGasto, CategoriaGasto.id == Gasto.categoria_id)
-        .filter(Gasto.fecha.between(fecha_desde, fecha_hasta))
-        .group_by(func.coalesce(CategoriaGasto.nombre, "Otros"))
-        .all()
-    )
+    gastos_mix_raw = _gastos_cat_q(fecha_desde, fecha_hasta)
     gm_labels, gm_valores = [], []
     for cat, total in gastos_mix_raw:
         gm_labels.append(cat or "Otros")
@@ -938,26 +932,18 @@ def bi_liquidez():
             return float(val or 0)
 
     # Caja disponible = ingresos acumulados - gastos acumulados
-    cash_on_hand = _ingresos_between(date(1900, 1, 1), fecha_hasta) - float(
-        db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha <= fecha_hasta).scalar() or 0
-    )
+    cash_on_hand = _ingresos_between(date(1900, 1, 1), fecha_hasta) - _gastos_sum(hasta=fecha_hasta)
 
     def _fcf_days(days: int):
         start = fecha_hasta - timedelta(days=days)
-        ventas = _ingresos_between(start, fecha_hasta)
-        gastos = float(
-            db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha.between(start, fecha_hasta)).scalar() or 0
-        )
-        return float(ventas - gastos)
+        return float(_ingresos_between(start, fecha_hasta) - _gastos_sum(start, fecha_hasta))
 
     fcf_30d = _fcf_days(30)
     fcf_90d = _fcf_days(90)
 
     # Burn y runway aproximados
     months = max(1, (fecha_hasta - fecha_desde).days / 30)
-    gastos_periodo = float(
-        db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha.between(fecha_desde, fecha_hasta)).scalar() or 0
-    )
+    gastos_periodo = _gastos_sum(fecha_desde, fecha_hasta)
     burn = gastos_periodo / float(months)
     runway_months = (cash_on_hand / burn) if burn else 0
 
@@ -988,9 +974,7 @@ def bi_liquidez():
     while current <= fecha_hasta:
         week_end = min(current + timedelta(days=6), fecha_hasta)
         ci = _ingresos_between(current, week_end)
-        co = float(
-            db.session.query(func.sum(Gasto.monto)).filter(Gasto.fecha.between(current, week_end)).scalar() or 0
-        )
+        co = _gastos_sum(current, week_end)
         balance_acum += ci - co
         labels.append(f"S{week_idx}")
         cash_in_series.append(float(ci))
@@ -1203,9 +1187,7 @@ def resumen_diario():
     resumen["numero_ventas_dia"] = num_ventas_dia
 
     # Gastos del día
-    gastos_dia = db.session.query(func.sum(Gasto.monto)).filter(
-        Gasto.fecha == fecha
-    ).scalar() or 0
+    gastos_dia = _gastos_sum(fecha, fecha)
     resumen["gastos_dia"] = float(gastos_dia)
 
     # Asistencia del día
@@ -1284,22 +1266,25 @@ def bi_exportar():
         filename = "ventas_resumen.xlsx"
 
     elif tipo == "gastos_resumen":
-        # Resumen de gastos por período
-        query = Gasto.query
+        # Resumen de gastos por período (movimientos con categoría de gasto)
+        query = MovimientoCaja.query.filter(
+            MovimientoCaja.categoria_gasto_id.isnot(None),
+            MovimientoCaja.estado != "anulado",
+        )
         if fecha_desde:
-            fecha_desde = datetime.fromisoformat(fecha_desde).date()
-            query = query.filter(Gasto.fecha >= fecha_desde)
+            fd = datetime.fromisoformat(fecha_desde).date()
+            query = query.filter(MovimientoCaja.fecha >= fd)
         if fecha_hasta:
-            fecha_hasta = datetime.fromisoformat(fecha_hasta).date()
-            query = query.filter(Gasto.fecha <= fecha_hasta)
+            fh = datetime.fromisoformat(fecha_hasta).date()
+            query = query.filter(MovimientoCaja.fecha <= fh)
 
-        gastos = query.order_by(Gasto.fecha.desc()).all()
+        gastos = query.order_by(MovimientoCaja.fecha.desc()).all()
 
         data = []
         for g in gastos:
             data.append({
                 "Fecha": g.fecha,
-                "Categoría": g.categoria.nombre if g.categoria else "",
+                "Categoría": g.categoria_gasto.nombre if g.categoria_gasto else "",
                 "Proveedor": g.proveedor.nombre if g.proveedor else "",
                 "Monto": float(g.monto),
                 "Descripción": g.descripcion or ""

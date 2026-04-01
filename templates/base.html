@@ -157,6 +157,26 @@
         .sidebar-foot a {
             font-size: 0.78rem;
         }
+        .sidebar-foot .logout-btn {
+            color: #fca5a5;
+            border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 0.4rem;
+            padding: 0.32rem 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-decoration: none;
+            background: rgba(239,68,68,0.08);
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .sidebar-foot .logout-btn:hover {
+            background: rgba(239,68,68,0.2);
+            color: #f87171;
+            border-color: rgba(239,68,68,0.55);
+        }
+        .sidebar.collapsed .sidebar-foot .logout-btn { justify-content: center; }
         .sidebar-foot .toggle-btn {
             display: flex;
             align-items: center;
@@ -632,16 +652,6 @@
         {% if can_access('crm') %}
         <hr class="sidebar-sep">
         <div class="sidebar-section-title">Comercial</div>
-        <a href="/ventas"
-           class="{% if current.startswith('/ventas') %}active-link{% endif %}">
-            <span class="nav-icon"><i class="bi bi-receipt"></i></span>
-            <span class="link-text">Ventas</span>
-        </a>
-        <a href="/ventas/nuevo"
-           class="{% if current == '/ventas/nuevo' %}active-link{% endif %}">
-            <span class="nav-icon"><i class="bi bi-pencil"></i></span>
-            <span class="link-text">Nueva Venta</span>
-        </a>
         <a href="/comercial/objetivos"
            class="{% if current.startswith('/comercial/objetivos') %}active-link{% endif %}">
             <span class="nav-icon"><i class="bi bi-bullseye"></i></span>
@@ -669,6 +679,15 @@
             <span class="nav-icon"><i class="bi bi-safe"></i></span>
             <span class="link-text">Tesorería</span>
         </a>
+        {% endif %}
+        {% if can_access('gastos') %}
+        <a href="/gastos"
+           class="{% if current.startswith('/gastos') %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-credit-card"></i></span>
+            <span class="link-text">Gastos</span>
+        </a>
+        {% endif %}
+        {% if can_access('tesoreria') %}
         <a href="/tesoreria/arqueos"
            class="{% if current == '/tesoreria/arqueos' %}active-link{% endif %}">
             <span class="nav-icon"><i class="bi bi-calculator"></i></span>
@@ -683,13 +702,6 @@
            class="{% if current == '/tesoreria/cta-cte-friar' %}active-link{% endif %}">
             <span class="nav-icon"><i class="bi bi-wallet2"></i></span>
             <span class="link-text">Cta Cte Friar</span>
-        </a>
-        {% endif %}
-        {% if can_access('gastos') %}
-        <a href="/gastos"
-           class="{% if current.startswith('/gastos') %}active-link{% endif %}">
-            <span class="nav-icon"><i class="bi bi-credit-card"></i></span>
-            <span class="link-text">Gastos</span>
         </a>
         {% endif %}
         {% endif %}
@@ -742,9 +754,21 @@
         {% endif %}
 
         <!-- ═══ Operaciones ═══ -->
-        {% if can_access('products') or can_access('locations') or can_access('stock') %}
+        {% if can_access('crm') or can_access('products') or can_access('locations') or can_access('stock') %}
         <hr class="sidebar-sep">
         <div class="sidebar-section-title">Operaciones</div>
+        {% if can_access('crm') %}
+        <a href="/ventas"
+           class="{% if current.startswith('/ventas') %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-receipt"></i></span>
+            <span class="link-text">Ventas</span>
+        </a>
+        <a href="/ventas/nuevo"
+           class="{% if current == '/ventas/nuevo' %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-pencil"></i></span>
+            <span class="link-text">Nueva Venta</span>
+        </a>
+        {% endif %}
         {% if can_access('products') %}
         <a href="/products"
            class="{% if current.startswith('/products') %}active-link{% endif %}">
@@ -796,8 +820,8 @@
         <!-- Footer -->
         <div class="sidebar-foot">
             {% if current_user %}
-            <a href="/logout" style="color:#94a3b8">
-                <span class="nav-icon"><i class="bi bi-box-arrow-left"></i></span>
+            <a href="/logout" class="logout-btn">
+                <span class="nav-icon"><i class="bi bi-box-arrow-right"></i></span>
                 <span class="link-text">Cerrar sesión</span>
             </a>
             {% endif %}
