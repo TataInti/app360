@@ -71,6 +71,9 @@ def bi_dashboard():
     """Dashboard BI productivo: rentabilidad SabioGo + finanzas internas."""
     fecha_desde_raw = request.args.get("fecha_desde")
     fecha_hasta_raw = request.args.get("fecha_hasta")
+    vendedor_filter = (request.args.get("vendedor") or "").strip()
+    producto_filter = (request.args.get("producto") or "").strip()
+    empresa_filter = (request.args.get("empresa") or "TODAS").upper().strip()
 
     if not fecha_desde_raw or not fecha_hasta_raw:
         ultima_fecha_sabiogo = db.session.execute(
@@ -110,7 +113,43 @@ def bi_dashboard():
             db_engine = db.session.bind.dialect.name if db.session.bind else None
         # 1) Rentabilidad SabioGo (fuente principal)
         sabiogo_service = SabiogoService()
-        rentabilidad_resumen = sabiogo_service.get_rentabilidad_resumen(fecha_desde, fecha_hasta)
+        # Si hay filtros de vendedor/producto/empresa, calcular KPIs directamente
+        if vendedor_filter or producto_filter or empresa_filter not in ("", "TODAS"):
+            from models.sabiogo import StgSabiogoVentas, StgSabiogoCompras
+            _vf = [
+                StgSabiogoVentas.estado == "procesado",
+                func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") != "PRE",
+                StgSabiogoVentas.fecha.between(fecha_desde, fecha_hasta),
+            ]
+            if vendedor_filter:
+                _vf.append(StgSabiogoVentas.vendedor == vendedor_filter)
+            if producto_filter:
+                _vf.append(StgSabiogoVentas.producto == producto_filter)
+            if empresa_filter not in ("", "TODAS"):
+                _vf.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa_filter)
+            total_ingresos = float(
+                db.session.query(func.sum(StgSabiogoVentas.subtot)).filter(*_vf).scalar() or 0
+            )
+            _cf = [
+                StgSabiogoCompras.estado == "procesado",
+                StgSabiogoCompras.fecha.between(fecha_desde, fecha_hasta),
+            ]
+            if producto_filter:
+                _cf.append(StgSabiogoCompras.producto == producto_filter)
+            if empresa_filter not in ("", "TODAS"):
+                _cf.append(func.upper(func.coalesce(StgSabiogoCompras.origen, "")) == empresa_filter)
+            total_costos = float(
+                db.session.query(func.sum(StgSabiogoCompras.subtot)).filter(*_cf).scalar() or 0
+            )
+            rentabilidad_resumen = {
+                "total_ingresos": total_ingresos,
+                "total_costos": total_costos,
+                "margen_bruto": total_ingresos - total_costos,
+                "margen_porcentual": ((total_ingresos - total_costos) / total_ingresos * 100) if total_ingresos else 0,
+                "productos_activos": 0,
+            }
+        else:
+            rentabilidad_resumen = sabiogo_service.get_rentabilidad_resumen(fecha_desde, fecha_hasta)
         pre_fac_resumen = sabiogo_service.get_resumen_pre_fac(fecha_hasta)
         top_productos = sabiogo_service.get_top_productos_margen(
             limit=10,
@@ -167,21 +206,38 @@ def bi_dashboard():
         movimientos_count = caja_resumen.movimientos if caja_resumen else 0
 
         # 4) Series mensuales para visualización (sin depender de vw_margen_producto)
+        # Construir cláusula de filtro adicional para vendedor/producto
+        _ventas_extra = ""
+        _compras_extra = ""
+        _params_mensual = {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta}
+        if vendedor_filter:
+            _ventas_extra += " AND vendedor = :vendedor"
+            _params_mensual["vendedor"] = vendedor_filter
+        if producto_filter:
+            _ventas_extra += " AND producto = :producto"
+            _params_mensual["producto"] = producto_filter
+        if empresa_filter not in ("", "TODAS"):
+            _ventas_extra += " AND UPPER(COALESCE(origen,'')) = :empresa"
+            _compras_extra += " AND UPPER(COALESCE(origen,'')) = :empresa"
+            _params_mensual["empresa"] = empresa_filter
+
         margen_mensual_rows = db.session.execute(
             text(
-                """
+                f"""
                 WITH ventas AS (
                     SELECT DATE_TRUNC('month', fecha)::date AS periodo, COALESCE(SUM(subtot), 0) AS ingresos
                     FROM stg_sabiogo_ventas
                                         WHERE estado = 'procesado'
                                             AND COALESCE(UPPER(TRIM(comprobante)), '') <> 'PRE'
                                             AND fecha BETWEEN :fecha_desde AND :fecha_hasta
+                                            {_ventas_extra}
                     GROUP BY DATE_TRUNC('month', fecha)::date
                 ),
                 compras AS (
                     SELECT DATE_TRUNC('month', fecha)::date AS periodo, COALESCE(SUM(subtot), 0) AS costos
                     FROM stg_sabiogo_compras
                     WHERE estado = 'procesado' AND fecha BETWEEN :fecha_desde AND :fecha_hasta
+                          {_compras_extra}
                     GROUP BY DATE_TRUNC('month', fecha)::date
                 )
                 SELECT
@@ -194,8 +250,27 @@ def bi_dashboard():
                 ORDER BY COALESCE(v.periodo, c.periodo)
                 """
             ),
-            {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta},
+            _params_mensual,
         )
+
+        # Listas de vendedores/productos disponibles en el período
+        _avail_params = {"fecha_desde": fecha_desde, "fecha_hasta": fecha_hasta}
+        _avail_empresa_clause = ""
+        if empresa_filter not in ("", "TODAS"):
+            _avail_empresa_clause = " AND UPPER(COALESCE(origen,'')) = :empresa"
+            _avail_params["empresa"] = empresa_filter
+        vendedores_disponibles = [
+            r[0] for r in db.session.execute(
+                text(f"SELECT DISTINCT vendedor FROM stg_sabiogo_ventas WHERE estado='procesado' AND fecha BETWEEN :fecha_desde AND :fecha_hasta AND vendedor IS NOT NULL{_avail_empresa_clause} ORDER BY 1"),
+                _avail_params,
+            ).fetchall()
+        ]
+        productos_disponibles = [
+            r[0] for r in db.session.execute(
+                text(f"SELECT DISTINCT producto FROM stg_sabiogo_ventas WHERE estado='procesado' AND fecha BETWEEN :fecha_desde AND :fecha_hasta AND producto IS NOT NULL{_avail_empresa_clause} ORDER BY 1"),
+                _avail_params,
+            ).fetchall()
+        ]
 
         margen_mensual = [
             {
@@ -334,6 +409,14 @@ def bi_dashboard():
             "periodo": {
                 "desde": fecha_desde.isoformat(),
                 "hasta": fecha_hasta.isoformat(),
+            },
+            "filtros": {
+                "vendedor": vendedor_filter or None,
+                "producto": producto_filter or None,
+            },
+            "filtros_disponibles": {
+                "vendedores": vendedores_disponibles,
+                "productos": productos_disponibles,
             },
             "kpis": {
                 "ingresos_sabiogo": float(rentabilidad_resumen.get("total_ingresos", 0)),

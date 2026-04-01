@@ -6,13 +6,25 @@
   <!-- Header -->
   <div class="panel-header">
     <div>
-      <h1>BI Unificado · Rentabilidad & Finanzas</h1>
+      <h1>Panel Rentabilidad</h1>
       <span class="panel-subtitle" id="period-label">Período: –</span>
     </div>
   </div>
 
-  <!-- Period bar -->
-  <div class="period-bar">
+  <!-- Barra de filtros única: dimensiones + período en una sola línea -->
+  <div class="period-bar dim-bar" style="background:#f0f4ff;border-color:#c7d7f8">
+    <select id="sel-empresa" class="form-select form-select-sm" style="width:auto;min-width:90px">
+      <option value="TODAS">Empresa</option>
+      <option value="CARNES">Carnes</option>
+      <option value="LACTEOS">Lácteos</option>
+    </select>
+    <select id="sel-vendedor" class="form-select form-select-sm" style="width:auto;min-width:120px">
+      <option value="">Vendedor</option>
+    </select>
+    <select id="sel-producto" class="form-select form-select-sm" style="width:auto;min-width:130px">
+      <option value="">Producto</option>
+    </select>
+    <span class="filter-sep"></span>
     <div class="period-pills">
       <button class="pp" data-period="7">7d</button>
       <button class="pp" data-period="15">15d</button>
@@ -20,7 +32,9 @@
       <button class="pp" data-period="6m">6m</button>
       <button class="pp" data-period="ytd">YTD</button>
     </div>
+    <span class="filter-sep"></span>
     <div class="date-group">
+      <button class="pp pp-month" id="btn-este-mes" title="Desde el 1° del mes actual hasta hoy">&#x1F4C5; Este mes</button>
       <div>
         <label for="fecha-desde">Desde</label>
         <input id="fecha-desde" type="date" />
@@ -29,7 +43,7 @@
         <label for="fecha-hasta">Hasta</label>
         <input id="fecha-hasta" type="date" />
       </div>
-      <button class="pp active" id="btn-aplicar">Aplicar</button>
+      <button class="pp pp-action" id="btn-aplicar">&#x2713; Aplicar</button>
     </div>
   </div>
 
@@ -74,6 +88,19 @@
   function fmtMes(s){ if(!s)return'-'; const p=String(s).split('-'); if(p.length>=2){const m=parseInt(p[1],10); if(m>=1&&m<=12)return MESES[m-1]+' '+p[0];} return String(s); }
   function fmtNumAbbr(n){ const v=parseFloat(n)||0; if(Math.abs(v)>=1e6) return '$'+(v/1e6).toFixed(1).replace(/\.0$/,'')+'M'; if(Math.abs(v)>=1e3) return '$'+Math.round(v/1e3)+'K'; return '$'+Math.round(v).toLocaleString('es-AR'); }
 
+  const _tsInstances = {};
+  function _poblarSelect(id, items, allLabel='Todos'){
+    const sel=document.getElementById(id); if(!sel)return;
+    const cur=_tsInstances[id]?_tsInstances[id].getValue():sel.value;
+    if(_tsInstances[id]){_tsInstances[id].destroy();delete _tsInstances[id];}
+    sel.innerHTML=`<option value="">${allLabel}</option>`+items.map(v=>`<option value="${v}">${v}</option>`).join('');
+    if(cur&&items.includes(cur))sel.value=cur;
+    if(items.length>=10){
+      _tsInstances[id]=new TomSelect('#'+id,{create:false,maxOptions:300,placeholder:'Buscar…',plugins:['dropdown_input']});
+      if(cur&&items.includes(cur))_tsInstances[id].setValue(cur,true);
+    }
+  }
+
   // Plugin: etiquetas abreviadas encima de cada barra.
   const barLabelsPlugin = {
     id: 'barLabels',
@@ -83,13 +110,13 @@
         const meta = chart.getDatasetMeta(di);
         if (meta.hidden) return;
         ctx.save();
-        ctx.font = '9px sans-serif';
+        ctx.font = 'bold 11px system-ui,sans-serif';
         ctx.fillStyle = ds.borderColor;
         ctx.textAlign = 'center';
         meta.data.forEach((bar, i) => {
           const v = ds.data[i];
           if (!v) return;
-          ctx.fillText(fmtNumAbbr(v), bar.x, bar.y - 4);
+          ctx.fillText(fmtNumAbbr(v), bar.x, bar.y - 5);
         });
         ctx.restore();
       });
@@ -115,7 +142,7 @@
         if (meta.hidden) return;
         const {yOff, xOff, align} = cfg[di] || {yOff:-10, xOff:0, align:'center'};
         ctx.save();
-        ctx.font = '9px sans-serif';
+        ctx.font = 'bold 11px system-ui,sans-serif';
         ctx.fillStyle = ds.borderColor;
         ctx.textAlign = align;
         meta.data.forEach((pt, i) => {
@@ -143,8 +170,13 @@
     document.getElementById('skeleton').style.display='';
     document.getElementById('content').style.display='none';
     if(period&&!desde){const dd=periodToDates(period);desde=dd.desde;hasta=dd.hasta;}
+    const empresa=document.getElementById('sel-empresa').value;
+    const vendedor=document.getElementById('sel-vendedor').value;
+    const producto=document.getElementById('sel-producto').value;
     const p=new URLSearchParams();
     if(desde)p.set('fecha_desde',desde); if(hasta)p.set('fecha_hasta',hasta);
+    if(empresa&&empresa!=='TODAS')p.set('empresa',empresa);
+    if(vendedor)p.set('vendedor',vendedor); if(producto)p.set('producto',producto);
     try{
       const r=await fetch('/api/bi/dashboard?'+p), data=await r.json();
       if(data.error)throw new Error(data.error+(data.detail?' | '+data.detail:''));
@@ -152,6 +184,11 @@
       document.getElementById('period-label').textContent=`Período: ${data.periodo.desde} a ${data.periodo.hasta}`;
       document.getElementById('fecha-desde').value=data.periodo.desde;
       document.getElementById('fecha-hasta').value=data.periodo.hasta;
+
+      // Poblar selectores con listas disponibles del período
+      const fd=data.filtros_disponibles||{};
+      _poblarSelect('sel-vendedor',fd.vendedores||[]);
+      _poblarSelect('sel-producto',fd.productos||[]);
 
       const w=document.getElementById('bi-warning');
       if(data.warning){w.textContent=data.warning;w.classList.remove('d-none');}else{w.textContent='';w.classList.add('d-none');}
@@ -222,9 +259,16 @@
     }
   }
 
+  function esEsteMes(){ const n=new Date(); return { desde:new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10), hasta:n.toISOString().slice(0,10) }; }
+
   document.addEventListener('DOMContentLoaded',()=>{
     document.querySelectorAll('.period-pills .pp').forEach(b=>b.addEventListener('click',()=>load(b.dataset.period)));
     document.getElementById('btn-aplicar').addEventListener('click',()=>load('',document.getElementById('fecha-desde').value,document.getElementById('fecha-hasta').value));
+    document.getElementById('btn-este-mes').addEventListener('click',()=>{ const m=esEsteMes(); setActive(''); load('',m.desde,m.hasta); });
+    const reloadAct=()=>{const act=document.querySelector('.period-pills .pp.active'); if(act)load(act.dataset.period); else load('',document.getElementById('fecha-desde').value,document.getElementById('fecha-hasta').value);};
+    document.getElementById('sel-vendedor').addEventListener('change',reloadAct);
+    document.getElementById('sel-producto').addEventListener('change',reloadAct);
+    document.getElementById('sel-empresa').addEventListener('change',reloadAct);
     load('30');
   });
 </script>

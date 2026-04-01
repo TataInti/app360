@@ -8,6 +8,9 @@
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Tom Select: searches within <select> with >10 options -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 
     <style>
         body {
@@ -19,130 +22,174 @@
 
         /* Sidebar */
         .sidebar {
-            width: 230px;
+            width: 220px;
             height: 100vh;
-            background: #1f2937;
+            background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
             color: white;
             position: fixed;
             left: 0;
             top: 0;
-            padding: 15px 12px;
-            overflow-y: auto;
-            scrollbar-width: thin;
-            transition: width 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: width 0.25s cubic-bezier(.4,0,.2,1);
+            z-index: 100;
         }
 
         .sidebar.collapsed {
-            width: 70px;
+            width: 56px;
+        }
+
+        .sidebar-head {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 0.8rem;
+            flex-shrink: 0;
+        }
+        .sidebar-head .logo-icon {
+            width: 32px; height: 32px;
+            background: #2563eb;
+            border-radius: 0.5rem;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 0.85rem; color: #fff;
+            flex-shrink: 0;
+        }
+        .sidebar-head .logo-text {
+            font-size: 1.05rem; font-weight: 700; letter-spacing: -0.02em;
+        }
+        .sidebar.collapsed .logo-text { display: none; }
+
+        .sidebar-user {
+            padding: 0 0.8rem 0.5rem;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            border-bottom: 1px solid rgba(148,163,184,0.15);
+            flex-shrink: 0;
+        }
+        .sidebar-user strong { color: #e2e8f0; font-size: 0.8rem; }
+        .sidebar.collapsed .sidebar-user { display: none; }
+
+        .sidebar-nav {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 0.4rem 0.5rem;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(148,163,184,0.2) transparent;
         }
 
         .sidebar.collapsed .sidebar-section-title,
-        .sidebar.collapsed hr {
+        .sidebar.collapsed .sidebar-sep {
             display: none;
         }
 
-        .sidebar h2 {
-            font-size: 1.2rem;
-            margin-bottom: 15px;
-            font-weight: bold;
+        .sidebar-section-title {
+            margin-top: 0.6rem;
+            margin-bottom: 0.2rem;
+            padding-left: 0.3rem;
+            color: #64748b;
+            font-size: 0.62rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+        }
+
+        .sidebar-sep {
+            border: none;
+            border-top: 1px solid rgba(148,163,184,0.12);
+            margin: 0.35rem 0;
         }
 
         .sidebar a {
             display: flex;
             align-items: center;
-            padding: 6px 8px;
-            gap: 8px;
-            margin-bottom: 4px;
+            padding: 0.35rem 0.5rem;
+            gap: 0.5rem;
+            margin-bottom: 1px;
             text-decoration: none;
-            color: #e5e7eb;
-            border-radius: 4px;
-            font-size: 0.90rem;
+            color: #cbd5e1;
+            border-radius: 0.4rem;
+            font-size: 0.82rem;
+            transition: background 0.15s, color 0.15s;
         }
 
         .sidebar.collapsed a {
             justify-content: center;
+            padding: 0.4rem;
         }
 
-        .link-icon {
-            width: 24px;
-            height: 24px;
+        .sidebar a .nav-icon {
+            width: 18px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.15rem;
-        }
-
-        .link-icon::before {
-            content: "";
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: #e5e7eb;
-            display: inline-block;
+            font-size: 0.95rem;
+            flex-shrink: 0;
+            opacity: 0.7;
         }
 
         .sidebar.collapsed .link-text {
             display: none;
         }
 
-        .sidebar-toggle {
-            display: inline-flex;
+        .sidebar a:hover {
+            background: rgba(255,255,255,0.08);
+            color: #f1f5f9;
+        }
+        .sidebar a:hover .nav-icon { opacity: 1; }
+
+        .sidebar a.active-link {
+            background: rgba(37,99,235,0.2);
+            color: #93c5fd;
+            font-weight: 600;
+        }
+        .sidebar a.active-link .nav-icon { opacity: 1; color: #60a5fa; }
+
+        .sidebar-foot {
+            flex-shrink: 0;
+            padding: 0.4rem 0.5rem;
+            border-top: 1px solid rgba(148,163,184,0.12);
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+        .sidebar-foot a {
+            font-size: 0.78rem;
+        }
+        .sidebar-foot .toggle-btn {
+            display: flex;
             align-items: center;
             justify-content: center;
             gap: 0.35rem;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(229, 231, 235, 0.35);
-            color: #f9fafb;
-            padding: 0.4rem 0.55rem;
-            border-radius: 0.5rem;
-            font-size: 0.8rem;
+            background: none;
+            border: 1px solid rgba(148,163,184,0.15);
+            color: #94a3b8;
+            padding: 0.3rem;
+            border-radius: 0.4rem;
+            font-size: 0.72rem;
             font-weight: 600;
-            transition: background 0.2s ease, border-color 0.2s ease;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+            width: 100%;
         }
-
-        .sidebar-toggle:hover {
-            background: rgba(255, 255, 255, 0.12);
-            border-color: rgba(229, 231, 235, 0.6);
+        .sidebar-foot .toggle-btn:hover {
+            background: rgba(255,255,255,0.08);
+            color: #e2e8f0;
         }
-
-        .sidebar-toggle .bi {
-            font-size: 0.95rem;
-        }
-
-        .sidebar.collapsed .sidebar-toggle-text {
-            display: none;
-        }
-
-        .sidebar a:hover {
-            background: #374151;
-            color: white;
-        }
-
-        .sidebar a.active-link {
-            background: #2563eb;   /* azul */
-            color: #ffffff;
-            font-weight: 600;
-        }
-
-        .sidebar hr {
-            border-color: #4b5563;
-            margin: 10px 0;
-        }
-
-        .sidebar-section-title {
-            margin-top: 10px;
-            margin-bottom: 4px;
-            color:#9ca3af;
-            font-size:0.70rem;
-            text-transform:uppercase;
-            letter-spacing:0.04rem;
-        }
+        .sidebar.collapsed .sidebar-foot .toggle-text { display: none; }
+        .sidebar.collapsed .sidebar-foot .toggle-btn .bi { transform: rotate(180deg); }
 
         /* Contenido principal */
         .main-content {
-            margin-left: 230px;
-            padding: 25px;
-            width: 100%;
+            margin-left: 220px;
+            padding: 20px;
+            width: calc(100% - 220px);
+            transition: margin-left 0.25s cubic-bezier(.4,0,.2,1), width 0.25s cubic-bezier(.4,0,.2,1);
+        }
+        .sidebar.collapsed ~ .main-content {
+            margin-left: 56px;
+            width: calc(100% - 56px);
         }
 
         .main-content canvas {
@@ -222,14 +269,14 @@
             color: #6b7280;
         }
 
-        /* Period filter bar */
+        /* Period filter bar — wraps on smaller screens */
         .period-bar {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.5rem;
-            align-items: end;
-            margin-bottom: 1.25rem;
-            padding: 0.75rem 1rem;
+            gap: 0.3rem 0.35rem;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding: 0.35rem 0.6rem;
             background: #fff;
             border: 1px solid #e5e7eb;
             border-radius: 0.75rem;
@@ -237,42 +284,115 @@
         .period-pills {
             display: flex;
             gap: 0.25rem;
+            flex-shrink: 0;
         }
-        .period-pills .pp {
-            padding: 0.3rem 0.75rem;
+        /* Vertical separator between filter groups */
+        .filter-sep {
+            display: inline-block;
+            width: 1px;
+            height: 20px;
+            background: #d1d5db;
+            flex-shrink: 0;
+            margin: 0 0.15rem;
+            align-self: center;
+        }
+        /* Pill button — standalone y en period-pills */
+        .pp {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.2rem;
+            padding: 0.22rem 0.6rem;
             border: 1px solid #e2e8f0;
             background: #fff;
             border-radius: 999px;
-            font-size: 0.78rem;
+            font-size: 0.74rem;
             font-weight: 600;
             color: #374151;
             cursor: pointer;
-            transition: all 0.15s ease;
+            white-space: nowrap;
+            transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
         }
-        .period-pills .pp:hover {
+        .pp:hover {
             background: #f1f5f9;
+            border-color: #cbd5e1;
         }
-        .period-pills .pp.active {
+        .pp.active {
             background: #2563eb;
             color: #fff;
             border-color: #2563eb;
+            box-shadow: 0 2px 6px rgba(37,99,235,0.25);
+        }
+        /* "Este Mes" — pill secundario azul cielo */
+        .pp-month {
+            background: #f0f9ff;
+            border-color: #bae6fd;
+            color: #0369a1;
+        }
+        .pp-month:hover {
+            background: #e0f2fe;
+            border-color: #7dd3fc;
+        }
+        /* "Aplicar" — botón acción verde */
+        .pp-action {
+            background: #16a34a;
+            border-color: #16a34a;
+            color: #fff;
+            box-shadow: 0 2px 5px rgba(22,163,74,0.25);
+        }
+        .pp-action:hover {
+            background: #15803d;
+            border-color: #15803d;
+            box-shadow: 0 3px 10px rgba(22,163,74,0.35);
         }
         .period-bar .date-group {
             display: flex;
-            gap: 0.35rem;
-            align-items: end;
+            gap: 0.25rem;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        /* Inline label+input pairs within date-group */
+        .period-bar .date-group > div {
+            display: flex;
+            align-items: center;
+            gap: 0.22rem;
         }
         .period-bar .date-group label {
             font-size: 0.7rem;
             color: #6b7280;
-            margin-bottom: 0.1rem;
+            margin-bottom: 0;
+            white-space: nowrap;
         }
         .period-bar .date-group input[type="date"] {
-            font-size: 0.8rem;
-            padding: 0.25rem 0.5rem;
+            font-size: 0.74rem;
+            padding: 0.15rem 0.3rem;
             border: 1px solid #e2e8f0;
-            border-radius: 0.5rem;
+            border-radius: 0.45rem;
+            height: 26px;
         }
+        /* Dim-bar select labels — compact */
+        .dim-bar > label { font-size:0.68rem; color:#6b7280; white-space:nowrap; margin:0; }
+        .dim-bar .form-select-sm { font-size:0.78rem; height:26px; padding:0.1rem 1.8rem 0.1rem 0.35rem; }
+
+        /* TomSelect compacto dentro de barras de filtros (.dim-bar) */
+        .dim-bar .ts-wrapper { display: inline-block !important; vertical-align: middle; }
+        .dim-bar .ts-control {
+          min-height: 26px !important; box-sizing: border-box !important; width: 100% !important;
+          padding: 0.12rem 1.8rem 0.12rem 0.4rem !important; border-radius: 0.45rem !important;
+          font-size: 0.78rem !important; border-color: #e2e8f0 !important;
+          white-space: nowrap; overflow: hidden; flex-wrap: nowrap !important;
+        }
+        .dim-bar .ts-control.focus { box-shadow: 0 0 0 2px rgba(37,99,235,0.18) !important; border-color: #93c5fd !important; }
+        /* El dropdown se abre SIN alterar el tamaño del control */
+        .dim-bar .ts-control.dropdown-active { border-radius: 0.45rem 0.45rem 0 0 !important; }
+        .dim-bar .ts-dropdown { font-size: 0.82rem; z-index: 9999; min-width: 180px; border-radius: 0 0.45rem 0.45rem 0.45rem; border-color: #e2e8f0; box-shadow: 0 4px 16px rgba(0,0,0,0.13); }
+        .dim-bar .ts-dropdown-content .option { padding: 0.28rem 0.55rem; }
+        .dim-bar .ts-dropdown-content .option.active { background: #eff6ff; color: #1d4ed8; }
+        .dim-bar .ts-wrapper input.dropdown-input {
+          font-size: 0.82rem !important; padding: 0.25rem 0.5rem !important;
+          border-bottom: 1px solid #e2e8f0 !important; width: 100% !important; box-sizing: border-box !important;
+        }
+        /* Item seleccionado: no desborda */
+        .dim-bar .ts-control .item { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         /* KPI cards */
         .kpi-grid {
@@ -459,270 +579,233 @@
     {% set current = request.path %}
 
     <div class="sidebar" id="sidebar">
-        <h2>APP360</h2>
-
-        <button id="sidebar-toggle" type="button" class="btn btn-sm mb-3 w-100 sidebar-toggle" aria-label="Contraer barra lateral">
-            <i class="bi bi-layout-sidebar-inset"></i>
-            <span class="sidebar-toggle-text" id="sidebar-toggle-text">Contraer</span>
-        </button>
+        <!-- Head -->
+        <div class="sidebar-head">
+            <div class="logo-icon">360</div>
+            <span class="logo-text">APP360</span>
+        </div>
 
         {% if current_user %}
-        <div class="mb-3">
+        <div class="sidebar-user">
             <strong>{{ current_user }}</strong><br>
-            <small class="text-muted">{{ current_role }}</small>
+            <small>{{ current_role }}</small>
         </div>
-        <a href="/logout" class="btn btn-sm btn-outline-light mb-2">Cerrar sesión</a>
         {% endif %}
 
-        <!-- Paneles Estratégicos -->
-        <div class="sidebar-section-title">
-            Paneles Estratégicos
-        </div>
+        <!-- Navigation -->
+        <nav class="sidebar-nav" id="sidebar-nav">
 
+        <!-- ═══ Paneles Estratégicos ═══ -->
+        {% if can_access('dashboard') or can_access('dashboard_comercial') or can_access('panel') or can_access('bi') %}
+        <div class="sidebar-section-title">Paneles Estratégicos</div>
         {% if can_access('dashboard') %}
         <a href="/dashboard-financiero"
            class="{% if current.startswith('/dashboard-financiero') or (current.startswith('/dashboard') and not current.startswith('/dashboard-comercial')) %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-speedometer2"></i></span>
-            <span class="link-text">Panel Tesoreria</span>
+            <span class="nav-icon"><i class="bi bi-speedometer2"></i></span>
+            <span class="link-text">Tesorería</span>
         </a>
         {% endif %}
-
         {% if can_access('dashboard_comercial') %}
         <a href="/dashboard-comercial"
            class="{% if current.startswith('/dashboard-comercial') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-graph-up"></i></span>
-            <span class="link-text">Panel Ventas</span>
+            <span class="nav-icon"><i class="bi bi-graph-up"></i></span>
+            <span class="link-text">Ventas</span>
         </a>
         {% endif %}
-
         {% if can_access('panel') %}
         <a href="/panel-ejecutivo"
            class="{% if current.startswith('/panel-ejecutivo') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-compass"></i></span>
-            <span class="link-text">Panel Ejecutivo</span>
+            <span class="nav-icon"><i class="bi bi-compass"></i></span>
+            <span class="link-text">Ejecutivo</span>
         </a>
         {% endif %}
-
         {% if can_access('panel') or can_access('bi') %}
         <a href="/bi"
            class="{% if current.startswith('/bi') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-bar-chart-line"></i></span>
-            <span class="link-text">BI / Análisis</span>
+            <span class="nav-icon"><i class="bi bi-bar-chart-line"></i></span>
+            <span class="link-text">Rentabilidad</span>
         </a>
         {% endif %}
-
-        <hr>
-
-        <!-- Operaciones -->
-        <div class="sidebar-section-title">
-            Operaciones
-        </div>
-
-        {% if can_access('products') %}
-        <a href="/products"
-           class="{% if current.startswith('/products') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-box-seam"></i></span>
-            <span class="link-text">Productos</span>
-        </a>
         {% endif %}
 
-        {% if can_access('locations') %}
-        <a href="/locations"
-           class="{% if current.startswith('/locations') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-geo-alt"></i></span>
-            <span class="link-text">Ubicaciones</span>
-        </a>
-        {% endif %}
-
-        {% if can_access('stock') %}
-        <a href="/stock"
-           class="{% if current.startswith('/stock') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-stack"></i></span>
-            <span class="link-text">Stock</span>
-        </a>
-        {% endif %}
-
-        <hr>
-
-        <!-- Marketing -->
-        <div class="sidebar-section-title">
-            Marketing
-        </div>
-
+        <!-- ═══ Comercial ═══ -->
         {% if can_access('crm') %}
+        <hr class="sidebar-sep">
+        <div class="sidebar-section-title">Comercial</div>
+        <a href="/ventas"
+           class="{% if current.startswith('/ventas') %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-receipt"></i></span>
+            <span class="link-text">Ventas</span>
+        </a>
+        <a href="/ventas/nuevo"
+           class="{% if current == '/ventas/nuevo' %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-pencil"></i></span>
+            <span class="link-text">Nueva Venta</span>
+        </a>
+        <a href="/comercial/objetivos"
+           class="{% if current.startswith('/comercial/objetivos') %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-bullseye"></i></span>
+            <span class="link-text">Objetivos</span>
+        </a>
         <a href="/leads"
            class="{% if current.startswith('/leads') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-person-lines-fill"></i></span>
+            <span class="nav-icon"><i class="bi bi-person-lines-fill"></i></span>
             <span class="link-text">Leads</span>
         </a>
-
-        <a href="/leads/new"
-           class="{% if current == '/leads/new' %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-plus-circle"></i></span>
-            <span class="link-text">Nuevo Lead</span>
-        </a>
-
         <a href="/campaigns"
            class="{% if current.startswith('/campaigns') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-megaphone"></i></span>
+            <span class="nav-icon"><i class="bi bi-megaphone"></i></span>
             <span class="link-text">Campañas</span>
         </a>
         {% endif %}
 
-        <hr>
-
-        <!-- Comercial -->
-        <div class="sidebar-section-title">
-            Comercial
-        </div>
-
-        {% if can_access('crm') %}
-        <a href="/ventas"
-           class="{% if current.startswith('/ventas') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-receipt"></i></span>
-            <span class="link-text">Ventas</span>
+        <!-- ═══ Finanzas / Tesorería ═══ -->
+        {% if can_access('tesoreria') or can_access('gastos') %}
+        <hr class="sidebar-sep">
+        <div class="sidebar-section-title">Finanzas</div>
+        {% if can_access('tesoreria') %}
+        <a href="/tesoreria"
+           class="{% if current == '/tesoreria' %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-safe"></i></span>
+            <span class="link-text">Tesorería</span>
         </a>
-
-        <a href="/ventas/nuevo"
-           class="{% if current == '/ventas/nuevo' %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-pencil"></i></span>
-            <span class="link-text">Nueva Venta</span>
+        <a href="/tesoreria/arqueos"
+           class="{% if current == '/tesoreria/arqueos' %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-calculator"></i></span>
+            <span class="link-text">Arqueos</span>
         </a>
-
-        <a href="/comercial/objetivos"
-           class="{% if current.startswith('/comercial/objetivos') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-bullseye"></i></span>
-            <span class="link-text">Objetivos de Venta</span>
+        <a href="/tesoreria/movimientos"
+           class="{% if current.startswith('/tesoreria/movimientos') %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-arrow-left-right"></i></span>
+            <span class="link-text">Movimientos</span>
         </a>
-        {% endif %}
-
-        <hr>
-
-        <!-- Compras -->
-        <div class="sidebar-section-title">
-            Compras
-        </div>
-
-        {% if can_access('compras') %}
-        <a href="/compras"
-           class="{% if current.startswith('/compras') and current != '/compras/orden-nueva' %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-stack"></i></span>
-            <span class="link-text">Panel de Registros de Compras</span>
-        </a>
-
-        <a href="/compras/orden-nueva"
-           class="{% if current == '/compras/orden-nueva' %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-file-earmark-plus"></i></span>
-            <span class="link-text">Nuevo Registro</span>
+        <a href="/tesoreria/cta-cte-friar"
+           class="{% if current == '/tesoreria/cta-cte-friar' %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-wallet2"></i></span>
+            <span class="link-text">Cta Cte Friar</span>
         </a>
         {% endif %}
+        {% if can_access('gastos') %}
+        <a href="/gastos"
+           class="{% if current.startswith('/gastos') %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-credit-card"></i></span>
+            <span class="link-text">Gastos</span>
+        </a>
+        {% endif %}
+        {% endif %}
 
-        <hr>
-
-        <!-- RRHH -->
-        <div class="sidebar-section-title">
-            RRHH
-        </div>
-
+        <!-- ═══ RRHH ═══ -->
         {% if can_access('rrhh') %}
+        <hr class="sidebar-sep">
+        <div class="sidebar-section-title">RRHH</div>
         <a href="/rrhh"
            class="{% if current == '/rrhh' %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-people"></i></span>
+            <span class="nav-icon"><i class="bi bi-people"></i></span>
             <span class="link-text">Panel RRHH</span>
         </a>
-
         <a href="/rrhh/empleados"
            class="{% if current.startswith('/rrhh/empleados') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-person-badge"></i></span>
+            <span class="nav-icon"><i class="bi bi-person-badge"></i></span>
             <span class="link-text">Empleados</span>
         </a>
-
         <a href="/rrhh/adelantos"
            class="{% if current.startswith('/rrhh/adelantos') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-cash-coin"></i></span>
+            <span class="nav-icon"><i class="bi bi-cash-coin"></i></span>
             <span class="link-text">Adelantos</span>
         </a>
-
         <a href="/rrhh/liquidaciones"
            class="{% if current.startswith('/rrhh/liquidaciones') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-file-earmark-text"></i></span>
+            <span class="nav-icon"><i class="bi bi-file-earmark-text"></i></span>
             <span class="link-text">Liquidaciones</span>
         </a>
-
         <a href="/rrhh/ausentismo"
            class="{% if current.startswith('/rrhh/ausentismo') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-calendar-x"></i></span>
+            <span class="nav-icon"><i class="bi bi-calendar-x"></i></span>
             <span class="link-text">Ausentismo</span>
         </a>
         {% endif %}
 
-        <hr>
-
-        <!-- Finanzas -->
-        <div class="sidebar-section-title">
-            Finanzas
-        </div>
-
-        {% if can_access('tesoreria') %}
-        <a href="/tesoreria"
-           class="{% if current.startswith('/tesoreria') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-safe"></i></span>
-            <span class="link-text">Tesorería</span>
+        <!-- ═══ Compras ═══ -->
+        {% if can_access('compras') %}
+        <hr class="sidebar-sep">
+        <div class="sidebar-section-title">Compras</div>
+        <a href="/compras"
+           class="{% if current.startswith('/compras') and current != '/compras/orden-nueva' %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-stack"></i></span>
+            <span class="link-text">Registros</span>
         </a>
-
-        <a href="/tesoreria/arqueos"
-           class="{% if current == '/tesoreria/arqueos' %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-calculator"></i></span>
-            <span class="link-text">Arqueos de Caja</span>
-        </a>
-
-        <a href="/tesoreria/movimientos"
-           class="{% if current.startswith('/tesoreria/movimientos') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-arrow-left-right"></i></span>
-            <span class="link-text">Movimientos</span>
-        </a>
-
-        <a href="/tesoreria/cta-cte-friar"
-           class="{% if current == '/tesoreria/cta-cte-friar' %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-wallet2"></i></span>
-            <span class="link-text">Cta Cte Friar</span>
+        <a href="/compras/orden-nueva"
+           class="{% if current == '/compras/orden-nueva' %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-file-earmark-plus"></i></span>
+            <span class="link-text">Nuevo Registro</span>
         </a>
         {% endif %}
 
-        {% if can_access('gastos') %}
-        <a href="/gastos"
-           class="{% if current.startswith('/gastos') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-credit-card"></i></span>
-            <span class="link-text">Gastos</span>
+        <!-- ═══ Operaciones ═══ -->
+        {% if can_access('products') or can_access('locations') or can_access('stock') %}
+        <hr class="sidebar-sep">
+        <div class="sidebar-section-title">Operaciones</div>
+        {% if can_access('products') %}
+        <a href="/products"
+           class="{% if current.startswith('/products') %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-box-seam"></i></span>
+            <span class="link-text">Productos</span>
         </a>
         {% endif %}
+        {% if can_access('locations') %}
+        <a href="/locations"
+           class="{% if current.startswith('/locations') %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-geo-alt"></i></span>
+            <span class="link-text">Ubicaciones</span>
+        </a>
+        {% endif %}
+        {% if can_access('stock') %}
+        <a href="/stock"
+           class="{% if current.startswith('/stock') %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-stack"></i></span>
+            <span class="link-text">Stock</span>
+        </a>
+        {% endif %}
+        {% endif %}
 
-        <!-- Administración (solo admin/hr) -->
+        <!-- ═══ Configuración ═══ -->
         {% if session.get('role') in ['admin', 'manager', 'gerente', 'hr'] %}
-        <hr>
-        <div class="sidebar-section-title">
-            Configuración
-        </div>
+        <hr class="sidebar-sep">
+        <div class="sidebar-section-title">Configuración</div>
         <a href="{% if session.get('role') == 'hr' %}/admin/rrhh{% else %}/admin{% endif %}"
            class="{% if current == '/admin' or current.startswith('/admin/rrhh') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-gear-fill"></i></span>
+            <span class="nav-icon"><i class="bi bi-gear-fill"></i></span>
             <span class="link-text">Administración</span>
         </a>
-
         {% if session.get('role') in ['admin', 'manager', 'gerente'] %}
         <a href="/admin/accesos"
            class="{% if current.startswith('/admin/accesos') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-shield-lock"></i></span>
-            <span class="link-text">Control de Accesos</span>
+            <span class="nav-icon"><i class="bi bi-shield-lock"></i></span>
+            <span class="link-text">Accesos</span>
+        </a>
+        {% endif %}
+        <a href="/sabiogo/admin"
+           class="{% if current.startswith('/sabiogo') %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-graph-up-arrow"></i></span>
+            <span class="link-text">SabioGo Admin</span>
         </a>
         {% endif %}
 
-        <a href="/sabiogo/admin"
-           class="{% if current.startswith('/sabiogo') %}active-link{% endif %}">
-            <span class="link-icon"><i class="bi bi-graph-up-arrow"></i></span>
-            <span class="link-text">Administración SabioGo - Rentabilidad</span>
-        </a>
-        {% endif %}
+        </nav>
+
+        <!-- Footer -->
+        <div class="sidebar-foot">
+            {% if current_user %}
+            <a href="/logout" style="color:#94a3b8">
+                <span class="nav-icon"><i class="bi bi-box-arrow-left"></i></span>
+                <span class="link-text">Cerrar sesión</span>
+            </a>
+            {% endif %}
+            <button id="sidebar-toggle" type="button" class="toggle-btn" aria-label="Contraer barra lateral">
+                <i class="bi bi-chevron-left"></i>
+                <span class="toggle-text" id="sidebar-toggle-text">Contraer</span>
+            </button>
+        </div>
     </div>
 
     <div class="main-content">
@@ -747,45 +830,37 @@
             const sidebar = document.getElementById("sidebar");
             const toggle = document.getElementById("sidebar-toggle");
             const toggleText = document.getElementById("sidebar-toggle-text");
+            const nav = document.getElementById("sidebar-nav");
             if (!sidebar || !toggle) return;
 
-            function syncSidebarToggleText() {
+            function syncToggle() {
                 if (!toggleText) return;
-                const collapsedState = sidebar.classList.contains("collapsed");
-                toggleText.textContent = collapsedState ? "Expandir" : "Contraer";
-                toggle.setAttribute("aria-label", collapsedState ? "Expandir barra lateral" : "Contraer barra lateral");
+                const c = sidebar.classList.contains("collapsed");
+                toggleText.textContent = c ? "" : "Contraer";
+                toggle.setAttribute("aria-label", c ? "Expandir" : "Contraer");
             }
-            
-            // Sidebar collapse state
-            const collapsed = localStorage.getItem("sidebarCollapsed") === "true";
-            if (collapsed) {
+
+            // Restore collapsed state
+            if (localStorage.getItem("sidebarCollapsed") === "true") {
                 sidebar.classList.add("collapsed");
             }
-            syncSidebarToggleText();
+            syncToggle();
 
             toggle.addEventListener("click", function () {
                 sidebar.classList.toggle("collapsed");
                 localStorage.setItem("sidebarCollapsed", sidebar.classList.contains("collapsed"));
-                syncSidebarToggleText();
+                syncToggle();
             });
-            
-            // Restore sidebar scroll position
-            const savedScroll = localStorage.getItem("sidebarScrollPos");
-            if (savedScroll) {
-                sidebar.scrollTop = parseInt(savedScroll);
-            }
-            
-            // Save scroll position before navigating
-            sidebar.querySelectorAll('a[href]').forEach(link => {
-                link.addEventListener('click', function() {
-                    localStorage.setItem("sidebarScrollPos", sidebar.scrollTop);
+
+            // Restore scroll position
+            if (nav) {
+                const saved = localStorage.getItem("sidebarScrollPos");
+                if (saved) nav.scrollTop = parseInt(saved);
+                nav.querySelectorAll('a[href]').forEach(link => {
+                    link.addEventListener('click', () => localStorage.setItem("sidebarScrollPos", nav.scrollTop));
                 });
-            });
-            
-            // Also save on scroll
-            sidebar.addEventListener('scroll', function() {
-                localStorage.setItem("sidebarScrollPos", sidebar.scrollTop);
-            });
+                nav.addEventListener('scroll', () => localStorage.setItem("sidebarScrollPos", nav.scrollTop));
+            }
         })();
     </script>
 </body>

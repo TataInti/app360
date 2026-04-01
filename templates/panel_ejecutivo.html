@@ -21,6 +21,7 @@
       <button class="pp" data-period="ytd">YTD</button>
     </div>
     <div class="date-group">
+      <button class="pp pp-month" id="btn-este-mes" title="Desde el 1° del mes actual hasta hoy">&#x1F4C5; Este mes</button>
       <div>
         <label for="fecha-desde">Desde</label>
         <input id="fecha-desde" type="date" />
@@ -29,7 +30,7 @@
         <label for="fecha-hasta">Hasta</label>
         <input id="fecha-hasta" type="date" />
       </div>
-      <button class="pp active" id="btn-aplicar">Aplicar</button>
+      <button class="pp pp-action" id="btn-aplicar">&#x2713; Aplicar</button>
     </div>
   </div>
 
@@ -85,6 +86,26 @@
   const CC = ['#3b82f6','#22c55e','#f59e0b','#ec4899','#6366f1','#14b8a6','#ef4444'];
   const CB = CC.map(c=>c+'40');
 
+  // Plugin datalabels para doughnut
+  const datalabelsDoughnutPlugin = {
+    id:'datalabsEj',
+    afterDatasetsDraw(chart){
+      const {ctx}=chart;
+      const cx=(chart.chartArea.left+chart.chartArea.right)/2;
+      const cy=(chart.chartArea.top+chart.chartArea.bottom)/2;
+      chart.getDatasetMeta(0).data.forEach((arc,i)=>{
+        const v=chart.data.datasets[0].data[i]; if(!v)return;
+        const lbl=Math.abs(v)>=1e6?'$'+(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?'$'+Math.round(v/1e3)+'K':'$'+Math.round(v);
+        const angle=(arc.startAngle+arc.endAngle)/2;
+        const r=(arc.innerRadius+arc.outerRadius)/2;
+        ctx.save(); ctx.font='bold 10px system-ui,sans-serif';
+        ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(lbl,cx+Math.cos(angle)*r,cy+Math.sin(angle)*r);
+        ctx.restore();
+      });
+    }
+  };
+
   function setActive(period){ document.querySelectorAll('.period-pills .pp').forEach(b=>b.classList.toggle('active',b.dataset.period===period)); }
 
   function renderTopClientes(rows){
@@ -127,16 +148,19 @@
 
       const inst=d.instrumentos||{};
       if(instrumentosChart)instrumentosChart.destroy();
-      instrumentosChart=new Chart(document.getElementById('instrumentosChart'),{type:'doughnut',data:{labels:inst.labels||[],datasets:[{data:(inst.values||[]).map(x=>Number(x||0)),backgroundColor:CB,borderColor:CC,borderWidth:1}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{color:'#374151',font:{size:11}}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${money(ctx.parsed)}`}}}}});
+      instrumentosChart=new Chart(document.getElementById('instrumentosChart'),{type:'doughnut',plugins:[datalabelsDoughnutPlugin],data:{labels:inst.labels||[],datasets:[{data:(inst.values||[]).map(x=>Number(x||0)),backgroundColor:CB,borderColor:CC,borderWidth:1}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{color:'#374151',font:{size:11}}},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${money(ctx.parsed)}`}}}}});
     }catch(e){console.error(e);}finally{
       document.getElementById('skeleton').style.display='none';
       document.getElementById('content').style.display='';
     }
   }
 
+  function esEsteMes(){ const n=new Date(); return { desde:new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10), hasta:n.toISOString().slice(0,10) }; }
+
   document.addEventListener('DOMContentLoaded',()=>{
     document.querySelectorAll('.period-pills .pp').forEach(b=>b.addEventListener('click',()=>load(b.dataset.period)));
     document.getElementById('btn-aplicar').addEventListener('click',()=>load('',document.getElementById('fecha-desde').value,document.getElementById('fecha-hasta').value));
+    document.getElementById('btn-este-mes').addEventListener('click',()=>{ const m=esEsteMes(); setActive(''); load('',m.desde,m.hasta); });
     load('30');
   });
 </script>

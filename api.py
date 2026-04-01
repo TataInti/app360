@@ -607,6 +607,8 @@ def api_dashboard_comercial_v2():
         request.args.get("fecha_hasta"),
     )
     empresa = (request.args.get("empresa") or "TODAS").upper().strip()
+    vendedor_filter = (request.args.get("vendedor") or "").strip()
+    producto_filter = (request.args.get("producto") or "").strip()
     dt_desde = datetime.combine(desde, datetime.min.time())
     dt_hasta = datetime.combine(hasta, datetime.max.time())
 
@@ -758,6 +760,10 @@ def api_dashboard_comercial_v2():
         ]
         if empresa in ("CARNES", "LACTEOS"):
             _pre_filters.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
+        if vendedor_filter:
+            _pre_filters.append(StgSabiogoVentas.vendedor == vendedor_filter)
+        if producto_filter:
+            _pre_filters.append(StgSabiogoVentas.producto == producto_filter)
 
         pre_base_q = db.session.query(StgSabiogoVentas).filter(*_pre_filters)
 
@@ -1012,3 +1018,357 @@ def api_panel_ejecutivo_v2():
         pass
 
     return jsonify(result)
+
+
+# -----------------------------------------------------------------------------
+#  Análisis de cantidades – Panel Ventas
+# -----------------------------------------------------------------------------
+@api.get("/dashboard-comercial/filtros")
+def api_dashboard_comercial_filtros():
+    """Devuelve listas completas de vendedores y productos para poblar filtros."""
+    from models.sabiogo.staging import StgSabiogoVentas
+
+    empresa = (request.args.get("empresa") or "TODAS").upper().strip()
+    f = [StgSabiogoVentas.estado == "procesado"]
+    if empresa not in ("", "TODAS"):
+        f.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
+
+    vend = (
+        db.session.query(StgSabiogoVentas.vendedor)
+        .filter(*f)
+        .filter(StgSabiogoVentas.vendedor.isnot(None), StgSabiogoVentas.vendedor != "")
+        .distinct()
+        .order_by(StgSabiogoVentas.vendedor)
+        .all()
+    )
+    prod = (
+        db.session.query(StgSabiogoVentas.producto)
+        .filter(*f)
+        .filter(StgSabiogoVentas.producto.isnot(None), StgSabiogoVentas.producto != "")
+        .distinct()
+        .order_by(StgSabiogoVentas.producto)
+        .all()
+    )
+    return jsonify({
+        "vendedores": [r.vendedor for r in vend],
+        "productos": [r.producto for r in prod],
+    })
+
+
+@api.get("/dashboard-comercial/analisis")
+def api_dashboard_comercial_analisis():
+    """Top 15 + evolución 6M para producto / cliente / vendedor."""
+    from models.sabiogo.staging import StgSabiogoVentas
+
+    tipo_raw = (request.args.get("tipo") or "producto").lower().strip()
+    tipo = tipo_raw if tipo_raw in ("producto", "cliente", "vendedor") else "producto"
+
+    empresa = (request.args.get("empresa") or "TODAS").upper().strip()
+    vendedor_filter = (request.args.get("vendedor") or "").strip()
+    producto_filter = (request.args.get("producto") or "").strip()
+
+    hoy = date.today()
+    try:
+        fecha_desde = datetime.fromisoformat(request.args.get("fecha_desde") or "").date()
+        fecha_hasta = datetime.fromisoformat(request.args.get("fecha_hasta") or "").date()
+    except (ValueError, TypeError):
+        fecha_desde = hoy - timedelta(days=30)
+        fecha_hasta = hoy
+
+    # Últimos 6 meses para el gráfico de líneas (independiente del filtro de fechas)
+    m = hoy.month - 1 or 12
+    y = hoy.year if hoy.month > 1 else hoy.year - 1
+    for _ in range(4):
+        m = m - 1 or 12
+        y = y if m > 0 else y - 1
+    evo_desde = date(y if m != 12 or hoy.month > 6 else y, m, 1)
+    # Más robusto: restar 6 meses desde el primero del mes actual
+    primer_mes_actual = date(hoy.year, hoy.month, 1)
+    evo_mes = primer_mes_actual.month - 6
+    evo_anio = primer_mes_actual.year
+    if evo_mes <= 0:
+        evo_mes += 12
+        evo_anio -= 1
+    evo_desde = date(evo_anio, evo_mes, 1)
+    evo_hasta = hoy
+
+    col_expr = getattr(StgSabiogoVentas, tipo)
+
+    def base_filters(fd, fh):
+        f = [
+            StgSabiogoVentas.estado == "procesado",
+            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") != "PRE",
+            StgSabiogoVentas.fecha.between(fd, fh),
+        ]
+        if empresa not in ("", "TODAS"):
+            f.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
+        if vendedor_filter and tipo != "vendedor":
+            f.append(StgSabiogoVentas.vendedor == vendedor_filter)
+        if producto_filter and tipo != "producto":
+            f.append(StgSabiogoVentas.producto == producto_filter)
+        return f
+
+    # Top 15 por cajas en el período filtrado
+    top15_rows = (
+        db.session.query(
+            col_expr.label("nombre"),
+            func.sum(StgSabiogoVentas.cajas).label("cajas"),
+            func.sum(StgSabiogoVentas.subtot).label("monto"),
+            func.count(func.distinct(StgSabiogoVentas.nro_comprob)).label("facturas"),
+        )
+        .filter(*base_filters(fecha_desde, fecha_hasta))
+        .filter(col_expr.isnot(None))
+        .group_by(col_expr)
+        .order_by(func.sum(StgSabiogoVentas.cajas).desc())
+        .limit(15)
+        .all()
+    )
+
+    # Evolución mensual últimos 6M
+    evo_rows = (
+        db.session.query(
+            func.date_trunc("month", StgSabiogoVentas.fecha).label("periodo"),
+            func.sum(StgSabiogoVentas.cajas).label("cajas"),
+            func.sum(StgSabiogoVentas.subtot).label("monto"),
+        )
+        .filter(*base_filters(evo_desde, evo_hasta))
+        .group_by(func.date_trunc("month", StgSabiogoVentas.fecha))
+        .order_by(func.date_trunc("month", StgSabiogoVentas.fecha))
+        .all()
+    )
+
+    titulos = {"producto": "Top 15 Productos", "cliente": "Top 15 Clientes", "vendedor": "Top 15 Vendedores"}
+
+    return jsonify(
+        {
+            "tipo": tipo,
+            "titulo": titulos.get(tipo, "Top 15"),
+            "top15": [
+                {
+                    "nombre": r.nombre or "–",
+                    "cajas": float(r.cajas or 0),
+                    "monto": float(r.monto or 0),
+                    "facturas": int(r.facturas or 0),
+                }
+                for r in top15_rows
+            ],
+            "evo_6m": [
+                {
+                    "periodo": r.periodo.strftime("%Y-%m") if r.periodo else None,
+                    "cajas": float(r.cajas or 0),
+                    "monto": float(r.monto or 0),
+                }
+                for r in evo_rows
+            ],
+        }
+    )
+
+
+@api.get("/dashboard-comercial/mix")
+def api_dashboard_comercial_mix():
+    """Mix de ventas: distribución, diversidad por cliente, participación cliente×producto,
+    evolución mensual del mix (últimos 6 meses)."""
+    from models.sabiogo.staging import StgSabiogoVentas
+
+    empresa  = (request.args.get("empresa") or "TODAS").upper().strip()
+    vendedor_f = (request.args.get("vendedor") or "").strip()
+    cliente_f  = (request.args.get("cliente")  or "").strip()
+    producto_f = (request.args.get("producto") or "").strip()
+
+    hoy = date.today()
+    try:
+        fecha_desde = datetime.fromisoformat(request.args.get("fecha_desde") or "").date()
+        fecha_hasta = datetime.fromisoformat(request.args.get("fecha_hasta") or "").date()
+    except (ValueError, TypeError):
+        fecha_desde = date(hoy.year, hoy.month, 1)
+        fecha_hasta = hoy
+
+    # Últimos 6 meses para evolución
+    primer_mes = date(hoy.year, hoy.month, 1)
+    evo_mes  = primer_mes.month - 6
+    evo_anio = primer_mes.year
+    if evo_mes <= 0:
+        evo_mes += 12
+        evo_anio -= 1
+    evo_desde = date(evo_anio, evo_mes, 1)
+
+    def base_f(fd, fh):
+        f = [
+            StgSabiogoVentas.estado == "procesado",
+            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") != "PRE",
+            StgSabiogoVentas.fecha.between(fd, fh),
+        ]
+        if empresa not in ("", "TODAS"):
+            f.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
+        if vendedor_f:
+            f.append(StgSabiogoVentas.vendedor == vendedor_f)
+        if cliente_f:
+            f.append(StgSabiogoVentas.cliente == cliente_f)
+        if producto_f:
+            f.append(StgSabiogoVentas.producto == producto_f)
+        return f
+
+    # ── 1. Mix global: top 10 productos + "Otros" ──
+    mg_rows = (
+        db.session.query(
+            StgSabiogoVentas.producto.label("producto"),
+            func.sum(StgSabiogoVentas.cajas).label("cajas"),
+        )
+        .filter(*base_f(fecha_desde, fecha_hasta))
+        .filter(StgSabiogoVentas.producto.isnot(None))
+        .group_by(StgSabiogoVentas.producto)
+        .order_by(func.sum(StgSabiogoVentas.cajas).desc())
+        .limit(11)
+        .all()
+    )
+    total_cajas = sum(float(r.cajas or 0) for r in mg_rows)
+    mix_global = []
+    otros = 0.0
+    for i, r in enumerate(mg_rows):
+        c = float(r.cajas or 0)
+        if i < 10:
+            mix_global.append({
+                "producto": r.producto or "–",
+                "cajas": c,
+                "pct": round(c / total_cajas * 100, 1) if total_cajas else 0,
+            })
+        else:
+            otros += c
+    if otros > 0:
+        mix_global.append({"producto": "Otros", "cajas": otros,
+                            "pct": round(otros / total_cajas * 100, 1) if total_cajas else 0})
+
+    # ── 2. Diversidad de clientes: top 15 por N° productos distintos ──
+    div_rows = (
+        db.session.query(
+            StgSabiogoVentas.cliente.label("cliente"),
+            func.count(func.distinct(StgSabiogoVentas.producto)).label("n_productos"),
+            func.sum(StgSabiogoVentas.cajas).label("cajas"),
+        )
+        .filter(*base_f(fecha_desde, fecha_hasta))
+        .filter(StgSabiogoVentas.cliente.isnot(None))
+        .group_by(StgSabiogoVentas.cliente)
+        .order_by(func.count(func.distinct(StgSabiogoVentas.producto)).desc())
+        .limit(15)
+        .all()
+    )
+    diversidad_clientes = [
+        {"cliente": r.cliente or "–", "n_productos": int(r.n_productos or 0),
+         "cajas": float(r.cajas or 0)}
+        for r in div_rows
+    ]
+
+    # ── 3. Mix por cliente: top 8 clientes × top 5 productos (stacked bar) ──
+    # determinar top 8 clientes por cajas
+    top8_clientes_rows = (
+        db.session.query(
+            StgSabiogoVentas.cliente.label("cliente"),
+            func.sum(StgSabiogoVentas.cajas).label("cajas"),
+        )
+        .filter(*base_f(fecha_desde, fecha_hasta))
+        .filter(StgSabiogoVentas.cliente.isnot(None))
+        .group_by(StgSabiogoVentas.cliente)
+        .order_by(func.sum(StgSabiogoVentas.cajas).desc())
+        .limit(8)
+        .all()
+    )
+    top8_clientes = [r.cliente for r in top8_clientes_rows]
+
+    # determinar top 5 productos globales del período
+    top5_prods_rows = (
+        db.session.query(
+            StgSabiogoVentas.producto.label("producto"),
+            func.sum(StgSabiogoVentas.cajas).label("cajas"),
+        )
+        .filter(*base_f(fecha_desde, fecha_hasta))
+        .filter(StgSabiogoVentas.producto.isnot(None))
+        .group_by(StgSabiogoVentas.producto)
+        .order_by(func.sum(StgSabiogoVentas.cajas).desc())
+        .limit(5)
+        .all()
+    )
+    top5_prods = [r.producto for r in top5_prods_rows]
+
+    # consulta cruzada cliente×producto
+    if top8_clientes and top5_prods:
+        cross_rows = (
+            db.session.query(
+                StgSabiogoVentas.cliente.label("cliente"),
+                StgSabiogoVentas.producto.label("producto"),
+                func.sum(StgSabiogoVentas.cajas).label("cajas"),
+            )
+            .filter(*base_f(fecha_desde, fecha_hasta))
+            .filter(StgSabiogoVentas.cliente.in_(top8_clientes))
+            .filter(StgSabiogoVentas.producto.in_(top5_prods))
+            .group_by(StgSabiogoVentas.cliente, StgSabiogoVentas.producto)
+            .all()
+        )
+        cross_map: dict[str, dict[str, float]] = {c: {} for c in top8_clientes}
+        for r in cross_rows:
+            if r.cliente in cross_map:
+                cross_map[r.cliente][r.producto] = float(r.cajas or 0)
+    else:
+        cross_map = {}
+
+    mix_por_cliente = [
+        {"cliente": c, "productos": cross_map.get(c, {})}
+        for c in top8_clientes
+    ]
+
+    # ── 4. Evolución del mix: top 3 productos × últimos 6 meses ──
+    top3_prods_rows = (
+        db.session.query(
+            StgSabiogoVentas.producto.label("producto"),
+            func.sum(StgSabiogoVentas.cajas).label("cajas"),
+        )
+        .filter(*base_f(evo_desde, hoy))
+        .filter(StgSabiogoVentas.producto.isnot(None))
+        .group_by(StgSabiogoVentas.producto)
+        .order_by(func.sum(StgSabiogoVentas.cajas).desc())
+        .limit(3)
+        .all()
+    )
+    top3_prods = [r.producto for r in top3_prods_rows]
+
+    evo_rows = []
+    if top3_prods:
+        evo_raw = (
+            db.session.query(
+                func.date_trunc("month", StgSabiogoVentas.fecha).label("periodo"),
+                StgSabiogoVentas.producto.label("producto"),
+                func.sum(StgSabiogoVentas.cajas).label("cajas"),
+            )
+            .filter(*base_f(evo_desde, hoy))
+            .filter(StgSabiogoVentas.producto.in_(top3_prods))
+            .group_by(func.date_trunc("month", StgSabiogoVentas.fecha), StgSabiogoVentas.producto)
+            .order_by(func.date_trunc("month", StgSabiogoVentas.fecha))
+            .all()
+        )
+        # agrupar por mes
+        evo_map: dict[str, dict[str, float]] = {}
+        for r in evo_raw:
+            mes = r.periodo.strftime("%Y-%m") if r.periodo else "?"
+            if mes not in evo_map:
+                evo_map[mes] = {}
+            evo_map[mes][r.producto] = float(r.cajas or 0)
+        evo_rows = [{"periodo": mes, "productos": prods} for mes, prods in sorted(evo_map.items())]
+
+    # ── 5. Clientes disponibles para el select ──
+    clientes_rows = (
+        db.session.query(StgSabiogoVentas.cliente)
+        .filter(*base_f(fecha_desde, fecha_hasta))
+        .filter(StgSabiogoVentas.cliente.isnot(None), StgSabiogoVentas.cliente != "")
+        .distinct()
+        .order_by(StgSabiogoVentas.cliente)
+        .all()
+    )
+
+    return jsonify({
+        "mix_global":          mix_global,
+        "diversidad_clientes": diversidad_clientes,
+        "mix_por_cliente":     mix_por_cliente,
+        "top_productos_stacked": top5_prods,
+        "evo_mix":             evo_rows,
+        "top_productos_evo":   top3_prods,
+        "clientes_disponibles": [r.cliente for r in clientes_rows],
+    })

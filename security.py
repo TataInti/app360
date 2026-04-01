@@ -29,13 +29,14 @@ ACCESS_MAP = {
     "caja": ["tesoreria", "arqueos", "movimientos", "gastos"],
     "director": ["tesoreria", "arqueos", "movimientos", "gastos", "bi", "panel",
                  "dashboard", "rrhh", "adelantos", "compras"],
+    "direccion": ["dashboard", "dashboard_comercial", "panel", "bi"],
 }
 
 MANAGED_MODULES = {
     "dashboard": "Panel Tesorería",
     "dashboard_comercial": "Panel Ventas",
     "panel": "Panel Ejecutivo",
-    "bi": "BI / Análisis",
+    "bi": "Panel Rentabilidad",
     "products": "Productos",
     "locations": "Ubicaciones",
     "stock": "Stock",
