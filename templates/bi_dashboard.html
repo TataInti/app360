@@ -57,18 +57,20 @@
 
   <!-- Content -->
   <div id="content" style="display:none">
-    <div class="kpi-grid">
+    <!-- Hero KPIs (most important) -->
+    <div class="kpi-grid-hero">
+      <div class="kpi-hero accent-purple"><span class="kpi-label">Margen %</span><span class="kpi-value" id="kpi-margen-pct">0 %</span><span class="kpi-sub">Rentabilidad sobre ingresos</span></div>
+      <div class="kpi-hero accent-sky"><span class="kpi-label">Caja Neta</span><span class="kpi-value" id="kpi-caja-neta">$0</span><span class="kpi-sub">Ingresos − Egresos − Gastos</span></div>
+    </div>
+
+    <!-- Secondary KPIs (detail) -->
+    <div class="kpi-grid-secondary">
       <div class="kpi-card accent-green"><span class="kpi-label">Ingresos SabioGo</span><span class="kpi-value" id="kpi-ingresos">$0</span></div>
       <div class="kpi-card accent-red"><span class="kpi-label">Costos SabioGo</span><span class="kpi-value" id="kpi-costos">$0</span></div>
       <div class="kpi-card accent-blue"><span class="kpi-label">Margen Bruto</span><span class="kpi-value" id="kpi-margen">$0</span></div>
-      <div class="kpi-card accent-purple"><span class="kpi-label">Margen %</span><span class="kpi-value" id="kpi-margen-pct">0 %</span></div>
-    </div>
-
-    <div class="kpi-grid">
       <div class="kpi-card accent-amber"><span class="kpi-label">Gastos Finanzas</span><span class="kpi-value" id="kpi-gastos">$0</span></div>
-      <div class="kpi-card accent-sky"><span class="kpi-label">Caja Neta</span><span class="kpi-value" id="kpi-caja-neta">$0</span></div>
       <div class="kpi-card"><span class="kpi-label">Movimientos de Caja</span><span class="kpi-value" id="kpi-movimientos">0</span></div>
-      <div class="kpi-card"><span class="kpi-label">Productos Activos (SabioGo)</span><span class="kpi-value" id="kpi-productos">0</span></div>
+      <div class="kpi-card"><span class="kpi-label">Productos Activos</span><span class="kpi-value" id="kpi-productos">0</span></div>
     </div>
 
     <div class="charts-grid">

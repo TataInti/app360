@@ -2,133 +2,109 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-arrow-left-right"></i> Movimientos de Caja</h1>
+    <div class="panel-header">
         <div>
-            <a href="/tesoreria" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Volver a Tesorería
+            <h1><i class="bi bi-arrow-left-right"></i> Movimientos de Caja</h1>
+            <span>Registro de ingresos y egresos por instrumento</span>
+        </div>
+        <div class="action-bar">
+            <a href="/tesoreria" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver
             </a>
-            <button class="btn btn-outline-success" onclick="exportarMovimientos()">
-                <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+            <button class="btn btn-sm btn-outline-success" onclick="exportarMovimientos()">
+                <i class="bi bi-file-earmark-excel"></i> Excel
             </button>
             {% if session.get('role') != 'director' %}
-            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
-                <i class="bi bi-plus-circle"></i> Registrar Movimiento
+            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
+                <i class="bi bi-plus-circle"></i> Registrar
             </button>
             {% endif %}
         </div>
     </div>
 
     <!-- Filtros -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="row g-3">
-                <div class="col-md-3">
-                    <label class="form-label">Fecha Desde</label>
-                    <input type="date" id="fechaDesde" class="form-control">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Fecha Hasta</label>
-                    <input type="date" id="fechaHasta" class="form-control">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Tipo</label>
-                    <select id="tipoFiltro" class="form-select">
-                        <option value="">Todos</option>
-                        <option value="ingreso">Ingresos</option>
-                        <option value="egreso">Egresos</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Instrumento</label>
-                    <select id="instrumentoFiltro" class="form-select">
-                        <option value="">Todos</option>
-                    </select>
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button class="btn btn-primary w-100" onclick="cargarMovimientos()">
-                        <i class="bi bi-search"></i> Filtrar
-                    </button>
-                </div>
+    <div class="period-bar dim-bar">
+        <div class="row g-3 w-100">
+            <div class="col-md-3">
+                <label class="form-label">Desde</label>
+                <input type="date" id="fechaDesde" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Hasta</label>
+                <input type="date" id="fechaHasta" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Tipo</label>
+                <select id="tipoFiltro" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <option value="ingreso">Ingresos</option>
+                    <option value="egreso">Egresos</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Instrumento</label>
+                <select id="instrumentoFiltro" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button class="btn btn-sm btn-primary w-100" onclick="cargarMovimientos()">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
             </div>
         </div>
     </div>
 
     <!-- Resumen -->
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <div class="card bg-success text-white">
-                <div class="card-body text-center">
-                    <h6>Total Ingresos</h6>
-                    <h3 id="totalIngresos">$0</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card bg-danger text-white">
-                <div class="card-body text-center">
-                    <h6>Total Egresos</h6>
-                    <h3 id="totalEgresos">$0</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card bg-primary text-white">
-                <div class="card-body text-center">
-                    <h6>Balance Neto</h6>
-                    <h3 id="balanceNeto">$0</h3>
-                </div>
-            </div>
-        </div>
+    <div class="kpi-grid">
+        <div class="kpi-card accent-green"><span class="kpi-label">Total Ingresos</span><span class="kpi-value" id="totalIngresos">$0</span></div>
+        <div class="kpi-card accent-red"><span class="kpi-label">Total Egresos</span><span class="kpi-value" id="totalEgresos">$0</span></div>
+        <div class="kpi-card accent-blue"><span class="kpi-label">Balance Neto</span><span class="kpi-value" id="balanceNeto">$0</span></div>
     </div>
 
     <!-- Gráfico por Instrumento -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5><i class="bi bi-bar-chart"></i> Movimientos por Instrumento</h5>
-        </div>
-        <div class="card-body">
-            <div style="height:320px">
+    <div class="charts-grid" style="grid-template-columns:1fr">
+        <div class="chart-card-v2">
+            <h3><i class="bi bi-bar-chart"></i> Movimientos por Instrumento</h3>
+            <div style="height:300px">
                 <canvas id="movimientosChart"></canvas>
             </div>
         </div>
     </div>
 
     <!-- Tabla de Movimientos -->
-    <div class="card">
-        <div class="card-header">
-            <h5><i class="bi bi-table"></i> Listado de Movimientos</h5>
+    <div class="table-card">
+        <div class="table-card-head">
+            <h3><i class="bi bi-table"></i> Listado de Movimientos</h3>
         </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Fecha/Hora</th>
-                            <th>Tipo</th>
-                            <th>Monto</th>
-                            <th>Instrumento</th>
-                            <th>Portador</th>
-                            <th>Categoría</th>
-                            <th>Proveedor</th>
-                            <th>Descripción</th>
-                            <th>Estado</th>
-                            <th>Usuario</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tablaMovimientos">
-                        <tr><td colspan="11" class="text-center">Cargando...</td></tr>
-                    </tbody>
-                    <tfoot id="tfootMovimientos" class="d-none">
-                        <tr class="table-light fw-bold">
-                            <td colspan="2">Subtotal <small id="subtotalCount" class="text-muted fw-normal"></small></td>
-                            <td id="subtotalMonto"></td>
-                            <td colspan="8"></td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
+        <div class="scroll-table">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Fecha/Hora</th>
+                        <th>Tipo</th>
+                        <th>Monto</th>
+                        <th>Instrumento</th>
+                        <th>Portador</th>
+                        <th>Categoría</th>
+                        <th>Proveedor</th>
+                        <th>Descripción</th>
+                        <th>Estado</th>
+                        <th>Usuario</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaMovimientos">
+                    <tr><td colspan="11" class="text-center"><span class="loading-text">Cargando movimientos…</span></td></tr>
+                </tbody>
+                <tfoot id="tfootMovimientos" class="d-none">
+                    <tr class="table-light fw-bold">
+                        <td colspan="2">Subtotal <small id="subtotalCount" class="text-muted fw-normal"></small></td>
+                        <td id="subtotalMonto"></td>
+                        <td colspan="8"></td>
+                    </tr>
+                </tfoot>
+            </table>
         </div>
     </div>
 </div>

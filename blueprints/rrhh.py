@@ -1,8 +1,12 @@
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time as dt_time
 from decimal import Decimal
 import io
+import os
+import uuid
 
-from flask import Blueprint, request, jsonify, send_file, render_template, flash, redirect, url_for
+from flask import Blueprint, request, jsonify, send_file, render_template, flash, redirect, url_for, current_app
+from werkzeug.utils import secure_filename
+import pandas as pd
 
 from models import (
     Adelanto,
@@ -12,7 +16,13 @@ from models import (
     User,
     db,
 )
-from models.rrhh import LiquidacionSueldo, TurnoDia
+from models.rrhh import (
+    LiquidacionSueldo,
+    TurnoDia,
+    FichadaReloj,
+    ResumenAsistenciaDiaria,
+    TOLERANCIA_TARDANZA_MIN,
+)
 from security import protect_blueprint
 
 rrhh_bp = Blueprint("rrhh", __name__)
@@ -1061,3 +1071,646 @@ def liquidaciones_obtener(periodo):
             "fecha_liquidacion": l.fecha_liquidacion.isoformat()
         } for l in liquidaciones]
     })
+
+
+# ─── Endpoints Fichadas Reloj (Control de Asistencia Biométrico) ──────────
+
+
+def _parse_hora(v):
+    """Parsea hora del reloj en múltiples formatos: HH:MM, HH:MM:SS, Timedelta, time, datetime."""
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return None
+    if hasattr(v, "hour") and hasattr(v, "minute"):
+        # ya es un time o datetime
+        return v if not hasattr(v, "date") else v.time()
+    if isinstance(v, pd.Timedelta):
+        total_sec = int(v.total_seconds())
+        h, rem = divmod(total_sec, 3600)
+        m, s = divmod(rem, 60)
+        return dt_time(h % 24, m, s)
+    s = str(v).strip()
+    for fmt in ("%H:%M:%S", "%H:%M", "%H:%M:%S.%f"):
+        try:
+            return datetime.strptime(s, fmt).time()
+        except ValueError:
+            continue
+    return None
+
+
+def _normalize_clock_id_value(v):
+    """Normaliza un clock_id a string entero limpio: '09' → '9', ' 9 ' → '9'."""
+    if v is None:
+        return None
+    s = str(v).strip()
+    if not s:
+        return None
+    try:
+        return str(int(float(s)))
+    except (ValueError, OverflowError):
+        return s
+
+
+def _asociar_fichadas():
+    """Asocia fichadas con empleado_id=NULL usando Employee.clock_id. Retorna (asociados, pendientes)."""
+    pendientes = (
+        db.session.query(FichadaReloj.clock_id_original)
+        .filter(FichadaReloj.empleado_id.is_(None))
+        .distinct()
+        .all()
+    )
+    clock_ids = [r[0] for r in pendientes]
+    if not clock_ids:
+        return 0, 0
+
+    # Cargar todos los empleados con clock_id y normalizar para comparación
+    empleados_map = {}
+    for emp in Employee.query.filter(Employee.clock_id.isnot(None)).all():
+        normalized = _normalize_clock_id_value(emp.clock_id)
+        if normalized:
+            empleados_map[normalized] = emp.id
+
+    asociados = 0
+    for cid in clock_ids:
+        normalized_cid = _normalize_clock_id_value(cid)
+        emp_id = empleados_map.get(normalized_cid)
+        if emp_id:
+            count = FichadaReloj.query.filter(
+                FichadaReloj.clock_id_original == cid,
+                FichadaReloj.empleado_id.is_(None),
+            ).update({"empleado_id": emp_id})
+            asociados += count
+
+    if asociados:
+        db.session.commit()
+    return asociados, FichadaReloj.query.filter(FichadaReloj.empleado_id.is_(None)).count()
+
+
+@rrhh_bp.route("/api/rrhh/fichadas/cargar", methods=["POST"])
+def fichadas_cargar():
+    """Importar fichadas desde Excel del reloj biométrico."""
+    if "archivo" not in request.files:
+        return jsonify({"error": "Se requiere un archivo Excel"}), 400
+
+    archivo = request.files["archivo"]
+    if not archivo.filename:
+        return jsonify({"error": "Nombre de archivo vacío"}), 400
+
+    ext = os.path.splitext(archivo.filename)[1].lower()
+    if ext not in (".xlsx", ".xls"):
+        return jsonify({"error": "Solo se aceptan archivos .xlsx o .xls"}), 400
+
+    upload_dir = current_app.config.get("UPLOAD_FOLDER", "/tmp")
+    os.makedirs(upload_dir, exist_ok=True)
+    filename = secure_filename(archivo.filename)
+    path = os.path.join(upload_dir, filename)
+    archivo.save(path)
+
+    try:
+        df = pd.read_excel(path, skiprows=7)
+    except Exception as e:
+        return jsonify({"error": f"No se pudo leer el Excel: {e}"}), 400
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
+
+    # Normalizar nombres de columnas (soporta formato crudo del reloj y preprocesado)
+    col_map = {}
+    for c in df.columns:
+        cl = str(c).strip().lower()
+        if cl == "id":
+            col_map[c] = "clock_id"
+        elif "id" in cl and "empleado" in cl:
+            col_map[c] = "clock_id"
+        elif cl == "fecha":
+            col_map[c] = "fecha"
+        elif cl in ("hora de registro de entrada", "hora"):
+            col_map[c] = "hora"
+        elif cl == "nombre":
+            col_map[c] = "nombre_ref"
+        elif cl == "apellido":
+            col_map[c] = "apellido_ref"
+        elif cl == "empleado":
+            col_map[c] = "nombre_ref"
+    df = df.rename(columns=col_map)
+
+    required_cols = {"clock_id", "fecha", "hora"}
+    if not required_cols.issubset(set(df.columns)):
+        return jsonify({"error": f"Columnas requeridas no encontradas. Encontradas: {list(df.columns)}"}), 400
+
+    # Concatenar nombre+apellido si vienen separados
+    if "apellido_ref" in df.columns:
+        df["nombre_ref"] = df.get("nombre_ref", "").astype(str) + " " + df["apellido_ref"].astype(str)
+
+    df = df.dropna(subset=["clock_id", "fecha", "hora"])
+    df["clock_id"] = df["clock_id"].apply(_normalize_clock_id_value)
+
+    total_filas = len(df)
+    fechas_rango = None
+    if total_filas > 0:
+        try:
+            fechas = pd.to_datetime(df["fecha"], errors="coerce").dropna()
+            if len(fechas):
+                fechas_rango = {"desde": fechas.min().strftime("%Y-%m-%d"), "hasta": fechas.max().strftime("%Y-%m-%d")}
+        except Exception:
+            pass
+
+    # Batch dedup: cargar existentes en un set (1 query en vez de N)
+    clock_ids_unicos = df["clock_id"].unique().tolist()
+    existentes = set()
+    for row in db.session.query(FichadaReloj.clock_id_original, FichadaReloj.fecha_hora).filter(
+        FichadaReloj.clock_id_original.in_(clock_ids_unicos)
+    ).all():
+        existentes.add((row[0], row[1]))
+
+    lote = str(uuid.uuid4())[:8]
+    importados = 0
+    duplicados = 0
+    errores_parse = 0
+
+    for _, row in df.iterrows():
+        cid = str(row["clock_id"]).strip()
+        nombre_reloj = str(row.get("nombre_ref", "")).strip() if "nombre_ref" in row.index else ""
+
+        try:
+            fecha_val = pd.Timestamp(row["fecha"]).date()
+        except Exception:
+            errores_parse += 1
+            continue
+
+        hora_val = _parse_hora(row["hora"])
+        if hora_val is None:
+            errores_parse += 1
+            continue
+
+        fecha_hora = datetime.combine(fecha_val, hora_val)
+
+        if (cid, fecha_hora) in existentes:
+            duplicados += 1
+            continue
+
+        fichada = FichadaReloj(
+            empleado_id=None,
+            clock_id_original=cid,
+            nombre_reloj=nombre_reloj or None,
+            fecha=fecha_val,
+            hora=hora_val,
+            fecha_hora=fecha_hora,
+            archivo_origen=filename,
+            lote_importacion=lote,
+        )
+        db.session.add(fichada)
+        existentes.add((cid, fecha_hora))
+        importados += 1
+
+    db.session.commit()
+
+    # Auto-asociar: vincular fichadas con empleados por clock_id
+    asociados, pendientes = _asociar_fichadas()
+
+    return jsonify({
+        "lote": lote,
+        "importados": importados,
+        "duplicados": duplicados,
+        "errores_parse": errores_parse,
+        "total_filas": total_filas,
+        "fechas_rango": fechas_rango,
+        "asociados": asociados,
+        "pendientes": pendientes,
+    })
+
+
+@rrhh_bp.route("/api/rrhh/fichadas/asociar", methods=["POST"])
+def fichadas_asociar():
+    """Re-asocia fichadas sin empleado a partir de Employee.clock_id actual."""
+    asociados, pendientes = _asociar_fichadas()
+    return jsonify({"asociados": asociados, "pendientes": pendientes})
+
+
+@rrhh_bp.route("/api/rrhh/fichadas/procesar", methods=["POST"])
+def fichadas_procesar():
+    """Procesa fichadas crudas contra turnos y genera resumen diario."""
+    data = request.get_json() or {}
+    lote = data.get("lote")
+    fecha_desde = data.get("fecha_desde")
+    fecha_hasta = data.get("fecha_hasta")
+
+    query = FichadaReloj.query.filter(FichadaReloj.empleado_id.isnot(None))
+    if lote:
+        query = query.filter_by(lote_importacion=lote)
+    elif fecha_desde and fecha_hasta:
+        try:
+            fd = datetime.strptime(fecha_desde, "%Y-%m-%d").date()
+            fh = datetime.strptime(fecha_hasta, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"error": "Formato de fecha inválido"}), 400
+        query = query.filter(FichadaReloj.fecha.between(fd, fh))
+    # Sin filtro: procesa TODAS las fichadas asociadas (útil para re-procesar)
+
+    # Contar sin asociar para stats
+    sin_asociar_q = FichadaReloj.query.filter(FichadaReloj.empleado_id.is_(None))
+    if lote:
+        sin_asociar_q = sin_asociar_q.filter_by(lote_importacion=lote)
+    sin_asociar = sin_asociar_q.count()
+
+    fichadas = query.order_by(FichadaReloj.empleado_id, FichadaReloj.fecha, FichadaReloj.hora).all()
+    if not fichadas:
+        return jsonify({"error": "No se encontraron fichadas asociadas para procesar", "sin_asociar": sin_asociar}), 404
+
+    # Agrupar por (empleado_id, fecha)
+    grupos = {}
+    for f in fichadas:
+        key = (f.empleado_id, f.fecha)
+        grupos.setdefault(key, []).append(f)
+
+    # Precargar turnos y días
+    empleado_ids = list({k[0] for k in grupos})
+    empleados = {e.id: e for e in Employee.query.filter(Employee.id.in_(empleado_ids)).all()}
+    turno_dias_cache = {}
+
+    stats = {"procesados": 0, "faltas": 0, "tardanzas": 0, "fichadas_faltantes": 0}
+
+    for (emp_id, fecha), fichs in grupos.items():
+        emp = empleados.get(emp_id)
+        if not emp or not emp.turno_id:
+            continue
+
+        dia_semana = fecha.weekday()  # 0=lunes
+        cache_key = (emp.turno_id, dia_semana)
+        if cache_key not in turno_dias_cache:
+            td = TurnoDia.query.filter_by(turno_id=emp.turno_id, dia_semana=dia_semana).first()
+            turno_dias_cache[cache_key] = td
+        turno_dia = turno_dias_cache[cache_key]
+
+        if not turno_dia or not turno_dia.activo:
+            continue
+
+        esperadas = 4 if turno_dia.es_cortado else 2
+        horas = sorted([f.hora for f in fichs])
+
+        hora_e1 = horas[0] if len(horas) >= 1 else None
+        hora_s1 = horas[1] if len(horas) >= 2 else None
+        hora_e2 = horas[2] if len(horas) >= 3 else None
+        hora_s2 = horas[3] if len(horas) >= 4 else None
+
+        # Calcular tardanza
+        minutos_tarde = 0
+        if hora_e1 and turno_dia.hora_inicio_1:
+            diff = _time_diff_minutes(turno_dia.hora_inicio_1, hora_e1)
+            if diff > TOLERANCIA_TARDANZA_MIN:
+                minutos_tarde += diff
+        if turno_dia.es_cortado and hora_e2 and turno_dia.hora_inicio_2:
+            diff = _time_diff_minutes(turno_dia.hora_inicio_2, hora_e2)
+            if diff > TOLERANCIA_TARDANZA_MIN:
+                minutos_tarde += diff
+
+        es_tarde = minutos_tarde > 0
+        fichada_faltante = len(horas) < esperadas and len(horas) > 0
+        es_falta = len(horas) == 0
+
+        # Upsert
+        resumen = ResumenAsistenciaDiaria.query.filter_by(empleado_id=emp_id, fecha=fecha).first()
+        if not resumen:
+            resumen = ResumenAsistenciaDiaria(empleado_id=emp_id, fecha=fecha)
+            db.session.add(resumen)
+
+        resumen.turno_id = emp.turno_id
+        resumen.fichadas_count = len(horas)
+        resumen.fichadas_esperadas = esperadas
+        resumen.hora_entrada_1 = hora_e1
+        resumen.hora_salida_1 = hora_s1
+        resumen.hora_entrada_2 = hora_e2
+        resumen.hora_salida_2 = hora_s2
+        resumen.minutos_tarde_total = minutos_tarde
+        resumen.es_falta = es_falta
+        resumen.es_tarde = es_tarde
+        resumen.fichada_faltante = fichada_faltante
+        resumen.lote_importacion = lote or "manual"
+
+        stats["procesados"] += 1
+        if es_falta:
+            stats["faltas"] += 1
+        if es_tarde:
+            stats["tardanzas"] += 1
+        if fichada_faltante:
+            stats["fichadas_faltantes"] += 1
+
+    # Detectar faltas: días laborales sin fichadas
+    if lote:
+        fechas_lote = sorted({f.fecha for f in fichadas})
+        if fechas_lote:
+            fecha_min, fecha_max = fechas_lote[0], fechas_lote[-1]
+            for emp_id in empleado_ids:
+                emp = empleados.get(emp_id)
+                if not emp or not emp.turno_id:
+                    continue
+                current = fecha_min
+                while current <= fecha_max:
+                    if (emp_id, current) not in grupos:
+                        dia_semana = current.weekday()
+                        cache_key = (emp.turno_id, dia_semana)
+                        if cache_key not in turno_dias_cache:
+                            td = TurnoDia.query.filter_by(turno_id=emp.turno_id, dia_semana=dia_semana).first()
+                            turno_dias_cache[cache_key] = td
+                        turno_dia = turno_dias_cache[cache_key]
+                        if turno_dia and turno_dia.activo:
+                            resumen = ResumenAsistenciaDiaria.query.filter_by(
+                                empleado_id=emp_id, fecha=current
+                            ).first()
+                            if not resumen:
+                                resumen = ResumenAsistenciaDiaria(
+                                    empleado_id=emp_id,
+                                    fecha=current,
+                                    turno_id=emp.turno_id,
+                                    fichadas_count=0,
+                                    fichadas_esperadas=4 if turno_dia.es_cortado else 2,
+                                    es_falta=True,
+                                    lote_importacion=lote or "manual",
+                                )
+                                db.session.add(resumen)
+                                stats["procesados"] += 1
+                                stats["faltas"] += 1
+                    current += timedelta(days=1)
+
+    db.session.commit()
+    stats["sin_asociar"] = sin_asociar
+    return jsonify(stats)
+
+
+def _time_diff_minutes(t_ref, t_actual):
+    """Diferencia en minutos: positivo si t_actual es posterior a t_ref."""
+    ref_min = t_ref.hour * 60 + t_ref.minute
+    act_min = t_actual.hour * 60 + t_actual.minute
+    return act_min - ref_min
+
+
+@rrhh_bp.route("/api/rrhh/fichadas/resumen", methods=["GET"])
+def fichadas_resumen():
+    """Resumen de asistencia con KPIs agregados."""
+    periodo = request.args.get("periodo")  # YYYY-MM
+    empleado_id = request.args.get("empleado_id", type=int)
+    estado = request.args.get("estado")  # falta|tarde|ok|fichada_faltante
+
+    query = ResumenAsistenciaDiaria.query
+
+    if periodo:
+        try:
+            anio, mes = int(periodo[:4]), int(periodo[5:7])
+            fd = date(anio, mes, 1)
+            if mes == 12:
+                fh = date(anio + 1, 1, 1) - timedelta(days=1)
+            else:
+                fh = date(anio, mes + 1, 1) - timedelta(days=1)
+            query = query.filter(ResumenAsistenciaDiaria.fecha.between(fd, fh))
+        except (ValueError, IndexError):
+            return jsonify({"error": "Formato de período inválido (YYYY-MM)"}), 400
+
+    if empleado_id:
+        query = query.filter_by(empleado_id=empleado_id)
+
+    if estado == "falta":
+        query = query.filter_by(es_falta=True, justificado=False)
+    elif estado == "tarde":
+        query = query.filter_by(es_tarde=True)
+    elif estado == "fichada_faltante":
+        query = query.filter_by(fichada_faltante=True)
+    elif estado == "ok":
+        query = query.filter_by(es_falta=False, es_tarde=False, fichada_faltante=False)
+
+    registros = query.order_by(ResumenAsistenciaDiaria.fecha.desc()).limit(2000).all()
+
+    # KPIs
+    empleados_unicos = set()
+    total_faltas = 0
+    total_tardanzas = 0
+    total_min_tarde = 0
+    total_dias = 0
+
+    for r in registros:
+        empleados_unicos.add(r.empleado_id)
+        total_dias += 1
+        if r.es_falta and not r.justificado:
+            total_faltas += 1
+        if r.es_tarde:
+            total_tardanzas += 1
+            total_min_tarde += r.minutos_tarde_total or 0
+
+    puntualidad = round((1 - (total_faltas + total_tardanzas) / total_dias) * 100, 1) if total_dias else 100
+
+    # Ranking peor comportamiento (top 10)
+    ranking = {}
+    for r in registros:
+        emp_id = r.empleado_id
+        if emp_id not in ranking:
+            ranking[emp_id] = {"faltas": 0, "tardanzas": 0, "min_tarde": 0}
+        if r.es_falta and not r.justificado:
+            ranking[emp_id]["faltas"] += 1
+        if r.es_tarde:
+            ranking[emp_id]["tardanzas"] += 1
+            ranking[emp_id]["min_tarde"] += r.minutos_tarde_total or 0
+
+    # Precargar nombres
+    emp_ids_ranking = list(ranking.keys())
+    emp_names = {}
+    if emp_ids_ranking:
+        for e in Employee.query.filter(Employee.id.in_(emp_ids_ranking)).all():
+            emp_names[e.id] = e.name
+
+    top_peor = sorted(
+        ranking.items(),
+        key=lambda x: x[1]["faltas"] * 100 + x[1]["tardanzas"],
+        reverse=True,
+    )[:10]
+
+    # Tendencia mensual (últimos 6 meses)
+    hoy = date.today()
+    tendencia = []
+    for i in range(5, -1, -1):
+        m = hoy.month - i
+        a = hoy.year
+        while m <= 0:
+            m += 12
+            a -= 1
+        label = f"{a}-{m:02d}"
+        td_fd = date(a, m, 1)
+        if m == 12:
+            td_fh = date(a + 1, 1, 1) - timedelta(days=1)
+        else:
+            td_fh = date(a, m + 1, 1) - timedelta(days=1)
+        mes_q = ResumenAsistenciaDiaria.query.filter(
+            ResumenAsistenciaDiaria.fecha.between(td_fd, td_fh)
+        )
+        total_m = mes_q.count()
+        faltas_m = mes_q.filter_by(es_falta=True, justificado=False).count()
+        tardes_m = mes_q.filter_by(es_tarde=True).count()
+        punt_m = round((1 - (faltas_m + tardes_m) / total_m) * 100, 1) if total_m else 100
+        tendencia.append({"mes": label, "puntualidad": punt_m, "faltas": faltas_m, "tardanzas": tardes_m})
+
+    # Fichadas sin asociar (pendientes de vinculación con empleado)
+    fichadas_sin_asociar = FichadaReloj.query.filter(FichadaReloj.empleado_id.is_(None)).count()
+    fichadas_pendientes = []
+    if fichadas_sin_asociar > 0:
+        from sqlalchemy import func
+        rows = (
+            db.session.query(
+                FichadaReloj.clock_id_original,
+                FichadaReloj.nombre_reloj,
+                func.count(FichadaReloj.id),
+            )
+            .filter(FichadaReloj.empleado_id.is_(None))
+            .group_by(FichadaReloj.clock_id_original, FichadaReloj.nombre_reloj)
+            .all()
+        )
+        fichadas_pendientes = [
+            {"clock_id": r[0], "nombre_reloj": r[1] or "—", "cantidad": r[2]}
+            for r in rows
+        ]
+
+    # Fichadas asociadas pero sin procesar (tienen empleado_id pero no ResumenAsistenciaDiaria)
+    from sqlalchemy import func as sa_func
+    fichadas_asociadas_total = FichadaReloj.query.filter(FichadaReloj.empleado_id.isnot(None)).count()
+    # Contar días-empleado en fichadas asociadas
+    dias_fichadas = (
+        db.session.query(FichadaReloj.empleado_id, FichadaReloj.fecha)
+        .filter(FichadaReloj.empleado_id.isnot(None))
+        .distinct()
+        .count()
+    )
+    # Contar días-empleado ya procesados en resumen
+    dias_procesados = ResumenAsistenciaDiaria.query.count()
+    fichadas_sin_procesar = max(0, dias_fichadas - dias_procesados)
+
+    return jsonify({
+        "kpis": {
+            "empleados_analizados": len(empleados_unicos),
+            "faltas": total_faltas,
+            "tardanzas": total_tardanzas,
+            "min_tarde_acumulados": total_min_tarde,
+            "puntualidad": puntualidad,
+            "fichadas_sin_asociar": fichadas_sin_asociar,
+            "fichadas_sin_procesar": fichadas_sin_procesar,
+        },
+        "ranking_peor": [
+            {
+                "empleado_id": eid,
+                "nombre": emp_names.get(eid, "—"),
+                "faltas": data["faltas"],
+                "tardanzas": data["tardanzas"],
+                "min_tarde": data["min_tarde"],
+            }
+            for eid, data in top_peor
+        ],
+        "tendencia": tendencia,
+        "fichadas_pendientes": fichadas_pendientes,
+        "registros": [
+            {
+                "id": r.id,
+                "empleado_id": r.empleado_id,
+                "empleado": r.empleado.name if r.empleado else "—",
+                "fecha": r.fecha.isoformat(),
+                "fichadas": r.fichadas_count,
+                "esperadas": r.fichadas_esperadas,
+                "entrada_1": r.hora_entrada_1.strftime("%H:%M") if r.hora_entrada_1 else None,
+                "salida_1": r.hora_salida_1.strftime("%H:%M") if r.hora_salida_1 else None,
+                "entrada_2": r.hora_entrada_2.strftime("%H:%M") if r.hora_entrada_2 else None,
+                "salida_2": r.hora_salida_2.strftime("%H:%M") if r.hora_salida_2 else None,
+                "min_tarde": r.minutos_tarde_total,
+                "es_falta": r.es_falta,
+                "es_tarde": r.es_tarde,
+                "fichada_faltante": r.fichada_faltante,
+                "justificado": r.justificado,
+                "notas": r.notas,
+            }
+            for r in registros
+        ],
+    })
+
+
+@rrhh_bp.route("/api/rrhh/fichadas/resumen-empleado", methods=["GET"])
+def fichadas_resumen_empleado():
+    """Detalle diario de un empleado en un mes."""
+    empleado_id = request.args.get("empleado_id", type=int)
+    periodo = request.args.get("periodo")
+    if not empleado_id or not periodo:
+        return jsonify({"error": "Se requiere empleado_id y periodo (YYYY-MM)"}), 400
+
+    try:
+        anio, mes = int(periodo[:4]), int(periodo[5:7])
+        fd = date(anio, mes, 1)
+        fh = date(anio, mes + 1, 1) - timedelta(days=1) if mes < 12 else date(anio + 1, 1, 1) - timedelta(days=1)
+    except (ValueError, IndexError):
+        return jsonify({"error": "Período inválido"}), 400
+
+    registros = ResumenAsistenciaDiaria.query.filter(
+        ResumenAsistenciaDiaria.empleado_id == empleado_id,
+        ResumenAsistenciaDiaria.fecha.between(fd, fh),
+    ).order_by(ResumenAsistenciaDiaria.fecha).all()
+
+    emp = Employee.query.get(empleado_id)
+
+    return jsonify({
+        "empleado": emp.name if emp else "—",
+        "periodo": periodo,
+        "dias": [
+            {
+                "id": r.id,
+                "fecha": r.fecha.isoformat(),
+                "dia_semana": r.fecha.weekday(),
+                "fichadas": r.fichadas_count,
+                "esperadas": r.fichadas_esperadas,
+                "entrada_1": r.hora_entrada_1.strftime("%H:%M") if r.hora_entrada_1 else None,
+                "salida_1": r.hora_salida_1.strftime("%H:%M") if r.hora_salida_1 else None,
+                "entrada_2": r.hora_entrada_2.strftime("%H:%M") if r.hora_entrada_2 else None,
+                "salida_2": r.hora_salida_2.strftime("%H:%M") if r.hora_salida_2 else None,
+                "min_tarde": r.minutos_tarde_total,
+                "es_falta": r.es_falta,
+                "es_tarde": r.es_tarde,
+                "fichada_faltante": r.fichada_faltante,
+                "justificado": r.justificado,
+                "notas": r.notas,
+            }
+            for r in registros
+        ],
+    })
+
+
+@rrhh_bp.route("/api/rrhh/fichadas/resumen/<int:resumen_id>/justificar", methods=["PUT"])
+def fichadas_justificar(resumen_id):
+    """Marcar un resumen diario como justificado."""
+    resumen = ResumenAsistenciaDiaria.query.get_or_404(resumen_id)
+    data = request.get_json() or {}
+
+    resumen.justificado = True
+    resumen.notas = data.get("notas", resumen.notas)
+    db.session.commit()
+
+    return jsonify({"message": "Justificado correctamente"})
+
+
+@rrhh_bp.route("/api/rrhh/fichadas/resumen-liquidacion", methods=["GET"])
+def fichadas_resumen_liquidacion():
+    """Retorna string resumen para liquidación de sueldos."""
+    empleado_id = request.args.get("empleado_id", type=int)
+    periodo = request.args.get("periodo")
+    if not empleado_id or not periodo:
+        return jsonify({"error": "Se requiere empleado_id y periodo"}), 400
+
+    try:
+        anio, mes = int(periodo[:4]), int(periodo[5:7])
+        fd = date(anio, mes, 1)
+        fh = date(anio, mes + 1, 1) - timedelta(days=1) if mes < 12 else date(anio + 1, 1, 1) - timedelta(days=1)
+    except (ValueError, IndexError):
+        return jsonify({"error": "Período inválido"}), 400
+
+    registros = ResumenAsistenciaDiaria.query.filter(
+        ResumenAsistenciaDiaria.empleado_id == empleado_id,
+        ResumenAsistenciaDiaria.fecha.between(fd, fh),
+        ResumenAsistenciaDiaria.justificado == False,  # noqa: E712
+    ).all()
+
+    tardanzas = [r for r in registros if r.es_tarde]
+    faltas = [r for r in registros if r.es_falta]
+    min_acum = sum(r.minutos_tarde_total or 0 for r in tardanzas)
+
+    texto = f"Llegadas tarde: {len(tardanzas)} turnos, min acumulados: {min_acum} / Faltas: {len(faltas)} días"
+
+    return jsonify({"resumen": texto, "tardanzas": len(tardanzas), "min_acumulados": min_acum, "faltas": len(faltas)})

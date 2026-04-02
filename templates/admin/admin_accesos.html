@@ -2,31 +2,29 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-shield-lock"></i> Control de Accesos por Usuario</h1>
-        <a href="/admin" class="btn btn-outline-secondary">
+    <div class="panel-header">
+        <div>
+            <h1><i class="bi bi-shield-lock"></i> Control de Accesos por Usuario</h1>
+            <span>Los permisos individuales <strong>suman</strong> al rol base. Las celdas con <span class="badge bg-secondary">rol</span> son heredadas.</span>
+        </div>
+        <a href="/admin" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Volver
         </a>
     </div>
 
-    <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i>
-        Los permisos individuales <strong>suman</strong> al rol base. Las celdas marcadas como
-        <span class="badge bg-secondary">rol</span> son heredadas y no pueden modificarse.
-    </div>
-
-    <div class="table-responsive">
-        <table class="table table-bordered table-hover align-middle" id="tblAccesos">
-            <thead class="table-dark">
-                <tr>
-                    <th>Usuario</th>
-                    <th>Rol</th>
-                    {% for mod, label in managed_modules.items() %}
-                    <th class="text-center" style="min-width:110px">{{ label }}</th>
-                    {% endfor %}
-                    <th class="text-center">Acción</th>
-                </tr>
-            </thead>
+    <div class="table-card">
+        <div class="scroll-table">
+            <table class="table table-hover align-middle mb-0" id="tblAccesos">
+                <thead>
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        {% for mod, label in managed_modules.items() %}
+                        <th class="text-center" style="min-width:110px">{{ label }}</th>
+                        {% endfor %}
+                        <th class="text-center">Acción</th>
+                    </tr>
+                </thead>
             <tbody>
                 {% for user in users %}
                 {% set role_mods = access_map.get(user.role, []) %}
@@ -58,7 +56,8 @@
                 </tr>
                 {% endfor %}
             </tbody>
-        </table>
+            </table>
+        </div>
     </div>
 </div>
 

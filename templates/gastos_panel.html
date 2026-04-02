@@ -2,10 +2,13 @@
 {% block title %}Panel de Gastos{% endblock %}
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1><i class="bi bi-cash-stack"></i> Panel de Gastos</h1>
+    <!-- Header -->
+    <div class="panel-header">
         <div>
-            <button class="btn btn-outline-success btn-sm me-2" onclick="exportarGastos()">
+            <h1><i class="bi bi-cash-stack"></i> Panel de Gastos</h1>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm" onclick="exportarGastos()">
                 <i class="bi bi-file-earmark-excel"></i> Exportar
             </button>
             <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoGasto">
@@ -15,88 +18,82 @@
     </div>
 
     <!-- Filtros -->
-    <div class="period-bar mb-3">
+    <div class="period-bar dim-bar mb-3">
         <select id="selCategoria" style="min-width:130px"><option value="">Categoría</option></select>
         <select id="selProveedor" style="min-width:130px"><option value="">Proveedor</option></select>
         <select id="selInstrumento" style="min-width:120px"><option value="">Instrumento</option></select>
         <span class="filter-sep"></span>
-        <span class="pp active" data-period="30">30d</span>
-        <span class="pp" data-period="60">60d</span>
-        <span class="pp" data-period="90">90d</span>
+        <div class="period-pills">
+            <button class="pp active" data-period="30">30d</button>
+            <button class="pp" data-period="60">60d</button>
+            <button class="pp" data-period="90">90d</button>
+        </div>
         <span class="filter-sep"></span>
-        <input type="date" id="dateDesde" style="width:130px">
-        <input type="date" id="dateHasta" style="width:130px">
-        <span class="pp pp-month" id="btn-este-mes">📅 Este mes</span>
-        <span class="pp pp-action" id="btn-aplicar">✓ Aplicar</span>
+        <div class="date-group">
+            <div>
+                <label for="dateDesde">Desde</label>
+                <input type="date" id="dateDesde">
+            </div>
+            <div>
+                <label for="dateHasta">Hasta</label>
+                <input type="date" id="dateHasta">
+            </div>
+            <button class="pp pp-month" id="btn-este-mes">&#x1F4C5; Este mes</button>
+            <button class="pp pp-action" id="btn-aplicar">&#x2713; Aplicar</button>
+        </div>
+    </div>
+
+    <!-- Skeleton -->
+    <div id="gastos-skeleton">
+        <div class="kpi-grid"><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div></div>
+        <div class="charts-grid"><div class="skeleton skeleton-chart"></div><div class="skeleton skeleton-chart"></div><div class="skeleton skeleton-chart"></div></div>
     </div>
 
     <!-- KPIs -->
-    <div class="row mb-3 g-2">
-        <div class="col-md-3">
-            <div class="card bg-danger text-white">
-                <div class="card-body text-center py-2">
-                    <small>Total Gastos</small>
-                    <h4 id="kpiTotal" class="mb-0">$0</h4>
-                </div>
+    <div id="gastos-content" style="display:none">
+        <div class="kpi-grid">
+            <div class="kpi-card accent-red">
+                <span class="kpi-label">Total Gastos</span>
+                <span class="kpi-value" id="kpiTotal">$0</span>
+            </div>
+            <div class="kpi-card accent-amber">
+                <span class="kpi-label">Cantidad</span>
+                <span class="kpi-value" id="kpiCantidad">0</span>
+            </div>
+            <div class="kpi-card accent-blue">
+                <span class="kpi-label">Promedio x Gasto</span>
+                <span class="kpi-value" id="kpiPromedio">$0</span>
+            </div>
+            <div class="kpi-card accent-purple">
+                <span class="kpi-label">Top Categoría</span>
+                <span class="kpi-value" id="kpiTopCat">-</span>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-dark">
-                <div class="card-body text-center py-2">
-                    <small>Cantidad</small>
-                    <h4 id="kpiCantidad" class="mb-0">0</h4>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body text-center py-2">
-                    <small>Promedio x Gasto</small>
-                    <h4 id="kpiPromedio" class="mb-0">$0</h4>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-dark text-white">
-                <div class="card-body text-center py-2">
-                    <small>Top Categoría</small>
-                    <h4 id="kpiTopCat" class="mb-0">-</h4>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Gráficos -->
-    <div class="row mb-3 g-2">
-        <div class="col-md-4">
-            <div class="card"><div class="card-body" style="height:280px">
-                <h6 class="mb-1"><i class="bi bi-bar-chart"></i> Por Categoría</h6>
+        <!-- Gráficos -->
+        <div class="charts-grid">
+            <div class="chart-card-v2">
+                <h6><i class="bi bi-bar-chart"></i> Por Categoría</h6>
                 <canvas id="chartCat"></canvas>
-            </div></div>
-        </div>
-        <div class="col-md-4">
-            <div class="card"><div class="card-body" style="height:280px">
-                <h6 class="mb-1"><i class="bi bi-pie-chart"></i> Por Proveedor</h6>
+            </div>
+            <div class="chart-card-v2">
+                <h6><i class="bi bi-pie-chart"></i> Por Proveedor</h6>
                 <canvas id="chartProv"></canvas>
-            </div></div>
-        </div>
-        <div class="col-md-4">
-            <div class="card"><div class="card-body" style="height:280px">
-                <h6 class="mb-1"><i class="bi bi-graph-up"></i> Evolución Diaria</h6>
+            </div>
+            <div class="chart-card-v2">
+                <h6><i class="bi bi-graph-up"></i> Evolución Diaria</h6>
                 <canvas id="chartEvo"></canvas>
-            </div></div>
+            </div>
         </div>
-    </div>
 
-    <!-- Tabla -->
-    <div class="card">
-        <div class="card-header py-2">
-            <h6 class="mb-0"><i class="bi bi-table"></i> Gastos registrados</h6>
-        </div>
-        <div class="card-body p-0">
+        <!-- Tabla -->
+        <div class="table-card">
+            <div class="table-card-head">
+                <i class="bi bi-table"></i> Gastos registrados
+            </div>
             <div class="table-responsive">
                 <table class="table table-hover table-sm mb-0">
-                    <thead class="table-dark">
+                    <thead>
                         <tr>
                             <th>Fecha</th>
                             <th>Descripción</th>
@@ -109,12 +106,14 @@
                         </tr>
                     </thead>
                     <tbody id="tbodyGastos">
-                        <tr><td colspan="8" class="text-center text-muted">Cargando...</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted">
+                            <span class="loading-text">Cargando datos...</span>
+                        </td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
-    </div>
+    </div><!-- /gastos-content -->
 </div>
 
 <!-- Modal Nuevo Gasto -->
@@ -298,6 +297,11 @@ async function cargarRefs() {
 }
 
 async function load(period) {
+    // Show skeleton, hide content
+    const skel = document.getElementById('gastos-skeleton');
+    const content = document.getElementById('gastos-content');
+    if (skel) skel.style.display = '';
+    if (content) content.style.display = 'none';
     let desde = document.getElementById('dateDesde').value;
     let hasta = document.getElementById('dateHasta').value;
     if (period) {
@@ -331,11 +335,22 @@ async function load(period) {
     const topCat = Object.entries(cats).sort((a,b) => b[1]-a[1])[0];
     document.getElementById('kpiTopCat').textContent = topCat ? topCat[0] : '-';
 
+    // Hide skeleton, show content
+    if (skel) skel.style.display = 'none';
+    if (content) content.style.display = '';
+
     // Table
     const gastos = listD.gastos || [];
     const tbody = document.getElementById('tbodyGastos');
     if (!gastos.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Sin gastos en el período</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state">
+            <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+            <div class="empty-title">Sin gastos en el período</div>
+            <div class="empty-text">Probá ajustando los filtros o registrá un nuevo gasto.</div>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoGasto">
+                <i class="bi bi-plus-circle"></i> Registrar Gasto
+            </button>
+        </div></td></tr>`;
     } else {
         tbody.innerHTML = gastos.map(g => `<tr>
             <td>${g.fecha}</td>

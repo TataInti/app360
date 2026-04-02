@@ -2,6 +2,10 @@
 
 App360 es una plataforma integral de gestion desarrollada con Flask (backend) y React (frontend). Unifica operacion comercial, RRHH, compras, ventas y finanzas en un solo panel con roles y permisos. Esta pensada para operar en produccion con PostgreSQL y para pruebas con SQLite.
 
+Documento oficial de desarrollo:
+
+- `docs/MANUAL_DEVELOPER.md`
+
 ## Prioridad Operativa (Local First)
 
 Desde 2026-02-12, la prioridad del proyecto es:
@@ -210,4 +214,4 @@ npm test
 
 ## Soporte
 
-- Email: support@app360.com
+- Email: soporte@app360.com

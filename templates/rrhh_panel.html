@@ -2,123 +2,109 @@
 
 {% block content %}
 <div class="container-fluid">
-    <h1 class="mb-4"><i class="bi bi-people"></i> Panel de RRHH</h1>
-
-    <!-- ── KPIs ─────────────────────────────────────────── -->
-    <div class="row mb-4 g-3">
-        <div class="col-md-3">
-            <div class="card rrhh-kpi-card border-left-primary">
-                <div class="card-body">
-                    <h6 class="card-title text-muted mb-1">Empleados Activos</h6>
-                    <h3 class="text-primary mb-0" id="kpi-empleados">—</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card rrhh-kpi-card border-left-warning">
-                <div class="card-body">
-                    <h6 class="card-title text-muted mb-1">Mov. Pendientes de Aprobación</h6>
-                    <h3 class="text-warning mb-0" id="kpi-pendientes">—</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card rrhh-kpi-card border-left-danger">
-                <div class="card-body">
-                    <h6 class="card-title text-muted mb-1">Saldo Pendiente Préstamos</h6>
-                    <h3 class="text-danger mb-0" id="kpi-saldo-prestamos">—</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card rrhh-kpi-card border-left-success">
-                <div class="card-body">
-                    <h6 class="card-title text-muted mb-1">Asistencias Hoy</h6>
-                    <h3 class="text-success mb-0" id="kpi-asistencias">—</h3>
-                </div>
-            </div>
+    <!-- Header -->
+    <div class="panel-header">
+        <div>
+            <h1><i class="bi bi-people"></i> Panel de RRHH</h1>
         </div>
     </div>
 
-    <!-- ── Fila principal: Empleados | Adelantos ─────────── -->
-    <div class="row mb-4 g-3">
+    <!-- KPIs -->
+    <div class="kpi-grid">
+        <div class="kpi-card accent-blue">
+            <span class="kpi-label">Empleados Activos</span>
+            <span class="kpi-value" id="kpi-empleados">—</span>
+        </div>
+        <div class="kpi-card accent-amber">
+            <span class="kpi-label">Mov. Pendientes de Aprobación</span>
+            <span class="kpi-value" id="kpi-pendientes">—</span>
+        </div>
+        <div class="kpi-card accent-red">
+            <span class="kpi-label">Saldo Pendiente Préstamos</span>
+            <span class="kpi-value" id="kpi-saldo-prestamos">—</span>
+        </div>
+        <div class="kpi-card accent-green">
+            <span class="kpi-label">Asistencias Hoy</span>
+            <span class="kpi-value" id="kpi-asistencias">—</span>
+        </div>
+    </div>
+
+    <!-- Fila principal: Empleados | Adelantos -->
+    <div class="charts-grid" style="grid-template-columns: 1fr 1fr;">
 
         <!-- Empleados -->
-        <div class="col-lg-6">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="bi bi-person-lines-fill me-1"></i>Empleados</h5>
-                    <div class="d-flex gap-2 align-items-center">
-                        <select id="filtroEstadoEmp" class="form-select form-select-sm"
-                                style="width:auto;" onchange="cargarEmpleados()">
-                            <option value="">Todos</option>
-                            <option value="activo" selected>Solo activos</option>
-                            <option value="inactivo">Solo inactivos</option>
-                        </select>
-                        <a href="/rrhh/empleados" class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-arrow-right"></i>
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <div class="rrhh-scroll-table">
-                        <table class="table table-hover table-sm mb-0">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>Nombre</th>
-                                    <th>Puesto</th>
-                                    <th>Departamento</th>
-                                    <th>Ingreso</th>
-                                    <th class="text-center">Estado</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tabla-empleados">
-                                <tr><td colspan="5" class="text-center p-3 text-muted">Cargando...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="card-footer text-muted small" id="pie-empleados">—</div>
-            </div>
-        </div>
-
-        <!-- Adelantos y Préstamos -->
-        <div class="col-lg-6">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="bi bi-cash-coin me-1"></i>Adelantos y Préstamos</h5>
-                    <a href="/rrhh/adelantos" class="btn btn-sm btn-outline-primary">
+        <div class="table-card">
+            <div class="table-card-head d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-person-lines-fill me-1"></i>Empleados</span>
+                <div class="d-flex gap-2 align-items-center">
+                    <select id="filtroEstadoEmp" class="form-select form-select-sm"
+                            style="width:auto;font-size:0.78rem;height:26px;padding:0.1rem 1.5rem 0.1rem 0.35rem;" onchange="cargarEmpleados()">
+                        <option value="">Todos</option>
+                        <option value="activo" selected>Solo activos</option>
+                        <option value="inactivo">Solo inactivos</option>
+                    </select>
+                    <a href="/rrhh/empleados" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;padding:0.15rem 0.4rem;">
                         <i class="bi bi-arrow-right"></i>
                     </a>
                 </div>
-                <div class="card-body">
-                    <!-- Chips resumen por tipo -->
-                    <div class="d-flex gap-2 flex-wrap mb-3">
-                        <span class="badge bg-secondary fs-6 px-3 py-2" id="chip-efectivo">Efectivo: —</span>
-                        <span class="badge bg-info text-dark fs-6 px-3 py-2" id="chip-mercaderia">Mercadería: —</span>
-                        <span class="badge bg-warning text-dark fs-6 px-3 py-2" id="chip-prestamo">Préstamos: —</span>
-                    </div>
-                    <!-- Filtros -->
-                    <div class="d-flex gap-2 mb-3">
-                        <select id="filtroTipoAdel" class="form-select form-select-sm"
-                                onchange="cargarAdelantos()">
-                            <option value="">Todos los tipos</option>
-                            <option value="adelanto_efectivo">Adelanto Efectivo</option>
-                            <option value="adelanto_mercaderia">Adelanto Mercadería</option>
-                            <option value="prestamo">Préstamo</option>
-                        </select>
-                        <select id="filtroEstadoAdel" class="form-select form-select-sm"
-                                onchange="cargarAdelantos()">
-                            <option value="">Todos los estados</option>
-                            <option value="pendiente">Pendiente aprobación</option>
-                            <option value="aprobado">Aprobado (no pagado)</option>
-                            <option value="pagado">Pagado</option>
-                        </select>
-                    </div>
-                    <!-- Tabla -->
-                    <div class="rrhh-scroll-table" style="max-height:310px;">
-                        <table class="table table-hover table-sm mb-0">
-                            <thead class="table-dark">
+            </div>
+            <div class="scroll-table">
+                <table class="table table-hover table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Puesto</th>
+                            <th>Departamento</th>
+                            <th>Ingreso</th>
+                            <th class="text-center">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-empleados">
+                        <tr><td colspan="5" class="text-center p-3 text-muted">
+                            <span class="loading-text">Cargando datos...</span>
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div style="padding:0.5rem 1rem;font-size:0.75rem;color:#6b7280;border-top:1px solid #e5e7eb;" id="pie-empleados">—</div>
+        </div>
+
+        <!-- Adelantos y Préstamos -->
+        <div class="table-card">
+            <div class="table-card-head d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-cash-coin me-1"></i>Adelantos y Préstamos</span>
+                <a href="/rrhh/adelantos" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;padding:0.15rem 0.4rem;">
+                    <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+            <div style="padding:0.75rem 1rem;">
+                <!-- Chips resumen por tipo -->
+                <div class="d-flex gap-2 flex-wrap mb-3">
+                    <span class="badge bg-secondary fs-6 px-3 py-2" id="chip-efectivo">Efectivo: —</span>
+                    <span class="badge bg-info text-dark fs-6 px-3 py-2" id="chip-mercaderia">Mercadería: —</span>
+                    <span class="badge bg-warning text-dark fs-6 px-3 py-2" id="chip-prestamo">Préstamos: —</span>
+                </div>
+                <!-- Filtros -->
+                <div class="d-flex gap-2 mb-3">
+                    <select id="filtroTipoAdel" class="form-select form-select-sm"
+                            style="font-size:0.78rem;" onchange="cargarAdelantos()">
+                        <option value="">Todos los tipos</option>
+                        <option value="adelanto_efectivo">Adelanto Efectivo</option>
+                        <option value="adelanto_mercaderia">Adelanto Mercadería</option>
+                        <option value="prestamo">Préstamo</option>
+                    </select>
+                    <select id="filtroEstadoAdel" class="form-select form-select-sm"
+                            style="font-size:0.78rem;" onchange="cargarAdelantos()">
+                        <option value="">Todos los estados</option>
+                        <option value="pendiente">Pendiente aprobación</option>
+                        <option value="aprobado">Aprobado (no pagado)</option>
+                        <option value="pagado">Pagado</option>
+                    </select>
+                </div>
+                <!-- Tabla -->
+                <div class="scroll-table" style="max-height:310px;">
+                    <table class="table table-hover table-sm mb-0">
+                            <thead>
                                 <tr>
                                     <th>Empleado</th>
                                     <th>Tipo</th>
@@ -129,72 +115,51 @@
                                 </tr>
                             </thead>
                             <tbody id="tabla-adelantos">
-                                <tr><td colspan="6" class="text-center p-3 text-muted">Cargando...</td></tr>
+                                <tr><td colspan="6" class="text-center p-3 text-muted">
+                                    <span class="loading-text">Cargando datos...</span>
+                                </td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-                <div class="card-footer text-muted small" id="pie-adelantos">—</div>
-            </div>
+            <div style="padding:0.5rem 1rem;font-size:0.75rem;color:#6b7280;border-top:1px solid #e5e7eb;" id="pie-adelantos">—</div>
         </div>
-    </div>
 
-    <!-- ── Liquidaciones ─────────────────────────────────── -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="bi bi-receipt-cutoff me-1"></i>Liquidaciones de Sueldos</h5>
-                    <div class="d-flex gap-2 align-items-center">
-                        <input type="month" id="periodoLiquidacion" class="form-control form-control-sm"
-                               style="width:160px;" onchange="cargarLiquidaciones()">
-                        <a href="/rrhh/liquidaciones" class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-arrow-right"></i>
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover table-sm mb-0">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>Empleado</th>
-                                    <th class="text-end">Sueldo Base</th>
-                                    <th class="text-end">Desc. Ad. Efectivo</th>
-                                    <th class="text-end">Desc. Ad. Mercadería</th>
-                                    <th class="text-end">Desc. Cuota Préstamo</th>
-                                    <th class="text-end">Sueldo Neto</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tabla-liquidaciones">
-                                <tr><td colspan="6" class="text-center p-3 text-muted">Seleccioná un período</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="card-footer text-muted small" id="pie-liquidaciones">—</div>
+    </div><!-- /charts-grid -->
+
+    <!-- Liquidaciones -->
+    <div class="table-card">
+        <div class="table-card-head d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-receipt-cutoff me-1"></i>Liquidaciones de Sueldos</span>
+            <div class="d-flex gap-2 align-items-center">
+                <input type="month" id="periodoLiquidacion" class="form-control form-control-sm"
+                       style="width:160px;font-size:0.78rem;height:26px;" onchange="cargarLiquidaciones()">
+                <a href="/rrhh/liquidaciones" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;padding:0.15rem 0.4rem;">
+                    <i class="bi bi-arrow-right"></i>
+                </a>
             </div>
         </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Empleado</th>
+                        <th class="text-end">Sueldo Base</th>
+                        <th class="text-end">Desc. Ad. Efectivo</th>
+                        <th class="text-end">Desc. Ad. Mercadería</th>
+                        <th class="text-end">Desc. Cuota Préstamo</th>
+                        <th class="text-end">Sueldo Neto</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-liquidaciones">
+                    <tr><td colspan="6" class="text-center p-3 text-muted">Seleccioná un período</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div style="padding:0.5rem 1rem;font-size:0.75rem;color:#6b7280;border-top:1px solid #e5e7eb;" id="pie-liquidaciones">—</div>
     </div>
 
 </div><!-- /container-fluid -->
-
-<style>
-.border-left-primary { border-left: 4px solid #2563eb; }
-.border-left-warning { border-left: 4px solid #f59e0b; }
-.border-left-danger  { border-left: 4px solid #ef4444; }
-.border-left-success { border-left: 4px solid #10b981; }
-.rrhh-kpi-card .card-body { padding: .85rem 1rem; }
-.rrhh-scroll-table {
-    max-height: 420px;
-    overflow-y: auto;
-}
-.rrhh-scroll-table thead th {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-}
-</style>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {

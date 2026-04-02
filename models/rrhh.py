@@ -4,6 +4,9 @@ from . import db
 from .time_utils import now_local
 
 
+TOLERANCIA_TARDANZA_MIN = 15  # minutos de gracia antes de marcar llegada tarde
+
+
 class Turno(db.Model):
     """Turnos de trabajo"""
     __tablename__ = 'turnos'
@@ -157,3 +160,64 @@ class LiquidacionSueldo(db.Model):
     
     def __repr__(self):
         return f'<LiquidacionSueldo {self.empleado.name} - {self.periodo}>'
+
+
+class FichadaReloj(db.Model):
+    """Fichada cruda importada del reloj biométrico (inmutable)"""
+    __tablename__ = 'fichadas_reloj'
+    __table_args__ = (
+        db.UniqueConstraint('clock_id_original', 'fecha_hora', name='uq_fichada_clock_fechahora'),
+        db.Index('ix_fichada_empleado_fecha', 'empleado_id', 'fecha'),
+        db.Index('ix_fichadas_clock_id', 'clock_id_original'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    empleado_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=True)
+    clock_id_original = db.Column(db.String(50), nullable=False)
+    nombre_reloj = db.Column(db.String(150))
+    fecha = db.Column(db.Date, nullable=False)
+    hora = db.Column(db.Time, nullable=False)
+    fecha_hora = db.Column(db.DateTime, nullable=False)
+    archivo_origen = db.Column(db.String(255))
+    lote_importacion = db.Column(db.String(40), nullable=False, index=True)
+
+    empleado = db.relationship("Employee", backref="fichadas_reloj")
+
+    def __repr__(self):
+        return f'<FichadaReloj {self.empleado_id} {self.fecha_hora}>'
+
+
+class ResumenAsistenciaDiaria(db.Model):
+    """Resumen diario calculado al cruzar fichadas con turnos"""
+    __tablename__ = 'resumen_asistencia_diaria'
+    __table_args__ = (
+        db.UniqueConstraint('empleado_id', 'fecha', name='uq_resumen_empleado_fecha'),
+        db.Index('ix_resumen_empleado_fecha', 'empleado_id', 'fecha'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    empleado_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+    fecha = db.Column(db.Date, nullable=False)
+    turno_id = db.Column(db.Integer, db.ForeignKey('turnos.id'), nullable=True)
+
+    fichadas_count = db.Column(db.Integer, default=0)
+    fichadas_esperadas = db.Column(db.Integer, default=2)  # 2=corrido, 4=cortado
+
+    hora_entrada_1 = db.Column(db.Time)
+    hora_salida_1 = db.Column(db.Time)
+    hora_entrada_2 = db.Column(db.Time)
+    hora_salida_2 = db.Column(db.Time)
+
+    minutos_tarde_total = db.Column(db.Integer, default=0)
+    es_falta = db.Column(db.Boolean, default=False)
+    es_tarde = db.Column(db.Boolean, default=False)
+    fichada_faltante = db.Column(db.Boolean, default=False)
+    justificado = db.Column(db.Boolean, default=False)
+    notas = db.Column(db.Text)
+    lote_importacion = db.Column(db.String(40), index=True)
+
+    empleado = db.relationship("Employee", backref="resumenes_asistencia")
+    turno = db.relationship("Turno")
+
+    def __repr__(self):
+        return f'<ResumenAsistenciaDiaria {self.empleado_id} {self.fecha}>'

@@ -1,11 +1,10 @@
 # Prioridad operativa: Local First + Control de cambios DB
 
-Fecha de vigencia: 2026-02-12
 Estado: ACTIVO (prioridad máxima)
 
 ## Objetivo
 
-Desde este punto, el desarrollo se hace primero en entorno local. La base local es la fuente de trabajo para cambios de esquema y datos, y todo cambio debe quedar auditado en GitHub antes de replicarse en VPS.
+El desarrollo se hace primero en entorno local. La base local es la fuente de trabajo para cambios de esquema y datos, y todo cambio debe quedar auditado en GitHub antes de replicarse en VPS.
 
 ## Reglas obligatorias
 
@@ -24,8 +23,8 @@ Desde este punto, el desarrollo se hace primero en entorno local. La base local 
 Backend:
 
 ```bash
-source /Users/intipalaciofernandez/venvs/app360/bin/activate
-python app.py
+source /Users/inti/GitHub/vyp/app360/.venv/bin/activate && cd /Users/inti/GitHub/vyp/app360
+DEBUG=true python3 app.py
 ```
 
 Frontend (validación visual local):

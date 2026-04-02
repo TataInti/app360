@@ -2,100 +2,87 @@
 
 {% block content %}
 <div class="container-fluid">
-    <h1 class="mb-4">Liquidación de Sueldos - RRHH</h1>
+    <div class="panel-header">
+        <div>
+            <h1><i class="bi bi-receipt"></i> Liquidación de Sueldos</h1>
+            <span>Previsualización y generación de liquidaciones mensuales</span>
+        </div>
+    </div>
 
     <!-- Selector de Periodo -->
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <label class="form-label">Periodo de Liquidación</label>
-            <input type="month" class="form-control" id="periodo-liquidacion" onchange="cargarPreview()">
-        </div>
-        <div class="col-md-8 d-flex align-items-end gap-2">
-            <button class="btn btn-primary" onclick="cargarPreview()">
-                <i class="bi bi-eye"></i> Previsualizar
-            </button>
-            <button class="btn btn-success" onclick="generarLiquidaciones()" id="btn-generar" disabled>
-                <i class="bi bi-check-circle"></i> Generar Liquidaciones
-            </button>
-            <button class="btn btn-secondary" onclick="verHistorial()">
-                <i class="bi bi-calendar"></i> Ver Historial
-            </button>
+    <div class="period-bar dim-bar">
+        <div class="row w-100 align-items-end g-2">
+            <div class="col-md-4">
+                <label class="form-label">Periodo de Liquidación</label>
+                <input type="month" class="form-control form-control-sm" id="periodo-liquidacion" onchange="cargarPreview()">
+            </div>
+            <div class="col-md-8 d-flex align-items-end gap-2">
+                <button class="btn btn-sm btn-primary" onclick="cargarPreview()">
+                    <i class="bi bi-eye"></i> Previsualizar
+                </button>
+                <button class="btn btn-sm btn-success" onclick="generarLiquidaciones()" id="btn-generar" disabled>
+                    <i class="bi bi-check-circle"></i> Generar
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="verHistorial()">
+                    <i class="bi bi-calendar"></i> Historial
+                </button>
+            </div>
         </div>
     </div>
 
     <!-- Resumen -->
-    <div class="row mb-4" id="resumen-liquidacion" style="display: none;">
-        <div class="col-md-3">
-            <div class="card bg-light">
-                <div class="card-body">
-                    <h6 class="card-title">Total Empleados</h6>
-                    <h3 id="total-empleados">0</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <h6 class="card-title">Total Sueldos Base</h6>
-                    <h3 id="total-sueldos-base">$0</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning">
-                <div class="card-body">
-                    <h6 class="card-title">Total Descuentos</h6>
-                    <h3 id="total-descuentos">$0</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <h6 class="card-title">Total a Pagar</h6>
-                    <h3 id="total-neto">$0</h3>
-                </div>
-            </div>
-        </div>
+    <div class="kpi-grid" id="resumen-liquidacion" style="display: none;">
+        <div class="kpi-card"><span class="kpi-label">Total Empleados</span><span class="kpi-value" id="total-empleados">0</span></div>
+        <div class="kpi-card accent-blue"><span class="kpi-label">Total Sueldos Base</span><span class="kpi-value" id="total-sueldos-base">$0</span></div>
+        <div class="kpi-card accent-amber"><span class="kpi-label">Total Descuentos</span><span class="kpi-value" id="total-descuentos">$0</span></div>
+        <div class="kpi-card accent-green"><span class="kpi-label">Total a Pagar</span><span class="kpi-value" id="total-neto">$0</span></div>
     </div>
 
-    <!-- Tabla de Previsualización -->
-    <div class="table-responsive" id="tabla-preview-container" style="display: none;">
-        <h5 class="mb-3">Detalle de Liquidaciones</h5>
-        <table class="table table-hover">
-            <thead class="table-dark">
-                <tr>
-                    <th>Empleado</th>
-                    <th>Sueldo Base</th>
-                    <th>Descuento Efectivo</th>
-                    <th>Descuento Mercadería</th>
-                    <th>Descuento Cuota Préstamo</th>
-                    <th>Sueldo Neto</th>
-                    <th>Detalles</th>
-                </tr>
-            </thead>
-            <tbody id="tabla-preview">
-                <tr><td colspan="7" class="text-center">Seleccione un periodo y haga clic en Previsualizar</td></tr>
-            </tbody>
-        </table>
+    <!-- Tabla de Prevsualización -->
+    <div class="table-card" id="tabla-preview-container" style="display: none;">
+        <div class="table-card-head">
+            <h3>Detalle de Liquidaciones</h3>
+        </div>
+        <div class="scroll-table">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Empleado</th>
+                        <th>Sueldo Base</th>
+                        <th>Desc. Efectivo</th>
+                        <th>Desc. Mercadería</th>
+                        <th>Desc. Cuota Préstamo</th>
+                        <th>Sueldo Neto</th>
+                        <th>Detalles</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-preview">
+                    <tr><td colspan="7" class="text-center text-muted">Seleccione un periodo y haga clic en Previsualizar</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- Tabla de Liquidaciones Generadas -->
-    <div class="table-responsive" id="tabla-generadas-container" style="display: none;">
-        <h5 class="mb-3">Liquidaciones del Periodo <span id="periodo-generado"></span></h5>
-        <table class="table table-striped">
-            <thead class="table-success">
-                <tr>
-                    <th>Empleado</th>
-                    <th>Sueldo Base</th>
-                    <th>Descuentos</th>
-                    <th>Sueldo Neto</th>
-                    <th>Fecha Liquidación</th>
-                </tr>
-            </thead>
-            <tbody id="tabla-generadas">
-            </tbody>
-        </table>
+    <div class="table-card" id="tabla-generadas-container" style="display: none;">
+        <div class="table-card-head">
+            <h3>Liquidaciones del Periodo <span id="periodo-generado"></span></h3>
+        </div>
+        <div class="scroll-table">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Empleado</th>
+                        <th>Sueldo Base</th>
+                        <th>Descuentos</th>
+                        <th>Sueldo Neto</th>
+                        <th>Fecha Liquidación</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-generadas">
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -151,8 +138,8 @@
 
     function mostrarPreview(liquidaciones) {
         // Mostrar resumen
-        document.getElementById('resumen-liquidacion').style.display = 'flex';
-        document.getElementById('tabla-preview-container').style.display = 'block';
+        document.getElementById('resumen-liquidacion').style.display = '';
+        document.getElementById('tabla-preview-container').style.display = '';
         document.getElementById('tabla-generadas-container').style.display = 'none';
 
         const totalEmpleados = liquidaciones.length;

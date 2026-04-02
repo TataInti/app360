@@ -2,71 +2,88 @@
 
 {% block content %}
 <div class="container-fluid">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1>Panel de Compras</h1>
+  <!-- Header -->
+  <div class="panel-header">
+    <div>
+      <h1><i class="bi bi-stack"></i> Panel de Compras</h1>
+      <span class="panel-subtitle" id="period-label">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></span>
+    </div>
     <div class="d-flex gap-2">
-      <a href="/compras/exportar" class="btn btn-outline-secondary">Exportar Excel</a>
-      <a href="/compras/orden-nueva" class="btn btn-primary">Nuevo Registro</a>
+      <a href="/compras/exportar" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-file-earmark-excel"></i> Exportar
+      </a>
+      <a href="/compras/orden-nueva" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-circle"></i> Nuevo Registro
+      </a>
     </div>
   </div>
 
-  <div class="btn-group mb-3" role="group" aria-label="Período">
-    <button class="btn btn-outline-primary" data-period="7">7d</button>
-    <button class="btn btn-outline-primary" data-period="15">15d</button>
-    <button class="btn btn-outline-primary" data-period="30">30d</button>
-    <button class="btn btn-outline-primary" data-period="ytd">YTD</button>
+  <!-- Period bar -->
+  <div class="period-bar">
+    <div class="period-pills">
+      <button class="pp" data-period="7">7d</button>
+      <button class="pp" data-period="15">15d</button>
+      <button class="pp active" data-period="30">30d</button>
+      <button class="pp" data-period="ytd">YTD</button>
+    </div>
   </div>
 
-  <div class="text-muted small mb-4">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></div>
+  <!-- Skeleton -->
+  <div id="compras-skeleton">
+    <div class="kpi-grid"><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div></div>
+    <div class="charts-grid"><div class="skeleton skeleton-chart"></div></div>
+  </div>
 
-  <div class="row g-3 mb-4">
-    <div class="col-md-4">
-      <div class="card p-3 text-center">
-        <h6>Órdenes (período)</h6>
-        <div class="display-6" id="kpi-orders">0</div>
+  <!-- Content -->
+  <div id="compras-content" style="display:none">
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi-card accent-blue">
+        <span class="kpi-label">Órdenes (período)</span>
+        <span class="kpi-value" id="kpi-orders">0</span>
+      </div>
+      <div class="kpi-card accent-green">
+        <span class="kpi-label">Monto total</span>
+        <span class="kpi-value" id="kpi-monto">$0</span>
+      </div>
+      <div class="kpi-card accent-amber">
+        <span class="kpi-label">Ticket promedio</span>
+        <span class="kpi-value" id="kpi-ticket">$0</span>
       </div>
     </div>
-    <div class="col-md-4">
-      <div class="card p-3 text-center">
-        <h6>Monto total</h6>
-        <div class="display-6" id="kpi-monto">$0</div>
+
+    <!-- Chart -->
+    <div class="charts-grid">
+      <div class="chart-card-v2">
+        <h6>Órdenes por estado</h6>
+        <canvas id="estadoChart"></canvas>
       </div>
     </div>
-    <div class="col-md-4">
-      <div class="card p-3 text-center">
-        <h6>Ticket promedio</h6>
-        <div class="display-6" id="kpi-ticket">$0</div>
+
+    <!-- Table -->
+    <div class="table-card">
+      <div class="table-card-head d-flex justify-content-between align-items-center">
+        <span>Últimas órdenes</span>
+        <a href="/compras" class="btn btn-sm btn-outline-secondary" style="font-size:0.75rem;">Ver listado completo</a>
       </div>
-    </div>
-  </div>
-
-  <div class="charts-row mb-4">
-    <div class="chart-card chart-card-light">
-      <h6 class="mb-3">Órdenes por estado</h6>
-      <canvas id="estadoChart"></canvas>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-      <strong>Últimas órdenes</strong>
-      <a href="/compras" class="btn btn-sm btn-outline-secondary">Ver listado completo</a>
-    </div>
-    <div class="card-body table-responsive">
-      <table class="table table-sm align-middle">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Fecha</th>
-            <th>Proveedor</th>
-            <th>Estado</th>
-            <th class="text-end">Monto</th>
-          </tr>
-        </thead>
-        <tbody id="tbody-ultimas">
-          <tr><td colspan="5" class="text-muted">Cargando...</td></tr>
-        </tbody>
-      </table>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Fecha</th>
+              <th>Proveedor</th>
+              <th>Estado</th>
+              <th class="text-end">Monto</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-ultimas">
+            <tr><td colspan="5" class="text-muted">
+              <span class="loading-text">Cargando datos...</span>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -80,9 +97,8 @@
   }
 
   function setActivePeriodButton(period) {
-    document.querySelectorAll('[data-period]').forEach(btn => {
-      btn.classList.toggle('btn-primary', btn.dataset.period === period);
-      btn.classList.toggle('btn-outline-primary', btn.dataset.period !== period);
+    document.querySelectorAll('.pp[data-period]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.period === period);
     });
   }
 
@@ -100,7 +116,12 @@
   function renderUltimas(items) {
     const tbody = document.getElementById('tbody-ultimas');
     if (!items || !items.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Sin datos</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">
+        <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+        <div class="empty-title">Sin órdenes de compra</div>
+        <div class="empty-text">Las órdenes aparecerán aquí cuando registres la primera.</div>
+        <a href="/compras/orden-nueva" class="btn btn-primary btn-sm"><i class="bi bi-plus-circle"></i> Nuevo Registro</a>
+      </div></td></tr>`;
       return;
     }
     tbody.innerHTML = items.slice(0, 10).map(o => {
@@ -114,6 +135,11 @@
 
   async function cargar(period) {
     setActivePeriodButton(period);
+    const skel = document.getElementById('compras-skeleton');
+    const content = document.getElementById('compras-content');
+    if (skel) skel.style.display = '';
+    if (content) content.style.display = 'none';
+
     const [ovResp, listResp] = await Promise.all([
       fetch(`/api/compras/overview?period=${encodeURIComponent(period)}`),
       fetch(`/api/compras?per_page=10`)
@@ -129,12 +155,15 @@
     document.getElementById('kpi-monto').textContent = money(ov.kpis?.monto_total || 0);
     document.getElementById('kpi-ticket').textContent = money(ov.kpis?.ticket_promedio || 0);
 
+    if (skel) skel.style.display = 'none';
+    if (content) content.style.display = '';
+
     renderEstadoChart(ov.series?.orders_por_estado || {});
     renderUltimas(list.items || []);
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('[data-period]').forEach(btn => {
+    document.querySelectorAll('.pp[data-period]').forEach(btn => {
       btn.addEventListener('click', () => cargar(btn.dataset.period));
     });
     cargar('30');

@@ -9,9 +9,12 @@
         </ol>
     </nav>
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-gear"></i> Administrar {{ modulo|capitalize }}</h1>
-        <a href="/admin" class="btn btn-outline-secondary">
+    <div class="panel-header">
+        <div>
+            <h1><i class="bi bi-gear"></i> Administrar {{ modulo|capitalize }}</h1>
+            <span>Gestión de catálogos del módulo {{ modulo|capitalize }}</span>
+        </div>
+        <a href="/admin" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Volver
         </a>
     </div>
@@ -38,9 +41,9 @@
              id="content-{{ entidad }}" 
              role="tabpanel">
             
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">{{ data.name }}</h5>
+            <div class="table-card">
+                <div class="table-card-head d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">{{ data.name }}</h3>
                     <button class="btn btn-primary btn-sm" 
                             data-entidad="{{ entidad }}"
                             data-fields='{{ data.fields|tojson }}'
@@ -49,14 +52,13 @@
                         <i class="bi bi-plus-circle"></i> Nuevo
                     </button>
                 </div>
-                <div class="card-body">
-                    {% if data.error %}
-                    <div class="alert alert-danger">Error: {{ data.error }}</div>
-                    {% else %}
-                    <div class="table-responsive">
-                        <table class="table table-hover table-striped" id="tabla-{{ entidad }}">
-                            <thead class="table-dark">
-                                <tr>
+                {% if data.error %}
+                <div class="alert alert-danger m-3">Error: {{ data.error }}</div>
+                {% else %}
+                <div class="scroll-table">
+                    <table class="table table-hover mb-0" id="tabla-{{ entidad }}">
+                        <thead>
+                            <tr>
                                     <th>ID</th>
                                     {% for field in data.fields %}
                                     <th>{{ field_labels.get(field, field)|replace('_', ' ')|capitalize }}</th>
@@ -120,9 +122,8 @@
                                 {% endfor %}
                             </tbody>
                         </table>
-                    </div>
-                    {% endif %}
                 </div>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
@@ -163,8 +164,8 @@
             <div class="modal-body">
                 <input type="hidden" id="turnoDiasId">
                 <div class="table-responsive">
-                    <table class="table table-sm align-middle" id="tablaTurnoDias">
-                        <thead class="table-dark">
+                    <table class="table table-sm align-middle mb-0" id="tablaTurnoDias">
+                        <thead>
                             <tr>
                                 <th>Día</th>
                                 <th class="text-center">Trabaja</th>
@@ -288,9 +289,10 @@ function appendField(container, entidad, field, value, required) {
         const safeValue = value !== undefined && value !== null ? value : '';
         div.innerHTML = `
             <label class="form-label">${label} ${required ? '*' : ''}</label>
-            <input type="text" class="form-control" name="${field}" id="field-${field}" 
+            <input type="number" class="form-control" name="${field}" id="field-${field}" 
                    value="${safeValue}" placeholder="ID del reloj biométrico"
-                   ${required ? 'required' : ''}>
+                   min="1" step="1"
+                   ${required ? 'required' : ''}>            <div class="form-text">Número entero que identifica al empleado en el reloj biométrico.</div>
         `;
         container.appendChild(div);
         return;

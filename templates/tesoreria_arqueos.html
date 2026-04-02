@@ -2,119 +2,91 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-calculator"></i> Arqueos de Caja</h1>
+    <div class="panel-header">
         <div>
-            <a href="/tesoreria" class="btn btn-outline-secondary">
-                <i class="bi bi-arrow-left"></i> Volver a Tesorería
+            <h1><i class="bi bi-calculator"></i> Arqueos de Caja</h1>
+            <span>Control y registro de cierres de caja por turno</span>
+        </div>
+        <div class="action-bar">
+            <a href="/tesoreria" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver
             </a>
-            <button class="btn btn-outline-success" onclick="exportarArqueos()">
-                <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+            <button class="btn btn-sm btn-outline-success" onclick="exportarArqueos()">
+                <i class="bi bi-file-earmark-excel"></i> Excel
             </button>
             {% if session.get('role') != 'director' %}
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoArqueo">
+            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoArqueo">
                 <i class="bi bi-plus-circle"></i> Nuevo Arqueo
             </button>
             {% endif %}
         </div>
     </div>
 
-    <!-- Filtros para gráfico de movimientos -->
-    <div class="card mb-4" style="background:#f9fafb">
-        <div class="card-body">
-            <div class="row g-2 align-items-end">
-                <div class="col-md-3">
-                    <label class="form-label mb-1" style="font-size:0.85rem">Desde</label>
-                    <input type="date" id="filtroDesde" class="form-control form-control-sm" />
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label mb-1" style="font-size:0.85rem">Hasta</label>
-                    <input type="date" id="filtroHasta" class="form-control form-control-sm" />
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label mb-1" style="font-size:0.85rem">Usuario</label>
-                    <select id="filtroUsuario" class="form-select form-select-sm">
-                        <option value="">Todos</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <button class="btn btn-sm btn-primary w-100" onclick="cargarGraficoMovimientos()">Aplicar Filtro</button>
-                </div>
+    <!-- Filtros para gráfico -->
+    <div class="period-bar dim-bar">
+        <div class="row g-2 align-items-end w-100">
+            <div class="col-md-3">
+                <label class="form-label mb-1">Desde</label>
+                <input type="date" id="filtroDesde" class="form-control form-control-sm" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label mb-1">Hasta</label>
+                <input type="date" id="filtroHasta" class="form-control form-control-sm" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label mb-1">Usuario</label>
+                <select id="filtroUsuario" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-sm btn-primary w-100" onclick="cargarGraficoMovimientos()">Aplicar</button>
             </div>
         </div>
     </div>
 
     <!-- Gráfico de movimientos por instrumento -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h6 style="margin:0"><i class="bi bi-bar-chart"></i> Movimientos por Instrumento</h6>
-        </div>
-        <div class="card-body" style="position:relative;height:320px">
-            <canvas id="graficoMovimientos" style="max-height:300px"></canvas>
-        </div>
-    </div>
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body text-center">
-                    <h6>Arqueos Este Mes</h6>
-                    <h3 id="arqueosMes">0</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body text-center">
-                    <h6>Sin Diferencia</h6>
-                    <h3 id="sinDiferencia">0</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-dark">
-                <div class="card-body text-center">
-                    <h6>Con Sobrante</h6>
-                    <h3 id="conSobrante">0</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-danger text-white">
-                <div class="card-body text-center">
-                    <h6>Con Faltante</h6>
-                    <h3 id="conFaltante">0</h3>
-                </div>
+    <div class="charts-grid" style="grid-template-columns:1fr">
+        <div class="chart-card-v2">
+            <h3><i class="bi bi-bar-chart"></i> Movimientos por Instrumento</h3>
+            <div style="position:relative;height:300px">
+                <canvas id="graficoMovimientos"></canvas>
             </div>
         </div>
     </div>
 
+    <div class="kpi-grid">
+        <div class="kpi-card accent-blue"><span class="kpi-label">Arqueos Este Mes</span><span class="kpi-value" id="arqueosMes">0</span></div>
+        <div class="kpi-card accent-green"><span class="kpi-label">Sin Diferencia</span><span class="kpi-value" id="sinDiferencia">0</span></div>
+        <div class="kpi-card accent-amber"><span class="kpi-label">Con Sobrante</span><span class="kpi-value" id="conSobrante">0</span></div>
+        <div class="kpi-card accent-red"><span class="kpi-label">Con Faltante</span><span class="kpi-value" id="conFaltante">0</span></div>
+    </div>
+
     <!-- Tabla de Arqueos -->
-    <div class="card">
-        <div class="card-header">
-            <h5><i class="bi bi-table"></i> Historial de Arqueos</h5>
+    <div class="table-card">
+        <div class="table-card-head">
+            <h3><i class="bi bi-table"></i> Historial de Arqueos</h3>
         </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Turno</th>
-                            <th>Saldo Inicial</th>
-                            <th>Ingresos</th>
-                            <th>Egresos</th>
-                            <th>Saldo Esperado</th>
-                            <th>Saldo Real</th>
-                            <th>Diferencia</th>
-                            <th>Usuario</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tablaArqueos">
-                        <tr><td colspan="10" class="text-center">Cargando...</td></tr>
-                    </tbody>
-                </table>
-            </div>
+        <div class="scroll-table">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Turno</th>
+                        <th>Saldo Inicial</th>
+                        <th>Ingresos</th>
+                        <th>Egresos</th>
+                        <th>Saldo Esperado</th>
+                        <th>Saldo Real</th>
+                        <th>Diferencia</th>
+                        <th>Usuario</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaArqueos">
+                    <tr><td colspan="10" class="text-center"><span class="loading-text">Cargando arqueos…</span></td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>

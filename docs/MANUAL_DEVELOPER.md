@@ -1,6 +1,6 @@
 # Manual de Developer — App360
 
-Última actualización: 2026-03-18
+Última actualización: 2026-04-02
 Estado: Activo
 
 ---
@@ -416,3 +416,80 @@ ssh <user>@<host> "sudo systemctl status app360 --no-pager && curl -fsS http://1
 ## 15) Historial de actualizaciones del manual
 
 - 2026-03-04: creación inicial del manual exhaustivo.
+
+---
+
+## 16) Módulo de Control de Asistencia (Fichadas)
+
+### 16.1 Descripción
+
+Sistema de control de asistencia basado en fichadas de reloj biométrico. Permite importar registros desde Excel, asociarlos con empleados, procesar contra turnos asignados y generar un resumen diario con KPIs.
+
+### 16.2 Modelos
+
+- **`FichadaReloj`** (`fichadas_reloj`): registro crudo importado del reloj. Campos clave: `clock_id_original` (ID del reloj, String), `empleado_id` (nullable FK a Employee), `nombre_reloj`, `fecha`, `hora`, `fecha_hora`. UniqueConstraint en `(clock_id_original, fecha_hora)`.
+- **`ResumenAsistenciaDiaria`** (`resumen_asistencia_diaria`): resultado del procesamiento. Un registro por empleado/fecha con conteo de fichadas, horas de entrada/salida, minutos tarde, flags (es_falta, es_tarde, fichada_faltante, justificado).
+
+### 16.3 Flujo de datos
+
+```
+Excel (Transacciones_*.xlsx, skiprows=7)
+  │
+  ▼
+POST /api/rrhh/fichadas/cargar
+  → Importa TODAS las fichadas con empleado_id=NULL
+  → Normaliza clock_id (float→int, strip)
+  → Dedup batch contra DB existente
+  → Auto-asocia con Employee.clock_id (_asociar_fichadas)
+  │
+  ▼
+POST /api/rrhh/fichadas/asociar  (re-asociar manualmente)
+  → Busca fichadas sin empleado_id
+  → Matchea contra Employee.clock_id (normalizado)
+  │
+  ▼
+POST /api/rrhh/fichadas/procesar
+  → Toma fichadas asociadas (empleado_id IS NOT NULL)
+  → Agrupa por (empleado_id, fecha)
+  → Compara contra TurnoDia del empleado
+  → Genera/actualiza ResumenAsistenciaDiaria
+  │
+  ▼
+GET /api/rrhh/fichadas/resumen
+  → Consulta ResumenAsistenciaDiaria
+  → KPIs, ranking, tendencia 6 meses, fichadas pendientes
+  → Alimenta el tablero (rrhh_ausentismo.html)
+```
+
+### 16.4 Endpoints
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `/api/rrhh/fichadas/cargar` | Importa Excel. Retorna: importados, duplicados, errores_parse, asociados, pendientes |
+| POST | `/api/rrhh/fichadas/asociar` | Re-asocia fichadas pendientes con Employee.clock_id |
+| POST | `/api/rrhh/fichadas/procesar` | Genera ResumenAsistenciaDiaria desde fichadas asociadas. Requiere `lote` o `fecha_desde`+`fecha_hasta` |
+| GET | `/api/rrhh/fichadas/resumen` | KPIs y tabla del tablero. Filtros: periodo, empleado_id, estado |
+| GET | `/api/rrhh/fichadas/resumen-empleado` | Detalle mensual de un empleado |
+| PUT | `/api/rrhh/fichadas/resumen/<id>/justificar` | Justifica una falta/tardanza |
+
+### 16.5 Configuración de empleados
+
+- Cada Employee necesita `clock_id` (entero, configurado en `/admin/rrhh`) que corresponde al ID del reloj biométrico.
+- Cada Employee necesita `turno_id` asignado para que el procesamiento funcione.
+- Sin turno asignado, las fichadas se importan y asocian pero no se procesan.
+
+### 16.6 Formato Excel esperado
+
+- Archivo: `Transacciones_*.xlsx`
+- Se saltan las primeras 7 filas (`skiprows=7`)
+- Columnas requeridas: `ID` (clock_id), `fecha`, `Hora de registro de entrada` (formato HH:MM o HH:MM:SS)
+- Columnas opcionales: `Nombre`, `Apellido` (se guardan como `nombre_reloj`)
+
+### 16.7 Migraciones
+
+- `20260401_fichadas_reloj.py`: creación de tablas `fichadas_reloj` y `resumen_asistencia_diaria`
+- `20260401_fichadas_nullable.py`: empleado_id nullable, +nombre_reloj, UniqueConstraint actualizado
+
+### 16.8 Template
+
+- `templates/rrhh_ausentismo.html`: panel completo con KPIs, charts (Chart.js), tabla de detalle, modal de importación, banner de fichadas sin asociar

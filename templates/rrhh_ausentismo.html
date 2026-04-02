@@ -2,81 +2,182 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Ausentismo y Llegadas Tarde</h1>
+    <!-- Header -->
+    <div class="panel-header d-flex justify-content-between align-items-center">
+        <div>
+            <h1><i class="bi bi-clock-history"></i> Control de Asistencia</h1>
+        </div>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCargar">
+            <i class="bi bi-upload me-1"></i>Subir Fichadas
+        </button>
     </div>
 
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">Registrar evento</h5>
+    <!-- Banner fichadas sin asociar -->
+    <div id="bannerSinAsociar" class="alert alert-warning mb-3" style="display:none;">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span id="bannerSinAsociarText">Hay fichadas importadas sin asociar a empleados.</span>
+            <button class="btn btn-sm btn-outline-warning ms-auto" onclick="asociarFichadas()">
+                <i class="bi bi-link-45deg me-1"></i>Intentar Asociar
+            </button>
+            <a href="/admin/rrhh" target="_blank" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-gear me-1"></i>Configurar IDs
+            </a>
         </div>
-        <div class="card-body">
-            <form id="formAusentismo">
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Empleado *</label>
-                        <select class="form-select" name="empleado_id" id="selectEmpleado" required>
-                            <option value="">Cargando...</option>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Fecha *</label>
-                        <input type="date" class="form-control" name="fecha" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Tipo *</label>
-                        <select class="form-select" name="estado" id="estadoAusentismo" required>
-                            <option value="ausente">Ausente</option>
-                            <option value="llegada_tarde">Llegada tarde</option>
-                        </select>
-                    </div>
-                </div>
+        <div id="bannerPendientesLista" class="mt-2" style="font-size:0.82rem;"></div>
+    </div>
 
-                <div class="row g-3 mt-1">
-                    <div class="col-md-6">
-                        <label class="form-label">Motivo</label>
-                        <input type="text" class="form-control" name="motivo" placeholder="Motivo de ausencia o tardanza">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Minutos tarde</label>
-                        <input type="number" class="form-control" name="minutos_tarde" id="minutosTarde" min="1" step="1" disabled>
-                    </div>
-                    <div class="col-md-3 d-flex align-items-end">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="justificado" name="justificado">
-                            <label class="form-check-label" for="justificado">Justificado</label>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mt-3">
-                    <button type="submit" class="btn btn-primary">Guardar</button>
-                </div>
-            </form>
+    <!-- Banner fichadas asociadas sin procesar -->
+    <div id="bannerSinProcesar" class="alert alert-info mb-3" style="display:none;">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-info-circle-fill"></i>
+            <span id="bannerSinProcesarText">Hay fichadas asociadas pendientes de procesar contra turnos.</span>
+            <button class="btn btn-sm btn-outline-primary ms-auto" onclick="procesarTodas()">
+                <i class="bi bi-gear me-1"></i>Procesar contra Turnos
+            </button>
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0">Registros</h5>
+    <!-- KPIs -->
+    <div class="kpi-grid">
+        <div class="kpi-card accent-blue">
+            <span class="kpi-label">Empleados Analizados</span>
+            <span class="kpi-value" id="kpi-empleados">—</span>
         </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Empleado</th>
-                            <th>Tipo</th>
-                            <th>Motivo</th>
-                            <th>Justificado</th>
-                            <th>Minutos tarde</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tablaAusentismo">
-                        <tr><td colspan="6" class="text-center">Cargando...</td></tr>
-                    </tbody>
-                </table>
+        <div class="kpi-card accent-red">
+            <span class="kpi-label">Faltas (no justificadas)</span>
+            <span class="kpi-value" id="kpi-faltas">—</span>
+        </div>
+        <div class="kpi-card accent-amber">
+            <span class="kpi-label">Tardanzas</span>
+            <span class="kpi-value" id="kpi-tardanzas">—</span>
+        </div>
+        <div class="kpi-card accent-purple">
+            <span class="kpi-label">Min. Tarde Acumulados</span>
+            <span class="kpi-value" id="kpi-min-tarde">—</span>
+        </div>
+        <div class="kpi-card accent-green">
+            <span class="kpi-label">% Puntualidad</span>
+            <span class="kpi-value" id="kpi-puntualidad">—</span>
+        </div>
+    </div>
+
+    <!-- Period bar + filtros -->
+    <div class="d-flex gap-2 align-items-center flex-wrap mb-3">
+        <div class="period-bar" id="periodos"></div>
+        <select id="filtroEmpleado" class="form-select form-select-sm" style="width:200px;font-size:0.78rem;height:26px;padding:0.1rem 1.5rem 0.1rem 0.35rem;">
+            <option value="">Todos los empleados</option>
+        </select>
+        <select id="filtroEstado" class="form-select form-select-sm" style="width:160px;font-size:0.78rem;height:26px;padding:0.1rem 1.5rem 0.1rem 0.35rem;">
+            <option value="">Todos</option>
+            <option value="falta">Solo faltas</option>
+            <option value="tarde">Solo tardanzas</option>
+            <option value="fichada_faltante">Fichada faltante</option>
+            <option value="ok">Sin incidencias</option>
+        </select>
+    </div>
+
+    <!-- Charts grid -->
+    <div class="charts-grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="table-card">
+            <div class="table-card-head"><i class="bi bi-bar-chart me-1"></i>Top 10 — Peor Comportamiento</div>
+            <div style="padding:1rem;height:280px;">
+                <canvas id="chartRanking"></canvas>
+            </div>
+        </div>
+        <div class="table-card">
+            <div class="table-card-head"><i class="bi bi-graph-up me-1"></i>Tendencia Puntualidad (6 meses)</div>
+            <div style="padding:1rem;height:280px;">
+                <canvas id="chartTendencia"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla resumen -->
+    <div class="table-card">
+        <div class="table-card-head d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-table me-1"></i>Detalle de Asistencia</span>
+            <span class="text-muted" style="font-size:0.75rem;" id="tabla-count">—</span>
+        </div>
+        <div class="scroll-table" style="max-height:420px;">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Fecha</th>
+                        <th>Empleado</th>
+                        <th class="text-center">Fichadas</th>
+                        <th>Entrada 1</th>
+                        <th>Salida 1</th>
+                        <th>Entrada 2</th>
+                        <th>Salida 2</th>
+                        <th class="text-end">Min. Tarde</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-center">Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-registros">
+                    <tr><td colspan="11" class="text-center p-3 text-muted">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div style="padding:0.5rem 1rem;font-size:0.75rem;color:#6b7280;border-top:1px solid #e5e7eb;" id="pie-tabla">—</div>
+    </div>
+</div>
+
+<!-- Modal Cargar Fichadas -->
+<div class="modal fade" id="modalCargar" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-upload me-1"></i>Subir Fichadas del Reloj</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Archivo Excel (.xlsx)</label>
+                    <input type="file" class="form-control" id="inputArchivo" accept=".xlsx,.xls">
+                    <div class="form-text">Formato: Transacciones exportadas del software del reloj.</div>
+                </div>
+                <div id="cargaProgreso" style="display:none;">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="spinner-border spinner-border-sm text-primary"></div>
+                        <span>Importando fichadas...</span>
+                    </div>
+                </div>
+                <div id="cargaResultado" style="display:none;" class="alert alert-info mb-0"></div>
+                <div id="procesarSection" style="display:none;" class="mt-3">
+                    <button class="btn btn-success w-100" id="btnProcesar">
+                        <i class="bi bi-gear me-1"></i>Procesar contra Turnos
+                    </button>
+                    <div id="procesarResultado" style="display:none;" class="alert alert-success mt-2 mb-0"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btnCargar">
+                    <i class="bi bi-cloud-upload me-1"></i>Subir Archivo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Justificar -->
+<div class="modal fade" id="modalJustificar" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Justificar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="justificarId">
+                <label class="form-label">Notas</label>
+                <textarea class="form-control" id="justificarNotas" rows="3"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary btn-sm" id="btnJustificarOk">Justificar</button>
             </div>
         </div>
     </div>
@@ -84,106 +185,421 @@
 
 <script>
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+let periodoActual = '';
+let loteUltimo = '';
+let chartRanking = null;
+let chartTendencia = null;
 
+/* ─── Helpers ─────────────────────────────────────────── */
+function fmtFecha(s) {
+    if (!s) return '—';
+    return String(s).slice(0, 10).split('-').reverse().join('/');
+}
+
+function badgeEstado(r) {
+    if (r.justificado) return '<span class="badge bg-secondary">Justificado</span>';
+    if (r.es_falta)    return '<span class="badge bg-danger">Falta</span>';
+    if (r.es_tarde)    return '<span class="badge bg-warning text-dark">Tarde</span>';
+    if (r.fichada_faltante) return '<span class="badge bg-info text-dark">Fichada falt.</span>';
+    return '<span class="badge bg-success">OK</span>';
+}
+
+/* ─── Init ────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
-    const hoy = new Date();
-    document.querySelector('input[name="fecha"]').value = hoy.toISOString().split('T')[0];
-
+    buildPeriodos();
     cargarEmpleados();
-    cargarRegistros();
 
-    const estado = document.getElementById('estadoAusentismo');
-    estado.addEventListener('change', toggleMinutosTarde);
-    toggleMinutosTarde();
+    document.getElementById('filtroEmpleado').addEventListener('change', cargarResumen);
+    document.getElementById('filtroEstado').addEventListener('change', cargarResumen);
+    document.getElementById('btnCargar').addEventListener('click', subirArchivo);
+    document.getElementById('btnProcesar').addEventListener('click', procesarFichadas);
+    document.getElementById('btnJustificarOk').addEventListener('click', justificar);
 });
 
-function toggleMinutosTarde() {
-    const estado = document.getElementById('estadoAusentismo').value;
-    const minutos = document.getElementById('minutosTarde');
-    if (estado === 'llegada_tarde') {
-        minutos.disabled = false;
-        minutos.required = true;
-    } else {
-        minutos.disabled = true;
-        minutos.required = false;
-        minutos.value = '';
+function buildPeriodos() {
+    const bar = document.getElementById('periodos');
+    const now = new Date();
+    const meses = [];
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        const label = d.toLocaleString('es', {month: 'short', year: '2-digit'}).replace('.','');
+        meses.push({ym, label});
     }
-}
+    bar.innerHTML = meses.map(m =>
+        `<button class="pp${m.ym === meses[meses.length-1].ym ? ' active' : ''}" data-periodo="${m.ym}">${m.label}</button>`
+    ).join('');
+    periodoActual = meses[meses.length - 1].ym;
 
-function cargarEmpleados() {
-    fetch('/api/rrhh/empleados')
-        .then(r => r.json())
-        .then(data => {
-            const select = document.getElementById('selectEmpleado');
-            const empleados = (data.employees || []).filter(e => e.is_active);
-            if (!empleados.length) {
-                select.innerHTML = '<option value="">Sin empleados activos</option>';
-                return;
-            }
-            select.innerHTML = '<option value="">Seleccionar...</option>' +
-                empleados.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
-        })
-        .catch(() => {
-            const select = document.getElementById('selectEmpleado');
-            select.innerHTML = '<option value="">Error al cargar empleados</option>';
+    bar.querySelectorAll('.pp').forEach(btn => {
+        btn.addEventListener('click', () => {
+            bar.querySelectorAll('.pp').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            periodoActual = btn.dataset.periodo;
+            cargarResumen();
         });
+    });
+
+    cargarResumen();
 }
 
-function cargarRegistros() {
-    fetch('/api/rrhh/ausentismo')
-        .then(r => r.json())
-        .then(data => {
-            const registros = data.registros || [];
-            const tbody = document.getElementById('tablaAusentismo');
-            if (!registros.length) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Sin registros</td></tr>';
-                return;
-            }
-            tbody.innerHTML = registros.map(r => `
-                <tr>
-                    <td>${r.fecha}</td>
-                    <td>${r.empleado.nombre}</td>
-                    <td>${r.estado === 'ausente' ? 'Ausente' : 'Llegada tarde'}</td>
-                    <td>${r.motivo || '-'}</td>
-                    <td>${r.justificado ? 'Si' : 'No'}</td>
-                    <td>${r.minutos_tarde || '-'}</td>
-                </tr>
-            `).join('');
-        })
-        .catch(() => {
-            const tbody = document.getElementById('tablaAusentismo');
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error al cargar datos</td></tr>';
+async function cargarEmpleados() {
+    try {
+        const r = await fetch('/api/rrhh/empleados');
+        const d = await r.json();
+        const sel = document.getElementById('filtroEmpleado');
+        (d.employees || []).forEach(e => {
+            const opt = document.createElement('option');
+            opt.value = e.id;
+            opt.textContent = e.name;
+            sel.appendChild(opt);
         });
+        if (typeof TomSelect !== 'undefined') {
+            new TomSelect(sel, {maxItems: 1, allowEmptyOption: true, placeholder: 'Empleado...'});
+        }
+    } catch (e) { console.error('Error empleados:', e); }
 }
 
-document.getElementById('formAusentismo')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const formData = new FormData(form);
-    const payload = Object.fromEntries(formData.entries());
-
-    payload.justificado = formData.get('justificado') === 'on';
+/* ─── Cargar Resumen ──────────────────────────────────── */
+async function cargarResumen() {
+    const empId = document.getElementById('filtroEmpleado').value;
+    const estado = document.getElementById('filtroEstado').value;
+    let url = `/api/rrhh/fichadas/resumen?periodo=${periodoActual}`;
+    if (empId) url += `&empleado_id=${empId}`;
+    if (estado) url += `&estado=${estado}`;
 
     try {
-        const resp = await fetch('/api/rrhh/ausentismo', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify(payload)
-        });
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
 
-        const data = await resp.json();
-        if (resp.ok) {
-            alert('Registro guardado');
-            form.reset();
-            document.querySelector('input[name="fecha"]').value = new Date().toISOString().split('T')[0];
-            toggleMinutosTarde();
-            cargarRegistros();
+        // KPIs
+        document.getElementById('kpi-empleados').textContent = d.kpis.empleados_analizados;
+        document.getElementById('kpi-faltas').textContent = d.kpis.faltas;
+        document.getElementById('kpi-tardanzas').textContent = d.kpis.tardanzas;
+        document.getElementById('kpi-min-tarde').textContent = d.kpis.min_tarde_acumulados;
+        document.getElementById('kpi-puntualidad').textContent = d.kpis.puntualidad + '%';
+
+        // Banner fichadas sin asociar
+        const banner = document.getElementById('bannerSinAsociar');
+        if (d.kpis.fichadas_sin_asociar > 0) {
+            document.getElementById('bannerSinAsociarText').textContent =
+                `Hay ${d.kpis.fichadas_sin_asociar} fichadas importadas sin asociar a empleados.`;
+            banner.style.display = '';
+            const listaDiv = document.getElementById('bannerPendientesLista');
+            if (d.fichadas_pendientes && d.fichadas_pendientes.length) {
+                listaDiv.innerHTML = d.fichadas_pendientes.map(p =>
+                    `<span class="badge bg-light text-dark border me-1 mb-1">ID ${p.clock_id} → ${p.nombre_reloj} (${p.cantidad})</span>`
+                ).join('');
+            } else {
+                listaDiv.innerHTML = '';
+            }
         } else {
-            alert('Error: ' + (data.error || 'No se pudo guardar'));
+            banner.style.display = 'none';
         }
+
+        // Banner fichadas asociadas sin procesar
+        const bannerProc = document.getElementById('bannerSinProcesar');
+        if (d.kpis.fichadas_sin_procesar > 0) {
+            document.getElementById('bannerSinProcesarText').textContent =
+                `Hay ${d.kpis.fichadas_sin_procesar} días con fichadas asociadas pendientes de procesar contra turnos.`;
+            bannerProc.style.display = '';
+        } else {
+            bannerProc.style.display = 'none';
+        }
+        }
+
+        renderTabla(d.registros);
+        renderChartRanking(d.ranking_peor);
+        renderChartTendencia(d.tendencia);
     } catch (e) {
-        alert('Error de conexion');
+        console.error('Error resumen:', e);
+        document.getElementById('tabla-registros').innerHTML =
+            '<tr><td colspan="11" class="text-center text-danger p-3">Error al cargar datos</td></tr>';
     }
-});
+}
+
+function renderTabla(registros) {
+    const tbody = document.getElementById('tabla-registros');
+    if (!registros.length) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center p-3 text-muted">Sin registros para este período</td></tr>';
+        document.getElementById('pie-tabla').textContent = 'Sin registros';
+        document.getElementById('tabla-count').textContent = '';
+        return;
+    }
+
+    const faltas = registros.filter(r => r.es_falta && !r.justificado).length;
+    const tardes = registros.filter(r => r.es_tarde).length;
+    document.getElementById('tabla-count').textContent = `${registros.length} registros`;
+    document.getElementById('pie-tabla').textContent =
+        `${registros.length} días analizados — ${faltas} faltas — ${tardes} tardanzas`;
+
+    tbody.innerHTML = registros.map(r => {
+        const canJustify = (r.es_falta || r.es_tarde || r.fichada_faltante) && !r.justificado;
+        return `<tr>
+            <td>
+                <button class="btn btn-sm btn-outline-secondary p-0 px-1" style="font-size:0.7rem;"
+                    onclick="verDetalleEmpleado(${r.empleado_id})" title="Ver detalle mes">
+                    <i class="bi bi-chevron-down"></i>
+                </button>
+            </td>
+            <td>${fmtFecha(r.fecha)}</td>
+            <td class="fw-semibold">${r.empleado}</td>
+            <td class="text-center">${r.fichadas}/${r.esperadas}</td>
+            <td>${r.entrada_1 || '—'}</td>
+            <td>${r.salida_1 || '—'}</td>
+            <td>${r.entrada_2 || '—'}</td>
+            <td>${r.salida_2 || '—'}</td>
+            <td class="text-end ${r.min_tarde > 0 ? 'text-danger fw-semibold' : 'text-muted'}">${r.min_tarde || '—'}</td>
+            <td class="text-center">${badgeEstado(r)}</td>
+            <td class="text-center">${canJustify ?
+                `<button class="btn btn-sm btn-outline-success p-0 px-1" style="font-size:0.7rem;"
+                    onclick="abrirJustificar(${r.id})"><i class="bi bi-check-lg"></i></button>` : ''}</td>
+        </tr>`;
+    }).join('');
+}
+
+/* ─── Detalle empleado (inline expand) ────────────────── */
+async function verDetalleEmpleado(empId) {
+    const url = `/api/rrhh/fichadas/resumen-empleado?empleado_id=${empId}&periodo=${periodoActual}`;
+    try {
+        const r = await fetch(url);
+        const d = await r.json();
+        const dias_nombres = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+        let html = `<tr class="detail-row"><td colspan="11" style="background:#f8fafc;padding:0.75rem;">
+            <div class="fw-semibold mb-2">${d.empleado} — ${d.periodo}</div>
+            <div class="d-flex flex-wrap gap-1">`;
+        for (const dia of d.dias) {
+            let color = 'bg-success';
+            let tip = 'OK';
+            if (dia.es_falta && !dia.justificado) { color = 'bg-danger'; tip = 'Falta'; }
+            else if (dia.es_tarde) { color = 'bg-warning'; tip = `Tarde ${dia.min_tarde}min`; }
+            else if (dia.fichada_faltante) { color = 'bg-info'; tip = 'Fichada faltante'; }
+            else if (dia.justificado) { color = 'bg-secondary'; tip = 'Justificado'; }
+            const dd = new Date(dia.fecha).getDate();
+            const ds = dias_nombres[dia.dia_semana];
+            html += `<span class="badge ${color}" style="min-width:42px;font-size:0.7rem;" title="${ds} — ${tip}">${dd}</span>`;
+        }
+        html += '</div></td></tr>';
+
+        // Insert after clicked row
+        const rows = document.querySelectorAll('#tabla-registros tr');
+        // Remove any previous detail rows
+        document.querySelectorAll('.detail-row').forEach(r => r.remove());
+        // Find the row for this employee
+        for (const row of rows) {
+            const btn = row.querySelector(`button[onclick="verDetalleEmpleado(${empId})"]`);
+            if (btn) {
+                row.insertAdjacentHTML('afterend', html);
+                break;
+            }
+        }
+    } catch (e) { console.error('Error detalle:', e); }
+}
+
+/* ─── Charts ──────────────────────────────────────────── */
+function renderChartRanking(data) {
+    const ctx = document.getElementById('chartRanking').getContext('2d');
+    if (chartRanking) chartRanking.destroy();
+    chartRanking = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(d => d.nombre.split(' ').slice(0, 2).join(' ')),
+            datasets: [
+                {label: 'Faltas', data: data.map(d => d.faltas), backgroundColor: '#dc2626'},
+                {label: 'Tardanzas', data: data.map(d => d.tardanzas), backgroundColor: '#f59e0b'},
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            indexAxis: 'y',
+            scales: {x: {stacked: true, beginAtZero: true}, y: {stacked: true}},
+            plugins: {legend: {position: 'bottom', labels: {boxWidth: 12, font: {size: 11}}}}
+        }
+    });
+}
+
+function renderChartTendencia(data) {
+    const ctx = document.getElementById('chartTendencia').getContext('2d');
+    if (chartTendencia) chartTendencia.destroy();
+    chartTendencia = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.map(d => d.mes),
+            datasets: [{
+                label: '% Puntualidad',
+                data: data.map(d => d.puntualidad),
+                borderColor: '#16a34a',
+                backgroundColor: 'rgba(22,163,74,0.1)',
+                fill: true, tension: 0.3,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {y: {min: 0, max: 100, ticks: {callback: v => v + '%'}}},
+            plugins: {legend: {display: false}}
+        }
+    });
+}
+
+/* ─── Upload ──────────────────────────────────────────── */
+async function subirArchivo() {
+    const input = document.getElementById('inputArchivo');
+    if (!input.files.length) return alert('Seleccioná un archivo');
+
+    const fd = new FormData();
+    fd.append('archivo', input.files[0]);
+
+    document.getElementById('cargaProgreso').style.display = '';
+    document.getElementById('cargaResultado').style.display = 'none';
+    document.getElementById('procesarSection').style.display = 'none';
+    document.getElementById('btnCargar').disabled = true;
+
+    try {
+        const r = await fetch('/api/rrhh/fichadas/cargar', {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrfToken},
+            body: fd,
+        });
+        const d = await r.json();
+        document.getElementById('cargaProgreso').style.display = 'none';
+
+        if (!r.ok) {
+            document.getElementById('cargaResultado').className = 'alert alert-danger mb-0';
+            document.getElementById('cargaResultado').innerHTML = d.error || 'Error';
+            document.getElementById('cargaResultado').style.display = '';
+            return;
+        }
+
+        loteUltimo = d.lote;
+        let rango = d.fechas_rango ? ` (${d.fechas_rango.desde} a ${d.fechas_rango.hasta})` : '';
+        let html = `<strong>Importación completada</strong>${rango}<br>
+            Filas leídas: ${d.total_filas} | Importados: <strong>${d.importados}</strong> | Duplicados: ${d.duplicados}`;
+        if (d.errores_parse) html += ` | <span class="text-danger">Errores formato: ${d.errores_parse}</span>`;
+        if (d.asociados > 0) html += `<br><span class="text-success"><i class="bi bi-check-circle me-1"></i>${d.asociados} fichadas asociadas automáticamente con empleados</span>`;
+        if (d.pendientes > 0) {
+            html += `<br><span class="text-warning"><i class="bi bi-link-45deg me-1"></i>${d.pendientes} fichadas sin asociar</span>`;
+            html += ` — <small>Configurá el <strong>ID Reloj</strong> en <a href="/admin/rrhh" target="_blank">Admin → RRHH</a></small>`;
+        }
+
+        const alertClass = d.importados > 0 ? 'alert alert-success mb-0' :
+            (d.duplicados > 0 ? 'alert alert-info mb-0' : 'alert alert-danger mb-0');
+        document.getElementById('cargaResultado').className = alertClass;
+        document.getElementById('cargaResultado').innerHTML = html;
+        document.getElementById('cargaResultado').style.display = '';
+
+        if (d.importados > 0) {
+            document.getElementById('procesarSection').style.display = '';
+        }
+
+        // Refrescar banner sin asociar
+        cargarResumen();
+    } catch (e) {
+        document.getElementById('cargaProgreso').style.display = 'none';
+        document.getElementById('cargaResultado').className = 'alert alert-danger mb-0';
+        document.getElementById('cargaResultado').textContent = 'Error de conexión';
+        document.getElementById('cargaResultado').style.display = '';
+    } finally {
+        document.getElementById('btnCargar').disabled = false;
+    }
+}
+
+async function procesarFichadas() {
+    const body = loteUltimo ? {lote: loteUltimo} : {};
+    document.getElementById('btnProcesar').disabled = true;
+    document.getElementById('procesarResultado').style.display = 'none';
+
+    try {
+        const r = await fetch('/api/rrhh/fichadas/procesar', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            body: JSON.stringify(body),
+        });
+        const d = await r.json();
+
+        if (!r.ok) {
+            document.getElementById('procesarResultado').className = 'alert alert-danger mt-2 mb-0';
+            document.getElementById('procesarResultado').textContent = d.error || 'Error';
+        } else {
+            document.getElementById('procesarResultado').className = 'alert alert-success mt-2 mb-0';
+            document.getElementById('procesarResultado').innerHTML =
+                `<strong>Procesado:</strong> ${d.procesados} días — Faltas: ${d.faltas} — Tardanzas: ${d.tardanzas} — Fichadas faltantes: ${d.fichadas_faltantes}`;
+            cargarResumen();
+        }
+        document.getElementById('procesarResultado').style.display = '';
+    } catch (e) {
+        document.getElementById('procesarResultado').className = 'alert alert-danger mt-2 mb-0';
+        document.getElementById('procesarResultado').textContent = 'Error de conexión';
+        document.getElementById('procesarResultado').style.display = '';
+    } finally {
+        document.getElementById('btnProcesar').disabled = false;
+    }
+}
+
+/* ─── Asociar Fichadas ────────────────────────────────── */
+async function asociarFichadas() {
+    try {
+        const r = await fetch('/api/rrhh/fichadas/asociar', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        });
+        const d = await r.json();
+        if (d.asociados > 0) {
+            alert(`Se asociaron ${d.asociados} fichadas. Pendientes: ${d.pendientes}`);
+        } else {
+            alert(`No se pudo asociar ninguna fichada. Pendientes: ${d.pendientes}. Configurá los IDs de reloj en Admin → RRHH.`);
+        }
+        cargarResumen();
+    } catch (e) {
+        alert('Error al intentar asociar fichadas');
+    }
+}
+
+/* ─── Procesar Todas (desde banner) ───────────────────── */
+async function procesarTodas() {
+    try {
+        const r = await fetch('/api/rrhh/fichadas/procesar', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            body: JSON.stringify({}),
+        });
+        const d = await r.json();
+        if (r.ok) {
+            alert(`Procesado: ${d.procesados} días — Faltas: ${d.faltas} — Tardanzas: ${d.tardanzas} — Fichadas faltantes: ${d.fichadas_faltantes}`);
+        } else {
+            alert(d.error || 'Error al procesar');
+        }
+        cargarResumen();
+    } catch (e) {
+        alert('Error de conexión al procesar');
+    }
+}
+
+/* ─── Justificar ──────────────────────────────────────── */
+function abrirJustificar(id) {
+    document.getElementById('justificarId').value = id;
+    document.getElementById('justificarNotas').value = '';
+    new bootstrap.Modal(document.getElementById('modalJustificar')).show();
+}
+
+async function justificar() {
+    const id = document.getElementById('justificarId').value;
+    const notas = document.getElementById('justificarNotas').value;
+
+    try {
+        const r = await fetch(`/api/rrhh/fichadas/resumen/${id}/justificar`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            body: JSON.stringify({notas}),
+        });
+        if (r.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('modalJustificar')).hide();
+            cargarResumen();
+        } else {
+            const d = await r.json();
+            alert(d.error || 'Error');
+        }
+    } catch (e) { alert('Error de conexión'); }
+}
 </script>
 {% endblock %}

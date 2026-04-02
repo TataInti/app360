@@ -2,82 +2,70 @@
 
 {% block content %}
 <div class="container-fluid">
-    <h1 class="mb-4">Tesorería - Panel de Control</h1>
-
-    <!-- KPIs de Caja -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card border-left-primary">
-                <div class="card-body">
-                    <h6 class="card-title">Saldo Actual</h6>
-                    <h3 class="text-primary" id="saldo-actual">$0.00</h3>
-                </div>
-            </div>
+    <!-- Header -->
+    <div class="panel-header">
+        <div>
+            <h1><i class="bi bi-safe"></i> Tesorería</h1>
+            <span class="panel-subtitle">Panel de Control</span>
         </div>
-        <div class="col-md-3">
-            <div class="card border-left-success">
-                <div class="card-body">
-                    <h6 class="card-title">Ingresos Hoy</h6>
-                    <h3 class="text-success" id="ingresos-hoy">$0.00</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card border-left-danger">
-                <div class="card-body">
-                    <h6 class="card-title">Egresos Hoy</h6>
-                    <h3 class="text-danger" id="egresos-hoy">$0.00</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card border-left-warning">
-                <div class="card-body">
-                    <h6 class="card-title">Diferencia (Arqueo)</h6>
-                    <h3 class="text-warning" id="diferencia">$0.00</h3>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Acciones Rápidas -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <a href="/tesoreria/movimientos" class="btn btn-primary">
-                <i class="bi bi-arrow-left-right"></i> Ver Movimientos
+        <div class="action-bar" style="margin-bottom:0">
+            <a href="/tesoreria/movimientos" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-arrow-left-right"></i> Movimientos
             </a>
-            <a href="/tesoreria/arqueos" class="btn btn-info">
-                <i class="bi bi-calculator"></i> Ver Arqueos
+            <a href="/tesoreria/arqueos" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-calculator"></i> Arqueos
             </a>
             {% if session.get('role') != 'director' %}
-            <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#modalNuevoArqueo">
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoArqueo">
                 <i class="bi bi-plus-circle"></i> Nuevo Arqueo
             </button>
-            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
                 <i class="bi bi-plus-circle"></i> Registrar Movimiento
             </button>
             {% endif %}
         </div>
     </div>
 
-    <!-- Gráfico de Flujo -->
-    <div class="charts-row">
-        <div class="chart-card chart-card-light">
-            <h6 class="mb-3">Flujo de Caja (últimos 7 días)</h6>
+    <!-- KPIs de Caja -->
+    <div class="kpi-grid">
+        <div class="kpi-card accent-blue">
+            <span class="kpi-label">Saldo Actual</span>
+            <span class="kpi-value" id="saldo-actual">$0</span>
+        </div>
+        <div class="kpi-card accent-green">
+            <span class="kpi-label">Ingresos Hoy</span>
+            <span class="kpi-value" id="ingresos-hoy">$0</span>
+        </div>
+        <div class="kpi-card accent-red">
+            <span class="kpi-label">Egresos Hoy</span>
+            <span class="kpi-value" id="egresos-hoy">$0</span>
+        </div>
+        <div class="kpi-card accent-amber">
+            <span class="kpi-label">Diferencia (Arqueo)</span>
+            <span class="kpi-value" id="diferencia">$0</span>
+        </div>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="charts-grid">
+        <div class="chart-card-v2">
+            <h6>Flujo de Caja (últimos 7 días)</h6>
             <canvas id="flujoChart"></canvas>
         </div>
-        <div class="chart-card chart-card-light">
-            <h6 class="mb-3">Distribución por Instrumento (últimos 30 días)</h6>
+        <div class="chart-card-v2">
+            <h6>Distribución por Instrumento (últimos 30 días)</h6>
             <canvas id="instrumentosChart"></canvas>
         </div>
     </div>
 
     <!-- Movimientos Recientes -->
-    <div class="mt-4">
-        <h5>Últimos Movimientos</h5>
+    <div class="table-card">
+        <div class="table-card-head">
+            <i class="bi bi-arrow-left-right"></i> Últimos Movimientos
+        </div>
         <div class="table-responsive">
-            <table class="table table-hover table-sm">
-                <thead class="table-dark">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
                     <tr>
                         <th>Fecha/Hora</th>
                         <th>Tipo</th>
@@ -88,18 +76,22 @@
                     </tr>
                 </thead>
                 <tbody id="tabla-movimientos">
-                    <tr><td colspan="6" class="text-center">Cargando...</td></tr>
+                    <tr><td colspan="6" class="text-center text-muted">
+                        <span class="loading-text">Cargando datos...</span>
+                    </td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- Arqueos Pendientes -->
-    <div class="mt-4">
-        <h5>Arqueos Recientes</h5>
+    <!-- Arqueos Recientes -->
+    <div class="table-card">
+        <div class="table-card-head">
+            <i class="bi bi-calculator"></i> Arqueos Recientes
+        </div>
         <div class="table-responsive">
-            <table class="table table-hover table-sm">
-                <thead class="table-dark">
+            <table class="table table-hover table-sm mb-0">
+                <thead>
                     <tr>
                         <th>Fecha</th>
                         <th>Turno</th>
@@ -111,7 +103,9 @@
                     </tr>
                 </thead>
                 <tbody id="tabla-arqueos">
-                    <tr><td colspan="7" class="text-center">Cargando...</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted">
+                        <span class="loading-text">Cargando datos...</span>
+                    </td></tr>
                 </tbody>
             </table>
         </div>
@@ -518,7 +512,11 @@
     function actualizarTablaMov(movimientos) {
         const tbody = document.getElementById('tabla-movimientos');
         if (!movimientos.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center">Sin movimientos</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+                <div class="empty-icon"><i class="bi bi-arrow-left-right"></i></div>
+                <div class="empty-title">Sin movimientos registrados</div>
+                <div class="empty-text">Los movimientos de caja aparecerán aquí.</div>
+            </div></td></tr>`;
             return;
         }
         
@@ -547,7 +545,11 @@
     function actualizarTablaArqueos(arqueos) {
         const tbody = document.getElementById('tabla-arqueos');
         if (!arqueos.length) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Sin arqueos</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">
+                <div class="empty-icon"><i class="bi bi-calculator"></i></div>
+                <div class="empty-title">Sin arqueos registrados</div>
+                <div class="empty-text">Los arqueos de caja aparecerán aquí.</div>
+            </div></td></tr>`;
             return;
         }
         tbody.innerHTML = arqueos.map(a => {
