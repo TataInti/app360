@@ -64,9 +64,9 @@ def _gastos_sum(desde=None, hasta=None) -> float:
         MovimientoCaja.estado != "anulado",
     )
     if desde is not None and hasta is not None:
-        q = q.filter(MovimientoCaja.fecha.between(desde, hasta))
+        q = q.filter(MovimientoCaja.fecha_hora.between(desde, hasta))
     elif hasta is not None:
-        q = q.filter(MovimientoCaja.fecha <= hasta)
+        q = q.filter(MovimientoCaja.fecha_hora <= hasta)
     return float(q.scalar() or 0)
 
 
@@ -74,14 +74,14 @@ def _gastos_mes_q(desde, hasta):
     """Serie mensual de gastos agrupada por año/mes."""
     return (
         db.session.query(
-            extract('year', MovimientoCaja.fecha).label('y'),
-            extract('month', MovimientoCaja.fecha).label('m'),
+            extract('year', MovimientoCaja.fecha_hora).label('y'),
+            extract('month', MovimientoCaja.fecha_hora).label('m'),
             func.sum(MovimientoCaja.monto),
         )
         .filter(
             MovimientoCaja.categoria_gasto_id.isnot(None),
             MovimientoCaja.estado != "anulado",
-            MovimientoCaja.fecha.between(desde, hasta),
+            MovimientoCaja.fecha_hora.between(desde, hasta),
         )
         .group_by('y', 'm')
         .order_by('y', 'm')
@@ -99,7 +99,7 @@ def _gastos_cat_q(desde, hasta):
         .join(CategoriaGasto, MovimientoCaja.categoria_gasto_id == CategoriaGasto.id)
         .filter(
             MovimientoCaja.estado != "anulado",
-            MovimientoCaja.fecha.between(desde, hasta),
+            MovimientoCaja.fecha_hora.between(desde, hasta),
         )
         .group_by(func.coalesce(CategoriaGasto.nombre, 'Otros'))
         .all()
@@ -210,7 +210,7 @@ def bi_dashboard():
             db.session.query(MovimientoCaja)
             .filter(
                 MovimientoCaja.categoria_gasto_id.isnot(None),
-                MovimientoCaja.fecha.between(fecha_desde, fecha_hasta),
+                MovimientoCaja.fecha_hora.between(fecha_desde, fecha_hasta),
                 MovimientoCaja.estado != "anulado",
             )
         )
@@ -218,7 +218,7 @@ def bi_dashboard():
             db.session.query(func.sum(MovimientoCaja.monto))
             .filter(
                 MovimientoCaja.categoria_gasto_id.isnot(None),
-                MovimientoCaja.fecha.between(fecha_desde, fecha_hasta),
+                MovimientoCaja.fecha_hora.between(fecha_desde, fecha_hasta),
                 MovimientoCaja.estado != "anulado",
             )
             .scalar() or 0
@@ -231,7 +231,7 @@ def bi_dashboard():
             )
             .join(CategoriaGasto, MovimientoCaja.categoria_gasto_id == CategoriaGasto.id)
             .filter(
-                MovimientoCaja.fecha.between(fecha_desde, fecha_hasta),
+                MovimientoCaja.fecha_hora.between(fecha_desde, fecha_hasta),
                 MovimientoCaja.estado != "anulado",
             )
             .group_by(CategoriaGasto.nombre)
@@ -1273,17 +1273,17 @@ def bi_exportar():
         )
         if fecha_desde:
             fd = datetime.fromisoformat(fecha_desde).date()
-            query = query.filter(MovimientoCaja.fecha >= fd)
+            query = query.filter(MovimientoCaja.fecha_hora >= fd)
         if fecha_hasta:
             fh = datetime.fromisoformat(fecha_hasta).date()
-            query = query.filter(MovimientoCaja.fecha <= fh)
+            query = query.filter(MovimientoCaja.fecha_hora <= fh)
 
-        gastos = query.order_by(MovimientoCaja.fecha.desc()).all()
+        gastos = query.order_by(MovimientoCaja.fecha_hora.desc()).all()
 
         data = []
         for g in gastos:
             data.append({
-                "Fecha": g.fecha,
+                "Fecha": g.fecha_hora,
                 "Categoría": g.categoria_gasto.nombre if g.categoria_gasto else "",
                 "Proveedor": g.proveedor.nombre if g.proveedor else "",
                 "Monto": float(g.monto),
