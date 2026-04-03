@@ -1267,6 +1267,12 @@ def fichadas_cargar():
     # Auto-asociar: vincular fichadas con empleados por clock_id
     asociados, pendientes = _asociar_fichadas()
 
+    # Auto-procesar: generar resumen diario contra turnos
+    proc_stats = _procesar_fichadas_logic(lote=lote) or {
+        "procesados": 0, "faltas": 0, "tardanzas": 0,
+        "fichadas_faltantes": 0, "sin_turno": 0,
+    }
+
     return jsonify({
         "lote": lote,
         "importados": importados,
@@ -1276,6 +1282,7 @@ def fichadas_cargar():
         "fechas_rango": fechas_rango,
         "asociados": asociados,
         "pendientes": pendientes,
+        "procesamiento": proc_stats,
     })
 
 
@@ -1286,35 +1293,20 @@ def fichadas_asociar():
     return jsonify({"asociados": asociados, "pendientes": pendientes})
 
 
-@rrhh_bp.route("/api/rrhh/fichadas/procesar", methods=["POST"])
-def fichadas_procesar():
-    """Procesa fichadas crudas contra turnos y genera resumen diario."""
-    data = request.get_json() or {}
-    lote = data.get("lote")
-    fecha_desde = data.get("fecha_desde")
-    fecha_hasta = data.get("fecha_hasta")
+def _procesar_fichadas_logic(lote=None, fecha_desde=None, fecha_hasta=None):
+    """Lógica interna de procesamiento de fichadas contra turnos.
 
+    Retorna dict con stats o None si no hay fichadas.
+    """
     query = FichadaReloj.query.filter(FichadaReloj.empleado_id.isnot(None))
     if lote:
         query = query.filter_by(lote_importacion=lote)
     elif fecha_desde and fecha_hasta:
-        try:
-            fd = datetime.strptime(fecha_desde, "%Y-%m-%d").date()
-            fh = datetime.strptime(fecha_hasta, "%Y-%m-%d").date()
-        except ValueError:
-            return jsonify({"error": "Formato de fecha inválido"}), 400
-        query = query.filter(FichadaReloj.fecha.between(fd, fh))
-    # Sin filtro: procesa TODAS las fichadas asociadas (útil para re-procesar)
-
-    # Contar sin asociar para stats
-    sin_asociar_q = FichadaReloj.query.filter(FichadaReloj.empleado_id.is_(None))
-    if lote:
-        sin_asociar_q = sin_asociar_q.filter_by(lote_importacion=lote)
-    sin_asociar = sin_asociar_q.count()
+        query = query.filter(FichadaReloj.fecha.between(fecha_desde, fecha_hasta))
 
     fichadas = query.order_by(FichadaReloj.empleado_id, FichadaReloj.fecha, FichadaReloj.hora).all()
     if not fichadas:
-        return jsonify({"error": "No se encontraron fichadas asociadas para procesar", "sin_asociar": sin_asociar}), 404
+        return None
 
     # Agrupar por (empleado_id, fecha)
     grupos = {}
@@ -1327,11 +1319,12 @@ def fichadas_procesar():
     empleados = {e.id: e for e in Employee.query.filter(Employee.id.in_(empleado_ids)).all()}
     turno_dias_cache = {}
 
-    stats = {"procesados": 0, "faltas": 0, "tardanzas": 0, "fichadas_faltantes": 0}
+    stats = {"procesados": 0, "faltas": 0, "tardanzas": 0, "fichadas_faltantes": 0, "sin_turno": 0}
 
     for (emp_id, fecha), fichs in grupos.items():
         emp = empleados.get(emp_id)
         if not emp or not emp.turno_id:
+            stats["sin_turno"] += 1
             continue
 
         dia_semana = fecha.weekday()  # 0=lunes
@@ -1432,6 +1425,34 @@ def fichadas_procesar():
                     current += timedelta(days=1)
 
     db.session.commit()
+    return stats
+
+
+@rrhh_bp.route("/api/rrhh/fichadas/procesar", methods=["POST"])
+def fichadas_procesar():
+    """Procesa fichadas crudas contra turnos y genera resumen diario."""
+    data = request.get_json() or {}
+    lote = data.get("lote")
+    fecha_desde_str = data.get("fecha_desde")
+    fecha_hasta_str = data.get("fecha_hasta")
+
+    fecha_desde = fecha_hasta = None
+    if fecha_desde_str and fecha_hasta_str:
+        try:
+            fecha_desde = datetime.strptime(fecha_desde_str, "%Y-%m-%d").date()
+            fecha_hasta = datetime.strptime(fecha_hasta_str, "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify({"error": "Formato de fecha inválido"}), 400
+
+    sin_asociar_q = FichadaReloj.query.filter(FichadaReloj.empleado_id.is_(None))
+    if lote:
+        sin_asociar_q = sin_asociar_q.filter_by(lote_importacion=lote)
+    sin_asociar = sin_asociar_q.count()
+
+    stats = _procesar_fichadas_logic(lote=lote, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta)
+    if not stats:
+        return jsonify({"error": "No se encontraron fichadas asociadas para procesar", "sin_asociar": sin_asociar}), 404
+
     stats["sin_asociar"] = sin_asociar
     return jsonify(stats)
 
