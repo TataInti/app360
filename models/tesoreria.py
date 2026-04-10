@@ -2,6 +2,16 @@ from . import db
 from .time_utils import now_local, today_local_date
 
 
+# Tabla de asociación M2M: portadores permitidos por instrumento
+instrumento_portador = db.Table(
+    'instrumento_portador',
+    db.Column('instrumento_id', db.Integer,
+              db.ForeignKey('instrumentos_pago.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('portador_id', db.Integer,
+              db.ForeignKey('portador_instrumento.id', ondelete='CASCADE'), primary_key=True),
+)
+
+
 class InstrumentoPago(db.Model):
     __tablename__ = "instrumentos_pago"
     id = db.Column(db.Integer, primary_key=True)
@@ -12,6 +22,12 @@ class InstrumentoPago(db.Model):
 
     # Relaciones
     movimientos = db.relationship("MovimientoCaja", backref="instrumento", cascade="all, delete-orphan")
+    portadores_permitidos = db.relationship(
+        "PortadorInstrumento",
+        secondary="instrumento_portador",
+        backref=db.backref("instrumentos", lazy="dynamic"),
+        lazy="select",
+    )
 
 
 class PortadorInstrumento(db.Model):

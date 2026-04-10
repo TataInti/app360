@@ -281,7 +281,7 @@ def coerce_field_value(field, val):
     if isinstance(val, str) and val.strip() == "":
         return None
 
-    if field in ("is_active", "activo"):
+    if field in ("is_active", "activo", "requiere_portador"):
         if isinstance(val, str):
             return val.strip().lower() in ["true", "1", "yes", "on"]
         return bool(val)
@@ -484,6 +484,52 @@ def api_toggle(modulo, entidad, id):
         item.activo = not item.activo
         db.session.commit()
         return jsonify({"success": True, "activo": item.activo})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================================================
+# Gestión de portadores por instrumento (M2M)
+# =============================================================================
+@admin_bp.route("/api/admin/tesoreria/instrumentos/<int:instrumento_id>/portadores", methods=["GET"])
+@admin_required
+def api_instrumento_portadores_get(instrumento_id):
+    """Devuelve todos los portadores con flag 'asociado' indicando si pertenecen al instrumento."""
+    instrumento = InstrumentoPago.query.get_or_404(instrumento_id)
+    asociados_ids = {p.id for p in instrumento.portadores_permitidos}
+    todos = PortadorInstrumento.query.order_by(PortadorInstrumento.nombre).all()
+    return jsonify({
+        "portadores": [{
+            "id": p.id,
+            "nombre": p.nombre,
+            "activo": p.activo,
+            "asociado": p.id in asociados_ids,
+        } for p in todos]
+    })
+
+
+@admin_bp.route("/api/admin/tesoreria/instrumentos/<int:instrumento_id>/portadores", methods=["PUT"])
+@admin_required
+def api_instrumento_portadores_set(instrumento_id):
+    """Reemplaza la lista completa de portadores permitidos para el instrumento.
+
+    Body: {"portador_ids": [1, 3, 7]}
+    Lista vacía elimina todas las restricciones (fallback a todos los portadores activos).
+    """
+    instrumento = InstrumentoPago.query.get_or_404(instrumento_id)
+    data = request.get_json() or {}
+    portador_ids = data.get("portador_ids", [])
+
+    try:
+        portadores = (
+            PortadorInstrumento.query.filter(PortadorInstrumento.id.in_(portador_ids)).all()
+            if portador_ids else []
+        )
+        instrumento.portadores_permitidos = portadores
+        instrumento.requiere_portador = len(portadores) > 0
+        db.session.commit()
+        return jsonify({"success": True, "count": len(portadores)})
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500

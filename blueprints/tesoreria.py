@@ -50,7 +50,8 @@ def instrumentos_listar():
             "id": i.id,
             "nombre": i.nombre,
             "descripcion": i.descripcion,
-            "requiere_portador": i.requiere_portador
+            "requiere_portador": i.requiere_portador,
+            "tiene_portadores": len(i.portadores_permitidos) > 0
         } for i in instrumentos]
     })
 
@@ -292,6 +293,10 @@ def movimientos_crear():
         portador = PortadorInstrumento.query.get(portador_id)
         if not portador or not portador.activo:
             return jsonify({"error": "Portador no encontrado o inactivo"}), 404
+        # Si el instrumento tiene lista M2M configurada, validar pertenencia
+        allowed = instrumento.portadores_permitidos
+        if allowed and portador not in allowed:
+            return jsonify({"error": "El portador seleccionado no está habilitado para este instrumento"}), 400
 
     movimiento = MovimientoCaja(
         tipo=tipo,
@@ -782,9 +787,43 @@ def portadores_listar():
     })
 
 
+@tesoreria_bp.route("/api/tesoreria/instrumentos/<int:instrumento_id>/portadores", methods=["GET"])
+def portadores_por_instrumento(instrumento_id):
+    """Portadores permitidos para un instrumento específico.
+
+    Si el instrumento tiene portadores configurados en la lista M2M devuelve
+    solo los activos de esa lista (has_restriction: true).
+    Si la lista está vacía devuelve todos los portadores activos como fallback
+    (has_restriction: false) para mantener retrocompatibilidad.
+    """
+    instrumento = InstrumentoPago.query.get_or_404(instrumento_id)
+    permitidos = instrumento.portadores_permitidos
+    has_restriction = len(permitidos) > 0
+
+    if has_restriction:
+        portadores = [p for p in permitidos if p.activo]
+    else:
+        portadores = PortadorInstrumento.query.filter_by(activo=True).order_by(PortadorInstrumento.nombre).all()
+
+    return jsonify({
+        "portadores": [{
+            "id": p.id,
+            "nombre": p.nombre,
+            "documento": p.documento,
+            "telefono": p.telefono,
+            "notas": p.notas,
+        } for p in portadores],
+        "has_restriction": has_restriction,
+    })
+
+
 @tesoreria_bp.route("/api/tesoreria/portadores", methods=["POST"])
 def portadores_crear():
-    """Crear nuevo portador de instrumento"""
+    """Crear nuevo portador de instrumento.
+
+    Acepta instrumento_id opcional para auto-asociar el nuevo portador
+    a la lista de permitidos de ese instrumento.
+    """
     data = request.get_json()
     nombre = (data.get("nombre") or "").strip()
     if not nombre:
@@ -797,6 +836,14 @@ def portadores_crear():
         notas=(data.get("notas") or "").strip() or None,
     )
     db.session.add(portador)
+    db.session.flush()  # obtener portador.id antes del commit
+
+    instrumento_id = data.get("instrumento_id")
+    if instrumento_id:
+        instrumento = InstrumentoPago.query.get(instrumento_id)
+        if instrumento:
+            instrumento.portadores_permitidos.append(portador)
+
     db.session.commit()
 
     return jsonify({

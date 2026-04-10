@@ -223,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(id).addEventListener('change', () => load())
     );
 
-    // form: instrumento change → toggle portador
+    // form: instrumento change → toggle portador and load filtered list
     document.getElementById('frmInstrumento').addEventListener('change', function() {
         const inst = _instrumentos.find(i => i.id == this.value);
         const pg = document.getElementById('portadorGroup');
@@ -231,6 +231,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (inst && inst.requiere_portador) {
             pg.style.display = '';
             fp.required = true;
+            fp.innerHTML = '<option value="">Seleccionar...</option>';
+            cargarPortadoresPorInstrumento(this.value, 'frmPortador');
         } else {
             pg.style.display = 'none';
             fp.required = false;
@@ -269,11 +271,11 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function cargarRefs() {
-    const [catR, provR, instR, portR] = await Promise.all([
+    const [catR, provR, instR] = await Promise.all([
         fetch('/api/gastos/categorias'), fetch('/api/gastos/proveedores'),
-        fetch('/api/tesoreria/instrumentos'), fetch('/api/tesoreria/portadores')
+        fetch('/api/tesoreria/instrumentos')
     ]);
-    const [catD, provD, instD, portD] = await Promise.all([catR.json(), provR.json(), instR.json(), portR.json()]);
+    const [catD, provD, instD] = await Promise.all([catR.json(), provR.json(), instR.json()]);
 
     _instrumentos = instD.instrumentos || [];
 
@@ -289,11 +291,25 @@ async function cargarRefs() {
     const fCat = document.getElementById('frmCategoria');
     const fProv = document.getElementById('frmProveedor');
     const fInst = document.getElementById('frmInstrumento');
-    const fPort = document.getElementById('frmPortador');
     (catD.categorias||[]).forEach(c => fCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
     (provD.proveedores||[]).forEach(p => fProv.innerHTML += `<option value="${p.id}">${p.nombre}</option>`);
     _instrumentos.forEach(i => fInst.innerHTML += `<option value="${i.id}">${i.nombre}</option>`);
-    (portD.portadores||[]).forEach(p => fPort.innerHTML += `<option value="${p.id}">${p.nombre}</option>`);
+}
+
+async function cargarPortadoresPorInstrumento(instrumentoId, selectId) {
+    const select = document.getElementById(selectId);
+    select.innerHTML = '<option value="">Cargando...</option>';
+    try {
+        const resp = await fetch(`/api/tesoreria/instrumentos/${instrumentoId}/portadores`);
+        const data = await resp.json();
+        select.innerHTML = '<option value="">Seleccionar...</option>';
+        (data.portadores || []).forEach(p => {
+            select.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
+        });
+    } catch(e) {
+        select.innerHTML = '<option value="">Error al cargar</option>';
+        console.error('Error cargando portadores:', e);
+    }
 }
 
 async function load(period) {

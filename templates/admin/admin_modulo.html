@@ -107,6 +107,11 @@
                                                 <i class="bi bi-clock"></i> Horarios
                                             </button>
                                             {% endif %}
+                                            {% if entidad == 'instrumentos' and modulo == 'tesoreria' %}
+                                            <button class="btn btn-outline-secondary" onclick="abrirModalPortadoresInstrumento({{ item.id }}, '{{ item.nombre }}')" title="Configurar Portadores">
+                                                <i class="bi bi-people"></i> Portadores
+                                            </button>
+                                            {% endif %}
                                             <button class="btn btn-outline-danger" onclick="eliminarItem('{{ entidad }}', {{ item.id }})">
                                                 <i class="bi bi-trash"></i>
                                             </button>
@@ -298,7 +303,7 @@ function appendField(container, entidad, field, value, required) {
         return;
     }
 
-    const tipo = field === 'activo' ? 'checkbox' : getInputType(field);
+    const tipo = (field === 'activo' || field === 'requiere_portador') ? 'checkbox' : getInputType(field);
 
     if (tipo === 'checkbox') {
         const checked = value !== undefined ? !!value : true;
@@ -649,5 +654,115 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch(e) { /* ignore */ }
     }
 });
+
+// =============================================
+// Portadores por Instrumento
+// =============================================
+async function abrirModalPortadoresInstrumento(instrId, instrNombre) {
+    document.getElementById('instrPortId').value = instrId;
+    document.getElementById('instrPortNombre').textContent = instrNombre;
+    document.getElementById('instrPortListaLoading').style.display = '';
+    document.getElementById('instrPortLista').style.display = 'none';
+
+    try {
+        const resp = await fetch(`/api/admin/tesoreria/instrumentos/${instrId}/portadores`);
+        const data = await resp.json();
+        renderPortadoresCheckboxes(data.portadores || []);
+        document.getElementById('instrPortListaLoading').style.display = 'none';
+        document.getElementById('instrPortLista').style.display = '';
+        new bootstrap.Modal(document.getElementById('modalInstrumentoPortadores')).show();
+    } catch(e) {
+        alert('Error cargando portadores: ' + e.message);
+    }
+}
+
+function renderPortadoresCheckboxes(portadores) {
+    const container = document.getElementById('instrPortCheckboxes');
+    container.innerHTML = '';
+    if (!portadores.length) {
+        container.innerHTML = '<p class="text-muted col-12">No hay portadores registrados. Creá uno desde la tab "Portadores".</p>';
+        return;
+    }
+    portadores.forEach(p => {
+        const col = document.createElement('div');
+        col.className = 'col';
+        const inactiveNote = p.activo ? '' : ' <span class="text-muted small">(inactivo)</span>';
+        col.innerHTML = `
+            <div class="form-check">
+                <input class="form-check-input instr-port-cb" type="checkbox"
+                       value="${p.id}" id="ipc-${p.id}" ${p.asociado ? 'checked' : ''}>
+                <label class="form-check-label" for="ipc-${p.id}">
+                    ${p.nombre}${inactiveNote}
+                </label>
+            </div>`;
+        container.appendChild(col);
+    });
+}
+
+function instrPortSelectAll(checked) {
+    document.querySelectorAll('.instr-port-cb').forEach(cb => cb.checked = checked);
+}
+
+async function guardarPortadoresInstrumento() {
+    const instrId = document.getElementById('instrPortId').value;
+    const portador_ids = Array.from(
+        document.querySelectorAll('.instr-port-cb:checked')
+    ).map(cb => parseInt(cb.value));
+
+    try {
+        const resp = await fetch(
+            `/api/admin/tesoreria/instrumentos/${instrId}/portadores`,
+            {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                body: JSON.stringify({portador_ids})
+            }
+        );
+        const data = await resp.json();
+        if (resp.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('modalInstrumentoPortadores')).hide();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo guardar'));
+        }
+    } catch(e) {
+        alert('Error de conexión');
+    }
+}
 </script>
+
+<!-- Modal Configurar Portadores por Instrumento -->
+<div class="modal fade" id="modalInstrumentoPortadores" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Portadores para: <span id="instrPortNombre"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="instrPortId">
+                <p class="text-muted small mb-2">
+                    Seleccioná los portadores habilitados para este instrumento.
+                    Si dejás la lista vacía, se permitirán todos los portadores activos (sin restricción).
+                </p>
+                <div id="instrPortListaLoading" class="text-center py-3">Cargando...</div>
+                <div id="instrPortLista" style="display:none">
+                    <div class="mb-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary me-1"
+                                onclick="instrPortSelectAll(true)">Seleccionar todos</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                onclick="instrPortSelectAll(false)">Deseleccionar todos</button>
+                    </div>
+                    <div id="instrPortCheckboxes" class="row row-cols-1 row-cols-md-2 g-2"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="guardarPortadoresInstrumento()">
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

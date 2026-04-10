@@ -238,6 +238,10 @@ def gastos_registrar():
         portador = PortadorInstrumento.query.get(portador_id)
         if not portador or not portador.activo:
             return jsonify({"error": "Portador no encontrado o inactivo"}), 404
+        # Si el instrumento tiene lista M2M configurada, validar pertenencia
+        allowed = instrumento.portadores_permitidos
+        if allowed and portador not in allowed:
+            return jsonify({"error": "El portador seleccionado no está habilitado para este instrumento"}), 400
 
     usuario_id = data.get("usuario_id")
     if not usuario_id:
