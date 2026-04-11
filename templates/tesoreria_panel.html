@@ -6,9 +6,9 @@
     <div class="panel-header">
         <div>
             <h1><i class="bi bi-safe"></i> Tesorería</h1>
-            <span class="panel-subtitle">Panel de Control</span>
+            <span>Vista rápida de caja, movimientos recientes y cierres operativos del día.</span>
         </div>
-        <div class="action-bar" style="margin-bottom:0">
+        <div class="action-bar">
             <a href="/tesoreria/movimientos" class="btn btn-outline-primary btn-sm">
                 <i class="bi bi-arrow-left-right"></i> Movimientos
             </a>
@@ -49,11 +49,11 @@
     <!-- Gráficos -->
     <div class="charts-grid">
         <div class="chart-card-v2">
-            <h6>Flujo de Caja (últimos 7 días)</h6>
+            <h3>Flujo de Caja (últimos 7 días)</h3>
             <canvas id="flujoChart"></canvas>
         </div>
         <div class="chart-card-v2">
-            <h6>Distribución por Instrumento (últimos 30 días)</h6>
+            <h3>Distribución por Instrumento (últimos 30 días)</h3>
             <canvas id="instrumentosChart"></canvas>
         </div>
     </div>
@@ -61,9 +61,9 @@
     <!-- Movimientos Recientes -->
     <div class="table-card">
         <div class="table-card-head">
-            <i class="bi bi-arrow-left-right"></i> Últimos Movimientos
+            <h3><i class="bi bi-arrow-left-right"></i> Últimos Movimientos</h3>
         </div>
-        <div class="table-responsive">
+        <div class="scroll-table">
             <table class="table table-hover table-sm mb-0">
                 <thead>
                     <tr>
@@ -87,9 +87,9 @@
     <!-- Arqueos Recientes -->
     <div class="table-card">
         <div class="table-card-head">
-            <i class="bi bi-calculator"></i> Arqueos Recientes
+            <h3><i class="bi bi-calculator"></i> Arqueos Recientes</h3>
         </div>
-        <div class="table-responsive">
+        <div class="scroll-table">
             <table class="table table-hover table-sm mb-0">
                 <thead>
                     <tr>
@@ -113,12 +113,16 @@
 </div>
 
 <!-- Modal Nuevo Movimiento -->
-<div class="modal fade" id="modalNuevoMovimiento" tabindex="-1">
-    <div class="modal-dialog">
+<div class="modal fade app-modal app-modal--blue" id="modalNuevoMovimiento" tabindex="-1" aria-labelledby="modalNuevoMovimientoPanelTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Registrar Nuevo Movimiento</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Caja</span>
+                    <h5 class="modal-title" id="modalNuevoMovimientoPanelTitle">Registrar nuevo movimiento</h5>
+                    <p class="app-modal__subtitle">Carga un ingreso o egreso rapido desde el panel principal de tesoreria.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <form id="formMovimiento">
                 <div class="modal-body">
@@ -145,8 +149,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar Movimiento</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar movimiento</button>
                 </div>
             </form>
         </div>
@@ -154,12 +158,16 @@
 </div>
 
 <!-- Modal Nuevo Arqueo -->
-<div class="modal fade" id="modalNuevoArqueo" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade app-modal app-modal--sky" id="modalNuevoArqueo" tabindex="-1" aria-labelledby="modalNuevoArqueoPanelTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Nuevo Arqueo de Caja</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Cierre</span>
+                    <h5 class="modal-title" id="modalNuevoArqueoPanelTitle">Nuevo arqueo de caja</h5>
+                    <p class="app-modal__subtitle">Registra el cierre del turno con saldo esperado, saldo real y observaciones.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <form id="formArqueo">
                 <div class="modal-body">
@@ -203,8 +211,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar Arqueo</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar arqueo</button>
                 </div>
             </form>
         </div>

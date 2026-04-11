@@ -110,12 +110,16 @@
 </div>
 
 <!-- Modal Nuevo Movimiento -->
-<div class="modal fade" id="modalNuevoMovimiento" tabindex="-1">
-    <div class="modal-dialog">
+<div class="modal fade app-modal app-modal--blue" id="modalNuevoMovimiento" tabindex="-1" aria-labelledby="modalNuevoMovimientoTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Registrar Nuevo Movimiento</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Caja</span>
+                    <h5 class="modal-title" id="modalNuevoMovimientoTitle">Registrar nuevo movimiento</h5>
+                    <p class="app-modal__subtitle">Carga el movimiento con instrumento, destino y descripcion para mantener la caja conciliada.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <form id="formMovimiento">
                 <div class="modal-body">
@@ -136,13 +140,15 @@
                             <option value="">Seleccionar...</option>
                         </select>
                     </div>
-                    <div class="mb-3" id="portadorGroup" style="display:none">
+                    <div class="mb-3 d-none" id="portadorGroup">
                         <label class="form-label" id="portadorLabel">Portador</label>
                         <div class="input-group">
                             <select class="form-select" name="portador_id" id="selectPortador">
                                 <option value="">Seleccionar...</option>
                             </select>
-                            <button type="button" class="btn btn-outline-success btn-sm" onclick="crearPortadorInline()" title="Nuevo portador">+</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="crearPortadorInline()" title="Nuevo portador">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
                         </div>
                     </div>
                     <div class="mb-3">
@@ -163,8 +169,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
                 </div>
             </form>
         </div>
@@ -178,6 +184,73 @@ const isAdmin = ['admin', 'manager', 'gerente'].includes(userRole);
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 let movimientosChart = null;
 let _instrumentos = [];
+
+function getUI() {
+    return window.App360UI;
+}
+
+function notify(message, variant = 'info', options = {}) {
+    const ui = getUI();
+    if (ui && typeof ui.notify === 'function') {
+        ui.notify(message, variant, options);
+        return;
+    }
+    window.alert(message);
+}
+
+function showModal(modalId) {
+    const ui = getUI();
+    if (ui && typeof ui.openModal === 'function') {
+        ui.openModal(modalId);
+        return;
+    }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).show();
+}
+
+function hideModal(modalId) {
+    const ui = getUI();
+    if (ui && typeof ui.closeModal === 'function') {
+        ui.closeModal(modalId);
+        return;
+    }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).hide();
+}
+
+function askConfirmation(options) {
+    const ui = getUI();
+    if (ui && typeof ui.confirm === 'function') {
+        return ui.confirm(options);
+    }
+    return Promise.resolve(window.confirm(options.message || options.title || 'Confirmar accion'));
+}
+
+function askInput(options) {
+    const ui = getUI();
+    if (ui && typeof ui.prompt === 'function') {
+        return ui.prompt(options);
+    }
+    return Promise.resolve(window.prompt(options.message || options.title || 'Ingresar valor', options.value || ''));
+}
+
+function alert(message) {
+    const content = String(message || '');
+    const normalized = content.toLowerCase();
+    let variant = 'info';
+    let title = 'Informacion';
+
+    if (normalized.startsWith('error') || normalized.includes('no se pudo')) {
+        variant = 'danger';
+        title = 'No se pudo completar';
+    } else if (normalized.includes('seleccion') || normalized.includes('obligatorio') || normalized.includes('motivo')) {
+        variant = 'warning';
+        title = 'Revisar datos';
+    } else if (normalized.includes('autorizad') || normalized.includes('rechazada') || normalized.includes('guardad') || normalized.includes('cread')) {
+        variant = 'success';
+        title = 'Listo';
+    }
+
+    notify(content, variant, { title });
+}
 
 function fmtNumAbbr(n) {
     const abs = Math.abs(n);
@@ -203,13 +276,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const sp = document.getElementById('selectPortador');
         const lbl = document.getElementById('portadorLabel');
         if (inst && (inst.requiere_portador || inst.tiene_portadores)) {
-            pg.style.display = '';
+            pg.classList.remove('d-none');
             sp.required = !!inst.requiere_portador;
             lbl.textContent = inst.requiere_portador ? 'Portador *' : 'Portador (opcional)';
             sp.innerHTML = '<option value="">Seleccionar...</option>';
             cargarPortadoresPorInstrumento(this.value);
         } else {
-            pg.style.display = 'none';
+            pg.classList.add('d-none');
             sp.required = false;
             sp.value = '';
         }
@@ -229,6 +302,7 @@ async function cargarInstrumentos() {
         });
     } catch(e) {
         console.error('Error:', e);
+        notify('No se pudieron cargar los instrumentos.', 'danger', { title: 'Configuracion incompleta' });
     }
 }
 
@@ -250,6 +324,7 @@ async function cargarCategoriasProveedores() {
         });
     } catch(e) {
         console.error('Error cargando categorías/proveedores:', e);
+        notify('No se pudieron cargar categorias o proveedores.', 'danger', { title: 'No se pudo completar' });
     }
 }
 
@@ -472,10 +547,11 @@ document.getElementById('formMovimiento')?.addEventListener('submit', async func
         });
         
         if (resp.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('modalNuevoMovimiento')).hide();
+            hideModal('modalNuevoMovimiento');
             this.reset();
-            document.getElementById('portadorGroup').style.display = 'none';
+            document.getElementById('portadorGroup').classList.add('d-none');
             cargarMovimientos();
+            notify('Movimiento registrado correctamente.', 'success', { title: 'Caja actualizada' });
         } else {
             const err = await resp.json();
             alert('Error: ' + (err.error || 'No se pudo guardar'));
@@ -485,39 +561,89 @@ document.getElementById('formMovimiento')?.addEventListener('submit', async func
     }
 });
 
-function solicitarAnulacion(id) {
-    const motivo = prompt('Motivo de la anulación:');
+async function solicitarAnulacion(id) {
+    const motivo = await askInput({
+        variant: 'warning',
+        title: 'Solicitar anulacion',
+        subtitle: 'La solicitud queda pendiente hasta revision administrativa.',
+        message: 'Explica el motivo para anular este movimiento.',
+        label: 'Motivo',
+        helperText: 'Este texto queda registrado junto con la solicitud.',
+        multiline: true,
+        required: true,
+        confirmText: 'Solicitar',
+    });
     if (!motivo || !motivo.trim()) return;
-    fetch(`/api/tesoreria/movimientos/${id}/solicitar-anulacion`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-        body: JSON.stringify({motivo: motivo.trim()})
-    }).then(r => r.json().then(d => {
-        if (r.ok) { alert(d.message); cargarMovimientos(); }
-        else alert(d.error || 'Error');
-    })).catch(() => alert('Error de conexión'));
+    try {
+        const resp = await fetch(`/api/tesoreria/movimientos/${id}/solicitar-anulacion`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            body: JSON.stringify({motivo: motivo.trim()})
+        });
+        const data = await resp.json();
+        if (resp.ok) {
+            alert(data.message);
+            cargarMovimientos();
+        } else {
+            alert(data.error || 'Error');
+        }
+    } catch (e) {
+        alert('Error de conexión');
+    }
 }
 
-function autorizarAnulacion(id) {
-    if (!confirm('¿Autorizar la anulación de este movimiento?')) return;
-    fetch(`/api/tesoreria/movimientos/${id}/autorizar-anulacion`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken}
-    }).then(r => {
-        if (r.ok) { alert('Anulación autorizada'); cargarMovimientos(); }
-        else r.json().then(d => alert(d.error || 'Error'));
-    }).catch(() => alert('Error de conexión'));
+async function autorizarAnulacion(id) {
+    const confirmed = await askConfirmation({
+        variant: 'danger',
+        title: 'Autorizar anulacion',
+        subtitle: 'El movimiento pasara a estado anulado.',
+        message: 'Confirma que queres autorizar la anulacion de este movimiento de caja.',
+        confirmText: 'Autorizar',
+        confirmClass: 'btn-danger',
+    });
+    if (!confirmed) return;
+    try {
+        const resp = await fetch(`/api/tesoreria/movimientos/${id}/autorizar-anulacion`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken}
+        });
+        if (resp.ok) {
+            alert('Anulación autorizada');
+            cargarMovimientos();
+        } else {
+            const data = await resp.json();
+            alert(data.error || 'Error');
+        }
+    } catch (e) {
+        alert('Error de conexión');
+    }
 }
 
-function rechazarAnulacion(id) {
-    if (!confirm('¿Rechazar la solicitud de anulación?')) return;
-    fetch(`/api/tesoreria/movimientos/${id}/rechazar-anulacion`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken}
-    }).then(r => {
-        if (r.ok) { alert('Solicitud rechazada'); cargarMovimientos(); }
-        else r.json().then(d => alert(d.error || 'Error'));
-    }).catch(() => alert('Error de conexión'));
+async function rechazarAnulacion(id) {
+    const confirmed = await askConfirmation({
+        variant: 'warning',
+        title: 'Rechazar solicitud',
+        subtitle: 'La solicitud se cierra y el movimiento vuelve a quedar activo.',
+        message: 'Confirma que queres rechazar esta solicitud de anulacion.',
+        confirmText: 'Rechazar',
+        confirmClass: 'btn-warning',
+    });
+    if (!confirmed) return;
+    try {
+        const resp = await fetch(`/api/tesoreria/movimientos/${id}/rechazar-anulacion`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken}
+        });
+        if (resp.ok) {
+            alert('Solicitud rechazada');
+            cargarMovimientos();
+        } else {
+            const data = await resp.json();
+            alert(data.error || 'Error');
+        }
+    } catch (e) {
+        alert('Error de conexión');
+    }
 }
 
 async function cargarPortadoresPorInstrumento(instrumentoId) {
@@ -537,7 +663,16 @@ async function cargarPortadoresPorInstrumento(instrumentoId) {
 }
 
 async function crearPortadorInline() {
-    const nombre = prompt('Nombre del portador:');
+    const nombre = await askInput({
+        variant: 'info',
+        title: 'Nuevo portador',
+        subtitle: 'Se agrega a la lista disponible para este movimiento.',
+        message: 'Ingresa el nombre del portador.',
+        label: 'Nombre del portador',
+        placeholder: 'Ej. Caja central',
+        required: true,
+        confirmText: 'Crear',
+    });
     if (!nombre || !nombre.trim()) return;
     const instrumentoId = document.getElementById('selectInstrumento').value;
     try {
@@ -554,6 +689,7 @@ async function crearPortadorInline() {
             const select = document.getElementById('selectPortador');
             select.innerHTML += `<option value="${data.portador.id}">${data.portador.nombre}</option>`;
             select.value = data.portador.id;
+            notify('Portador creado y seleccionado.', 'success', { title: 'Dato actualizado' });
         } else {
             const err = await resp.json();
             alert('Error: ' + (err.error || 'No se pudo crear'));

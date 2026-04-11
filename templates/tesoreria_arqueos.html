@@ -92,19 +92,23 @@
 </div>
 
 <!-- Modal Editar Arqueo (solo Admin) -->
-<div class="modal fade" id="modalEditarArqueo" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade app-modal app-modal--amber" id="modalEditarArqueo" tabindex="-1" aria-labelledby="modalEditarArqueoTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Editar Arqueo de Caja</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Correccion</span>
+                    <h5 class="modal-title" id="modalEditarArqueoTitle">Editar arqueo de caja</h5>
+                    <p class="app-modal__subtitle">Solo se permiten ajustes del dia actual y siempre con justificacion registrada.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <form id="formEditarArqueo">
                 <input type="hidden" name="arqueo_id" id="editArqueoId">
                 <div class="modal-body">
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i> 
-                        Solo se pueden editar arqueos del día actual. Debes justificar esta edición.
+                    <div class="app-modal__notice app-modal__notice--warning mb-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <div>Solo se pueden editar arqueos del dia actual. La justificacion queda guardada en el historial.</div>
                     </div>
                     
                     <div class="row mb-3">
@@ -141,8 +145,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-warning">Guardar Cambios</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-warning">Guardar cambios</button>
                 </div>
             </form>
         </div>
@@ -150,12 +154,16 @@
 </div>
 
 <!-- Modal Historial de Ediciones -->
-<div class="modal fade" id="modalHistorialArqueo" tabindex="-1">
-    <div class="modal-dialog modal-xl">
+<div class="modal fade app-modal app-modal--sky" id="modalHistorialArqueo" tabindex="-1" aria-labelledby="modalHistorialArqueoTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Historial de Ediciones</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Trazabilidad</span>
+                    <h5 class="modal-title" id="modalHistorialArqueoTitle">Historial de ediciones</h5>
+                    <p class="app-modal__subtitle">Cada ajuste muestra fecha, usuario, justificacion y cambios aplicados.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
                 <div id="historialContent">
@@ -167,12 +175,16 @@
 </div>
 
 <!-- Modal Nuevo Arqueo -->
-<div class="modal fade" id="modalNuevoArqueo" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade app-modal app-modal--blue" id="modalNuevoArqueo" tabindex="-1" aria-labelledby="modalNuevoArqueoTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Nuevo Arqueo de Caja</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Cierre</span>
+                    <h5 class="modal-title" id="modalNuevoArqueoTitle">Nuevo arqueo de caja</h5>
+                    <p class="app-modal__subtitle">Registra el cierre del turno con saldo esperado, conteo real y detalle por instrumento.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <form id="formArqueo">
                 <div class="modal-body">
@@ -231,8 +243,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar Arqueo</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar arqueo</button>
                 </div>
             </form>
         </div>
@@ -240,12 +252,16 @@
 </div>
 
 <!-- Modal Detalle por Instrumento -->
-<div class="modal fade" id="modalDetalleArqueo" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade app-modal app-modal--sky" id="modalDetalleArqueo" tabindex="-1" aria-labelledby="modalDetalleArqueoTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title"><i class="bi bi-bar-chart"></i> Detalle por Instrumento</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Detalle</span>
+                    <h5 class="modal-title" id="modalDetalleArqueoTitle">Detalle por instrumento</h5>
+                    <p class="app-modal__subtitle">Compara saldo calculado, conteo real y diferencia para cada instrumento del arqueo.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body" id="detalleArqueoContent">
                 <p class="text-center">Cargando...</p>
@@ -258,6 +274,57 @@
 const userRole = '{{ session.get("role", "") }}';
 const isAdmin = ['admin', 'manager', 'gerente'].includes(userRole);
 let graficoMovimientos = null;
+
+function getUI() {
+    return window.App360UI;
+}
+
+function notify(message, variant = 'info', options = {}) {
+    const ui = getUI();
+    if (ui && typeof ui.notify === 'function') {
+        ui.notify(message, variant, options);
+        return;
+    }
+    window.alert(message);
+}
+
+function showModal(modalId) {
+    const ui = getUI();
+    if (ui && typeof ui.openModal === 'function') {
+        ui.openModal(modalId);
+        return;
+    }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).show();
+}
+
+function hideModal(modalId) {
+    const ui = getUI();
+    if (ui && typeof ui.closeModal === 'function') {
+        ui.closeModal(modalId);
+        return;
+    }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).hide();
+}
+
+function alert(message) {
+    const content = String(message || '');
+    const normalized = content.toLowerCase();
+    let variant = 'info';
+    let title = 'Informacion';
+
+    if (normalized.startsWith('error') || normalized.includes('no se pudo')) {
+        variant = 'danger';
+        title = 'No se pudo completar';
+    } else if (normalized.includes('correctamente') || normalized.includes('actualizado')) {
+        variant = 'success';
+        title = 'Listo';
+    } else if (normalized.includes('no encontrado')) {
+        variant = 'warning';
+        title = 'Dato no disponible';
+    }
+
+    notify(content, variant, { title });
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelector('input[name="fecha"]').value = new Date().toISOString().split('T')[0];
@@ -514,7 +581,7 @@ async function editarArqueo(id) {
         document.getElementById('editObservaciones').value = arqueo.observaciones || '';
         
         // Mostrar modal
-        new bootstrap.Modal(document.getElementById('modalEditarArqueo')).show();
+        showModal('modalEditarArqueo');
     } catch(e) {
         alert('Error al cargar datos del arqueo');
         console.error(e);
@@ -530,12 +597,12 @@ async function verHistorial(id) {
         const content = document.getElementById('historialContent');
         
         if (logs.length === 0) {
-            content.innerHTML = '<p class="text-muted text-center">Este arqueo no ha sido editado.</p>';
+            content.innerHTML = '<div class="empty-state"><i class="bi bi-clock-history empty-icon"></i><div class="empty-title">Sin ediciones registradas</div><div class="empty-text">Este arqueo todavia no tuvo modificaciones manuales.</div></div>';
         } else {
             content.innerHTML = `
                 <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead class="table-dark">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
                             <tr>
                                 <th>Fecha/Hora</th>
                                 <th>Usuario</th>
@@ -561,7 +628,7 @@ async function verHistorial(id) {
             `;
         }
         
-        new bootstrap.Modal(document.getElementById('modalHistorialArqueo')).show();
+        showModal('modalHistorialArqueo');
     } catch(e) {
         alert('Error al cargar historial');
         console.error(e);
@@ -631,10 +698,11 @@ document.getElementById('formArqueo')?.addEventListener('submit', async function
         });
         
         if (resp.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('modalNuevoArqueo')).hide();
+            hideModal('modalNuevoArqueo');
             this.reset();
             document.querySelector('input[name="fecha"]').value = new Date().toISOString().split('T')[0];
             cargarArqueos();
+            notify('Arqueo registrado correctamente.', 'success', { title: 'Cierre guardado' });
         } else {
             const err = await resp.json();
             alert('Error: ' + (err.error || 'No se pudo guardar'));
@@ -667,7 +735,7 @@ document.getElementById('formEditarArqueo')?.addEventListener('submit', async fu
         const result = await resp.json();
         
         if (resp.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('modalEditarArqueo')).hide();
+            hideModal('modalEditarArqueo');
             this.reset();
             alert('Arqueo actualizado correctamente');
             cargarArqueos();
@@ -717,10 +785,10 @@ async function verDetalleInstrumentos(id) {
 
         let html = '';
         if (detalles.length === 0) {
-            html = '<p class="text-muted text-center">Sin detalle por instrumento</p>';
+            html = '<div class="empty-state"><i class="bi bi-wallet2 empty-icon"></i><div class="empty-title">Sin detalle por instrumento</div><div class="empty-text">Este arqueo no tiene conteos individuales cargados.</div></div>';
         } else {
-            html = `<table class="table table-sm">
-                <thead class="table-dark">
+            html = `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
+                <thead>
                     <tr><th>Instrumento</th><th>Calculado</th><th>Conteo Real</th><th>Diferencia</th></tr>
                 </thead>
                 <tbody>
@@ -734,11 +802,11 @@ async function verDetalleInstrumentos(id) {
                         </tr>`;
                     }).join('')}
                 </tbody>
-            </table>`;
+            </table></div>`;
         }
 
         document.getElementById('detalleArqueoContent').innerHTML = html;
-        new bootstrap.Modal(document.getElementById('modalDetalleArqueo')).show();
+        showModal('modalDetalleArqueo');
     } catch(e) {
         alert('Error al cargar detalle');
     }

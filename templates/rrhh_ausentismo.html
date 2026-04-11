@@ -3,13 +3,16 @@
 {% block content %}
 <div class="container-fluid">
     <!-- Header -->
-    <div class="panel-header d-flex justify-content-between align-items-center">
+    <div class="panel-header">
         <div>
             <h1><i class="bi bi-clock-history"></i> Control de Asistencia</h1>
+            <span>Seguimiento mensual de fichadas, faltas y tardanzas por empleado.</span>
         </div>
-        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCargar">
-            <i class="bi bi-upload me-1"></i>Subir Fichadas
-        </button>
+        <div class="action-bar">
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCargar">
+                <i class="bi bi-upload me-1"></i>Subir Fichadas
+            </button>
+        </div>
     </div>
 
     <!-- Banner fichadas sin asociar -->
@@ -63,12 +66,16 @@
     </div>
 
     <!-- Period bar + filtros -->
-    <div class="d-flex gap-2 align-items-center flex-wrap mb-3">
-        <div class="period-bar" id="periodos"></div>
-        <select id="filtroEmpleado" class="form-select form-select-sm" style="width:200px;font-size:0.78rem;height:26px;padding:0.1rem 1.5rem 0.1rem 0.35rem;">
+    <div class="period-bar dim-bar mb-3">
+        <div class="period-pills" id="periodos"></div>
+        <span class="filter-sep"></span>
+        <label for="filtroEmpleado">Empleado</label>
+        <select id="filtroEmpleado" class="form-select form-select-sm" style="min-width: 200px;">
             <option value="">Todos los empleados</option>
         </select>
-        <select id="filtroEstado" class="form-select form-select-sm" style="width:160px;font-size:0.78rem;height:26px;padding:0.1rem 1.5rem 0.1rem 0.35rem;">
+
+        <label for="filtroEstado">Estado</label>
+        <select id="filtroEstado" class="form-select form-select-sm" style="min-width: 160px;">
             <option value="">Todos</option>
             <option value="falta">Solo faltas</option>
             <option value="tarde">Solo tardanzas</option>
@@ -78,15 +85,15 @@
     </div>
 
     <!-- Charts grid -->
-    <div class="charts-grid" style="grid-template-columns: 1fr 1fr;">
-        <div class="table-card">
-            <div class="table-card-head"><i class="bi bi-bar-chart me-1"></i>Top 10 — Peor Comportamiento</div>
+    <div class="charts-grid">
+        <div class="chart-card-v2">
+            <h3><i class="bi bi-bar-chart me-1"></i>Top 10 — Peor Comportamiento</h3>
             <div style="padding:1rem;height:280px;">
                 <canvas id="chartRanking"></canvas>
             </div>
         </div>
-        <div class="table-card">
-            <div class="table-card-head"><i class="bi bi-graph-up me-1"></i>Tendencia Puntualidad (6 meses)</div>
+        <div class="chart-card-v2">
+            <h3><i class="bi bi-graph-up me-1"></i>Tendencia Puntualidad (6 meses)</h3>
             <div style="padding:1rem;height:280px;">
                 <canvas id="chartTendencia"></canvas>
             </div>
@@ -96,10 +103,10 @@
     <!-- Tabla resumen -->
     <div class="table-card">
         <div class="table-card-head d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-table me-1"></i>Detalle de Asistencia</span>
+            <h3><i class="bi bi-table me-1"></i>Detalle de Asistencia</h3>
             <span class="text-muted" style="font-size:0.75rem;" id="tabla-count">—</span>
         </div>
-        <div class="scroll-table" style="max-height:420px;">
+        <div class="scroll-table">
             <table class="table table-hover table-sm mb-0">
                 <thead>
                     <tr>
@@ -126,12 +133,16 @@
 </div>
 
 <!-- Modal Cargar Fichadas -->
-<div class="modal fade" id="modalCargar" tabindex="-1">
-    <div class="modal-dialog">
+<div class="modal fade app-modal app-modal--blue" id="modalCargar" tabindex="-1" aria-labelledby="modalCargarTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-upload me-1"></i>Subir Fichadas del Reloj</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Importacion</span>
+                    <h5 class="modal-title" id="modalCargarTitle">Subir fichadas del reloj</h5>
+                    <p class="app-modal__subtitle">Importa el Excel exportado desde el reloj para asociar, procesar y revisar incidencias.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
@@ -148,7 +159,7 @@
                 <div id="cargaResultado" style="display:none;" class="alert alert-info mb-0"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
                 <button type="button" class="btn btn-primary btn-sm" id="btnCargar">
                     <i class="bi bi-cloud-upload me-1"></i>Subir Archivo
                 </button>
@@ -158,12 +169,15 @@
 </div>
 
 <!-- Modal Justificar -->
-<div class="modal fade" id="modalJustificar" tabindex="-1">
-    <div class="modal-dialog modal-sm">
+<div class="modal fade app-modal app-modal--amber" id="modalJustificar" tabindex="-1" aria-labelledby="modalJustificarTitle" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Justificar</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Asistencia</span>
+                    <h5 class="modal-title" id="modalJustificarTitle">Justificar incidencia</h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="justificarId">
@@ -171,6 +185,7 @@
                 <textarea class="form-control" id="justificarNotas" rows="3"></textarea>
             </div>
             <div class="modal-footer">
+                <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button class="btn btn-primary btn-sm" id="btnJustificarOk">Justificar</button>
             </div>
         </div>

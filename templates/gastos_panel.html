@@ -6,8 +6,9 @@
     <div class="panel-header">
         <div>
             <h1><i class="bi bi-cash-stack"></i> Panel de Gastos</h1>
+            <span>Seguimiento diario de egresos por categoría, proveedor e instrumento.</span>
         </div>
-        <div class="d-flex gap-2">
+        <div class="action-bar">
             <button class="btn btn-outline-secondary btn-sm" onclick="exportarGastos()">
                 <i class="bi bi-file-earmark-excel"></i> Exportar
             </button>
@@ -73,15 +74,15 @@
         <!-- Gráficos -->
         <div class="charts-grid">
             <div class="chart-card-v2">
-                <h6><i class="bi bi-bar-chart"></i> Por Categoría</h6>
+                <h3><i class="bi bi-bar-chart"></i> Por Categoría</h3>
                 <canvas id="chartCat"></canvas>
             </div>
             <div class="chart-card-v2">
-                <h6><i class="bi bi-pie-chart"></i> Por Proveedor</h6>
+                <h3><i class="bi bi-pie-chart"></i> Por Proveedor</h3>
                 <canvas id="chartProv"></canvas>
             </div>
             <div class="chart-card-v2">
-                <h6><i class="bi bi-graph-up"></i> Evolución Diaria</h6>
+                <h3><i class="bi bi-graph-up"></i> Evolución Diaria</h3>
                 <canvas id="chartEvo"></canvas>
             </div>
         </div>
@@ -89,9 +90,9 @@
         <!-- Tabla -->
         <div class="table-card">
             <div class="table-card-head">
-                <i class="bi bi-table"></i> Gastos registrados
+                <h3><i class="bi bi-table"></i> Gastos registrados</h3>
             </div>
-            <div class="table-responsive">
+            <div class="scroll-table">
                 <table class="table table-hover table-sm mb-0">
                     <thead>
                         <tr>
@@ -117,12 +118,16 @@
 </div>
 
 <!-- Modal Nuevo Gasto -->
-<div class="modal fade" id="modalNuevoGasto" tabindex="-1">
-    <div class="modal-dialog">
+<div class="modal fade app-modal app-modal--blue" id="modalNuevoGasto" tabindex="-1" aria-labelledby="modalNuevoGastoTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Registrar Gasto</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Egreso</span>
+                    <h5 class="modal-title" id="modalNuevoGastoTitle">Registrar gasto</h5>
+                    <p class="app-modal__subtitle">Carga categoria, proveedor, instrumento y referencia para mantener el panel conciliado.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <form id="formGasto">
                 <div class="modal-body">
@@ -168,8 +173,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
                 </div>
             </form>
         </div>

@@ -464,6 +464,97 @@ Standalone — **no extiende `base.html`**.
 
 ---
 
+### 3.11 Modal System — `.app-modal` y `window.App360UI`
+
+Los modals, confirmaciones y toasts del proyecto usan Bootstrap 5.3.1 como base, pero la capa visual y de interacción vive en `base.html`.
+**Todo modal nuevo debe usar el sistema `app-modal`.**
+
+```html
+<div class="modal fade app-modal app-modal--blue" id="modalEjemplo" tabindex="-1" aria-labelledby="modalEjemploTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Operacion</span>
+                    <h5 class="modal-title" id="modalEjemploTitle">Registrar movimiento</h5>
+                    <p class="app-modal__subtitle">Usar subtitulo solo cuando agrega contexto real.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                ...
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-sm btn-primary">Guardar</button>
+            </div>
+        </div>
+    </div>
+</div>
+```
+
+**Variantes permitidas:**
+
+| Clase | Uso |
+|---|---|
+| `app-modal--blue` | Acción principal, formularios neutros |
+| `app-modal--sky` | Historiales, detalle, trazabilidad |
+| `app-modal--green` | Confirmaciones positivas o cierres exitosos |
+| `app-modal--amber` | Ajustes manuales, revisiones, advertencias suaves |
+| `app-modal--danger` | Confirmaciones destructivas |
+| `app-modal--neutral` | Casos secundarios sin peso semántico |
+
+**Reglas:**
+- No usar `bg-primary`, `bg-warning`, `bg-info`, `text-white` ni headers Bootstrap saturados dentro del modal.
+- El acento visual vive en la línea superior del modal y en `.app-modal__eyebrow`, no en un bloque de color sólido.
+- Los botones del footer son siempre `btn-sm`.
+- Mantener máximo 2 acciones en el footer: cancelar + confirmar. Si hay más acciones, replantear el flujo.
+- Usar `modal-dialog-centered` por defecto. Sumar `modal-lg` o `modal-dialog-scrollable` solo cuando el contenido realmente lo requiera.
+- Los labels dentro del modal usan la tipografía compacta del sistema; no mezclar tamaños arbitrarios.
+
+**Tamaños recomendados:**
+- Default: formularios medianos y confirmaciones con algo de contexto.
+- `modal-lg`: tablas, historiales, comparación de datos.
+- `modal-sm`: solo confirmaciones muy cortas. Evitarlo si el texto necesita explicación.
+
+**API compartida JS (`window.App360UI`):**
+
+```javascript
+App360UI.notify('Pago registrado correctamente.', 'success');
+
+const ok = await App360UI.confirm({
+    variant: 'danger',
+    title: 'Eliminar pago',
+    subtitle: 'La baja queda registrada en el historial.',
+    message: 'Esta accion elimina el pago seleccionado y actualiza el saldo actual.',
+    confirmText: 'Eliminar',
+});
+
+if (ok) {
+    ...
+}
+
+const motivo = await App360UI.prompt({
+    variant: 'warning',
+    title: 'Solicitar anulación',
+    subtitle: 'El motivo queda guardado junto con la solicitud.',
+    message: 'Explica por qué debe anularse este movimiento.',
+    label: 'Motivo',
+    multiline: true,
+    required: true,
+    confirmText: 'Solicitar',
+});
+```
+
+**Reglas de uso:**
+- `App360UI.notify()` reemplaza `alert()` para feedback no bloqueante.
+- `App360UI.confirm()` reemplaza `confirm()` para acciones destructivas o sensibles.
+- `App360UI.prompt()` reemplaza `prompt()` cuando el flujo necesita pedir un dato breve o una justificación.
+- `App360UI.openModal(id)` y `App360UI.closeModal(id)` son la vía preferida para aperturas programáticas.
+- No crear toasts ni confirm modals por template si el caso entra en el sistema global.
+
+---
+
 ## 4. Patrones Prohibidos (Anti-Patterns)
 
 Los siguientes patrones Bootstrap por defecto están **explícitamente prohibidos** en este proyecto.
@@ -554,6 +645,54 @@ Si aparecen en un template, deben migrarse al DS.
     </div>
     ...
 </div>
+```
+
+### ❌ Headers de modal Bootstrap legacy
+```html
+<!-- PROHIBIDO -->
+<div class="modal-header bg-primary text-white">
+<div class="modal-header bg-warning text-dark">
+<div class="modal-header bg-info text-white">
+```
+```html
+<!-- CORRECTO -->
+<div class="modal fade app-modal app-modal--blue">
+    <div class="modal-header app-modal__header">
+        <div class="app-modal__title-group">
+            <span class="app-modal__eyebrow">Operacion</span>
+            <h5 class="modal-title">Titulo</h5>
+            <p class="app-modal__subtitle">Contexto breve</p>
+        </div>
+    </div>
+</div>
+```
+
+### ❌ `alert()`, `confirm()` y `prompt()` nativos del navegador
+```javascript
+// PROHIBIDO
+alert('Error al guardar');
+if (!confirm('¿Eliminar registro?')) return;
+const motivo = prompt('Motivo de la anulación:');
+```
+```javascript
+// CORRECTO
+App360UI.notify('Error al guardar', 'danger');
+
+const ok = await App360UI.confirm({
+    variant: 'danger',
+    title: 'Eliminar registro',
+    message: 'Esta accion no se puede deshacer.',
+    confirmText: 'Eliminar',
+});
+
+if (!ok) return;
+
+const motivo = await App360UI.prompt({
+    title: 'Solicitar anulación',
+    label: 'Motivo',
+    multiline: true,
+    required: true,
+});
 ```
 
 ### ❌ Estilos inline en templates hijos

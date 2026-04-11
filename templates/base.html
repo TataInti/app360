@@ -15,6 +15,18 @@
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 
     <style>
+        :root {
+            --app-surface-0: #ffffff;
+            --app-surface-1: #f8fafc;
+            --app-surface-2: #eff4f8;
+            --app-border-soft: #e2e8f0;
+            --app-border-strong: #cbd5e1;
+            --app-ink-strong: #0f172a;
+            --app-ink: #334155;
+            --app-ink-muted: #64748b;
+            --app-shadow-lg: 0 24px 60px rgba(15,23,42,0.18);
+        }
+
         body {
             margin: 0;
             padding: 0;
@@ -712,6 +724,352 @@
             border-radius: 0.5rem;
         }
 
+        /* ── Modal system ─────────────────────────────── */
+        .modal-backdrop {
+            --bs-backdrop-bg: #0f172a;
+            --bs-backdrop-opacity: 0.58;
+        }
+
+        .app-modal {
+            --app-modal-accent: #2563eb;
+            --app-modal-accent-soft: #eff6ff;
+            --app-modal-accent-ink: #1d4ed8;
+        }
+        .app-modal--blue {
+            --app-modal-accent: #2563eb;
+            --app-modal-accent-soft: #eff6ff;
+            --app-modal-accent-ink: #1d4ed8;
+        }
+        .app-modal--sky {
+            --app-modal-accent: #0ea5e9;
+            --app-modal-accent-soft: #ecfeff;
+            --app-modal-accent-ink: #0f766e;
+        }
+        .app-modal--green {
+            --app-modal-accent: #16a34a;
+            --app-modal-accent-soft: #ecfdf3;
+            --app-modal-accent-ink: #166534;
+        }
+        .app-modal--amber {
+            --app-modal-accent: #f59e0b;
+            --app-modal-accent-soft: #fff7ed;
+            --app-modal-accent-ink: #9a3412;
+        }
+        .app-modal--danger {
+            --app-modal-accent: #dc2626;
+            --app-modal-accent-soft: #fef2f2;
+            --app-modal-accent-ink: #991b1b;
+        }
+        .app-modal--neutral {
+            --app-modal-accent: #64748b;
+            --app-modal-accent-soft: #f1f5f9;
+            --app-modal-accent-ink: #334155;
+        }
+        .app-modal .modal-dialog {
+            margin: clamp(1rem, 4vw, 2.5rem) auto;
+        }
+        .app-modal .modal-content {
+            position: relative;
+            border: 1px solid var(--app-border-soft);
+            border-radius: 1rem;
+            overflow: hidden;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+            box-shadow: var(--app-shadow-lg);
+        }
+        .app-modal .modal-content::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 4px;
+            background: var(--app-modal-accent);
+        }
+        .app-modal .modal-header {
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1.1rem 1.25rem 1rem;
+            border-bottom: 1px solid var(--app-border-soft);
+            background: linear-gradient(180deg, #fdfefe 0%, #f5f8fb 100%);
+        }
+        .app-modal__header {
+            display: flex;
+            justify-content: space-between;
+        }
+        .app-modal__title-group {
+            min-width: 0;
+            padding-top: 0.15rem;
+        }
+        .app-modal__eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.3rem 0.55rem;
+            border-radius: 999px;
+            background: var(--app-modal-accent-soft);
+            color: var(--app-modal-accent-ink);
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin-bottom: 0.65rem;
+        }
+        .app-modal .modal-title {
+            margin: 0;
+            color: var(--app-ink-strong);
+            font-size: clamp(1rem, 1vw + 0.78rem, 1.15rem);
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .app-modal__subtitle {
+            margin: 0.35rem 0 0;
+            max-width: 42rem;
+            color: var(--app-ink-muted);
+            font-size: 0.82rem;
+            line-height: 1.5;
+        }
+        .app-modal .btn-close {
+            margin: 0;
+            padding: 0.55rem;
+            border-radius: 999px;
+            background-color: rgba(255,255,255,0.78);
+            box-shadow: inset 0 0 0 1px rgba(148,163,184,0.32);
+            opacity: 0.75;
+        }
+        .app-modal .btn-close:hover {
+            opacity: 1;
+            background-color: #ffffff;
+        }
+        .app-modal .modal-body {
+            padding: 1.15rem 1.25rem 1.25rem;
+            background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+        }
+        .app-modal .modal-footer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            padding: 0.95rem 1.25rem 1.15rem;
+            border-top: 1px solid var(--app-border-soft);
+            background: var(--app-surface-1);
+        }
+        .app-modal .modal-footer > * {
+            margin: 0;
+        }
+        .app-modal .modal-footer .btn {
+            min-width: 128px;
+        }
+        .app-modal .form-label {
+            margin-bottom: 0.42rem;
+            color: #475569;
+            font-size: 0.72rem;
+        .app-modal__notice {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.7rem;
+            padding: 0.9rem 1rem;
+            border-radius: 0.9rem;
+            border: 1px solid var(--app-border-soft);
+            background: var(--app-surface-1);
+            color: var(--app-ink);
+            font-size: 0.84rem;
+            line-height: 1.5;
+        }
+        .app-modal__notice i {
+            margin-top: 0.1rem;
+            flex-shrink: 0;
+        }
+        .app-modal__notice--warning {
+            background: #fff7ed;
+            border-color: #fed7aa;
+            color: #9a3412;
+        }
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .app-modal .form-control,
+        .app-modal .form-select,
+        .app-modal textarea {
+        .app-modal .table-responsive {
+            border: 1px solid var(--app-border-soft);
+            border-radius: 0.9rem;
+            overflow: hidden;
+            background: #ffffff;
+        }
+        .app-modal .table {
+            margin: 0;
+            font-size: 0.82rem;
+        }
+        .app-modal .table thead th {
+            background: #f8fafc;
+            font-weight: 700;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #6b7280;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .app-modal .table td,
+        .app-modal .table th {
+            vertical-align: top;
+            border-color: #e5e7eb;
+        }
+        .app-modal .table small {
+            color: var(--app-ink-muted);
+            line-height: 1.45;
+        }
+        .app-modal__prompt-error {
+            margin-top: 0.45rem;
+            font-size: 0.78rem;
+        }
+            border-radius: 0.75rem;
+            border-color: #dbe4f0;
+            padding: 0.55rem 0.7rem;
+            background: #ffffff;
+            box-shadow: none;
+        }
+        .app-modal .form-control:focus,
+        .app-modal .form-select:focus,
+        .app-modal textarea:focus {
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 0.2rem rgba(37,99,235,0.12);
+        }
+        .app-modal .form-text {
+            color: var(--app-ink-muted);
+            font-size: 0.76rem;
+        }
+        .app-modal__message {
+            margin: 0;
+            color: var(--app-ink);
+            font-size: 0.9rem;
+            line-height: 1.55;
+            white-space: pre-line;
+        }
+        .app-log-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.85rem;
+        }
+        .app-log-entry {
+            background: #ffffff;
+            border: 1px solid var(--app-border-soft);
+            border-radius: 0.9rem;
+            padding: 0.95rem 1rem;
+            box-shadow: 0 8px 20px rgba(15,23,42,0.05);
+        }
+        .app-log-entry__head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.6rem;
+        }
+        .app-log-entry__title {
+            color: var(--app-ink-strong);
+            font-weight: 700;
+        }
+        .app-log-entry__meta {
+            color: var(--app-ink-muted);
+            font-size: 0.78rem;
+        }
+        .app-log-entry__note {
+            margin: 0 0 0.75rem;
+            color: var(--app-ink);
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        .app-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+        .app-detail-card {
+            background: var(--app-surface-1);
+            border: 1px solid var(--app-border-soft);
+            border-radius: 0.8rem;
+            padding: 0.75rem 0.85rem;
+        }
+        .app-detail-card h6 {
+            margin: 0 0 0.45rem;
+            color: var(--app-ink-muted);
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .app-detail-card ul {
+            margin: 0;
+            padding-left: 1rem;
+            color: var(--app-ink);
+            font-size: 0.82rem;
+        }
+        .app-detail-card li + li {
+            margin-top: 0.25rem;
+        }
+
+        /* ── Toast system ─────────────────────────────── */
+        .app-toast-stack {
+            z-index: 1095;
+        }
+        .app-toast {
+            min-width: min(380px, calc(100vw - 2rem));
+            border-radius: 1rem;
+            overflow: hidden;
+            background: #ffffff;
+            box-shadow: 0 18px 40px rgba(15,23,42,0.18);
+            border: 1px solid rgba(148,163,184,0.18) !important;
+        }
+        .app-toast__body {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.85rem;
+            padding: 0.95rem 1rem;
+        }
+        .app-toast__icon {
+            width: 2rem;
+            height: 2rem;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            border-radius: 999px;
+            background: var(--app-toast-soft, #eff6ff);
+            color: var(--app-toast-ink, #1d4ed8);
+        }
+        .app-toast__copy {
+            min-width: 0;
+            padding-top: 0.15rem;
+        }
+        .app-toast__title {
+            display: block;
+            margin-bottom: 0.15rem;
+            color: var(--app-ink-strong);
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+        .app-toast__message {
+            color: #475569;
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
+        .app-toast .btn-close {
+            margin: 0.2rem 0.2rem 0 auto;
+        }
+        .app-toast--success {
+            --app-toast-soft: #ecfdf3;
+            --app-toast-ink: #15803d;
+        }
+        .app-toast--danger {
+            --app-toast-soft: #fef2f2;
+            --app-toast-ink: #b91c1c;
+        }
+        .app-toast--warning {
+            --app-toast-soft: #fff7ed;
+            --app-toast-ink: #b45309;
+        }
+        .app-toast--info {
+            --app-toast-soft: #eff6ff;
+            --app-toast-ink: #1d4ed8;
+        }
+
         /* ── Scroll table (sticky header) ──────────────── */
         .scroll-table {
             max-height: 420px;
@@ -729,6 +1087,12 @@
             .kpi-grid-hero { grid-template-columns: repeat(2, 1fr); }
             .kpi-grid-secondary { grid-template-columns: repeat(2, 1fr); }
             .charts-grid { grid-template-columns: 1fr; }
+            .app-modal .modal-dialog { margin: 0.75rem; }
+            .app-modal .modal-footer .btn {
+                min-width: 0;
+                flex: 1 1 140px;
+            }
+            .app-detail-grid { grid-template-columns: 1fr; }
             .sidebar { width: 56px; }
             .sidebar .logo-text,
             .sidebar .sidebar-user,
@@ -995,6 +1359,75 @@
         {% block content %}
         {% endblock %}
     </div>
+
+    <div class="position-fixed bottom-0 end-0 p-3 app-toast-stack">
+        <div id="app360Toast" class="toast app-toast app-toast--info border-0" role="status" aria-live="polite" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body app-toast__body">
+                    <div class="app-toast__icon">
+                        <i id="app360ToastIcon" class="bi bi-info-circle-fill"></i>
+                    </div>
+                    <div class="app-toast__copy">
+                        <span id="app360ToastTitle" class="app-toast__title">Informacion</span>
+                        <div id="app360ToastBody" class="app-toast__message">Actualizacion realizada.</div>
+                    </div>
+                </div>
+                <button type="button" class="btn-close me-2 mt-2" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade app-modal app-modal--danger" id="app360ConfirmModal" tabindex="-1" aria-labelledby="app360ConfirmTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header app-modal__header">
+                    <div class="app-modal__title-group">
+                        <span id="app360ConfirmEyebrow" class="app-modal__eyebrow">Accion sensible</span>
+                        <h5 class="modal-title" id="app360ConfirmTitle">Confirmar accion</h5>
+                        <p id="app360ConfirmSubtitle" class="app-modal__subtitle">Esta accion impacta datos ya registrados.</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="app360ConfirmMessage" class="app-modal__message">Confirma que queres continuar.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="app360ConfirmCancel" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" id="app360ConfirmAccept" class="btn btn-sm btn-danger">Confirmar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade app-modal app-modal--blue" id="app360PromptModal" tabindex="-1" aria-labelledby="app360PromptTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header app-modal__header">
+                    <div class="app-modal__title-group">
+                        <span id="app360PromptEyebrow" class="app-modal__eyebrow">Dato requerido</span>
+                        <h5 class="modal-title" id="app360PromptTitle">Completar dato</h5>
+                        <p id="app360PromptSubtitle" class="app-modal__subtitle">Este texto se registra junto con la accion.</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="app360PromptMessage" class="app-modal__message">Ingresa la informacion solicitada para continuar.</p>
+                    <div class="mt-3">
+                        <label id="app360PromptLabel" class="form-label" for="app360PromptInput">Detalle</label>
+                        <input type="text" id="app360PromptInput" class="form-control">
+                        <textarea id="app360PromptTextarea" class="form-control d-none" rows="4"></textarea>
+                        <div id="app360PromptHelp" class="form-text">La informacion quedara asociada al registro.</div>
+                        <div id="app360PromptError" class="invalid-feedback d-none app-modal__prompt-error"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="app360PromptCancel" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" id="app360PromptAccept" class="btn btn-sm btn-primary">Continuar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         (function () {
@@ -1036,6 +1469,379 @@
                     link.addEventListener('click', () => localStorage.setItem("sidebarScrollPos", nav.scrollTop));
                 });
                 nav.addEventListener('scroll', () => localStorage.setItem("sidebarScrollPos", nav.scrollTop));
+            }
+        })();
+
+        (function () {
+            const toastEl = document.getElementById("app360Toast");
+            const toastTitle = document.getElementById("app360ToastTitle");
+            const toastBody = document.getElementById("app360ToastBody");
+            const toastIcon = document.getElementById("app360ToastIcon");
+
+            const confirmEl = document.getElementById("app360ConfirmModal");
+            const confirmEyebrow = document.getElementById("app360ConfirmEyebrow");
+            const confirmTitle = document.getElementById("app360ConfirmTitle");
+            const confirmSubtitle = document.getElementById("app360ConfirmSubtitle");
+            const confirmMessage = document.getElementById("app360ConfirmMessage");
+            const confirmCancel = document.getElementById("app360ConfirmCancel");
+            const confirmAccept = document.getElementById("app360ConfirmAccept");
+
+            const promptEl = document.getElementById("app360PromptModal");
+            const promptEyebrow = document.getElementById("app360PromptEyebrow");
+            const promptTitle = document.getElementById("app360PromptTitle");
+            const promptSubtitle = document.getElementById("app360PromptSubtitle");
+            const promptMessage = document.getElementById("app360PromptMessage");
+            const promptLabel = document.getElementById("app360PromptLabel");
+            const promptInput = document.getElementById("app360PromptInput");
+            const promptTextarea = document.getElementById("app360PromptTextarea");
+            const promptHelp = document.getElementById("app360PromptHelp");
+            const promptError = document.getElementById("app360PromptError");
+            const promptCancel = document.getElementById("app360PromptCancel");
+            const promptAccept = document.getElementById("app360PromptAccept");
+
+            const toastVariants = {
+                success: {
+                    className: "app-toast--success",
+                    icon: "bi-check-circle-fill",
+                    title: "Listo"
+                },
+                danger: {
+                    className: "app-toast--danger",
+                    icon: "bi-exclamation-octagon-fill",
+                    title: "No se pudo completar"
+                },
+                warning: {
+                    className: "app-toast--warning",
+                    icon: "bi-exclamation-triangle-fill",
+                    title: "Revisar datos"
+                },
+                info: {
+                    className: "app-toast--info",
+                    icon: "bi-info-circle-fill",
+                    title: "Informacion"
+                }
+            };
+
+            const confirmVariants = {
+                danger: {
+                    modalClass: "app-modal--danger",
+                    buttonClass: "btn-danger",
+                    eyebrow: "Accion sensible",
+                    title: "Confirmar accion",
+                    subtitle: "Esta accion impacta datos ya registrados."
+                },
+                warning: {
+                    modalClass: "app-modal--amber",
+                    buttonClass: "btn-warning",
+                    eyebrow: "Verificacion",
+                    title: "Confirmar cambio",
+                    subtitle: "Revisa la informacion antes de continuar."
+                },
+                info: {
+                    modalClass: "app-modal--blue",
+                    buttonClass: "btn-primary",
+                    eyebrow: "Confirmacion",
+                    title: "Continuar",
+                    subtitle: "La accion se ejecutara inmediatamente."
+                }
+            };
+
+            const toastClasses = Object.values(toastVariants).map((item) => item.className);
+            const confirmClasses = Object.values(confirmVariants).map((item) => item.modalClass);
+            const nativeAlert = typeof window.alert === "function" ? window.alert.bind(window) : null;
+            let confirmResolver = null;
+            let confirmResult = false;
+            let confirmFocusTarget = null;
+            let promptResolver = null;
+            let promptResult = null;
+            let promptOptions = null;
+
+            function inferAlertPresentation(message) {
+                const content = String(message || "");
+                const normalized = content.toLowerCase();
+
+                if (normalized.startsWith("error") || normalized.includes("no se pudo") || normalized.includes("fall")) {
+                    return { variant: "danger", title: "No se pudo completar" };
+                }
+                if (normalized.includes("obligatorio") || normalized.includes("seleccion") || normalized.includes("confirm") || normalized.includes("revis")) {
+                    return { variant: "warning", title: "Revisar datos" };
+                }
+                if (normalized.includes("guardad") || normalized.includes("actualiz") || normalized.includes("eliminad") || normalized.includes("cread") || normalized.includes("autorizad") || normalized.includes("rechazada") || normalized.includes("procesado") || normalized.includes("asociaron")) {
+                    return { variant: "success", title: "Listo" };
+                }
+
+                return { variant: "info", title: "Informacion" };
+            }
+
+            function resolveElement(ref) {
+                if (!ref) return null;
+                if (typeof ref === "string") return document.getElementById(ref);
+                return ref;
+            }
+
+            function activePromptField() {
+                return promptOptions?.multiline ? promptTextarea : promptInput;
+            }
+
+            function resetPromptValidation() {
+                [promptInput, promptTextarea].forEach((field) => {
+                    field?.classList.remove("is-invalid");
+                });
+                promptError?.classList.add("d-none");
+                if (promptError) promptError.textContent = "";
+            }
+
+            function notify(message, variant = "info", options = {}) {
+                if (!toastEl || typeof bootstrap === "undefined") {
+                    return;
+                }
+
+                const config = toastVariants[variant] || toastVariants.info;
+                const delay = Number.isFinite(options.delay) ? options.delay : 4200;
+                toastEl.classList.remove(...toastClasses);
+                toastEl.classList.add(config.className);
+                toastTitle.textContent = options.title || config.title;
+                toastBody.textContent = message;
+                toastIcon.className = `bi ${config.icon}`;
+                bootstrap.Toast.getOrCreateInstance(toastEl, { delay }).show();
+            }
+
+            function openModal(ref) {
+                const modalEl = resolveElement(ref);
+                if (!modalEl || typeof bootstrap === "undefined") return null;
+                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                modal.show();
+                return modal;
+            }
+
+            function closeModal(ref) {
+                const modalEl = resolveElement(ref);
+                if (!modalEl || typeof bootstrap === "undefined") return;
+                bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+            }
+
+            function focusFirstModalField(modalEl) {
+                if (!(modalEl instanceof HTMLElement)) return;
+
+                window.requestAnimationFrame(function () {
+                    if (modalEl.contains(document.activeElement)) return;
+
+                    const focusTarget = modalEl.querySelector(
+                        '[data-app-modal-focus], .modal-body input:not([type="hidden"]):not([disabled]), .modal-body select:not([disabled]), .modal-body textarea:not([disabled]), .modal-body button:not([disabled]), .modal-footer .btn:not([disabled])'
+                    );
+
+                    if (!(focusTarget instanceof HTMLElement)) return;
+
+                    focusTarget.focus();
+                    if (
+                        typeof focusTarget.select === "function" &&
+                        (focusTarget.matches("input[type='text']") ||
+                            focusTarget.matches("input[type='search']") ||
+                            focusTarget.matches("input[type='number']") ||
+                            focusTarget.matches("input[type='email']") ||
+                            focusTarget.matches("input[type='url']") ||
+                            focusTarget.matches("textarea"))
+                    ) {
+                        focusTarget.select();
+                    }
+                });
+            }
+
+            if (typeof bootstrap !== "undefined") {
+                document.querySelectorAll(".modal").forEach(function (modalEl) {
+                    if (modalEl === confirmEl || modalEl === promptEl) return;
+                    modalEl.addEventListener("shown.bs.modal", function () {
+                        focusFirstModalField(modalEl);
+                    });
+                });
+
+                document.addEventListener("click", function (event) {
+                    const trigger = event.target instanceof Element
+                        ? event.target.closest('[data-bs-toggle="modal"][data-bs-target], [data-bs-toggle="modal"][href^="#"]')
+                        : null;
+                    if (!(trigger instanceof HTMLElement)) return;
+
+                    const targetSelector = trigger.getAttribute("data-bs-target") || trigger.getAttribute("href");
+                    if (!targetSelector || !targetSelector.startsWith("#")) return;
+
+                    const modalEl = document.querySelector(targetSelector);
+                    if (!(modalEl instanceof HTMLElement)) return;
+                    if (modalEl === confirmEl || modalEl === promptEl) return;
+
+                    window.setTimeout(function () {
+                        focusFirstModalField(modalEl);
+                    }, 220);
+                });
+            }
+
+            if (confirmEl && typeof bootstrap !== "undefined") {
+                confirmEl.addEventListener("shown.bs.modal", function () {
+                    confirmFocusTarget?.focus();
+                });
+
+                confirmEl.addEventListener("hidden.bs.modal", function () {
+                    if (confirmResolver) {
+                        const resolve = confirmResolver;
+                        confirmResolver = null;
+                        resolve(confirmResult);
+                    }
+                    confirmResult = false;
+                    confirmFocusTarget = null;
+                });
+
+                confirmAccept.addEventListener("click", function () {
+                    confirmResult = true;
+                    closeModal(confirmEl);
+                });
+            }
+
+            if (promptEl && typeof bootstrap !== "undefined") {
+                promptEl.addEventListener("shown.bs.modal", function () {
+                    const field = activePromptField();
+                    field?.focus();
+                    field?.select?.();
+                });
+
+                promptEl.addEventListener("hidden.bs.modal", function () {
+                    if (promptResolver) {
+                        const resolve = promptResolver;
+                        promptResolver = null;
+                        resolve(promptResult);
+                    }
+                    promptResult = null;
+                    promptOptions = null;
+                    if (promptInput) promptInput.value = "";
+                    if (promptTextarea) promptTextarea.value = "";
+                    resetPromptValidation();
+                });
+
+                promptAccept.addEventListener("click", function () {
+                    const field = activePromptField();
+                    const rawValue = field?.value ?? "";
+                    const value = promptOptions?.trim === false ? rawValue : rawValue.trim();
+                    if (promptOptions?.required && !value) {
+                        field?.classList.add("is-invalid");
+                        if (promptError) {
+                            promptError.textContent = promptOptions.errorText || "Completa este campo para continuar.";
+                            promptError.classList.remove("d-none");
+                        }
+                        field?.focus();
+                        return;
+                    }
+                    promptResult = value || null;
+                    closeModal(promptEl);
+                });
+
+                [promptInput, promptTextarea].forEach((field) => {
+                    field?.addEventListener("input", function () {
+                        resetPromptValidation();
+                    });
+                });
+
+                promptInput?.addEventListener("keydown", function (event) {
+                    if (event.key === "Enter") {
+                        event.preventDefault();
+                        promptAccept.click();
+                    }
+                });
+            }
+
+            function confirmAction(options = {}) {
+                if (!confirmEl || typeof bootstrap === "undefined") {
+                    return Promise.resolve(window.confirm(options.message || options.title || "Confirmar accion"));
+                }
+
+                if (confirmResolver) {
+                    confirmResolver(false);
+                    confirmResolver = null;
+                }
+
+                const variant = options.variant || "danger";
+                const config = confirmVariants[variant] || confirmVariants.danger;
+                confirmEl.classList.remove(...confirmClasses);
+                confirmEl.classList.add(config.modalClass);
+                confirmEyebrow.textContent = options.eyebrow || config.eyebrow;
+                confirmTitle.textContent = options.title || config.title;
+                confirmSubtitle.textContent = options.subtitle || config.subtitle;
+                confirmMessage.textContent = options.message || "Confirma que queres continuar.";
+                confirmCancel.textContent = options.cancelText || "Cancelar";
+                confirmAccept.textContent = options.confirmText || "Confirmar";
+                confirmAccept.className = `btn btn-sm ${options.confirmClass || config.buttonClass}`;
+                confirmResult = false;
+                confirmFocusTarget = options.focus === "confirm" ? confirmAccept : confirmCancel;
+                openModal(confirmEl);
+
+                return new Promise((resolve) => {
+                    confirmResolver = resolve;
+                });
+            }
+
+            function promptAction(options = {}) {
+                if (!promptEl || typeof bootstrap === "undefined") {
+                    return Promise.resolve(window.prompt(options.message || options.title || "Ingresa un valor", options.value || ""));
+                }
+
+                if (promptResolver) {
+                    promptResolver(null);
+                    promptResolver = null;
+                }
+
+                const variant = options.variant || "info";
+                const config = confirmVariants[variant] || confirmVariants.info;
+                promptOptions = Object.assign({
+                    multiline: false,
+                    required: false,
+                    trim: true,
+                    rows: 4,
+                }, options);
+
+                promptEl.classList.remove(...confirmClasses);
+                promptEl.classList.add(config.modalClass);
+                promptEyebrow.textContent = options.eyebrow || "Dato requerido";
+                promptTitle.textContent = options.title || "Completar dato";
+                promptSubtitle.textContent = options.subtitle || config.subtitle;
+                promptMessage.textContent = options.message || "Ingresa la informacion solicitada para continuar.";
+                promptLabel.textContent = options.label || "Detalle";
+                promptHelp.textContent = options.helperText || "La informacion quedara asociada al registro.";
+                promptHelp.classList.toggle("d-none", !options.helperText);
+                promptCancel.textContent = options.cancelText || "Cancelar";
+                promptAccept.textContent = options.confirmText || "Continuar";
+                promptAccept.className = `btn btn-sm ${options.confirmClass || config.buttonClass}`;
+                promptInput.placeholder = options.placeholder || "";
+                promptTextarea.placeholder = options.placeholder || "";
+                promptTextarea.rows = options.rows || 4;
+                promptInput.value = options.value || "";
+                promptTextarea.value = options.value || "";
+                promptInput.classList.toggle("d-none", !!options.multiline);
+                promptTextarea.classList.toggle("d-none", !options.multiline);
+                resetPromptValidation();
+                promptResult = null;
+                openModal(promptEl);
+
+                return new Promise((resolve) => {
+                    promptResolver = resolve;
+                });
+            }
+
+            window.App360UI = Object.assign(window.App360UI || {}, {
+                notify,
+                openModal,
+                closeModal,
+                confirm: confirmAction,
+                prompt: promptAction,
+                inferAlert: inferAlertPresentation,
+            });
+
+            if (!window.__app360AlertBridgeInstalled) {
+                window.alert = function (message) {
+                    if (!toastEl || typeof bootstrap === "undefined") {
+                        nativeAlert?.(message);
+                        return;
+                    }
+                    const presentation = inferAlertPresentation(message);
+                    notify(String(message || ""), presentation.variant, { title: presentation.title });
+                };
+                window.__app360AlertBridgeInstalled = true;
             }
         })();
     </script>

@@ -2,11 +2,16 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="bi bi-bullseye"></i> Objetivos de Venta</h1>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoObjetivo">
-            <i class="bi bi-plus-circle"></i> Nuevo Objetivo
-        </button>
+    <div class="panel-header">
+        <div>
+            <h1><i class="bi bi-bullseye"></i> Objetivos de Venta</h1>
+            <span>Seguimiento de metas comerciales por vendedor y periodo</span>
+        </div>
+        <div class="action-bar">
+            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoObjetivo">
+                <i class="bi bi-plus-circle"></i> Nuevo objetivo
+            </button>
+        </div>
     </div>
 
     <!-- Filtro de Periodo -->
@@ -91,7 +96,7 @@
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-hover">
-                            <thead class="table-dark">
+                            <thead>
                                 <tr>
                                     <th>Vendedor</th>
                                     <th>Objetivo</th>
@@ -114,12 +119,16 @@
 </div>
 
 <!-- Modal Nuevo Objetivo -->
-<div class="modal fade" id="modalNuevoObjetivo" tabindex="-1">
-    <div class="modal-dialog">
+<div class="modal fade app-modal app-modal--blue" id="modalNuevoObjetivo" tabindex="-1" aria-labelledby="modalNuevoObjetivoTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Nuevo Objetivo de Venta</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Meta comercial</span>
+                    <h5 class="modal-title" id="modalNuevoObjetivoTitle">Nuevo objetivo de venta</h5>
+                    <p class="app-modal__subtitle">Define el vendedor, el periodo y la meta para empezar a medir progreso.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <form id="formObjetivo">
                 <div class="modal-body">
@@ -159,8 +168,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
                 </div>
             </form>
         </div>
@@ -168,12 +177,16 @@
 </div>
 
 <!-- Modal Editar Objetivo -->
-<div class="modal fade" id="modalEditarObjetivo" tabindex="-1">
-    <div class="modal-dialog">
+<div class="modal fade app-modal app-modal--amber" id="modalEditarObjetivo" tabindex="-1" aria-labelledby="modalEditarObjetivoTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Actualizar Progreso</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Seguimiento</span>
+                    <h5 class="modal-title" id="modalEditarObjetivoTitle">Actualizar progreso</h5>
+                    <p class="app-modal__subtitle">Ajusta el valor actual y el estado para mantener el tablero alineado con la realidad comercial.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <form id="formEditar">
                 <input type="hidden" name="objetivo_id" id="editObjetivoId">
@@ -200,8 +213,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Actualizar</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Actualizar</button>
                 </div>
             </form>
         </div>
@@ -210,6 +223,65 @@
 
 <script>
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+
+function getUI() {
+    return window.App360UI;
+}
+
+function notify(message, variant = 'info', options = {}) {
+    const ui = getUI();
+    if (ui && typeof ui.notify === 'function') {
+        ui.notify(message, variant, options);
+        return;
+    }
+    window.alert(message);
+}
+
+function askConfirmation(options) {
+    const ui = getUI();
+    if (ui && typeof ui.confirm === 'function') {
+        return ui.confirm(options);
+    }
+    return Promise.resolve(window.confirm(options.message || options.title || 'Confirmar accion'));
+}
+
+function showModal(modalId) {
+    const ui = getUI();
+    if (ui && typeof ui.openModal === 'function') {
+        ui.openModal(modalId);
+        return;
+    }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).show();
+}
+
+function hideModal(modalId) {
+    const ui = getUI();
+    if (ui && typeof ui.closeModal === 'function') {
+        ui.closeModal(modalId);
+        return;
+    }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).hide();
+}
+
+function alert(message) {
+    const content = String(message || '');
+    const normalized = content.toLowerCase();
+    let variant = 'info';
+    let title = 'Informacion';
+
+    if (normalized.startsWith('error') || normalized.includes('no se pudo')) {
+        variant = 'danger';
+        title = 'No se pudo completar';
+    } else if (normalized.includes('eliminar')) {
+        variant = 'warning';
+        title = 'Revisar accion';
+    } else if (normalized.includes('actualiz') || normalized.includes('guardad')) {
+        variant = 'success';
+        title = 'Listo';
+    }
+
+    notify(content, variant, { title });
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     const hoy = new Date();
@@ -326,11 +398,18 @@ function editarObjetivo(id, empleado, meta, actual, estado) {
     document.getElementById('editActual').value = actual;
     document.getElementById('editEstado').value = estado;
     
-    new bootstrap.Modal(document.getElementById('modalEditarObjetivo')).show();
+    showModal('modalEditarObjetivo');
 }
 
 async function eliminarObjetivo(id) {
-    if (!confirm('¿Eliminar este objetivo?')) return;
+    const confirmed = await askConfirmation({
+        variant: 'danger',
+        title: 'Eliminar objetivo',
+        subtitle: 'La baja remueve la meta del periodo actual.',
+        message: 'Confirma que queres eliminar este objetivo comercial.',
+        confirmText: 'Eliminar',
+    });
+    if (!confirmed) return;
     
     try {
         const resp = await fetch(`/api/comercial/objetivos/${id}`, {
@@ -339,6 +418,7 @@ async function eliminarObjetivo(id) {
         });
         if (resp.ok) {
             cargarDatos();
+            notify('Objetivo eliminado correctamente.', 'success', { title: 'Objetivo actualizado' });
         } else {
             alert('Error al eliminar');
         }
@@ -371,10 +451,11 @@ document.getElementById('formObjetivo')?.addEventListener('submit', async functi
         });
         
         if (resp.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('modalNuevoObjetivo')).hide();
+            hideModal('modalNuevoObjetivo');
             this.reset();
             document.getElementById('periodoNuevo').value = document.getElementById('periodoFiltro').value;
             cargarDatos();
+            notify('Objetivo creado correctamente.', 'success', { title: 'Objetivo guardado' });
         } else {
             const err = await resp.json();
             alert('Error: ' + (err.error || 'No se pudo guardar'));
@@ -404,8 +485,9 @@ document.getElementById('formEditar')?.addEventListener('submit', async function
         });
         
         if (resp.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('modalEditarObjetivo')).hide();
+            hideModal('modalEditarObjetivo');
             cargarDatos();
+            notify('Objetivo actualizado correctamente.', 'success', { title: 'Seguimiento guardado' });
         } else {
             alert('Error al actualizar');
         }

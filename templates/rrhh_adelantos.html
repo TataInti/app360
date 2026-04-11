@@ -2,82 +2,119 @@
 
 {% block content %}
 <div class="container-fluid">
-    <h1 class="mb-4">Adelantos y Préstamos - RRHH</h1>
+    <div class="panel-header">
+        <div>
+            <h1><i class="bi bi-wallet2"></i> Adelantos y Préstamos</h1>
+            <span>Gestiona solicitudes, aprobaciones y saldos pendientes del equipo en un solo flujo.</span>
+        </div>
+        <div class="action-bar">
+            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoAdelanto">
+                <i class="bi bi-plus-circle"></i> Nueva solicitud
+            </button>
+        </div>
+    </div>
+
+    <div class="kpi-grid">
+        <div class="kpi-card accent-blue">
+            <span class="kpi-label">Solicitudes</span>
+            <span class="kpi-value" id="kpiSolicitudes">0</span>
+            <span class="kpi-sub">Total del filtro actual</span>
+        </div>
+        <div class="kpi-card accent-amber">
+            <span class="kpi-label">Pendientes</span>
+            <span class="kpi-value" id="kpiPendientes">0</span>
+            <span class="kpi-sub">Esperando aprobación</span>
+        </div>
+        <div class="kpi-card accent-green">
+            <span class="kpi-label">Aprobados activos</span>
+            <span class="kpi-value" id="kpiAprobados">0</span>
+            <span class="kpi-sub">Aprobados sin liquidar</span>
+        </div>
+        <div class="kpi-card accent-red">
+            <span class="kpi-label">Saldo pendiente</span>
+            <span class="kpi-value" id="kpiSaldoPendiente">$0</span>
+            <span class="kpi-sub">Capital aún por descontar</span>
+        </div>
+    </div>
 
     <!-- Filtros -->
-    <div class="row mb-3">
-        <div class="col-md-3">
-            <label class="form-label">Tipo</label>
-            <select class="form-control" id="filtro-tipo" onchange="cargarAdelantos()">
+    <div class="period-bar dim-bar mb-3">
+        <label for="filtro-tipo">Tipo</label>
+        <select class="form-select form-select-sm" id="filtro-tipo" onchange="cargarAdelantos()">
                 <option value="">Todos</option>
                 <option value="adelanto_efectivo">Adelanto Efectivo</option>
                 <option value="adelanto_mercaderia">Adelanto Mercadería</option>
                 <option value="prestamo">Préstamo</option>
             </select>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Estado</label>
-            <select class="form-control" id="filtro-estado" onchange="cargarAdelantos()">
+
+        <label for="filtro-estado">Estado</label>
+        <select class="form-select form-select-sm" id="filtro-estado" onchange="cargarAdelantos()">
                 <option value="">Todos</option>
                 <option value="pendiente">Pendientes</option>
                 <option value="aprobado">Aprobados</option>
                 <option value="liquidado">Liquidados</option>
             </select>
-        </div>
-        <div class="col-md-3">
-            <label class="form-label">Mes Aplicación</label>
-            <input type="month" class="form-control" id="filtro-mes" onchange="cargarAdelantos()">
-        </div>
-        <div class="col-md-3 d-flex align-items-end gap-2">
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoAdelanto">
-                <i class="bi bi-plus-circle"></i> Nueva Solicitud
-            </button>
-        </div>
+
+        <label for="filtro-mes">Mes aplicación</label>
+        <input type="month" class="form-control form-control-sm" id="filtro-mes" onchange="cargarAdelantos()">
+
+        <button class="pp pp-action" onclick="cargarAdelantos()">
+            <i class="bi bi-search"></i> Aplicar
+        </button>
     </div>
 
     <!-- Tabla de Adelantos -->
-    <div class="table-responsive">
-        <table class="table table-hover">
-            <thead class="table-dark">
-                <tr>
-                    <th>Empleado</th>
-                    <th>Tipo</th>
-                    <th>Monto</th>
-                    <th>Concepto</th>
-                    <th>Mes Aplicación</th>
-                    <th>Cuotas</th>
-                    <th>Saldo Pendiente</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="tabla-adelantos">
-                <tr><td colspan="9" class="text-center">Cargando...</td></tr>
-            </tbody>
-        </table>
+    <div class="table-card">
+        <div class="table-card-head">
+            <h3><i class="bi bi-table"></i> Solicitudes registradas</h3>
+        </div>
+        <div class="scroll-table">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Empleado</th>
+                        <th>Tipo</th>
+                        <th>Monto</th>
+                        <th>Concepto</th>
+                        <th>Mes Aplicación</th>
+                        <th>Cuotas</th>
+                        <th>Saldo Pendiente</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-adelantos">
+                    <tr><td colspan="9" class="text-center"><span class="loading-text">Cargando datos…</span></td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
 <!-- Modal Nuevo Adelanto -->
-<div class="modal fade" id="modalNuevoAdelanto" tabindex="-1">
-    <div class="modal-dialog">
+<div class="modal fade app-modal app-modal--blue" id="modalNuevoAdelanto" tabindex="-1" aria-labelledby="modalNuevoAdelantoTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Solicitar Adelanto o Préstamo</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">RRHH</span>
+                    <h5 class="modal-title" id="modalNuevoAdelantoTitle">Solicitar adelanto o prestamo</h5>
+                    <p class="app-modal__subtitle">Crea una solicitud con tipo, monto y condiciones para su aprobacion posterior.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <form id="formAdelanto">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Empleado</label>
-                        <select class="form-control" name="empleado_id" required id="select-empleado">
+                        <select class="form-select" name="empleado_id" required id="select-empleado">
                             <option>Cargando...</option>
                         </select>
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Tipo</label>
-                        <select class="form-control" name="tipo" id="tipo-adelanto" required onchange="toggleCamposPorTipo()">
+                        <select class="form-select" name="tipo" id="tipo-adelanto" required onchange="toggleCamposPorTipo()">
                             <option value="">Seleccionar...</option>
                             <option value="adelanto_efectivo">Adelanto en Efectivo</option>
                             <option value="adelanto_mercaderia">Adelanto en Mercadería</option>
@@ -114,8 +151,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Crear Solicitud</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Crear solicitud</button>
                 </div>
             </form>
         </div>
@@ -123,20 +160,24 @@
 </div>
 
 <!-- Modal Aprobar -->
-<div class="modal fade" id="modalAprobar" tabindex="-1">
-    <div class="modal-dialog">
+<div class="modal fade app-modal app-modal--amber" id="modalAprobar" tabindex="-1" aria-labelledby="modalAprobarTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Aprobar Solicitud</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Aprobacion</span>
+                    <h5 class="modal-title" id="modalAprobarTitle">Aprobar solicitud</h5>
+                    <p class="app-modal__subtitle">Confirma la aprobacion para que la solicitud quede disponible en liquidaciones o cuotas.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
                 <p>¿Confirmar aprobación de la solicitud?</p>
                 <input type="hidden" id="adelanto-id">
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-success" onclick="aprobarAdelanto()">Aprobar</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-sm btn-success" onclick="aprobarAdelanto()">Aprobar</button>
             </div>
         </div>
     </div>
@@ -144,6 +185,21 @@
 
 <script>
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    function fmtMonto(valor) {
+        return '$' + Number(valor || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+    }
+
+    function actualizarResumen(adelantos) {
+        const pendientes = adelantos.filter(a => !a.aprobado).length;
+        const aprobados = adelantos.filter(a => a.aprobado && !a.liquidado).length;
+        const saldoPendiente = adelantos.reduce((total, a) => total + Number(a.saldo_pendiente || 0), 0);
+
+        document.getElementById('kpiSolicitudes').textContent = adelantos.length;
+        document.getElementById('kpiPendientes').textContent = pendientes;
+        document.getElementById('kpiAprobados').textContent = aprobados;
+        document.getElementById('kpiSaldoPendiente').textContent = fmtMonto(saldoPendiente);
+    }
 
     function toggleCamposPorTipo() {
         const tipo = document.getElementById('tipo-adelanto').value;
@@ -192,7 +248,9 @@
         fetch(`/api/rrhh/adelantos?${params}`)
             .then(r => r.json())
             .then(data => {
-                actualizarTabla(data.adelantos || []);
+                const adelantos = data.adelantos || [];
+                actualizarResumen(adelantos);
+                actualizarTabla(adelantos);
             })
             .catch(e => console.error('Error:', e));
     }
@@ -200,7 +258,11 @@
     function actualizarTabla(adelantos) {
         const tbody = document.getElementById('tabla-adelantos');
         if (!adelantos.length) {
-            tbody.innerHTML = '<tr><td colspan="9" class="text-center">Sin registros</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">
+                <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+                <div class="empty-title">Sin solicitudes para este filtro</div>
+                <div class="empty-text">Ajustá el período o cargá una nueva solicitud para continuar.</div>
+            </div></td></tr>`;
             return;
         }
 
@@ -215,6 +277,10 @@
                 ? `${a.cuotas_pagadas}/${a.cantidad_cuotas}` 
                 : '-';
 
+            const concepto = (a.concepto || '').length > 40
+                ? `${a.concepto.substring(0, 40)}...`
+                : (a.concepto || '-');
+
             const estadoBadge = a.liquidado 
                 ? '<span class="badge bg-secondary">Liquidado</span>'
                 : a.aprobado 
@@ -225,11 +291,11 @@
                 <tr>
                     <td>${a.empleado.nombre}</td>
                     <td><span class="badge bg-info">${tipoLabel}</span></td>
-                    <td>$${parseFloat(a.monto).toFixed(2)}</td>
-                    <td>${a.concepto.substring(0, 40)}...</td>
+                    <td>${fmtMonto(a.monto)}</td>
+                    <td>${concepto}</td>
                     <td>${a.mes_aplicacion || '-'}</td>
                     <td>${cuotasInfo}</td>
-                    <td>$${parseFloat(a.saldo_pendiente).toFixed(2)}</td>
+                    <td>${fmtMonto(a.saldo_pendiente)}</td>
                     <td>${estadoBadge}</td>
                     <td>
                         ${!a.aprobado ? `<button class="btn btn-sm btn-warning" onclick="abrirAprobar(${a.id})">Aprobar</button>` : ''}

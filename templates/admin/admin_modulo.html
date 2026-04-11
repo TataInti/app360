@@ -136,12 +136,16 @@
 </div>
 
 <!-- Modal Crear/Editar -->
-<div class="modal fade" id="modalEntidad" tabindex="-1">
-    <div class="modal-dialog">
+<div class="modal fade app-modal app-modal--blue" id="modalEntidad" tabindex="-1" aria-labelledby="modalEntidadTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="modalTitulo">Nuevo Registro</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Catalogo</span>
+                    <h5 class="modal-title" id="modalTitulo">Nuevo Registro</h5>
+                    <p class="app-modal__subtitle" id="modalEntidadTitle">Alta y edicion de registros del catalogo seleccionado.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <form id="formEntidad">
                 <input type="hidden" name="item_id" id="itemId">
@@ -150,8 +154,8 @@
                     <!-- Campos dinámicos -->
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
                 </div>
             </form>
         </div>
@@ -159,12 +163,16 @@
 </div>
 
 <!-- Modal Configurar Horarios por Día (Turnos) -->
-<div class="modal fade" id="modalTurnoDias" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade app-modal app-modal--sky" id="modalTurnoDias" tabindex="-1" aria-labelledby="modalTurnoDiasTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Configurar Horarios: <span id="turnoDiasNombre"></span></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Turnos</span>
+                    <h5 class="modal-title" id="modalTurnoDiasTitle">Configurar horarios: <span id="turnoDiasNombre"></span></h5>
+                    <p class="app-modal__subtitle">Define por dia si el turno trabaja, si es cortado y los horarios habilitados.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="turnoDiasId">
@@ -186,8 +194,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="guardarTurnoDias()">Guardar Horarios</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="guardarTurnoDias()">Guardar horarios</button>
             </div>
         </div>
     </div>
@@ -201,6 +209,36 @@ const EMPLOYEE_LOCATIONS = {{ locations|tojson }};
 const EMPLOYEE_TURNOS = {{ employee_turnos|tojson }};
 const FIELD_LABELS = {{ field_labels|tojson }};
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+function getUI() {
+    return window.App360UI;
+}
+
+function showModal(modalId) {
+    const ui = getUI();
+    if (ui && typeof ui.openModal === 'function') {
+        ui.openModal(modalId);
+        return;
+    }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).show();
+}
+
+function hideModal(modalId) {
+    const ui = getUI();
+    if (ui && typeof ui.closeModal === 'function') {
+        ui.closeModal(modalId);
+        return;
+    }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).hide();
+}
+
+function askConfirmation(options) {
+    const ui = getUI();
+    if (ui && typeof ui.confirm === 'function') {
+        return ui.confirm(options);
+    }
+    return Promise.resolve(window.confirm(options.message || options.title || 'Confirmar accion'));
+}
 
 function isEmployeeEntity(entidad) {
     return MODULO === 'rrhh' && entidad === 'empleados';
@@ -352,7 +390,7 @@ function abrirModalNuevo(entidad, fields, required) {
         appendField(container, entidad, field, undefined, isRequired);
     });
     
-    new bootstrap.Modal(document.getElementById('modalEntidad')).show();
+    showModal('modalEntidad');
     } catch(e) {
         console.error('Error en abrirModalNuevo:', e);
         alert('Error abriendo formulario: ' + e.message);
@@ -388,7 +426,7 @@ async function editarItem(entidad, id, fields) {
             appendField(container, entidad, field, item[field], false);
         });
         
-        new bootstrap.Modal(document.getElementById('modalEntidad')).show();
+        showModal('modalEntidad');
     } catch(e) {
         alert('Error cargando datos: ' + e.message);
     }
@@ -412,7 +450,14 @@ async function toggleItem(entidad, id) {
 }
 
 async function eliminarItem(entidad, id) {
-    if (!confirm('¿Está seguro de eliminar este registro?')) return;
+    const confirmed = await askConfirmation({
+        variant: 'danger',
+        title: 'Eliminar registro',
+        subtitle: 'La baja remueve el registro del catalogo actual.',
+        message: 'Confirma que queres eliminar este registro.',
+        confirmText: 'Eliminar',
+    });
+    if (!confirmed) return;
     
     try {
         const resp = await fetch(`/api/admin/${MODULO}/${entidad}/${id}`, { 
@@ -477,7 +522,7 @@ document.getElementById('formEntidad')?.addEventListener('submit', async functio
         const result = await resp.json();
         
         if (result.success || result.id) {
-            bootstrap.Modal.getInstance(document.getElementById('modalEntidad')).hide();
+            hideModal('modalEntidad');
             // Si se creó un turno nuevo, abrir modal de horarios automáticamente
             if (!id && isTurnoEntity(entidad) && result.id) {
                 sessionStorage.setItem('openTurnoDias', JSON.stringify({id: result.id, nombre: data.nombre || 'Nuevo Turno'}));
@@ -506,7 +551,7 @@ async function abrirModalTurnoDias(turnoId, turnoNombre) {
         const resp = await fetch(`/api/rrhh/turnos/${turnoId}/dias`);
         const data = await resp.json();
         renderTurnoDias(data.dias || []);
-        new bootstrap.Modal(document.getElementById('modalTurnoDias')).show();
+        showModal('modalTurnoDias');
     } catch(e) {
         alert('Error cargando horarios: ' + e.message);
     }
@@ -629,7 +674,7 @@ async function guardarTurnoDias() {
         const data = await resp.json();
         if (resp.ok) {
             alert('Horarios guardados correctamente');
-            bootstrap.Modal.getInstance(document.getElementById('modalTurnoDias')).hide();
+            hideModal('modalTurnoDias');
         } else {
             alert('Error: ' + (data.error || 'No se pudo guardar'));
         }
@@ -670,7 +715,7 @@ async function abrirModalPortadoresInstrumento(instrId, instrNombre) {
         renderPortadoresCheckboxes(data.portadores || []);
         document.getElementById('instrPortListaLoading').style.display = 'none';
         document.getElementById('instrPortLista').style.display = '';
-        new bootstrap.Modal(document.getElementById('modalInstrumentoPortadores')).show();
+        showModal('modalInstrumentoPortadores');
     } catch(e) {
         alert('Error cargando portadores: ' + e.message);
     }
@@ -720,7 +765,7 @@ async function guardarPortadoresInstrumento() {
         );
         const data = await resp.json();
         if (resp.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('modalInstrumentoPortadores')).hide();
+            hideModal('modalInstrumentoPortadores');
         } else {
             alert('Error: ' + (data.error || 'No se pudo guardar'));
         }
@@ -731,12 +776,16 @@ async function guardarPortadoresInstrumento() {
 </script>
 
 <!-- Modal Configurar Portadores por Instrumento -->
-<div class="modal fade" id="modalInstrumentoPortadores" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade app-modal app-modal--sky" id="modalInstrumentoPortadores" tabindex="-1" aria-labelledby="modalInstrumentoPortadoresTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Portadores para: <span id="instrPortNombre"></span></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Instrumentos</span>
+                    <h5 class="modal-title" id="modalInstrumentoPortadoresTitle">Portadores para: <span id="instrPortNombre"></span></h5>
+                    <p class="app-modal__subtitle">Activa solo los portadores permitidos para este instrumento.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="instrPortId">
@@ -756,8 +805,8 @@ async function guardarPortadoresInstrumento() {
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary" onclick="guardarPortadoresInstrumento()">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="guardarPortadoresInstrumento()">
                     Guardar
                 </button>
             </div>

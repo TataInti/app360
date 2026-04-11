@@ -87,12 +87,16 @@
 </div>
 
 <!-- Modal Historial -->
-<div class="modal fade" id="modalHistorial" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<div class="modal fade app-modal app-modal--sky" id="modalHistorial" tabindex="-1" aria-labelledby="modalHistorialTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Historial de Liquidaciones</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Trazabilidad</span>
+                    <h5 class="modal-title" id="modalHistorialTitle">Historial de liquidaciones</h5>
+                    <p class="app-modal__subtitle">Consulta periodos ya generados y revisa el neto resultante por empleado.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
@@ -111,6 +115,56 @@
 <script>
     let previewData = [];
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    function getUI() {
+        return window.App360UI;
+    }
+
+    function notify(message, variant = 'info', options = {}) {
+        const ui = getUI();
+        if (ui && typeof ui.notify === 'function') {
+            ui.notify(message, variant, options);
+            return;
+        }
+        window.alert(message);
+    }
+
+    function askConfirmation(options) {
+        const ui = getUI();
+        if (ui && typeof ui.confirm === 'function') {
+            return ui.confirm(options);
+        }
+        return Promise.resolve(window.confirm(options.message || options.title || 'Confirmar accion'));
+    }
+
+    function showModal(modalId) {
+        const ui = getUI();
+        if (ui && typeof ui.openModal === 'function') {
+            ui.openModal(modalId);
+            return;
+        }
+        bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).show();
+    }
+
+    function alert(message) {
+        const content = String(message || '');
+        const normalized = content.toLowerCase();
+        let variant = 'info';
+        let title = 'Informacion';
+
+        if (normalized.startsWith('error') || normalized.includes('no se pudo')) {
+            variant = 'danger';
+            title = 'No se pudo completar';
+        } else if (normalized.includes('seleccione')) {
+            variant = 'warning';
+            title = 'Revisar datos';
+        } else if (normalized.includes('generad') || normalized.includes('actualiz')) {
+            variant = 'success';
+            title = 'Listo';
+        }
+
+        notify(content, variant, { title });
+    }
 
     function cargarPreview() {
         const periodo = document.getElementById('periodo-liquidacion').value;
@@ -175,10 +229,18 @@
         `).join('');
     }
 
-    function generarLiquidaciones() {
+    async function generarLiquidaciones() {
         const periodo = document.getElementById('periodo-liquidacion').value;
-        
-        if (!confirm(`¿Confirmar generación de liquidaciones para ${periodo}?\n\nEsta acción marcará todos los adelantos como liquidados y actualizará las cuotas de préstamos.`)) {
+
+        const confirmed = await askConfirmation({
+            variant: 'warning',
+            title: `Generar liquidaciones ${periodo}`,
+            subtitle: 'Se liquidan adelantos y se actualizan cuotas de prestamos.',
+            message: `Confirma la generación de liquidaciones para ${periodo}.`,
+            confirmText: 'Generar',
+            confirmClass: 'btn-warning',
+        });
+        if (!confirmed) {
             return;
         }
 
@@ -233,7 +295,7 @@
     }
 
     function verHistorial() {
-        new bootstrap.Modal(document.getElementById('modalHistorial')).show();
+        showModal('modalHistorial');
     }
 
     function buscarPeriodo() {
@@ -248,13 +310,13 @@
             .then(data => {
                 if (data.error) {
                     document.getElementById('resultado-historial').innerHTML = 
-                        `<div class="alert alert-warning">${data.error}</div>`;
+                        `<div class="empty-state"><i class="bi bi-calendar-x empty-icon"></i><div class="empty-title">Periodo sin liquidaciones</div><div class="empty-text">${data.error}</div></div>`;
                     return;
                 }
 
                 const html = `
-                    <h6>Periodo: ${data.periodo}</h6>
-                    <table class="table table-sm">
+                    <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
                         <thead>
                             <tr>
                                 <th>Empleado</th>
@@ -274,6 +336,7 @@
                             `).join('')}
                         </tbody>
                     </table>
+                    </div>
                 `;
                 document.getElementById('resultado-historial').innerHTML = html;
             })
