@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCAL_ENV_FILE="${LOCAL_ENV_FILE:-$ROOT_DIR/.env}"
 DATABASE_URL="${DATABASE_URL:-}"
 RELEASE_TAG="${1:-}"
+# Las releases DB versionadas siguen viviendo dentro del repo para poder commitearse.
 RELEASE_BASE_DIR="${RELEASE_BASE_DIR:-$ROOT_DIR/backups/db-releases}"
 
 require_cmd() {

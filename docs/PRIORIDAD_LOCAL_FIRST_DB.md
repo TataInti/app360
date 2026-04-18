@@ -70,6 +70,11 @@ Salida esperada:
 - `backups/db-releases/<release_tag>/db.sql.sha256`
 - `backups/db-releases/<release_tag>/release_meta.txt`
 
+Importante:
+
+- `backups/db-releases/` sigue dentro del repo porque forma parte del cambio versionado.
+- Los dumps operativos o temporales no deben quedar dentro del working tree; usar rutas externas al repo.
+
 ### 4) Control de cambios en GitHub
 
 Commit mínimo recomendado:

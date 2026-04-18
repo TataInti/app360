@@ -26,7 +26,6 @@ def app():
     Config.SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     Config.WTF_CSRF_ENABLED = False
     Config.RATELIMIT_ENABLED = False
-    Config.CORS_ORIGINS = ["http://localhost:5173"]
 
     app = create_app()
     app.config["TESTING"] = True

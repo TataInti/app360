@@ -129,6 +129,33 @@
                     </form>
 
                     <div id="resultadoCargaGlobal" class="mt-3"></div>
+
+                    <!-- Cobertura de Fechas -->
+                    <hr class="my-4">
+                    <h5 class="card-title"><i class="bi bi-calendar-check"></i> Cobertura de fechas cargadas</h5>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Desde</label>
+                            <input type="date" id="coberturaDesde" class="form-control">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Hasta</label>
+                            <input type="date" id="coberturaHasta" class="form-control">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button class="btn btn-outline-primary" onclick="cargarCobertura()">
+                                <i class="bi bi-search"></i> Consultar
+                            </button>
+                        </div>
+                    </div>
+                    <div id="coberturaResumen"></div>
+
+                    <!-- Historial de Cargas -->
+                    <hr class="my-4">
+                    <h5 class="card-title"><i class="bi bi-clock-history"></i> Historial de cargas recientes</h5>
+                    <div id="historialCargas">
+                        <p class="text-muted">Cargando historial...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -362,6 +389,8 @@ document.getElementById('formCargaGlobal').addEventListener('submit', async func
         if (data.success) {
             this.reset();
             document.getElementById('replaceGlobalToggle').checked = true;
+            cargarCobertura();
+            cargarHistorial();
         }
     } catch (error) {
         resultadoDiv.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(error.message)}</div>`;
@@ -614,5 +643,136 @@ async function cargarVentas(page = 1) {
 document.getElementById('ventas-tab').addEventListener('shown.bs.tab', function() {
     cargarVentas(1);
 });
+
+// ============================================================================
+// COBERTURA DE FECHAS
+// ============================================================================
+
+function initCoberturaDefaults() {
+    const hoy = new Date();
+    const hace60 = new Date(hoy);
+    hace60.setDate(hace60.getDate() - 60);
+    document.getElementById('coberturaDesde').value = hace60.toISOString().slice(0, 10);
+    document.getElementById('coberturaHasta').value = hoy.toISOString().slice(0, 10);
+}
+
+function coberturaBadge(cargados, habiles) {
+    if (habiles === 0) return 'bg-secondary';
+    const pct = cargados / habiles;
+    if (pct >= 1) return 'bg-success';
+    if (pct >= 0.8) return 'bg-warning text-dark';
+    return 'bg-danger';
+}
+
+async function cargarCobertura() {
+    const div = document.getElementById('coberturaResumen');
+    const desde = document.getElementById('coberturaDesde').value;
+    const hasta = document.getElementById('coberturaHasta').value;
+
+    const params = new URLSearchParams();
+    if (desde) params.set('fecha_desde', desde);
+    if (hasta) params.set('fecha_hasta', hasta);
+
+    div.innerHTML = '<p class="text-muted">Consultando cobertura...</p>';
+
+    try {
+        const response = await fetch(`/sabiogo/api/cobertura-fechas?${params.toString()}`);
+        const data = await parseJsonResponse(response);
+        const resumen = data.resumen || [];
+
+        if (!resumen.length) {
+            div.innerHTML = '<p class="text-muted">No hay datos en el rango seleccionado.</p>';
+            return;
+        }
+
+        const campos = [
+            { key: 'ventas_carnes', label: 'Ventas Carnes' },
+            { key: 'ventas_lacteos', label: 'Ventas Lácteos' },
+            { key: 'compras_carnes', label: 'Compras Carnes' },
+            { key: 'compras_lacteos', label: 'Compras Lácteos' },
+        ];
+
+        let html = '<div class="table-responsive"><table class="table table-sm table-bordered align-middle">';
+        html += '<thead class="table-light"><tr><th>Mes</th>';
+        campos.forEach(c => { html += `<th class="text-center">${c.label}</th>`; });
+        html += '</tr></thead><tbody>';
+
+        resumen.forEach(mes => {
+            const mesId = mes.mes.replace('-', '');
+            html += `<tr>`;
+            html += `<td><strong>${escapeHtml(mes.mes)}</strong></td>`;
+            campos.forEach(c => {
+                const info = mes[c.key] || {};
+                const carg = info.dias_cargados || 0;
+                const hab = info.dias_habiles || 0;
+                const filas = info.filas || 0;
+                const faltantes = info.dias_faltantes || [];
+                const badge = coberturaBadge(carg, hab);
+                let cell = `<span class="badge ${badge}">${carg}/${hab}</span>`;
+                cell += `<span class="text-muted ms-1 small">(${filas.toLocaleString('es-AR')} filas)</span>`;
+                if (faltantes.length > 0) {
+                    const detailId = `faltantes_${mesId}_${c.key}`;
+                    cell += `<br><a href="#" class="small text-danger" onclick="event.preventDefault();document.getElementById('${detailId}').classList.toggle('d-none');">${faltantes.length} día(s) faltante(s)</a>`;
+                    cell += `<div id="${detailId}" class="d-none small text-muted mt-1">${faltantes.map(f => escapeHtml(f)).join(', ')}</div>`;
+                }
+                html += `<td class="text-center">${cell}</td>`;
+            });
+            html += `</tr>`;
+        });
+
+        html += '</tbody></table></div>';
+        div.innerHTML = html;
+    } catch (error) {
+        div.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+// ============================================================================
+// HISTORIAL DE CARGAS
+// ============================================================================
+
+async function cargarHistorial() {
+    const div = document.getElementById('historialCargas');
+    try {
+        const response = await fetch('/sabiogo/api/historial-cargas?limit=10');
+        const data = await parseJsonResponse(response);
+        const items = data.items || [];
+
+        if (!items.length) {
+            div.innerHTML = '<p class="text-muted">No hay cargas registradas.</p>';
+            return;
+        }
+
+        let html = '<div class="table-responsive"><table class="table table-sm table-striped align-middle">';
+        html += '<thead class="table-light"><tr>';
+        html += '<th>Fecha</th><th>Archivo</th><th>Tipo</th>';
+        html += '<th class="text-end">Insertadas</th><th class="text-end">Duplicadas</th><th class="text-end">Errores</th>';
+        html += '</tr></thead><tbody>';
+
+        items.forEach(item => {
+            const fecha = item.fecha_carga ? new Date(item.fecha_carga).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+            const dupClass = (item.filas_duplicadas || 0) > 0 ? 'text-warning fw-bold' : '';
+            const errClass = (item.filas_error || 0) > 0 ? 'text-danger fw-bold' : '';
+            html += '<tr>';
+            html += `<td class="small">${escapeHtml(fecha)}</td>`;
+            html += `<td class="small">${escapeHtml(item.archivo_nombre || '-')}</td>`;
+            html += `<td><span class="badge bg-secondary">${escapeHtml(item.tipo_carga || '-')}</span></td>`;
+            html += `<td class="text-end">${Number(item.filas_insertadas || 0).toLocaleString('es-AR')}</td>`;
+            html += `<td class="text-end ${dupClass}">${Number(item.filas_duplicadas || 0).toLocaleString('es-AR')}</td>`;
+            html += `<td class="text-end ${errClass}">${Number(item.filas_error || 0).toLocaleString('es-AR')}</td>`;
+            html += '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+        div.innerHTML = html;
+    } catch (error) {
+        div.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(error.message)}</div>`;
+    }
+}
+
+// Cargar al iniciar
+initCoberturaDefaults();
+cargarCobertura();
+cargarHistorial();
 </script>
 {% endblock %}

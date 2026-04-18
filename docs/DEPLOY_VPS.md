@@ -13,6 +13,8 @@ git status
 ```
 
 - No debe aparecer `.env`, DBs locales (`instance/*.db`) ni dumps (`backups/db-sync/*.dump`).
+- Los dumps operativos deben vivir fuera del repo. Default actual para sync local: `$HOME/.app360/backups/db-sync/`.
+- La única carpeta de DB que sí puede vivir en el repo es `backups/db-releases/`, porque contiene releases versionadas para GitHub.
 - Notas de acceso al VPS deben vivir en `docs/_local/` (ignoradas) o en un archivo local ignorado.
 
 2. Backend tests:
@@ -21,15 +23,7 @@ git status
 pytest
 ```
 
-3. Frontend build (si se usa la SPA):
-
-```bash
-cd frontend
-npm ci
-npm run build
-```
-
-4. Push:
+3. Push:
 
 ```bash
 git push
@@ -48,6 +42,7 @@ ssh root@72.61.47.19
 ### 1) Código
 
 - Path esperado: `/var/www/app360`
+- Backups operativos en VPS: `/var/backups/app360`
 
 ```bash
 sudo mkdir -p /var/www/app360
@@ -132,6 +127,12 @@ sudo -u www-data bash scripts/deploy.sh
 bash scripts/create_local_db_release.sh
 ```
 
+Salida esperada en repo versionado:
+
+- `backups/db-releases/<release_tag>/db.sql`
+- `backups/db-releases/<release_tag>/db.sql.sha256`
+- `backups/db-releases/<release_tag>/release_meta.txt`
+
 - Aplicar release versionada en VPS:
 
 ```bash
@@ -155,6 +156,8 @@ curl -fsS http://127.0.0.1:5000/api/health
 
 - `scripts/deploy.sh` corre un set de **tests seguros** contra SQLite temporal (`/tmp/app360_test.sqlite`) para no tocar PostgreSQL de producción.
 - Si el frontend se sirve estático, asegurarse de copiar el build a la ruta configurada en Nginx (`/var/www/app360/frontend/dist`).
+- Los backups operativos del VPS no deben quedar dentro de `/var/www/app360`; usar `/var/backups/app360/...`.
+- `scripts/sync_prod_db_to_local.sh` guarda por default sus dumps temporales en `$HOME/.app360/backups/db-sync/` salvo override con `BACKUP_DIR`.
 
 ## Cron nocturno: sincronización PRE -> objetivos comerciales
 

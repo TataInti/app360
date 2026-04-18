@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RELEASE_TAG="${1:-}"
+# Las releases DB versionadas se leen desde el repo local; los backups operativos del VPS van fuera del repo.
 RELEASE_BASE_DIR="${RELEASE_BASE_DIR:-$ROOT_DIR/backups/db-releases}"
 PROD_SSH_USER="${PROD_SSH_USER:-root}"
 PROD_SSH_HOST="${PROD_SSH_HOST:-}"

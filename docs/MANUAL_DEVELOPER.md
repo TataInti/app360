@@ -27,7 +27,7 @@ Documentos relacionados:
 ### 2.1 Componentes principales
 
 - **Backend**: Flask monolítico modular (Blueprints), SQLAlchemy, Alembic.
-- **Frontend**: React + Vite (SPA), conviviendo con templates server-rendered de Flask.
+- **Frontend**: Jinja2 templates server-rendered con JavaScript (fetch API para dashboards).
 - **DB**:
   - Local: PostgreSQL recomendado (SQLite para tests/escenarios puntuales).
   - VPS: PostgreSQL.
@@ -39,7 +39,6 @@ Documentos relacionados:
 - Backend app factory: `app.py` → `create_app()`
 - API principal: `api.py`
 - API REST/JWT complementaria: `api_rest.py`
-- Frontend SPA: `frontend/`
 
 ### 2.3 Inicialización en backend (alto nivel)
 
@@ -78,20 +77,14 @@ Documentos relacionados:
 - `scripts/create_local_db_release.sh`: genera release SQL versionada.
 - `scripts/apply_db_release_to_vps.sh`: aplica release en VPS validando SHA256.
 
-### 3.4 Frontend
-
-- `frontend/src/`: app React.
-- `frontend/e2e/`: Playwright.
-- `frontend/vitest.config.js`: unit tests frontend.
-
-### 3.5 Operación / Infra
+### 3.4 Operación / Infra
 
 - `scripts/deploy.sh`: update idempotente de runtime en VPS.
 - `scripts/app360.service`: servicio systemd de Gunicorn.
 - `scripts/nginx-app360.conf`: reverse proxy.
-- `docker-compose.yml`, `Dockerfile`, `frontend/Dockerfile`: ejecución containerizada opcional.
+- `docker-compose.yml`, `Dockerfile`: ejecución containerizada opcional.
 
-### 3.6 Documentación
+### 3.5 Documentación
 
 - `README.md`: guía de uso e instalación.
 - `docs/DEPLOY_VPS.md`: proceso de deploy update.
@@ -230,6 +223,10 @@ Salida esperada:
 - `backups/db-releases/<release_tag>/db.sql.sha256`
 - `backups/db-releases/<release_tag>/release_meta.txt`
 
+Notas:
+- `backups/db-releases/` sigue dentro del repo porque es una release versionada y auditable en Git.
+- Los backups operativos/temporales deben vivir fuera del repo.
+
 Aplicar en VPS:
 
 ```bash
@@ -246,6 +243,7 @@ bash scripts/sync_prod_db_to_local.sh
 
 Advertencia:
 - Este flujo **resetea schema local** (`DROP SCHEMA ... CASCADE`), usar solo con backup previo y conciencia de impacto.
+- Default actual de dumps temporales: `$HOME/.app360/backups/db-sync/`.
 
 ### 7.3 Corrección de permisos locales tras restore
 
@@ -265,6 +263,7 @@ Fuente operativa: `docs/DEPLOY_VPS.md`
 - Servicio: `app360.service`
 - Entorno: `/var/www/app360/.env`
 - Gunicorn bind local: `127.0.0.1:5000`
+- Backups operativos en VPS: `/var/backups/app360`
 
 ### 8.2 Update estándar
 

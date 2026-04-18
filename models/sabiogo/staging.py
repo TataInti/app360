@@ -69,13 +69,43 @@ class StgSabiogoVentas(db.Model):
     def validar_duplicados(cls, session):
         """
         Detecta y marca registros duplicados basándose en campos clave.
+        Primero detecta cross-carga (pendientes vs procesados existentes),
+        luego duplicados intra-lote (pendientes vs pendientes).
         
         Returns:
             int: Número de registros marcados como duplicados
         """
         from sqlalchemy import func, and_
-        
-        # Subquery para identificar duplicados
+
+        # 1) Cross-carga: pendientes cuya firma ya existe en procesados
+        existentes_sq = session.query(
+            cls.nro_comprob,
+            cls.tipo,
+            cls.fecha,
+            cls.codigo,
+            cls.subtot,
+        ).filter(
+            cls.estado == 'procesado'
+        ).group_by(
+            cls.nro_comprob,
+            cls.tipo,
+            cls.fecha,
+            cls.codigo,
+            cls.subtot,
+        ).subquery()
+
+        cross_count = session.query(cls).filter(
+            and_(
+                cls.estado == 'pendiente',
+                cls.nro_comprob == existentes_sq.c.nro_comprob,
+                cls.tipo == existentes_sq.c.tipo,
+                cls.fecha == existentes_sq.c.fecha,
+                cls.codigo == existentes_sq.c.codigo,
+                cls.subtot == existentes_sq.c.subtot,
+            )
+        ).update({'estado': 'duplicado'}, synchronize_session=False)
+
+        # 2) Intra-lote: pendientes duplicados entre sí
         duplicados_sq = session.query(
             cls.nro_comprob,
             cls.tipo,
@@ -95,8 +125,7 @@ class StgSabiogoVentas(db.Model):
             func.count() > 1
         ).subquery()
         
-        # Marcar duplicados
-        count = session.query(cls).filter(
+        intra_count = session.query(cls).filter(
             and_(
                 cls.estado == 'pendiente',
                 cls.nro_comprob == duplicados_sq.c.nro_comprob,
@@ -107,7 +136,7 @@ class StgSabiogoVentas(db.Model):
             )
         ).update({'estado': 'duplicado'}, synchronize_session=False)
         
-        return count
+        return cross_count + intra_count
 
 
 class StgSabiogoCompras(db.Model):
@@ -174,13 +203,43 @@ class StgSabiogoCompras(db.Model):
     def validar_duplicados(cls, session):
         """
         Detecta y marca registros duplicados basándose en campos clave.
+        Primero detecta cross-carga (pendientes vs procesados existentes),
+        luego duplicados intra-lote (pendientes vs pendientes).
         
         Returns:
             int: Número de registros marcados como duplicados
         """
         from sqlalchemy import func, and_
-        
-        # Subquery para identificar duplicados
+
+        # 1) Cross-carga: pendientes cuya firma ya existe en procesados
+        existentes_sq = session.query(
+            cls.nro_comprob,
+            cls.tipo,
+            cls.fecha,
+            cls.codigo,
+            cls.subtot,
+        ).filter(
+            cls.estado == 'procesado'
+        ).group_by(
+            cls.nro_comprob,
+            cls.tipo,
+            cls.fecha,
+            cls.codigo,
+            cls.subtot,
+        ).subquery()
+
+        cross_count = session.query(cls).filter(
+            and_(
+                cls.estado == 'pendiente',
+                cls.nro_comprob == existentes_sq.c.nro_comprob,
+                cls.tipo == existentes_sq.c.tipo,
+                cls.fecha == existentes_sq.c.fecha,
+                cls.codigo == existentes_sq.c.codigo,
+                cls.subtot == existentes_sq.c.subtot,
+            )
+        ).update({'estado': 'duplicado'}, synchronize_session=False)
+
+        # 2) Intra-lote: pendientes duplicados entre sí
         duplicados_sq = session.query(
             cls.nro_comprob,
             cls.tipo,
@@ -200,8 +259,7 @@ class StgSabiogoCompras(db.Model):
             func.count() > 1
         ).subquery()
         
-        # Marcar duplicados
-        count = session.query(cls).filter(
+        intra_count = session.query(cls).filter(
             and_(
                 cls.estado == 'pendiente',
                 cls.nro_comprob == duplicados_sq.c.nro_comprob,
@@ -212,4 +270,4 @@ class StgSabiogoCompras(db.Model):
             )
         ).update({'estado': 'duplicado'}, synchronize_session=False)
         
-        return count
+        return cross_count + intra_count

@@ -1,6 +1,6 @@
 # App360 - Sistema de Gestion Empresarial
 
-App360 es una plataforma integral de gestion desarrollada con Flask (backend) y React (frontend). Unifica operacion comercial, RRHH, compras, ventas y finanzas en un solo panel con roles y permisos. Esta pensada para operar en produccion con PostgreSQL y para pruebas con SQLite.
+App360 es una plataforma integral de gestion desarrollada con Flask y Jinja2. Unifica operacion comercial, RRHH, compras, ventas y finanzas en un solo panel con roles y permisos. Esta pensada para operar en produccion con PostgreSQL y para pruebas con SQLite.
 
 Documento oficial de desarrollo:
 
@@ -38,8 +38,10 @@ El repo está configurado para ignorar:
 - `.env` (secrets)
 - `instance/*.db` / `*.sqlite*` (DBs locales)
 - `logs/*.log` (logs locales)
-- `backups/db-sync/*` (dumps temporales)
+- dumps temporales fuera del repo (default actual: `$HOME/.app360/backups/db-sync/`)
 - `docs/_local/*` (notas locales, accesos, etc.)
+
+Nota: `backups/db-releases/` sí permanece dentro del repo porque contiene releases DB versionadas.
 
 Tip: si necesitás guardar accesos/credenciales del VPS, guardalos en `docs/_local/` (no se pushea).
 
@@ -77,10 +79,9 @@ Tip: si necesitás guardar accesos/credenciales del VPS, guardalos en `docs/_loc
     - SQLAlchemy 2.0
     - PostgreSQL (prod) / SQLite (dev)
 - Frontend
-    - React 19
-    - Vite 7
-    - React Query
-    - React Router
+    - Jinja2 (templates server-rendered)
+    - Bootstrap / CSS
+    - JavaScript (fetch API para dashboards)
 
 ## Integracion con SabioGo
 
@@ -93,7 +94,6 @@ Tip: si necesitás guardar accesos/credenciales del VPS, guardalos en `docs/_loc
 ## Requisitos
 
 - Python 3.12+
-- Node.js 22+
 - PostgreSQL 15+ (recomendado)
 
 ## Instalacion Rapida (Local)
@@ -119,15 +119,6 @@ Ejecutar backend (1 comando, incluye: arrancar PostgreSQL local + crear DB/usuar
 bash scripts/dev_backend.sh
 ```
 
-## Frontend
-
-```bash
-cd frontend
-npm install
-echo "VITE_API_BASE_URL=http://localhost:5001/api" > .env
-npm run dev
-```
-
 ## Docker (Opcional)
 
 ```bash
@@ -147,17 +138,16 @@ pip install -r requirements.txt
 
 ```
 app360/
-├── api/                    # Endpoints REST API
-├── api_rest.py            # API REST adicional
+├── api.py                 # Endpoints API dashboards
+├── api_rest.py            # API REST/JWT
 ├── app.py                 # Aplicacion Flask principal
 ├── blueprints/            # Blueprints Flask
 ├── config.py              # Configuracion
 ├── models/                # Modelos de datos
 ├── services/              # Logica de negocio
 ├── static/                # Archivos estaticos
-├── templates/             # Plantillas HTML
+├── templates/             # Plantillas Jinja2
 ├── tests/                 # Tests backend
-├── frontend/              # App React
 └── requirements.txt       # Dependencias Python
 ```
 
@@ -200,11 +190,6 @@ PYTHONPATH=/var/www/app360 DATABASE_URL=sqlite:////tmp/app360_test.sqlite pytest
 ```
 
 Este comando corre tests contra SQLite temporal (`/tmp/app360_test.sqlite`) y evita impacto en PostgreSQL de producción.
-
-```bash
-cd frontend
-npm test
-```
 
 ## Migracion a PostgreSQL
 

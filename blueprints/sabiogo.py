@@ -19,7 +19,8 @@ from models.sabiogo import (
     StgSabiogoCompras,
     SabiogoProductMap,
     SabiogoClientMap,
-    SabiogoLocationMap
+    SabiogoLocationMap,
+    LogSabiogoCarga,
 )
 from models.core.product import Product
 from models.crm.client import Client
@@ -619,6 +620,149 @@ def sync_objetivos_pre_cron():
         return jsonify({'error': str(exc)}), 500
 
     return jsonify({'success': True, 'resultado': resultado})
+
+
+# ============================================================================
+# ENDPOINTS API - COBERTURA Y HISTORIAL
+# ============================================================================
+
+def _dias_habiles_lun_sab(fecha_desde, fecha_hasta):
+    """Genera lista de fechas hábiles lunes-sábado en el rango."""
+    dias = []
+    d = fecha_desde
+    while d <= fecha_hasta:
+        if d.weekday() < 6:  # 0=lun ... 5=sab, 6=dom
+            dias.append(d)
+        d += timedelta(days=1)
+    return dias
+
+
+def _normalizar_fecha_dia(valor):
+    """Normaliza un valor de fecha/hora a `date` para comparaciones por día."""
+    if valor is None:
+        return None
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, date):
+        return valor
+    try:
+        return date.fromisoformat(str(valor)[:10])
+    except (TypeError, ValueError):
+        return valor
+
+
+@sabiogo_bp.route('/api/cobertura-fechas')
+@login_required
+def cobertura_fechas():
+    """Resumen mensual de cobertura de fechas cargadas por origen y tipo."""
+    hoy = date.today()
+    try:
+        fecha_desde = date.fromisoformat(request.args.get('fecha_desde', ''))
+    except (ValueError, TypeError):
+        fecha_desde = hoy - timedelta(days=60)
+    try:
+        fecha_hasta = date.fromisoformat(request.args.get('fecha_hasta', ''))
+    except (ValueError, TypeError):
+        fecha_hasta = hoy
+
+    if fecha_hasta < fecha_desde:
+        fecha_desde, fecha_hasta = fecha_hasta, fecha_desde
+
+    estados_validos = ('procesado', 'cargado')
+
+    # Fechas con datos para ventas y compras
+    def _fechas_con_datos(ModelClass):
+        fecha_dia_expr = func.date(ModelClass.fecha).label('fecha_dia')
+        rows = db.session.query(
+            ModelClass.origen,
+            fecha_dia_expr,
+            func.count().label('filas'),
+        ).filter(
+            ModelClass.fecha >= fecha_desde,
+            ModelClass.fecha <= fecha_hasta,
+            ModelClass.estado.in_(estados_validos),
+        ).group_by(
+            ModelClass.origen,
+            fecha_dia_expr,
+        ).all()
+        result = {}
+        for r in rows:
+            fecha_dia = _normalizar_fecha_dia(r.fecha_dia)
+            key = (r.origen or 'LEGACY', fecha_dia)
+            result[key] = r.filas
+        return result
+
+    ventas_data = _fechas_con_datos(StgSabiogoVentas)
+    compras_data = _fechas_con_datos(StgSabiogoCompras)
+
+    # Generar días hábiles L-S
+    dias_habiles = _dias_habiles_lun_sab(fecha_desde, fecha_hasta)
+
+    # Agrupar por mes
+    meses = {}
+    for d in dias_habiles:
+        mes_key = d.strftime('%Y-%m')
+        if mes_key not in meses:
+            meses[mes_key] = []
+        meses[mes_key].append(d)
+
+    origenes = [ORIGEN_CARNES, ORIGEN_LACTEOS]
+    resumen = []
+
+    for mes_key in sorted(meses.keys()):
+        dias_del_mes = meses[mes_key]
+        entry = {'mes': mes_key}
+
+        for tipo_label, data_dict in [('ventas', ventas_data), ('compras', compras_data)]:
+            for origen in origenes:
+                campo = f'{tipo_label}_{origen.lower()}'
+                dias_cargados = []
+                dias_faltantes = []
+                filas_total = 0
+                for d in dias_del_mes:
+                    filas = data_dict.get((origen, d), 0)
+                    if filas > 0:
+                        dias_cargados.append(d.isoformat())
+                        filas_total += filas
+                    else:
+                        dias_faltantes.append(d.isoformat())
+                entry[campo] = {
+                    'dias_cargados': len(dias_cargados),
+                    'dias_habiles': len(dias_del_mes),
+                    'filas': filas_total,
+                    'dias_faltantes': dias_faltantes,
+                }
+        resumen.append(entry)
+
+    return jsonify({
+        'rango': {'desde': fecha_desde.isoformat(), 'hasta': fecha_hasta.isoformat()},
+        'resumen': resumen,
+    })
+
+
+@sabiogo_bp.route('/api/historial-cargas')
+@login_required
+def historial_cargas():
+    """Últimas cargas registradas en LogSabiogoCarga."""
+    limit = min(int(request.args.get('limit', 10)), 50)
+    logs = LogSabiogoCarga.query.order_by(
+        LogSabiogoCarga.fecha_carga.desc()
+    ).limit(limit).all()
+
+    items = []
+    for log in logs:
+        items.append({
+            'id': log.id,
+            'fecha_carga': log.fecha_carga.isoformat() if log.fecha_carga else None,
+            'archivo_nombre': log.archivo_nombre,
+            'tipo_carga': log.tipo_carga,
+            'filas_insertadas': log.filas_insertadas,
+            'filas_duplicadas': log.filas_duplicadas,
+            'filas_error': log.filas_error,
+            'observaciones': log.observaciones,
+        })
+
+    return jsonify({'items': items})
 
 
 # ============================================================================

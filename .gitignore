@@ -70,8 +70,11 @@ instance/
 excel/
 excel/contenido excel.ipynb
 
-# Backups locales (NO versionar). Los releases versionados viven en backups/db-releases/
+# Backups locales / operativos (NO versionar). Los releases versionados viven en backups/db-releases/
 backups/db-sync/
+backups/manual-deploy/
+backups/excel-residual/
+backups/*.dump
 .env.local_backup*
 .env.*_backup*
 
@@ -118,21 +121,6 @@ scripts/seed_local.py
 # =============================================================================
 security_report.json
 bandit_report.json
-
-# =============================================================================
-# Node.js (Frontend)
-# =============================================================================
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# Frontend build outputs
-frontend/dist/
-frontend/coverage/
-frontend/playwright-report/
-frontend/test-results/
 
 # =============================================================================
 # Docker

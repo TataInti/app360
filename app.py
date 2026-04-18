@@ -1,5 +1,4 @@
 from flask import Flask, session, jsonify, request
-from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 from pythonjsonlogger import json as jsonlogger
 import logging
@@ -118,9 +117,6 @@ def create_app():
     if app.config.get('WTF_CSRF_ENABLED', True):
         csrf.init_app(app)
         app.logger.info("CSRF protection enabled")
-
-    # Enable CORS for all routes
-    CORS(app, origins=app.config["CORS_ORIGINS"], supports_credentials=True)
 
     db.init_app(app)
     migrate.init_app(app, db)

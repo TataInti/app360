@@ -12,7 +12,6 @@ services:
       - DATABASE_URL=postgresql://app360:${DB_PASSWORD:-password}@db:5432/app360
       - REDIS_URL=redis://redis:6379/0
       - FLASK_ENV=${FLASK_ENV:-production}
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
       - RATELIMIT_ENABLED=True
       - WTF_CSRF_ENABLED=True
       - LOG_LEVEL=INFO
@@ -58,18 +57,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "127.0.0.1:3000:3000"
-    environment:
-      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:5000/api}
-    depends_on:
-      - app
     restart: unless-stopped
 
 volumes:
