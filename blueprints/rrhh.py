@@ -1110,39 +1110,173 @@ def _normalize_clock_id_value(v):
         return s
 
 
-def _asociar_fichadas():
-    """Asocia fichadas con empleado_id=NULL usando Employee.clock_id. Retorna (asociados, pendientes)."""
-    pendientes = (
-        db.session.query(FichadaReloj.clock_id_original)
+def _empty_processing_stats():
+    return {
+        "procesados": 0,
+        "faltas": 0,
+        "tardanzas": 0,
+        "fichadas_faltantes": 0,
+        "sin_turno": 0,
+        "dias_sin_turno": 0,
+    }
+
+
+def _diagnosticar_asociacion_fichadas():
+    """Audita fichadas pendientes para explicar por qué asocian o no."""
+    from collections import defaultdict
+    from sqlalchemy import func
+
+    pendientes_rows = (
+        db.session.query(
+            FichadaReloj.clock_id_original,
+            FichadaReloj.nombre_reloj,
+            func.count(FichadaReloj.id),
+        )
         .filter(FichadaReloj.empleado_id.is_(None))
-        .distinct()
+        .group_by(FichadaReloj.clock_id_original, FichadaReloj.nombre_reloj)
+        .order_by(func.count(FichadaReloj.id).desc(), FichadaReloj.clock_id_original.asc())
         .all()
     )
-    clock_ids = [r[0] for r in pendientes]
-    if not clock_ids:
-        return 0, 0
 
-    # Cargar todos los empleados con clock_id y normalizar para comparación
-    empleados_map = {}
+    empleados_por_clock = defaultdict(list)
+    empleados_con_clock_id = 0
+    empleados_activos_con_clock_id = 0
+
     for emp in Employee.query.filter(Employee.clock_id.isnot(None)).all():
         normalized = _normalize_clock_id_value(emp.clock_id)
-        if normalized:
-            empleados_map[normalized] = emp.id
+        if not normalized:
+            continue
+
+        empleados_con_clock_id += 1
+        if emp.is_active:
+            empleados_activos_con_clock_id += 1
+
+        empleados_por_clock[normalized].append(
+            {
+                "empleado_id": emp.id,
+                "empleado": emp.name,
+                "clock_id": str(emp.clock_id).strip(),
+                "turno_id": emp.turno_id,
+                "activo": bool(emp.is_active),
+            }
+        )
+
+    matchables = []
+    sin_match = []
+    ambiguos = []
+    sin_turno = []
+    matchables_total = 0
+    sin_match_total = 0
+    ambiguos_total = 0
+
+    for clock_id_original, nombre_reloj, cantidad in pendientes_rows:
+        cantidad = int(cantidad or 0)
+        item = {
+            "clock_id": clock_id_original,
+            "clock_id_normalizado": _normalize_clock_id_value(clock_id_original),
+            "nombre_reloj": nombre_reloj or "—",
+            "cantidad": cantidad,
+        }
+        candidatos = empleados_por_clock.get(item["clock_id_normalizado"], [])
+        if not candidatos:
+            sin_match.append(item)
+            sin_match_total += cantidad
+            continue
+
+        if len(candidatos) > 1:
+            ambiguos.append({**item, "empleados": candidatos})
+            ambiguos_total += cantidad
+            continue
+
+        candidato = candidatos[0]
+        match_item = {**item, **candidato}
+        matchables.append(match_item)
+        matchables_total += cantidad
+        if not candidato.get("turno_id"):
+            sin_turno.append(match_item)
+
+    duplicados_normalizados = [
+        {
+            "clock_id_normalizado": clock_id_normalizado,
+            "empleados": empleados,
+        }
+        for clock_id_normalizado, empleados in sorted(empleados_por_clock.items())
+        if len(empleados) > 1
+    ]
+
+    return {
+        "pendientes_total": sum(int(row[2] or 0) for row in pendientes_rows),
+        "clock_ids_pendientes": len(pendientes_rows),
+        "empleados_con_clock_id": empleados_con_clock_id,
+        "empleados_activos_con_clock_id": empleados_activos_con_clock_id,
+        "matchables_total": matchables_total,
+        "sin_match_total": sin_match_total,
+        "ambiguos_total": ambiguos_total,
+        "sin_turno_total": sum(item["cantidad"] for item in sin_turno),
+        "sin_turno_empleados": len({item["empleado_id"] for item in sin_turno}),
+        "duplicados_normalizados": duplicados_normalizados,
+        "matchables": matchables,
+        "sin_match": sin_match,
+        "ambiguos": ambiguos,
+        "sin_turno": sin_turno,
+    }
+
+
+def _asociar_fichadas():
+    """Asocia fichadas pendientes y devuelve detalle de impacto y diagnóstico."""
+    diagnostico_previo = _diagnosticar_asociacion_fichadas()
+    if not diagnostico_previo["pendientes_total"]:
+        return {
+            "asociados": 0,
+            "pendientes": 0,
+            "empleado_ids": [],
+            "impactados": [],
+            "diagnostico": diagnostico_previo,
+        }
 
     asociados = 0
-    for cid in clock_ids:
-        normalized_cid = _normalize_clock_id_value(cid)
-        emp_id = empleados_map.get(normalized_cid)
-        if emp_id:
-            count = FichadaReloj.query.filter(
-                FichadaReloj.clock_id_original == cid,
-                FichadaReloj.empleado_id.is_(None),
-            ).update({"empleado_id": emp_id})
-            asociados += count
+    impactados = {}
+
+    for match in diagnostico_previo["matchables"]:
+        emp_id = match["empleado_id"]
+        count = FichadaReloj.query.filter(
+            FichadaReloj.clock_id_original == match["clock_id"],
+            FichadaReloj.empleado_id.is_(None),
+        ).update({"empleado_id": emp_id})
+        count = int(count or 0)
+        if not count:
+            continue
+
+        asociados += count
+        if emp_id not in impactados:
+            impactados[emp_id] = {
+                "empleado_id": emp_id,
+                "empleado": match["empleado"],
+                "turno_id": match["turno_id"],
+                "clock_ids": [],
+                "cantidad": 0,
+            }
+        impactados[emp_id]["clock_ids"].append(match["clock_id"])
+        impactados[emp_id]["cantidad"] += count
 
     if asociados:
         db.session.commit()
-    return asociados, FichadaReloj.query.filter(FichadaReloj.empleado_id.is_(None)).count()
+
+    diagnostico_actual = _diagnosticar_asociacion_fichadas()
+    impactados_list = sorted(
+        impactados.values(),
+        key=lambda item: (-item["cantidad"], item["empleado"]),
+    )
+    for impactado in impactados_list:
+        impactado["clock_ids"] = sorted(impactado["clock_ids"])
+
+    return {
+        "asociados": asociados,
+        "pendientes": diagnostico_actual["pendientes_total"],
+        "empleado_ids": sorted(impactados.keys()),
+        "impactados": impactados_list,
+        "diagnostico": diagnostico_actual,
+    }
 
 
 @rrhh_bp.route("/api/rrhh/fichadas/cargar", methods=["POST"])
@@ -1265,13 +1399,10 @@ def fichadas_cargar():
     db.session.commit()
 
     # Auto-asociar: vincular fichadas con empleados por clock_id
-    asociados, pendientes = _asociar_fichadas()
+    resultado_asociacion = _asociar_fichadas()
 
     # Auto-procesar: generar resumen diario contra turnos
-    proc_stats = _procesar_fichadas_logic(lote=lote) or {
-        "procesados": 0, "faltas": 0, "tardanzas": 0,
-        "fichadas_faltantes": 0, "sin_turno": 0,
-    }
+    proc_stats = _procesar_fichadas_logic(lote=lote) or _empty_processing_stats()
 
     return jsonify({
         "lote": lote,
@@ -1280,25 +1411,44 @@ def fichadas_cargar():
         "errores_parse": errores_parse,
         "total_filas": total_filas,
         "fechas_rango": fechas_rango,
-        "asociados": asociados,
-        "pendientes": pendientes,
+        "asociados": resultado_asociacion["asociados"],
+        "pendientes": resultado_asociacion["pendientes"],
+        "diagnostico": resultado_asociacion["diagnostico"],
         "procesamiento": proc_stats,
     })
 
 
 @rrhh_bp.route("/api/rrhh/fichadas/asociar", methods=["POST"])
 def fichadas_asociar():
-    """Re-asocia fichadas sin empleado a partir de Employee.clock_id actual."""
-    asociados, pendientes = _asociar_fichadas()
-    return jsonify({"asociados": asociados, "pendientes": pendientes})
+    """Re-asocia fichadas sin empleado y reprocesa lo recién impactado."""
+    resultado_asociacion = _asociar_fichadas()
+    procesamiento = _empty_processing_stats()
+
+    if resultado_asociacion["empleado_ids"]:
+        procesamiento = (
+            _procesar_fichadas_logic(empleado_ids=resultado_asociacion["empleado_ids"])
+            or _empty_processing_stats()
+        )
+
+    return jsonify(
+        {
+            "asociados": resultado_asociacion["asociados"],
+            "pendientes": resultado_asociacion["pendientes"],
+            "impactados": resultado_asociacion["impactados"],
+            "diagnostico": resultado_asociacion["diagnostico"],
+            "procesamiento": procesamiento,
+        }
+    )
 
 
-def _procesar_fichadas_logic(lote=None, fecha_desde=None, fecha_hasta=None):
+def _procesar_fichadas_logic(lote=None, fecha_desde=None, fecha_hasta=None, empleado_ids=None):
     """Lógica interna de procesamiento de fichadas contra turnos.
 
     Retorna dict con stats o None si no hay fichadas.
     """
     query = FichadaReloj.query.filter(FichadaReloj.empleado_id.isnot(None))
+    if empleado_ids:
+        query = query.filter(FichadaReloj.empleado_id.in_(empleado_ids))
     if lote:
         query = query.filter_by(lote_importacion=lote)
     elif fecha_desde and fecha_hasta:
@@ -1319,12 +1469,15 @@ def _procesar_fichadas_logic(lote=None, fecha_desde=None, fecha_hasta=None):
     empleados = {e.id: e for e in Employee.query.filter(Employee.id.in_(empleado_ids)).all()}
     turno_dias_cache = {}
 
-    stats = {"procesados": 0, "faltas": 0, "tardanzas": 0, "fichadas_faltantes": 0, "sin_turno": 0}
+    stats = _empty_processing_stats()
+    empleados_sin_turno = set()
 
     for (emp_id, fecha), fichs in grupos.items():
         emp = empleados.get(emp_id)
         if not emp or not emp.turno_id:
-            stats["sin_turno"] += 1
+            stats["dias_sin_turno"] += 1
+            if emp_id:
+                empleados_sin_turno.add(emp_id)
             continue
 
         dia_semana = fecha.weekday()  # 0=lunes
@@ -1424,6 +1577,7 @@ def _procesar_fichadas_logic(lote=None, fecha_desde=None, fecha_hasta=None):
                                 stats["faltas"] += 1
                     current += timedelta(days=1)
 
+    stats["sin_turno"] = len(empleados_sin_turno)
     db.session.commit()
     return stats
 
@@ -1470,18 +1624,20 @@ def fichadas_resumen():
     periodo = request.args.get("periodo")  # YYYY-MM
     empleado_id = request.args.get("empleado_id", type=int)
     estado = request.args.get("estado")  # falta|tarde|ok|fichada_faltante
+    periodo_fd = None
+    periodo_fh = None
 
     query = ResumenAsistenciaDiaria.query
 
     if periodo:
         try:
             anio, mes = int(periodo[:4]), int(periodo[5:7])
-            fd = date(anio, mes, 1)
+            periodo_fd = date(anio, mes, 1)
             if mes == 12:
-                fh = date(anio + 1, 1, 1) - timedelta(days=1)
+                periodo_fh = date(anio + 1, 1, 1) - timedelta(days=1)
             else:
-                fh = date(anio, mes + 1, 1) - timedelta(days=1)
-            query = query.filter(ResumenAsistenciaDiaria.fecha.between(fd, fh))
+                periodo_fh = date(anio, mes + 1, 1) - timedelta(days=1)
+            query = query.filter(ResumenAsistenciaDiaria.fecha.between(periodo_fd, periodo_fh))
         except (ValueError, IndexError):
             return jsonify({"error": "Formato de período inválido (YYYY-MM)"}), 400
 
@@ -1579,6 +1735,7 @@ def fichadas_resumen():
             )
             .filter(FichadaReloj.empleado_id.is_(None))
             .group_by(FichadaReloj.clock_id_original, FichadaReloj.nombre_reloj)
+            .order_by(func.count(FichadaReloj.id).desc(), FichadaReloj.clock_id_original.asc())
             .all()
         )
         fichadas_pendientes = [
@@ -1586,19 +1743,33 @@ def fichadas_resumen():
             for r in rows
         ]
 
-    # Fichadas asociadas pero sin procesar (tienen empleado_id pero no ResumenAsistenciaDiaria)
-    from sqlalchemy import func as sa_func
-    fichadas_asociadas_total = FichadaReloj.query.filter(FichadaReloj.empleado_id.isnot(None)).count()
-    # Contar días-empleado en fichadas asociadas
-    dias_fichadas = (
+    # Fichadas asociadas pero sin procesar del período/empleado seleccionado.
+    fichadas_asociadas_q = (
         db.session.query(FichadaReloj.empleado_id, FichadaReloj.fecha)
         .filter(FichadaReloj.empleado_id.isnot(None))
-        .distinct()
-        .count()
     )
-    # Contar días-empleado ya procesados en resumen
-    dias_procesados = ResumenAsistenciaDiaria.query.count()
-    fichadas_sin_procesar = max(0, dias_fichadas - dias_procesados)
+    resumen_procesado_q = db.session.query(
+        ResumenAsistenciaDiaria.empleado_id,
+        ResumenAsistenciaDiaria.fecha,
+    )
+
+    if periodo_fd and periodo_fh:
+        fichadas_asociadas_q = fichadas_asociadas_q.filter(
+            FichadaReloj.fecha.between(periodo_fd, periodo_fh)
+        )
+        resumen_procesado_q = resumen_procesado_q.filter(
+            ResumenAsistenciaDiaria.fecha.between(periodo_fd, periodo_fh)
+        )
+
+    if empleado_id:
+        fichadas_asociadas_q = fichadas_asociadas_q.filter(FichadaReloj.empleado_id == empleado_id)
+        resumen_procesado_q = resumen_procesado_q.filter(
+            ResumenAsistenciaDiaria.empleado_id == empleado_id
+        )
+
+    dias_fichadas = {(emp_id, fecha) for emp_id, fecha in fichadas_asociadas_q.distinct().all()}
+    dias_procesados = {(emp_id, fecha) for emp_id, fecha in resumen_procesado_q.distinct().all()}
+    fichadas_sin_procesar = len(dias_fichadas - dias_procesados)
 
     return jsonify({
         "kpis": {
@@ -1610,6 +1781,7 @@ def fichadas_resumen():
             "fichadas_sin_asociar": fichadas_sin_asociar,
             "fichadas_sin_procesar": fichadas_sin_procesar,
         },
+        "fichadas_sin_procesar_scope": "periodo" if periodo else "global",
         "ranking_peor": [
             {
                 "empleado_id": eid,

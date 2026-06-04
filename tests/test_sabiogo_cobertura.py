@@ -4,11 +4,12 @@ Usa la BD postgres real con transacciones + rollback para aislar cada test.
 """
 
 import pytest
+import pandas as pd
 from datetime import date, datetime, timedelta
 from uuid import uuid4
 
 from app import create_app
-from blueprints.sabiogo import _normalizar_fecha_dia
+from blueprints.sabiogo import _importar_df_a_staging, _normalizar_fecha_dia
 from models import db as _db
 from models.sabiogo import StgSabiogoVentas, StgSabiogoCompras, LogSabiogoCarga
 
@@ -113,10 +114,10 @@ class TestValidarDuplicadosCrossCarga:
         db_session.flush()
 
         count = StgSabiogoVentas.validar_duplicados(db_session)
-        assert count == 2
+        assert count == 1
 
         db_session.expire_all()
-        assert r1.estado == 'duplicado'
+        assert r1.estado == 'pendiente'
         assert r2.estado == 'duplicado'
 
     def test_compras_cross_carga(self, db_session):
@@ -136,6 +137,79 @@ class TestValidarDuplicadosCrossCarga:
 
         db_session.expire_all()
         assert dup.estado == 'duplicado'
+
+
+class TestDescartarDuplicadosEnImportacion:
+    """Verifica que los duplicados detectados se eliminan del staging del archivo nuevo."""
+
+    def test_import_descarta_cross_carga_y_no_persiste_duplicado(self, db_session):
+        existente = StgSabiogoVentas(
+            fecha=date(2025, 3, 10), codigo='TEST-DISCARD-CROSS', nro_comprob='FAC-DISC-001',
+            tipo='FAC', subtot=500.0, origen='CARNES', estado='procesado',
+        )
+        db_session.add(existente)
+        db_session.flush()
+
+        df = pd.DataFrame([
+            {
+                'fecha': date(2025, 3, 10),
+                'codigo': 'TEST-DISCARD-CROSS',
+                'nro_comprob': 'FAC-DISC-001',
+                'tipo': 'FAC',
+                'subtot': 500.0,
+                'producto': 'Producto X',
+            }
+        ])
+
+        stats = _importar_df_a_staging(
+            df,
+            ModelClass=StgSabiogoVentas,
+            origen='CARNES',
+            filename='cross.xlsx',
+            file_sha256='hash_cross_discard',
+        )
+
+        db_session.expire_all()
+        assert stats['filas_insertadas'] == 1
+        assert stats['filas_duplicadas'] == 1
+        assert stats['filas_procesadas'] == 0
+        assert StgSabiogoVentas.query.filter_by(hash_archivo='hash_cross_discard').count() == 0
+        assert StgSabiogoVentas.query.filter_by(codigo='TEST-DISCARD-CROSS', estado='procesado').count() == 1
+
+    def test_import_descarta_intra_lote_y_conserva_uno(self, db_session):
+        df = pd.DataFrame([
+            {
+                'fecha': date(2025, 3, 11),
+                'codigo': 'TEST-DISCARD-INTRA',
+                'nro_comprob': 'FAC-DISC-002',
+                'tipo': 'FAC',
+                'subtot': 700.0,
+                'producto': 'Producto Y',
+            },
+            {
+                'fecha': date(2025, 3, 11),
+                'codigo': 'TEST-DISCARD-INTRA',
+                'nro_comprob': 'FAC-DISC-002',
+                'tipo': 'FAC',
+                'subtot': 700.0,
+                'producto': 'Producto Y',
+            },
+        ])
+
+        stats = _importar_df_a_staging(
+            df,
+            ModelClass=StgSabiogoVentas,
+            origen='CARNES',
+            filename='intra.xlsx',
+            file_sha256='hash_intra_discard',
+        )
+
+        rows = StgSabiogoVentas.query.filter_by(hash_archivo='hash_intra_discard').order_by(StgSabiogoVentas.id.asc()).all()
+        assert stats['filas_insertadas'] == 2
+        assert stats['filas_duplicadas'] == 1
+        assert stats['filas_procesadas'] == 1
+        assert len(rows) == 1
+        assert rows[0].estado == 'procesado'
 
 
 class TestCoberturaFechasEndpoint:
@@ -223,3 +297,27 @@ class TestHistorialCargasEndpoint:
         assert resp.status_code == 200
         data = resp.get_json()
         assert len(data['items']) <= 3
+
+
+class TestPurgarDuplicadosEndpoint:
+    """Verifica la limpieza manual de duplicados heredados."""
+
+    def test_purgar_duplicados_heredados(self, db_session, client):
+        venta_dup = StgSabiogoVentas(
+            fecha=date(2025, 3, 12), codigo='TEST-PURGE-V', nro_comprob='PURGE-V',
+            tipo='FAC', subtot=100.0, origen='CARNES', estado='duplicado', hash_archivo='purge_ventas_hash',
+        )
+        compra_dup = StgSabiogoCompras(
+            fecha=date(2025, 3, 12), codigo='TEST-PURGE-C', nro_comprob='PURGE-C',
+            tipo='OC', subtot=200.0, origen='LACTEOS', estado='duplicado', hash_archivo='purge_compras_hash',
+        )
+        db_session.add_all([venta_dup, compra_dup])
+        db_session.commit()
+
+        resp = client.post('/sabiogo/api/purgar-duplicados')
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['success'] is True
+        assert data['purgados']['total'] >= 2
+        assert StgSabiogoVentas.query.filter_by(hash_archivo='purge_ventas_hash').count() == 0
+        assert StgSabiogoCompras.query.filter_by(hash_archivo='purge_compras_hash').count() == 0

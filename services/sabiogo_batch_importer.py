@@ -293,6 +293,13 @@ def _import_transacciones(df: pd.DataFrame, *, tipo: str, origen: str, filename:
     except Exception:
         duplicados = 0
 
+    filas_descartadas = int(
+        db.session.query(ModelClass).filter(
+            ModelClass.hash_archivo == file_sha256,
+            ModelClass.estado == "duplicado",
+        ).delete(synchronize_session=False) or 0
+    )
+
     filas_procesadas = (
         db.session.query(ModelClass)
         .filter(ModelClass.hash_archivo == file_sha256, ModelClass.estado == "pendiente")
@@ -324,7 +331,7 @@ def _import_transacciones(df: pd.DataFrame, *, tipo: str, origen: str, filename:
         tipo_carga="ventas" if tipo == TIPO_VENTAS else "compras",
         hash_archivo=file_sha256,
         filas_insertadas=filas_insertadas,
-        filas_duplicadas=duplicados,
+        filas_duplicadas=filas_descartadas,
         filas_sin_mapeo=sin_mapeo,
         filas_error=filas_error,
         observaciones=f"origen={origen}",
@@ -334,7 +341,7 @@ def _import_transacciones(df: pd.DataFrame, *, tipo: str, origen: str, filename:
 
     return {
         "filas_insertadas": filas_insertadas,
-        "filas_duplicadas": int(duplicados or 0),
+        "filas_duplicadas": int(filas_descartadas or duplicados or 0),
         "filas_procesadas": int(filas_procesadas or 0),
         "filas_sin_mapeo": int(sin_mapeo or 0),
         "filas_error": filas_error,

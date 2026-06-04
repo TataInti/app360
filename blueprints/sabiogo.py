@@ -349,6 +349,29 @@ def _read_excel_robust(path: str) -> pd.DataFrame:
     )
 
 
+def _descartar_duplicados_importados(ModelClass, *, file_sha256: str) -> int:
+    """Elimina filas duplicadas de un archivo recién importado."""
+    return int(db.session.query(ModelClass).filter(
+        ModelClass.hash_archivo == file_sha256,
+        ModelClass.estado == 'duplicado',
+    ).delete(synchronize_session=False) or 0)
+
+
+def _purgar_duplicados_staging() -> dict:
+    """Elimina filas heredadas con estado duplicado en staging."""
+    ventas = int(db.session.query(StgSabiogoVentas).filter(
+        StgSabiogoVentas.estado == 'duplicado'
+    ).delete(synchronize_session=False) or 0)
+    compras = int(db.session.query(StgSabiogoCompras).filter(
+        StgSabiogoCompras.estado == 'duplicado'
+    ).delete(synchronize_session=False) or 0)
+    return {
+        'ventas': ventas,
+        'compras': compras,
+        'total': ventas + compras,
+    }
+
+
 def _importar_df_a_staging(df: pd.DataFrame, *, ModelClass, origen: str, filename: str, file_sha256: str) -> dict:
     """Importa un DataFrame ya validado a la tabla de staging correspondiente.
 
@@ -397,6 +420,8 @@ def _importar_df_a_staging(df: pd.DataFrame, *, ModelClass, origen: str, filenam
     except Exception:
         duplicados = 0
 
+    filas_descartadas = _descartar_duplicados_importados(ModelClass, file_sha256=file_sha256)
+
     # Promover pendientes a procesado
     filas_procesadas = db.session.query(ModelClass).filter(
         ModelClass.hash_archivo == file_sha256,
@@ -406,7 +431,7 @@ def _importar_df_a_staging(df: pd.DataFrame, *, ModelClass, origen: str, filenam
     return {
         'filas_insertadas': filas_insertadas,
         'filas_procesadas': int(filas_procesadas or 0),
-        'filas_duplicadas': int(duplicados or 0),
+        'filas_duplicadas': int(filas_descartadas or duplicados or 0),
         'filas_error': filas_error,
     }
 
@@ -763,6 +788,20 @@ def historial_cargas():
         })
 
     return jsonify({'items': items})
+
+
+@sabiogo_bp.route('/api/purgar-duplicados', methods=['POST'])
+@login_required
+def purgar_duplicados():
+    """Elimina duplicados heredados que hayan quedado en staging."""
+    try:
+        purgados = _purgar_duplicados_staging()
+        db.session.commit()
+        return jsonify({'success': True, 'purgados': purgados})
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.error(f"Error purgando duplicados heredados: {exc}", exc_info=True)
+        return jsonify({'error': str(exc)}), 500
 
 
 # ============================================================================

@@ -5,6 +5,72 @@ from ..time_utils import now_local
 from sqlalchemy import CheckConstraint, Index
 
 
+def _marcar_duplicados_para_descarte(session, model_class):
+    """Marca únicamente filas que deben descartarse por duplicidad.
+
+    Reglas:
+    - Cross-carga: toda fila pendiente cuya firma ya exista en procesado.
+    - Intra-lote: si hay varias pendientes con la misma firma, se conserva la
+      primera y se marcan las restantes.
+    """
+    from sqlalchemy import func, select, tuple_
+
+    firma_cols = (
+        model_class.nro_comprob,
+        model_class.tipo,
+        model_class.fecha,
+        model_class.codigo,
+        model_class.subtot,
+    )
+
+    firmas_existentes_sq = session.query(
+        model_class.nro_comprob.label('nro_comprob'),
+        model_class.tipo.label('tipo'),
+        model_class.fecha.label('fecha'),
+        model_class.codigo.label('codigo'),
+        model_class.subtot.label('subtot'),
+    ).filter(
+        model_class.estado == 'procesado'
+    ).group_by(
+        *firma_cols,
+    ).subquery()
+
+    cross_ids_sq = session.query(model_class.id.label('id')).filter(
+        model_class.estado == 'pendiente',
+        tuple_(*firma_cols).in_(
+            select(
+                firmas_existentes_sq.c.nro_comprob,
+                firmas_existentes_sq.c.tipo,
+                firmas_existentes_sq.c.fecha,
+                firmas_existentes_sq.c.codigo,
+                firmas_existentes_sq.c.subtot,
+            )
+        ),
+    ).subquery()
+
+    cross_count = session.query(model_class).filter(
+        model_class.id.in_(select(cross_ids_sq.c.id))
+    ).update({'estado': 'duplicado'}, synchronize_session=False)
+
+    pendientes_ranked_sq = session.query(
+        model_class.id.label('id'),
+        func.row_number().over(
+            partition_by=firma_cols,
+            order_by=model_class.id.asc(),
+        ).label('rn'),
+    ).filter(
+        model_class.estado == 'pendiente'
+    ).subquery()
+
+    intra_count = session.query(model_class).filter(
+        model_class.id.in_(
+            select(pendientes_ranked_sq.c.id).where(pendientes_ranked_sq.c.rn > 1)
+        )
+    ).update({'estado': 'duplicado'}, synchronize_session=False)
+
+    return int(cross_count or 0) + int(intra_count or 0)
+
+
 class StgSabiogoVentas(db.Model):
     """Modelo para staging de ventas importadas desde SabioGo."""
     
@@ -69,74 +135,12 @@ class StgSabiogoVentas(db.Model):
     def validar_duplicados(cls, session):
         """
         Detecta y marca registros duplicados basándose en campos clave.
-        Primero detecta cross-carga (pendientes vs procesados existentes),
-        luego duplicados intra-lote (pendientes vs pendientes).
+        Se marcan sólo las filas que deben descartarse.
         
         Returns:
             int: Número de registros marcados como duplicados
         """
-        from sqlalchemy import func, and_
-
-        # 1) Cross-carga: pendientes cuya firma ya existe en procesados
-        existentes_sq = session.query(
-            cls.nro_comprob,
-            cls.tipo,
-            cls.fecha,
-            cls.codigo,
-            cls.subtot,
-        ).filter(
-            cls.estado == 'procesado'
-        ).group_by(
-            cls.nro_comprob,
-            cls.tipo,
-            cls.fecha,
-            cls.codigo,
-            cls.subtot,
-        ).subquery()
-
-        cross_count = session.query(cls).filter(
-            and_(
-                cls.estado == 'pendiente',
-                cls.nro_comprob == existentes_sq.c.nro_comprob,
-                cls.tipo == existentes_sq.c.tipo,
-                cls.fecha == existentes_sq.c.fecha,
-                cls.codigo == existentes_sq.c.codigo,
-                cls.subtot == existentes_sq.c.subtot,
-            )
-        ).update({'estado': 'duplicado'}, synchronize_session=False)
-
-        # 2) Intra-lote: pendientes duplicados entre sí
-        duplicados_sq = session.query(
-            cls.nro_comprob,
-            cls.tipo,
-            cls.fecha,
-            cls.codigo,
-            cls.subtot,
-            func.count().label('count')
-        ).filter(
-            cls.estado == 'pendiente'
-        ).group_by(
-            cls.nro_comprob,
-            cls.tipo,
-            cls.fecha,
-            cls.codigo,
-            cls.subtot
-        ).having(
-            func.count() > 1
-        ).subquery()
-        
-        intra_count = session.query(cls).filter(
-            and_(
-                cls.estado == 'pendiente',
-                cls.nro_comprob == duplicados_sq.c.nro_comprob,
-                cls.tipo == duplicados_sq.c.tipo,
-                cls.fecha == duplicados_sq.c.fecha,
-                cls.codigo == duplicados_sq.c.codigo,
-                cls.subtot == duplicados_sq.c.subtot
-            )
-        ).update({'estado': 'duplicado'}, synchronize_session=False)
-        
-        return cross_count + intra_count
+        return _marcar_duplicados_para_descarte(session, cls)
 
 
 class StgSabiogoCompras(db.Model):
@@ -203,71 +207,9 @@ class StgSabiogoCompras(db.Model):
     def validar_duplicados(cls, session):
         """
         Detecta y marca registros duplicados basándose en campos clave.
-        Primero detecta cross-carga (pendientes vs procesados existentes),
-        luego duplicados intra-lote (pendientes vs pendientes).
+        Se marcan sólo las filas que deben descartarse.
         
         Returns:
             int: Número de registros marcados como duplicados
         """
-        from sqlalchemy import func, and_
-
-        # 1) Cross-carga: pendientes cuya firma ya existe en procesados
-        existentes_sq = session.query(
-            cls.nro_comprob,
-            cls.tipo,
-            cls.fecha,
-            cls.codigo,
-            cls.subtot,
-        ).filter(
-            cls.estado == 'procesado'
-        ).group_by(
-            cls.nro_comprob,
-            cls.tipo,
-            cls.fecha,
-            cls.codigo,
-            cls.subtot,
-        ).subquery()
-
-        cross_count = session.query(cls).filter(
-            and_(
-                cls.estado == 'pendiente',
-                cls.nro_comprob == existentes_sq.c.nro_comprob,
-                cls.tipo == existentes_sq.c.tipo,
-                cls.fecha == existentes_sq.c.fecha,
-                cls.codigo == existentes_sq.c.codigo,
-                cls.subtot == existentes_sq.c.subtot,
-            )
-        ).update({'estado': 'duplicado'}, synchronize_session=False)
-
-        # 2) Intra-lote: pendientes duplicados entre sí
-        duplicados_sq = session.query(
-            cls.nro_comprob,
-            cls.tipo,
-            cls.fecha,
-            cls.codigo,
-            cls.subtot,
-            func.count().label('count')
-        ).filter(
-            cls.estado == 'pendiente'
-        ).group_by(
-            cls.nro_comprob,
-            cls.tipo,
-            cls.fecha,
-            cls.codigo,
-            cls.subtot
-        ).having(
-            func.count() > 1
-        ).subquery()
-        
-        intra_count = session.query(cls).filter(
-            and_(
-                cls.estado == 'pendiente',
-                cls.nro_comprob == duplicados_sq.c.nro_comprob,
-                cls.tipo == duplicados_sq.c.tipo,
-                cls.fecha == duplicados_sq.c.fecha,
-                cls.codigo == duplicados_sq.c.codigo,
-                cls.subtot == duplicados_sq.c.subtot
-            )
-        ).update({'estado': 'duplicado'}, synchronize_session=False)
-        
-        return cross_count + intra_count
+        return _marcar_duplicados_para_descarte(session, cls)

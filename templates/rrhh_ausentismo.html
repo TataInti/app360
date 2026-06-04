@@ -309,8 +309,11 @@ async function cargarResumen() {
         // Banner fichadas asociadas sin procesar
         const bannerProc = document.getElementById('bannerSinProcesar');
         if (d.kpis.fichadas_sin_procesar > 0) {
+            const scopeText = d.fichadas_sin_procesar_scope === 'periodo'
+                ? 'del período seleccionado'
+                : 'del historial';
             document.getElementById('bannerSinProcesarText').textContent =
-                `Hay ${d.kpis.fichadas_sin_procesar} días con fichadas asociadas pendientes de procesar contra turnos.`;
+                `Hay ${d.kpis.fichadas_sin_procesar} días con fichadas asociadas ${scopeText} pendientes de procesar contra turnos.`;
             bannerProc.style.display = '';
         } else {
             bannerProc.style.display = 'none';
@@ -449,6 +452,59 @@ function renderChartTendencia(data) {
     });
 }
 
+function resumirProcesamiento(p) {
+    if (!p) return 'Sin cambios de procesamiento.';
+
+    const partes = [];
+    if (p.procesados > 0) partes.push(`${p.procesados} días procesados`);
+    if (p.tardanzas > 0) partes.push(`${p.tardanzas} tardanzas`);
+    if (p.fichadas_faltantes > 0) partes.push(`${p.fichadas_faltantes} fichadas faltantes`);
+    if (p.faltas > 0) partes.push(`${p.faltas} faltas`);
+    if (p.sin_turno > 0) partes.push(`${p.sin_turno} empleados sin turno`);
+
+    return partes.length ? partes.join(' — ') : 'Sin cambios de procesamiento.';
+}
+
+function formatearEjemplosPendientes(items, maxItems = 4) {
+    if (!items || !items.length) return '';
+    const ejemplos = items.slice(0, maxItems).map(item => `${item.clock_id} (${item.cantidad})`).join(', ');
+    const resto = items.length > maxItems ? ` y ${items.length - maxItems} más` : '';
+    return `${ejemplos}${resto}`;
+}
+
+function construirMensajeAsociacion(resp) {
+    const diag = resp.diagnostico || {};
+    const bloques = [];
+
+    if (resp.asociados > 0) {
+        bloques.push(`Se asociaron ${resp.asociados} fichadas. Pendientes: ${resp.pendientes}.`);
+        if (resp.impactados && resp.impactados.length) {
+            const impactados = resp.impactados.slice(0, 4).map(item => `${item.empleado} (${item.cantidad})`).join(', ');
+            const resto = resp.impactados.length > 4 ? ` y ${resp.impactados.length - 4} más` : '';
+            bloques.push(`Empleados impactados: ${impactados}${resto}.`);
+        }
+    } else if (diag.empleados_con_clock_id === 0) {
+        bloques.push('No hay empleados con ID Reloj configurado en la base local.');
+    } else {
+        bloques.push(`No se asociaron fichadas nuevas. Pendientes: ${resp.pendientes}.`);
+    }
+
+    if (diag.sin_match_total > 0) {
+        bloques.push(`Sin coincidencia para ${diag.sin_match_total} fichadas: ${formatearEjemplosPendientes(diag.sin_match)}.`);
+    }
+
+    if (diag.ambiguos_total > 0) {
+        bloques.push(`Hay ${diag.ambiguos_total} fichadas con ID ambiguo por empleados duplicados tras normalizar.`);
+    }
+
+    if (diag.sin_turno_empleados > 0) {
+        bloques.push(`${diag.sin_turno_empleados} empleados con match siguen sin turno asignado.`);
+    }
+
+    bloques.push(resumirProcesamiento(resp.procesamiento));
+    return bloques.join('\n');
+}
+
 /* ─── Upload ──────────────────────────────────────────── */
 async function subirArchivo() {
     const input = document.getElementById('inputArchivo');
@@ -485,7 +541,13 @@ async function subirArchivo() {
         if (d.asociados > 0) html += `<br><span class="text-success"><i class="bi bi-check-circle me-1"></i>${d.asociados} fichadas asociadas automáticamente con empleados</span>`;
         if (d.pendientes > 0) {
             html += `<br><span class="text-warning"><i class="bi bi-link-45deg me-1"></i>${d.pendientes} fichadas sin asociar</span>`;
-            html += ` — <small>Configurá el <strong>ID Reloj</strong> en <a href="/admin/rrhh" target="_blank">Admin → RRHH</a></small>`;
+            if (d.diagnostico && d.diagnostico.empleados_con_clock_id === 0) {
+                html += ` — <small>No hay empleados con <strong>ID Reloj</strong> configurado en esta base local.</small>`;
+            } else if (d.diagnostico && d.diagnostico.sin_match && d.diagnostico.sin_match.length) {
+                html += ` — <small>Sin coincidencia para: ${formatearEjemplosPendientes(d.diagnostico.sin_match)}</small>`;
+            } else {
+                html += ` — <small>Configurá el <strong>ID Reloj</strong> en <a href="/admin/rrhh" target="_blank">Admin → RRHH</a></small>`;
+            }
         }
 
         const alertClass = d.importados > 0 ? 'alert alert-success mb-0' :
@@ -532,11 +594,7 @@ async function asociarFichadas() {
             headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
         });
         const d = await r.json();
-        if (d.asociados > 0) {
-            alert(`Se asociaron ${d.asociados} fichadas. Pendientes: ${d.pendientes}`);
-        } else {
-            alert(`No se pudo asociar ninguna fichada. Pendientes: ${d.pendientes}. Configurá los IDs de reloj en Admin → RRHH.`);
-        }
+        alert(construirMensajeAsociacion(d));
         cargarResumen();
     } catch (e) {
         alert('Error al intentar asociar fichadas');

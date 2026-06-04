@@ -162,7 +162,11 @@ def import_transacciones(df: pd.DataFrame, *, ModelClass, origen: str, filename:
         # Marcar duplicados
         try:
             dup = ModelClass.validar_duplicados(db_session)
-            print(f"  → Duplicados marcados: {dup}")
+            descartados = db_session.query(ModelClass).filter(
+                ModelClass.hash_archivo == file_sha256,
+                ModelClass.estado == 'duplicado',
+            ).delete(synchronize_session=False)
+            print(f"  → Descartados por duplicado: {descartados or dup}")
         except Exception:
             pass
 

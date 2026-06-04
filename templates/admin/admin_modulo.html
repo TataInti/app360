@@ -335,7 +335,7 @@ function appendField(container, entidad, field, value, required) {
             <input type="number" class="form-control" name="${field}" id="field-${field}" 
                    value="${safeValue}" placeholder="ID del reloj biométrico"
                    min="1" step="1"
-                   ${required ? 'required' : ''}>            <div class="form-text">Número entero que identifica al empleado en el reloj biométrico.</div>
+                   ${required ? 'required' : ''}>            <div class="form-text">Número entero que identifica al empleado en el reloj biométrico. Se normaliza automáticamente al guardar.</div>
         `;
         container.appendChild(div);
         return;
@@ -498,16 +498,16 @@ document.getElementById('formEntidad')?.addEventListener('submit', async functio
         data.is_active = data.is_active === true || data.is_active === 'true';
     }
     if (data.location_id === '') {
-        delete data.location_id;
+        data.location_id = null;
     }
     if (data.turno_id === '') {
-        delete data.turno_id;
+        data.turno_id = null;
     }
     if (data.clock_id === '') {
-        delete data.clock_id;
+        data.clock_id = null;
     }
     if (data.salary === '') {
-        delete data.salary;
+        data.salary = null;
     }
 
     const url = id ? `/api/admin/${MODULO}/${entidad}/${id}` : `/api/admin/${MODULO}/${entidad}`;

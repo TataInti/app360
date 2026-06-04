@@ -464,8 +464,8 @@ GET /api/rrhh/fichadas/resumen
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| POST | `/api/rrhh/fichadas/cargar` | Importa Excel. Retorna: importados, duplicados, errores_parse, asociados, pendientes |
-| POST | `/api/rrhh/fichadas/asociar` | Re-asocia fichadas pendientes con Employee.clock_id |
+| POST | `/api/rrhh/fichadas/cargar` | Importa Excel, auto-asocia y auto-procesa. Retorna: importados, duplicados, errores_parse, asociados, pendientes, diagnostico, procesamiento |
+| POST | `/api/rrhh/fichadas/asociar` | Re-asocia fichadas pendientes con Employee.clock_id, devuelve diagnostico útil y reprocesa empleados recién impactados |
 | POST | `/api/rrhh/fichadas/procesar` | Genera ResumenAsistenciaDiaria desde fichadas asociadas. Requiere `lote` o `fecha_desde`+`fecha_hasta` |
 | GET | `/api/rrhh/fichadas/resumen` | KPIs y tabla del tablero. Filtros: periodo, empleado_id, estado |
 | GET | `/api/rrhh/fichadas/resumen-empleado` | Detalle mensual de un empleado |
@@ -476,6 +476,16 @@ GET /api/rrhh/fichadas/resumen
 - Cada Employee necesita `clock_id` (entero, configurado en `/admin/rrhh`) que corresponde al ID del reloj biométrico.
 - Cada Employee necesita `turno_id` asignado para que el procesamiento funcione.
 - Sin turno asignado, las fichadas se importan y asocian pero no se procesan.
+- El Admin normaliza `clock_id` al guardar y rechaza duplicados con error legible.
+
+### 16.5.1 Diagnóstico de asociación
+
+- `diagnostico.empleados_con_clock_id`: cantidad de empleados con ID Reloj configurado.
+- `diagnostico.matchables`: clock IDs pendientes que sí encuentran empleado.
+- `diagnostico.sin_match`: clock IDs pendientes sin coincidencia en Employee.clock_id.
+- `diagnostico.sin_turno`: coincidencias válidas que todavía no tienen turno asignado.
+- `diagnostico.ambiguos`: casos con empleados duplicados tras normalizar clock IDs; no se auto-asocian.
+- `procesamiento.sin_turno`: cantidad de empleados asociados que no pudieron procesarse por falta de turno.
 
 ### 16.6 Formato Excel esperado
 
@@ -492,3 +502,4 @@ GET /api/rrhh/fichadas/resumen
 ### 16.8 Template
 
 - `templates/rrhh_ausentismo.html`: panel completo con KPIs, charts (Chart.js), tabla de detalle, modal de importación, banner de fichadas sin asociar
+- El banner `fichadas_sin_procesar` se calcula sobre el período visible del tablero, no sobre todo el historial.
