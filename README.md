@@ -102,7 +102,6 @@ Tip: si necesitás guardar accesos/credenciales del VPS, guardalos en `docs/_loc
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
 ```
 
 Variables minimas en `.env`:
@@ -122,7 +121,6 @@ bash scripts/dev_backend.sh
 ## Docker (Opcional)
 
 ```bash
-cp .env.example .env
 docker-compose up -d
 ```
 

@@ -6,7 +6,6 @@ from functools import wraps
 from decimal import Decimal
 from sqlalchemy.exc import IntegrityError
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
-from flask import current_app
 
 from models import db
 from models.gastos import CategoriaGasto, Proveedor
@@ -29,11 +28,6 @@ def admin_required(f):
     """Decorador que verifica que el usuario tenga rol admin"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # En desarrollo local, permitir bypass para facilitar pruebas.
-        env = (current_app.config.get("FLASK_ENV") or "").lower()
-        if current_app.config.get("LOCAL_DEV_BYPASS_AUTH") and env in {"development", "dev", "local"}:
-            return f(*args, **kwargs)
-
         if "user" not in session:
             flash("Debe iniciar sesión.", "warning")
             return redirect(url_for("auth.login"))
@@ -51,9 +45,6 @@ def admin_or_hr_required(f):
     """Decorador: permite admin/manager/gerente y también hr (con restricciones de módulo)."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        env = (current_app.config.get("FLASK_ENV") or "").lower()
-        if current_app.config.get("LOCAL_DEV_BYPASS_AUTH") and env in {"development", "dev", "local"}:
-            return f(*args, **kwargs)
         if "user" not in session:
             flash("Debe iniciar sesión.", "warning")
             return redirect(url_for("auth.login"))
@@ -66,12 +57,6 @@ def admin_or_hr_required(f):
 
 def _hr_modulo_allowed(modulo):
     """Para rol hr: solo permite módulo rrhh. Retorna respuesta de error o None si OK."""
-    env = (current_app.config.get("FLASK_ENV") or "").lower()
-    if current_app.config.get("TESTING"):
-        return None
-    if current_app.config.get("LOCAL_DEV_BYPASS_AUTH") and env in {"development", "dev", "local"}:
-        return None
-
     role = session.get("role", "")
     if role in _FULL_ADMIN_ROLES:
         return None

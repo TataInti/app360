@@ -6,10 +6,10 @@ from logging.handlers import RotatingFileHandler
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-# En desarrollo local es común tener variables exportadas en la shell; forzamos override
-# para que la app quede alineada a la configuración del proyecto.
-load_dotenv(override=True)
+# Load environment variables from .env file without overriding the process
+# environment. In production, the process manager or shell must remain the
+# source of truth.
+load_dotenv()
 
 from config import Config
 from models import db
@@ -82,6 +82,8 @@ def setup_logging(app):
 
 def validate_config(app):
     required = ["SECRET_KEY", "ADMIN_PASSWORD"]
+    if not app.config.get("SQLALCHEMY_DATABASE_URI"):
+        required.append("DATABASE_URL")
     missing = [key for key in required if not app.config.get(key)]
     if missing:
         missing_list = ", ".join(missing)

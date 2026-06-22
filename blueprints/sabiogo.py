@@ -82,9 +82,6 @@ def login_required(f):
     """Compatibilidad con sistema de sesión propio del proyecto."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        # En desarrollo local permitimos bypass para poder usar la UI sin sesión.
-        if current_app.config.get('LOCAL_DEV_BYPASS_AUTH'):
-            return f(*args, **kwargs)
         if session.get("user"):
             return f(*args, **kwargs)
         return redirect(url_for("auth.login"))

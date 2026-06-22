@@ -48,8 +48,16 @@ echo [OK] Dependencias instaladas.
 :: Crear config.ini si no existe
 echo.
 if not exist "config.ini" (
-    copy config.ini.example config.ini
-    echo [OK] config.ini creado desde el template.
+    > config.ini echo [firebird]
+    >> config.ini echo database = localhost/VYP
+    >> config.ini echo user = ^<SABIOGO_DB_USER^>
+    >> config.ini echo password = ^<SABIOGO_DB_PASSWORD^>
+    >> config.ini echo.
+    >> config.ini echo [vps]
+    >> config.ini echo url = https://^<tu-dominio-app360^>
+    >> config.ini echo api_key = ^<SABIOGO_SYNC_API_KEY^>
+    >> config.ini echo timeout_seconds = 120
+    echo [OK] config.ini creado con estructura base local.
     echo.
     echo >>> ACCION REQUERIDA: Editar config.ini con los valores reales:
     echo     - [vps] api_key = la clave del archivo .env del VPS

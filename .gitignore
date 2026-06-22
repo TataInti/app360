@@ -29,8 +29,6 @@ venv/
 ENV/
 .env/
 .venv/
-.env.production.example
-.env.example
 
 # =============================================================================
 # IDE / Editor
@@ -44,9 +42,6 @@ ENV/
 .pydevproject
 .settings/
 .claude/
-.github/
-claude.md
-requirements-dev.txt
 
 # =============================================================================
 # OS Generated Files
@@ -65,6 +60,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+.env.*
 
 # =============================================================================
 # Database Files (local development only)
@@ -81,6 +77,7 @@ backups/db-sync/
 backups/manual-deploy/
 backups/excel-residual/
 backups/*.dump
+backups/**/*.sql
 .env.local_backup*
 .env.*_backup*
 
@@ -94,6 +91,8 @@ logs/
 # Testing & Coverage
 # =============================================================================
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 .tox/
@@ -139,6 +138,8 @@ bandit_report.json
 *.bak
 *.tmp
 *.temp
+*.dump
+*.whl
 .cache/
 
 # =============================================================================
@@ -151,6 +152,6 @@ vps_access.md
 *.key
 
 # SabioGo sync script (Windows) - configuración con secretos
-scripts/sabiogo_sync/config.ini
+scripts/sabiogo_sync/*.ini
 scripts/sabiogo_sync/venv/
 scripts/sabiogo_sync/sync.log

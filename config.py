@@ -6,13 +6,13 @@ class Config:
     DEBUG = os.getenv("DEBUG", "False").lower() == "true"
     _IS_LOCAL = FLASK_ENV.lower() in {"development", "dev", "local"} or DEBUG
     SECRET_KEY = os.getenv("SECRET_KEY")
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL", "postgresql://app360:password@localhost:5432/app360"
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL") or (
+        "postgresql://app360:password@localhost:5432/app360" if _IS_LOCAL else None
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # pool_pre_ping evita conexiones SSL/TCP stale tras idle prolongado
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
-    if not SQLALCHEMY_DATABASE_URI.startswith("sqlite"):
+    if SQLALCHEMY_DATABASE_URI and not SQLALCHEMY_DATABASE_URI.startswith("sqlite"):
         SQLALCHEMY_ENGINE_OPTIONS.update(
             {
                 "pool_recycle": int(os.getenv("DB_POOL_RECYCLE", 1800)),
@@ -73,7 +73,6 @@ class Config:
     LOG_FORMAT = os.getenv("LOG_FORMAT", "json")  # 'json' or 'text'
     LOG_FILE = os.getenv("LOG_FILE", "logs/app.log")
     SECURITY_LOG_FILE = os.getenv("SECURITY_LOG_FILE", "logs/security.log")
-    LOCAL_DEV_BYPASS_AUTH = os.getenv("LOCAL_DEV_BYPASS_AUTH", "False").lower() == "true"
 
     # SabioGo sync: API key para el script de sincronización en Windows Server
     SABIOGO_SYNC_API_KEY = os.getenv("SABIOGO_SYNC_API_KEY")

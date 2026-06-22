@@ -45,7 +45,7 @@ def load_config() -> configparser.ConfigParser:
     cfg_path = BASE_DIR / 'config.ini'
     if not cfg_path.exists():
         log.error(f"Archivo de configuración no encontrado: {cfg_path}")
-        log.error("Copiá config.ini.example → config.ini y completá los valores.")
+        log.error("Creá config.ini manualmente y completá las secciones [firebird] y [vps].")
         sys.exit(1)
     cfg = configparser.ConfigParser()
     cfg.read(cfg_path, encoding='utf-8')

@@ -118,7 +118,6 @@ Notas de permisos:
 
 - Eventos de seguridad se registran en `logs/security.log`.
 - Headers de hardening se agregan en `after_request` (CSP, HSTS según esquema, X-Frame-Options, etc.).
-- En VPS se recomienda `LOCAL_DEV_BYPASS_AUTH=False`.
 
 ---
 
@@ -138,11 +137,8 @@ Variables relevantes adicionales:
 - `WTF_CSRF_ENABLED`
 - `RATELIMIT_ENABLED`, `RATELIMIT_DEFAULT`
 - `LOG_LEVEL`, `LOG_FILE`, `SECURITY_LOG_FILE`
-- `LOCAL_DEV_BYPASS_AUTH`
 
-Plantillas:
-- `.env.example`
-- `.env.production.example`
+No se versionan plantillas de entorno en el repositorio.
 
 ### 5.2 Política de secretos
 
@@ -155,18 +151,13 @@ Plantillas:
 
 ### 6.1 Setup local recomendado
 
-**Requisitos de sistema (macOS vía Homebrew):**
+Prerrequisitos genéricos:
 
-```bash
-# Node.js 22 (keg-only: requiere agregar al PATH)
-brew install node@22
-echo 'export PATH="/opt/homebrew/opt/node@22/bin:$PATH"' >> ~/.zshrc
+- Python 3.12
+- PostgreSQL accesible localmente
+- Dependencias del sistema necesarias para `requirements.txt`
 
-# PostgreSQL 14 (keg-only: requiere agregar al PATH)
-brew install postgresql@14
-echo 'export PATH="/opt/homebrew/opt/postgresql@14/bin:$PATH"' >> ~/.zshrc
-brew services start postgresql@14
-```
+Las notas específicas de máquina, package manager, PATH y servicios locales no se versionan; mantenelas en `docs/_local/` o en documentación privada.
 
 Backend:
 
@@ -175,7 +166,6 @@ python3.12 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
-cp .env.example .env
 # Editar .env: generar SECRET_KEY con `openssl rand -base64 32`
 bash scripts/dev_backend.sh
 ```

@@ -36,8 +36,10 @@ Si el VPS ya está instalado y corriendo, esta sección sirve como referencia pa
 ### 0) Acceso al VPS
 - Acceso SSH con usuario root:
 ```
-ssh root@72.61.47.19
+ssh root@<VPS_IP>
 ```
+
+Los accesos concretos del entorno deben mantenerse fuera del repositorio versionado.
 
 ### 1) Código
 
@@ -51,9 +53,9 @@ sudo chown -R www-data:www-data /var/www/app360
 
 ### 2) Archivo de entorno
 
-Crear `/var/www/app360/.env` (NO se versiona). Usar `.env.example` como base.
+Crear `/var/www/app360/.env` manualmente (NO se versiona).
 
-- Recomendación: `LOCAL_DEV_BYPASS_AUTH=False` en VPS.
+- No habilitar bypasses de desarrollo en VPS.
 
 ### 3) systemd (Gunicorn)
 

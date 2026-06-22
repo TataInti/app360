@@ -161,16 +161,6 @@ def jwt_required(f):
     """Decorator to require a valid JWT token for API endpoints"""
     @wraps(f)
     def decorated(*args, **kwargs):
-        # En desarrollo local, permitir bypass para destrabar la SPA sin login JWT.
-        # Esto NO debe habilitarse en producción.
-        if current_app.config.get('LOCAL_DEV_BYPASS_AUTH'):
-            request.current_user = {
-                'user_id': None,
-                'username': 'local-dev',
-                'role': 'admin',
-            }
-            return f(*args, **kwargs)
-
         token = None
         
         # Check for token in Authorization header
@@ -270,13 +260,7 @@ def module_allowed(module, role=None, user_id=None):
 def protect_blueprint(bp, module):
     @bp.before_request
     def guard():
-        # Skip protection in testing mode
         from flask import current_app
-        if current_app.config.get('TESTING'):
-            return
-
-        if current_app.config.get('LOCAL_DEV_BYPASS_AUTH'):
-            return
 
         # Sincronización servidor-a-servidor: API key en header como alternativa a sesión
         _sync_key = current_app.config.get('SABIOGO_SYNC_API_KEY')

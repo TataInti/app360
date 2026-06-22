@@ -20,7 +20,6 @@ def app():
     app.config['TESTING'] = True
     app.config['WTF_CSRF_ENABLED'] = False
     app.config['LOGIN_DISABLED'] = True
-    app.config['LOCAL_DEV_BYPASS_AUTH'] = True
     return app
 
 

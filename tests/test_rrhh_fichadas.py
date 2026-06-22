@@ -15,7 +15,6 @@ def app():
     Config.SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     Config.WTF_CSRF_ENABLED = False
     Config.RATELIMIT_ENABLED = False
-    Config.LOCAL_DEV_BYPASS_AUTH = True
     Config.FLASK_ENV = "development"
     Config.DEBUG = False
 

@@ -23,7 +23,7 @@ El desarrollo se hace primero en entorno local. La base local es la fuente de tr
 Backend:
 
 ```bash
-cd /Users/inti/GitHub/vyp/app360
+cd <repo_root>
 source .venv/bin/activate
 bash scripts/dev_backend.sh
 ```

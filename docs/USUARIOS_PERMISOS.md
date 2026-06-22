@@ -1,24 +1,11 @@
-# Usuarios en Producción — Permisos y Capacidades
+# Permisos y Capacidades por Rol
 
-> Última actualización: 2026-03-26
-> Refleja el estado real de la base de datos en `vyp.app360.com.ar` y la lógica en `security.py`.
+> Documento de referencia funcional sobre roles y módulos.
+> No versionar listados reales de usuarios ni datos operativos concretos del entorno.
 
 ---
 
-## Usuarios activos en producción
-
-| id | username   | role      | active |
-|----|------------|-----------|--------|
-| 1  | admin      | admin     | ✓      |
-| 2  | gerente    | admin     | ✓      |
-| 3  | ventas     | sales     | ✓      |
-| 4  | rrhh       | hr        | ✓      |
-| 5  | test_user  | admin     | ✓      |
-| 6  | tesoreria  | caja      | ✓      |
-| 7  | direccion  | director  | ✓      |
-
-> El campo `role` se almacena en la tabla `users` y se carga en `session["role"]` al hacer login.
-> Los usuarios `admin`, `gerente` y `test_user` comparten el mismo rol `admin` → acceso total.
+El campo `role` se almacena en la tabla `users` y se carga en `session["role"]` al hacer login.
 
 ---
 
@@ -118,7 +105,6 @@ Autorizar/Rechazar solicitudes pendientes: solo admin / manager / gerente.
 | `require_admin()`        | Helper en tesorería para edición de arqueos y autorización de anulaciones. |
 | CSRF (`Flask-WTF`)       | Activo en todas las rutas web. Los fetch JS deben incluir `X-CSRFToken` desde la meta tag `csrf-token`. |
 | JWT (`/api/*`)           | Las rutas de la API REST usan Bearer token. Los blueprints `/api/` están exentos de CSRF. |
-| `LOCAL_DEV_BYPASS_AUTH`  | Bypasea guards y JWT en entorno local de desarrollo. **Nunca activo en producción.** |
 
 ---
 

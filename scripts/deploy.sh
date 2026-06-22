@@ -49,7 +49,7 @@ echo -e "${GREEN}✓ Dependencias instaladas${NC}"
 echo -e "\n${YELLOW}[4/9] Verificando configuración...${NC}"
 if [ ! -f ".env" ]; then
     echo -e "${RED}Error: Archivo .env no encontrado${NC}"
-    echo "Crear .env basándose en .env.example con valores de producción"
+    echo "Crear .env manualmente con valores de producción"
     exit 1
 fi
 
