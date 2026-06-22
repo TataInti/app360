@@ -147,7 +147,7 @@
                 <form id="formEditarSaldo">
                     <div class="mb-3">
                         <label for="nuevoSaldoInicial" class="form-label">Nuevo Saldo Inicial *</label>
-                        <input type="number" step="0.01" class="form-control" id="nuevoSaldoInicial" required>
+                        <input type="number" step="0.01" class="form-control" id="nuevoSaldoInicial" data-money-input required>
                     </div>
                     <div class="mb-3">
                         <label for="observacionesSaldo" class="form-label">Observaciones</label>
@@ -215,7 +215,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="montoPago" class="form-label">Monto *</label>
-                        <input type="number" step="0.01" class="form-control" id="montoPago" required>
+                        <input type="number" step="0.01" class="form-control" id="montoPago" data-money-input required>
                     </div>
                     <div class="mb-3">
                         <label for="instrumentoPago" class="form-label">Instrumento de Pago *</label>
@@ -261,7 +261,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="montoLiq" class="form-label">Monto *</label>
-                        <input type="number" step="0.01" class="form-control" id="montoLiq" required>
+                        <input type="number" step="0.01" class="form-control" id="montoLiq" data-money-input required>
                     </div>
                     <div class="mb-3">
                         <label for="tipoLiq" class="form-label">Tipo *</label>
@@ -295,6 +295,33 @@ const isAdmin = {{ 'true' if session.get('role') in ['admin', 'manager', 'gerent
 
 function getUI() {
     return window.App360UI;
+}
+
+function getField(ref) {
+    return typeof ref === "string" ? document.getElementById(ref) : ref;
+}
+
+function getMoneyUI() {
+    return window.App360UI?.money;
+}
+
+function getMoneyValue(ref) {
+    const field = getField(ref);
+    const amount = getMoneyUI()?.getValue(field);
+    if (Number.isFinite(amount)) {
+        return amount;
+    }
+    return Number.parseFloat(field?.value || "") || 0;
+}
+
+function setMoneyValue(ref, value) {
+    const field = getField(ref);
+    const money = getMoneyUI();
+    if (money && typeof money.setValue === "function") {
+        money.setValue(field, value);
+        return;
+    }
+    if (field) field.value = value ?? "";
 }
 
 function notify(message, variant = "info", options = {}) {
@@ -496,16 +523,17 @@ async function cargarLiquidaciones() {
 
 async function guardarLiquidacion() {
     const fecha = document.getElementById("fechaLiq").value;
-    const monto = document.getElementById("montoLiq").value;
+    const montoField = document.getElementById("montoLiq");
+    const monto = getMoneyValue(montoField);
     const tipo = document.getElementById("tipoLiq").value;
     const descripcion = document.getElementById("descripcionLiq").value;
     const referencia = document.getElementById("referenciaLiq").value;
 
-    if (!fecha || !monto || !descripcion.trim()) {
+    if (!fecha || !montoField.value.trim() || !Number.isFinite(monto) || !descripcion.trim()) {
         alert("Todos los campos obligatorios (*) deben completarse");
         return;
     }
-    if (parseFloat(monto) <= 0) {
+    if (monto <= 0) {
         alert("El monto debe ser mayor a cero");
         return;
     }
@@ -519,7 +547,7 @@ async function guardarLiquidacion() {
                 ...(csrfToken ? { "X-CSRFToken": csrfToken } : {})
             },
             body: JSON.stringify({
-                fecha, monto: parseFloat(monto), tipo,
+                fecha, monto, tipo,
                 descripcion: descripcion.trim(),
                 referencia: referencia.trim() || null
             })
@@ -626,7 +654,7 @@ function editarSaldoInicial() {
         return;
     }
     
-    document.getElementById("nuevoSaldoInicial").value = cuentaActual.saldo_inicial;
+    setMoneyValue("nuevoSaldoInicial", cuentaActual.saldo_inicial);
     document.getElementById("observacionesSaldo").value = cuentaActual.observaciones || "";
     document.getElementById("justificacionSaldo").value = "";
 
@@ -634,11 +662,12 @@ function editarSaldoInicial() {
 }
 
 async function guardarSaldoInicial() {
-    const nuevoSaldo = document.getElementById("nuevoSaldoInicial").value;
+    const nuevoSaldoField = document.getElementById("nuevoSaldoInicial");
+    const nuevoSaldo = getMoneyValue(nuevoSaldoField);
     const observaciones = document.getElementById("observacionesSaldo").value;
     const justificacion = document.getElementById("justificacionSaldo").value;
     
-    if (!nuevoSaldo || !justificacion.trim()) {
+    if (!nuevoSaldoField.value.trim() || !Number.isFinite(nuevoSaldo) || !justificacion.trim()) {
         alert("El saldo inicial y la justificación son obligatorios");
         return;
     }
@@ -652,7 +681,7 @@ async function guardarSaldoInicial() {
                 ...(csrfToken ? { "X-CSRFToken": csrfToken } : {})
             },
             body: JSON.stringify({
-                saldo_inicial: parseFloat(nuevoSaldo),
+                saldo_inicial: nuevoSaldo,
                 observaciones: observaciones,
                 justificacion: justificacion.trim()
             })
@@ -736,17 +765,18 @@ async function verHistorialCuenta() {
 
 async function guardarPago() {
     const fecha = document.getElementById("fechaPago").value;
-    const monto = document.getElementById("montoPago").value;
+    const montoField = document.getElementById("montoPago");
+    const monto = getMoneyValue(montoField);
     const instrumento_id = document.getElementById("instrumentoPago").value;
     const descripcion = document.getElementById("descripcionPago").value;
     const referencia = document.getElementById("referenciaPago").value;
     
-    if (!fecha || !monto || !instrumento_id || !descripcion.trim()) {
+    if (!fecha || !montoField.value.trim() || !Number.isFinite(monto) || !instrumento_id || !descripcion.trim()) {
         alert("Todos los campos obligatorios (*) deben completarse");
         return;
     }
     
-    if (parseFloat(monto) <= 0) {
+    if (monto <= 0) {
         alert("El monto debe ser mayor a cero");
         return;
     }
@@ -761,7 +791,7 @@ async function guardarPago() {
             },
             body: JSON.stringify({
                 fecha: fecha,
-                monto: parseFloat(monto),
+                monto,
                 instrumento_id: parseInt(instrumento_id),
                 descripcion: descripcion.trim(),
                 referencia: referencia.trim() || null

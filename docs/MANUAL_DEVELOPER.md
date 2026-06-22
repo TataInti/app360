@@ -180,20 +180,18 @@ cp .env.example .env
 bash scripts/dev_backend.sh
 ```
 
-Frontend:
+Interfaz local:
 
 ```bash
-cd frontend
-npm install
-echo "VITE_API_BASE_URL=http://127.0.0.1:5001/api" > .env
-npm run dev
+open http://127.0.0.1:5001
 ```
+
+Este checkout no incluye una app React/Vite separada. La validacion visual local se hace sobre las plantillas Flask/Jinja servidas por el backend.
 
 ### 6.2 Validación previa a push
 
 ```bash
 PYTHONPATH=$PWD pytest
-cd frontend && npm ci && npm run build
 git status
 ```
 

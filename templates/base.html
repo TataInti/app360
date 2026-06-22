@@ -1549,6 +1549,11 @@
             const toastClasses = Object.values(toastVariants).map((item) => item.className);
             const confirmClasses = Object.values(confirmVariants).map((item) => item.modalClass);
             const nativeAlert = typeof window.alert === "function" ? window.alert.bind(window) : null;
+            const moneyIntegerFormatter = new Intl.NumberFormat("es-AR", {
+                maximumFractionDigits: 0,
+            });
+            const moneyInputBindings = new WeakMap();
+            const moneyInputForms = new WeakSet();
             let confirmResolver = null;
             let confirmResult = false;
             let confirmFocusTarget = null;
@@ -1577,6 +1582,313 @@
                 if (!ref) return null;
                 if (typeof ref === "string") return document.getElementById(ref);
                 return ref;
+            }
+
+            function parseMoneyValue(rawValue) {
+                if (typeof rawValue === "number") {
+                    return Number.isFinite(rawValue) ? rawValue : NaN;
+                }
+
+                const value = String(rawValue ?? "").trim();
+                if (!value) return NaN;
+
+                let normalized = value.replace(/\s+/g, "").replace(/\$/g, "");
+                normalized = normalized.replace(/[^0-9,.-]/g, "");
+
+                const lastComma = normalized.lastIndexOf(",");
+                const lastDot = normalized.lastIndexOf(".");
+                let decimalSeparator = null;
+
+                if (lastComma >= 0 && lastDot >= 0) {
+                    decimalSeparator = lastComma > lastDot ? "," : ".";
+                } else if (lastComma >= 0) {
+                    decimalSeparator = ",";
+                } else if (lastDot >= 0) {
+                    const dotParts = normalized.split(".");
+                    if (dotParts.length > 2) {
+                        decimalSeparator = dotParts[dotParts.length - 1].length <= 2 ? "." : null;
+                    } else if (dotParts.length === 2 && dotParts[1].length <= 2) {
+                        decimalSeparator = ".";
+                    }
+                }
+
+                if (decimalSeparator === ",") {
+                    normalized = normalized.replace(/\./g, "").replace(/,/g, ".");
+                } else if (decimalSeparator === ".") {
+                    normalized = normalized.replace(/,/g, "");
+                    const dotParts = normalized.split(".");
+                    if (dotParts.length > 2) {
+                        const decimals = dotParts.pop();
+                        normalized = `${dotParts.join("")}.${decimals}`;
+                    }
+                } else {
+                    normalized = normalized.replace(/[.,]/g, "");
+                }
+
+                normalized = normalized.replace(/(?!^)-/g, "");
+
+                const amount = Number(normalized);
+                return Number.isFinite(amount) ? amount : NaN;
+            }
+
+            function extractMoneyInputState(rawValue) {
+                const value = String(rawValue ?? "").trim();
+                if (!value) {
+                    return {
+                        negative: false,
+                        integerDigits: "",
+                        decimalDigits: "",
+                        hasDecimalSeparator: false,
+                    };
+                }
+
+                let normalized = value.replace(/\s+/g, "").replace(/\$/g, "");
+                const negative = normalized.startsWith("-");
+                normalized = normalized.replace(/(?!^)-/g, "");
+
+                const lastComma = normalized.lastIndexOf(",");
+                const lastDot = normalized.lastIndexOf(".");
+                const commaDigitsAfter = lastComma >= 0 ? (normalized.slice(lastComma + 1).match(/\d/g) || []).length : Number.POSITIVE_INFINITY;
+                const dotDigitsAfter = lastDot >= 0 ? (normalized.slice(lastDot + 1).match(/\d/g) || []).length : Number.POSITIVE_INFINITY;
+                let decimalIndex = -1;
+
+                if (lastComma >= 0 && commaDigitsAfter <= 2 && (lastComma > lastDot || dotDigitsAfter > 2)) {
+                    decimalIndex = lastComma;
+                } else if (lastDot >= 0 && dotDigitsAfter <= 2) {
+                    decimalIndex = lastDot;
+                }
+
+                const hasDecimalSeparator = decimalIndex >= 0;
+                const integerSource = hasDecimalSeparator ? normalized.slice(0, decimalIndex) : normalized;
+                const decimalSource = hasDecimalSeparator ? normalized.slice(decimalIndex + 1) : "";
+
+                return {
+                    negative,
+                    integerDigits: integerSource.replace(/\D/g, ""),
+                    decimalDigits: decimalSource.replace(/\D/g, "").slice(0, 2),
+                    hasDecimalSeparator,
+                };
+            }
+
+            function formatMoneyValue(rawValue) {
+                const state = extractMoneyInputState(rawValue);
+                const hasDigits = Boolean(state.integerDigits || state.decimalDigits);
+                if (!hasDigits) return "";
+
+                const integerValue = state.integerDigits
+                    ? moneyIntegerFormatter.format(Number(state.integerDigits))
+                    : "";
+                const decimalSuffix = state.hasDecimalSeparator ? `,${state.decimalDigits}` : "";
+                const sign = state.negative ? "-" : "";
+
+                return `${sign}$${integerValue}${decimalSuffix}`;
+            }
+
+            function normalizeMoneyModelValue(rawValue) {
+                const state = extractMoneyInputState(rawValue);
+                const hasDigits = Boolean(state.integerDigits || state.decimalDigits);
+                if (!hasDigits) return "";
+
+                const integerPart = state.integerDigits || "0";
+                const decimalPart = state.decimalDigits ? `.${state.decimalDigits}` : "";
+                return `${state.negative ? "-" : ""}${integerPart}${decimalPart}`;
+            }
+
+            function resolveMoneyDecimalInfo(value) {
+                const safeValue = String(value ?? "");
+                const lastComma = safeValue.lastIndexOf(",");
+                const lastDot = safeValue.lastIndexOf(".");
+                const lastIndex = Math.max(lastComma, lastDot);
+
+                if (lastIndex < 0) {
+                    return { index: -1, separator: null };
+                }
+
+                const digitsAfter = (safeValue.slice(lastIndex + 1).match(/\d/g) || []).length;
+                if (digitsAfter <= 2) {
+                    return {
+                        index: lastIndex,
+                        separator: safeValue[lastIndex],
+                    };
+                }
+
+                return { index: -1, separator: null };
+            }
+
+            function countMoneyDigitsUntil(value, position) {
+                const safeValue = String(value ?? "").slice(0, Math.max(position, 0));
+                return (safeValue.match(/\d/g) || []).length;
+            }
+
+            function resolveMoneyCaretPosition(formattedValue, digitCount, options = {}) {
+                if (options.afterDecimalSeparator) {
+                    const decimalIndex = formattedValue.indexOf(",");
+                    if (decimalIndex >= 0) {
+                        return Math.min(decimalIndex + 1 + (options.decimalDigitsBeforeCaret || 0), formattedValue.length);
+                    }
+                }
+
+                if (digitCount <= 0) {
+                    return formattedValue.startsWith("-$") ? 2 : formattedValue.startsWith("$") ? 1 : 0;
+                }
+
+                let seenDigits = 0;
+                for (let index = 0; index < formattedValue.length; index += 1) {
+                    if (/\d/.test(formattedValue[index])) {
+                        seenDigits += 1;
+                        if (seenDigits === digitCount) {
+                            return index + 1;
+                        }
+                    }
+                }
+
+                return formattedValue.length;
+            }
+
+            function syncMoneyInputValue(input, rawValue) {
+                const binding = moneyInputBindings.get(input);
+                const normalizedValue = normalizeMoneyModelValue(rawValue);
+
+                if (!normalizedValue) {
+                    input.dataset.moneyValue = "";
+                    if (binding?.hiddenInput) binding.hiddenInput.value = "";
+                    return NaN;
+                }
+
+                input.dataset.moneyValue = normalizedValue;
+                if (binding?.hiddenInput) binding.hiddenInput.value = normalizedValue;
+
+                const amount = parseMoneyValue(normalizedValue);
+                return amount;
+            }
+
+            function bindMoneyInput(ref) {
+                const input = resolveElement(ref);
+                if (!(input instanceof HTMLInputElement)) return null;
+                if (moneyInputBindings.has(input)) return moneyInputBindings.get(input);
+
+                const binding = {
+                    defaultValue: input.getAttribute("value") ?? input.value ?? "",
+                    hiddenInput: null,
+                };
+                const originalName = input.getAttribute("name");
+
+                if (originalName) {
+                    const hiddenInput = document.createElement("input");
+                    hiddenInput.type = "hidden";
+                    hiddenInput.name = originalName;
+                    input.removeAttribute("name");
+                    input.insertAdjacentElement("afterend", hiddenInput);
+                    binding.hiddenInput = hiddenInput;
+                }
+
+                input.type = "text";
+                input.inputMode = "decimal";
+                input.autocomplete = "off";
+                input.spellcheck = false;
+                input.dataset.moneyInput = "true";
+                moneyInputBindings.set(input, binding);
+
+                if (input.form && !moneyInputForms.has(input.form)) {
+                    input.form.addEventListener("reset", function () {
+                        window.requestAnimationFrame(function () {
+                            input.form.querySelectorAll('input[data-money-input]').forEach(function (field) {
+                                const fieldBinding = moneyInputBindings.get(field);
+                                setMoneyInputValue(field, fieldBinding?.defaultValue ?? "");
+                            });
+                        });
+                    });
+                    moneyInputForms.add(input.form);
+                }
+
+                input.addEventListener("focus", function () {
+                    if (input.value) {
+                        input.select?.();
+                    }
+                });
+
+                input.addEventListener("input", function () {
+                    const rawValue = input.value;
+                    if (!rawValue.trim()) {
+                        input.value = "";
+                        syncMoneyInputValue(input, "");
+                        return;
+                    }
+
+                    const caretIndex = input.selectionStart ?? rawValue.length;
+                    const digitCount = countMoneyDigitsUntil(rawValue, caretIndex);
+                    const decimalInfo = resolveMoneyDecimalInfo(rawValue);
+                    const afterDecimalSeparator = decimalInfo.index >= 0 && caretIndex > decimalInfo.index;
+                    const decimalDigitsBeforeCaret = afterDecimalSeparator
+                        ? (rawValue.slice(decimalInfo.index + 1, caretIndex).match(/\d/g) || []).length
+                        : 0;
+                    const amount = syncMoneyInputValue(input, rawValue);
+
+                    if (!Number.isFinite(amount)) {
+                        return;
+                    }
+
+                    const formattedValue = formatMoneyValue(rawValue);
+                    input.value = formattedValue;
+
+                    const caretPosition = resolveMoneyCaretPosition(formattedValue, digitCount, {
+                        afterDecimalSeparator,
+                        decimalDigitsBeforeCaret,
+                    });
+                    input.setSelectionRange(caretPosition, caretPosition);
+                });
+
+                input.addEventListener("blur", function () {
+                    if (!input.value.trim()) {
+                        input.value = "";
+                        syncMoneyInputValue(input, "");
+                        return;
+                    }
+
+                    const amount = syncMoneyInputValue(input, input.value);
+                    if (Number.isFinite(amount)) {
+                        input.value = formatMoneyValue(input.value);
+                    }
+                });
+
+                setMoneyInputValue(input, binding.defaultValue);
+                return binding;
+            }
+
+            function setMoneyInputValue(ref, rawValue) {
+                const input = resolveElement(ref);
+                if (!(input instanceof HTMLInputElement)) return;
+                const binding = moneyInputBindings.get(input) || bindMoneyInput(input);
+
+                if (rawValue === null || rawValue === undefined || String(rawValue).trim() === "") {
+                    input.value = "";
+                    input.dataset.moneyValue = "";
+                    if (binding?.hiddenInput) binding.hiddenInput.value = "";
+                    return;
+                }
+
+                const amount = syncMoneyInputValue(input, rawValue);
+                input.value = Number.isFinite(amount)
+                    ? formatMoneyValue(rawValue)
+                    : String(rawValue);
+            }
+
+            function getMoneyInputValue(ref) {
+                const input = resolveElement(ref);
+                if (!(input instanceof HTMLInputElement)) return NaN;
+                const binding = moneyInputBindings.get(input);
+                if (binding?.hiddenInput?.value) {
+                    return parseMoneyValue(binding.hiddenInput.value);
+                }
+                if (input.dataset.moneyValue) {
+                    return parseMoneyValue(input.dataset.moneyValue);
+                }
+                return parseMoneyValue(input.value);
+            }
+
+            function initMoneyInputs(root = document) {
+                const scope = root instanceof HTMLElement || root instanceof Document ? root : document;
+                scope.querySelectorAll('input[data-money-input]').forEach(bindMoneyInput);
             }
 
             function activePromptField() {
@@ -1830,7 +2142,17 @@
                 confirm: confirmAction,
                 prompt: promptAction,
                 inferAlert: inferAlertPresentation,
+                money: {
+                    bindInput: bindMoneyInput,
+                    format: formatMoneyValue,
+                    parse: parseMoneyValue,
+                    getValue: getMoneyInputValue,
+                    initInputs: initMoneyInputs,
+                    setValue: setMoneyInputValue,
+                },
             });
+
+            initMoneyInputs(document);
 
             if (!window.__app360AlertBridgeInstalled) {
                 window.alert = function (message) {

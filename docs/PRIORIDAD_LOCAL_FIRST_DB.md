@@ -18,29 +18,28 @@ El desarrollo se hace primero en entorno local. La base local es la fuente de tr
 
 ## Flujo estándar (obligatorio)
 
-### 1) Trabajar local (backend + frontend)
+### 1) Trabajar local (backend)
 
 Backend:
 
 ```bash
-source /Users/inti/GitHub/vyp/app360/.venv/bin/activate && cd /Users/inti/GitHub/vyp/app360
-DEBUG=true python3 app.py
+cd /Users/inti/GitHub/vyp/app360
+source .venv/bin/activate
+bash scripts/dev_backend.sh
 ```
 
-Frontend (validación visual local):
+Validación visual local:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+open http://127.0.0.1:5001
 ```
 
-BI / Inteligencia (React) consume la API del backend. Para entorno local:
+Para entorno local:
 
 - Backend corre típicamente en `http://127.0.0.1:5001`
-- Frontend en `http://localhost:5173`
+- La interfaz actual se sirve desde Flask/Jinja en esa misma URL
 
-Nota: si se usa extensión Live Server para archivos estáticos, mantener como referencia principal la app React en `npm run dev`.
+Nota: este repositorio no incluye hoy una SPA React/Vite separada; si se reincorpora, la documentación de arranque debe actualizarse en el mismo cambio.
 
 ### 2) Aplicar cambios de DB localmente
 

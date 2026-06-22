@@ -1,0 +1,29 @@
+# =============================================================================
+# Configuración del sincronizador SabioGo → App360
+# Copiá este archivo como config.ini y completá los valores reales.
+# NUNCA commitees config.ini (ya está en .gitignore).
+# =============================================================================
+
+[firebird]
+; Conexión a la base de datos SabioGo (Firebird 4.0)
+; Formato: host/alias  |  localhost/VYP  |  192.168.1.10:3050/VYP
+database = localhost/VYP
+
+; Usuario y contraseña provistos por el administrador de SabioGo
+user = POWERBI
+password = POWERBI2026
+
+; (Opcional) Ruta explícita a la DLL del cliente Firebird.
+; Dejá vacío para auto-detectar. Si falla, descomentá y apuntá al fbclient.dll.
+; client_library = C:\Program Files\Firebird\Firebird_4_0\fbclient.dll
+
+[vps]
+; URL base del servidor App360 (sin barra final)
+url = https://vyp.app360.com.ar
+
+; API Key generada en el VPS.
+; Obtenerla del .env del VPS: SABIOGO_SYNC_API_KEY
+api_key = PEGAR_AQUI_LA_API_KEY_DEL_VPS
+
+; Timeout en segundos para la petición HTTP (default: 120)
+timeout_seconds = 120

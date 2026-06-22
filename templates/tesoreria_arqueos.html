@@ -125,11 +125,11 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Saldo Inicial *</label>
-                            <input type="number" class="form-control" name="saldo_inicial" id="editSaldoInicial" step="0.01" required>
+                            <input type="number" class="form-control" name="saldo_inicial" id="editSaldoInicial" step="0.01" data-money-input required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Saldo Final *</label>
-                            <input type="number" class="form-control" name="saldo_final" id="editSaldoFinal" step="0.01" required>
+                            <input type="number" class="form-control" name="saldo_final" id="editSaldoFinal" step="0.01" data-money-input required>
                         </div>
                     </div>
                     
@@ -206,22 +206,22 @@
                     <div class="row mb-3">
                         <div class="col-md-4">
                             <label class="form-label">Saldo Inicial *</label>
-                            <input type="number" class="form-control" name="saldo_inicial" step="0.01" required>
+                            <input type="number" class="form-control" name="saldo_inicial" step="0.01" data-money-input data-money-calc="saldo_inicial" required>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Ingresos del Turno</label>
-                            <input type="number" class="form-control" name="ingresos" step="0.01" value="0">
+                            <input type="number" class="form-control" name="ingresos" step="0.01" data-money-input data-money-calc="ingresos">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Egresos del Turno</label>
-                            <input type="number" class="form-control" name="egresos" step="0.01" value="0">
+                            <input type="number" class="form-control" name="egresos" step="0.01" data-money-input data-money-calc="egresos">
                         </div>
                     </div>
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Saldo Real (conteo físico) *</label>
-                            <input type="number" class="form-control" name="saldo_real" step="0.01" required id="saldoReal">
+                            <input type="number" class="form-control" name="saldo_real" step="0.01" required id="saldoReal" data-money-input data-money-calc="saldo_real">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Diferencia (calculada)</label>
@@ -326,6 +326,44 @@ function alert(message) {
     notify(content, variant, { title });
 }
 
+function getField(ref) {
+    return typeof ref === 'string' ? document.getElementById(ref) : ref;
+}
+
+function getMoneyUI() {
+    return window.App360UI?.money;
+}
+
+function getMoneyValue(ref) {
+    const field = getField(ref);
+    const amount = getMoneyUI()?.getValue(field);
+    if (Number.isFinite(amount)) {
+        return amount;
+    }
+    return Number.parseFloat(field?.value || '') || 0;
+}
+
+function setMoneyValue(ref, value) {
+    const field = getField(ref);
+    const money = getMoneyUI();
+    if (money && typeof money.setValue === 'function') {
+        money.setValue(field, value);
+        return;
+    }
+    if (field) field.value = value ?? '';
+}
+
+function formatMoneyValue(value) {
+    const money = getMoneyUI();
+    if (money && typeof money.format === 'function') {
+        return money.format(value);
+    }
+    return '$' + Number(value || 0).toLocaleString('es-AR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelector('input[name="fecha"]').value = new Date().toISOString().split('T')[0];
     cargarArqueos();
@@ -336,9 +374,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Calcular diferencia automáticamente
     const form = document.getElementById('formArqueo');
-    ['saldo_inicial', 'ingresos', 'egresos', 'saldo_real'].forEach(name => {
-        form.querySelector(`[name="${name}"]`)?.addEventListener('input', calcularDiferencia);
-    });
+    form.querySelectorAll('[data-money-calc]').forEach(input => input.addEventListener('input', calcularDiferencia));
 });
 
 let instrumentosList = [];
@@ -470,11 +506,12 @@ async function cargarInstrumentosArqueo() {
             <div class="row g-2 mb-1 align-items-center">
                 <div class="col-5"><small>${inst.nombre}</small></div>
                 <div class="col-7">
-                    <input type="number" step="0.01" class="form-control form-control-sm"
-                           data-inst-id="${inst.id}" placeholder="Conteo real" value="0">
+                    <input type="number" step="0.01" class="form-control form-control-sm" data-money-input
+                           data-inst-id="${inst.id}" placeholder="Conteo real">
                 </div>
             </div>
         `).join('');
+        getMoneyUI()?.initInputs(container);
     } catch(e) {
         console.error('Error cargando instrumentos:', e);
     }
@@ -482,16 +519,16 @@ async function cargarInstrumentosArqueo() {
 
 function calcularDiferencia() {
     const form = document.getElementById('formArqueo');
-    const inicial = parseFloat(form.querySelector('[name="saldo_inicial"]').value) || 0;
-    const ingresos = parseFloat(form.querySelector('[name="ingresos"]').value) || 0;
-    const egresos = parseFloat(form.querySelector('[name="egresos"]').value) || 0;
-    const real = parseFloat(form.querySelector('[name="saldo_real"]').value) || 0;
+    const inicial = getMoneyValue(form.querySelector('[data-money-calc="saldo_inicial"]'));
+    const ingresos = getMoneyValue(form.querySelector('[data-money-calc="ingresos"]'));
+    const egresos = getMoneyValue(form.querySelector('[data-money-calc="egresos"]'));
+    const real = getMoneyValue(form.querySelector('[data-money-calc="saldo_real"]'));
     
     const esperado = inicial + ingresos - egresos;
     const diferencia = real - esperado;
     
     const diferenciaEl = document.getElementById('diferenciaCalc');
-    diferenciaEl.value = '$' + diferencia.toLocaleString('es-AR');
+    diferenciaEl.value = formatMoneyValue(diferencia);
     diferenciaEl.className = 'form-control ' + (diferencia < 0 ? 'text-danger' : diferencia > 0 ? 'text-warning' : 'text-success');
 }
 
@@ -576,8 +613,8 @@ async function editarArqueo(id) {
         document.getElementById('editArqueoId').value = arqueo.id;
         document.getElementById('editFecha').value = arqueo.fecha;
         document.getElementById('editTurno').value = arqueo.turno;
-        document.getElementById('editSaldoInicial').value = parseFloat(arqueo.saldo_inicial);
-        document.getElementById('editSaldoFinal').value = parseFloat(arqueo.saldo_final);
+        setMoneyValue('editSaldoInicial', arqueo.saldo_inicial);
+        setMoneyValue('editSaldoFinal', arqueo.saldo_final);
         document.getElementById('editObservaciones').value = arqueo.observaciones || '';
         
         // Mostrar modal
@@ -649,8 +686,8 @@ function compararCambios(anterior, nuevo) {
             let valorNuevo = nuevo[campo];
             
             if (campo !== 'observaciones') {
-                valorAnterior = '$' + parseFloat(valorAnterior).toLocaleString('es-AR');
-                valorNuevo = '$' + parseFloat(valorNuevo).toLocaleString('es-AR');
+                valorAnterior = formatMoneyValue(valorAnterior);
+                valorNuevo = formatMoneyValue(valorNuevo);
             }
             
             cambios.push(`<strong>${campos[campo]}:</strong> ${valorAnterior} → ${valorNuevo}`);
@@ -686,7 +723,7 @@ document.getElementById('formArqueo')?.addEventListener('submit', async function
     document.querySelectorAll('#detalleInstrumentos input[data-inst-id]').forEach(input => {
         data.detalles.push({
             instrumento_id: parseInt(input.dataset.instId),
-            conteo_real: parseFloat(input.value) || 0
+            conteo_real: getMoneyValue(input)
         });
     });
     

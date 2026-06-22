@@ -155,7 +155,7 @@ curl -fsS http://127.0.0.1:5000/api/health
 ## Notas
 
 - `scripts/deploy.sh` corre un set de **tests seguros** contra SQLite temporal (`/tmp/app360_test.sqlite`) para no tocar PostgreSQL de producción.
-- Si el frontend se sirve estático, asegurarse de copiar el build a la ruta configurada en Nginx (`/var/www/app360/frontend/dist`).
+- Este repositorio no incluye actualmente un frontend estatico separado. Si se vuelve a desplegar uno, documentar en el mismo cambio la ruta de build y copia asociada en Nginx.
 - Los backups operativos del VPS no deben quedar dentro de `/var/www/app360`; usar `/var/backups/app360/...`.
 - `scripts/sync_prod_db_to_local.sh` guarda por default sus dumps temporales en `$HOME/.app360/backups/db-sync/` salvo override con `BACKUP_DIR`.
 

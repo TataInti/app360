@@ -74,3 +74,6 @@ class Config:
     LOG_FILE = os.getenv("LOG_FILE", "logs/app.log")
     SECURITY_LOG_FILE = os.getenv("SECURITY_LOG_FILE", "logs/security.log")
     LOCAL_DEV_BYPASS_AUTH = os.getenv("LOCAL_DEV_BYPASS_AUTH", "False").lower() == "true"
+
+    # SabioGo sync: API key para el script de sincronización en Windows Server
+    SABIOGO_SYNC_API_KEY = os.getenv("SABIOGO_SYNC_API_KEY")

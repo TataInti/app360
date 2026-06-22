@@ -27,8 +27,10 @@ wheels/
 # =============================================================================
 venv/
 ENV/
-env/
+.env/
 .venv/
+.env.production.example
+.env.example
 
 # =============================================================================
 # IDE / Editor
@@ -41,6 +43,10 @@ env/
 .project
 .pydevproject
 .settings/
+.claude/
+.github/
+claude.md
+requirements-dev.txt
 
 # =============================================================================
 # OS Generated Files
@@ -143,3 +149,8 @@ vps_access.md
 *_secrets*
 *.pem
 *.key
+
+# SabioGo sync script (Windows) - configuración con secretos
+scripts/sabiogo_sync/config.ini
+scripts/sabiogo_sync/venv/
+scripts/sabiogo_sync/sync.log

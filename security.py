@@ -278,6 +278,11 @@ def protect_blueprint(bp, module):
         if current_app.config.get('LOCAL_DEV_BYPASS_AUTH'):
             return
 
+        # Sincronización servidor-a-servidor: API key en header como alternativa a sesión
+        _sync_key = current_app.config.get('SABIOGO_SYNC_API_KEY')
+        if _sync_key and request.headers.get('X-Sync-Key') == _sync_key:
+            return
+
         if module_allowed(module):
             # Enforce read-only for 'view' level on mutating methods
             user_id = session.get("user_id")
