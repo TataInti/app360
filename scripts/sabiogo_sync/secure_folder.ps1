@@ -6,9 +6,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$principal = [Security.Principal.WindowsPrincipal]::new(
-    [Security.Principal.WindowsIdentity]::GetCurrent()
-)
+$currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = [Security.Principal.WindowsPrincipal]::new($currentIdentity)
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw 'Abrir Simbolo del sistema como administrador.'
 }
@@ -19,6 +18,9 @@ $administratorSid = (
 ).Translate([Security.Principal.SecurityIdentifier])
 $systemSid = [Security.Principal.SecurityIdentifier]::new('S-1-5-18')
 $allowedSids = @($administratorSid.Value, $systemSid.Value)
+if ($currentIdentity.User.Value -ne $administratorSid.Value) {
+    throw "Ejecutar este script con la cuenta local $AdministratorName."
+}
 $fullControl = [Security.AccessControl.FileSystemRights]::FullControl
 $inheritance = (
     [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
@@ -67,18 +69,18 @@ function Assert-AllowedRules {
             [Security.Principal.SecurityIdentifier]
         ).Value
         if ($sid -notin $allowedSids -or $seen.ContainsKey($sid)) {
-            throw "Identidad inesperada o duplicada en $ItemPath: $sid"
+            throw "Identidad inesperada o duplicada en ${ItemPath}: $sid"
         }
         if ($rule.AccessControlType -ne $allow -or $rule.FileSystemRights -ne $fullControl) {
-            throw "Regla sin FullControl permitido en $ItemPath: $sid"
+            throw "Regla sin FullControl permitido en ${ItemPath}: $sid"
         }
         if ($RootItem) {
             if ($rule.IsInherited -or $rule.InheritanceFlags -ne $inheritance -or
                 $rule.PropagationFlags -ne $noPropagation) {
-                throw "Regla raiz invalida en $ItemPath: $sid"
+                throw "Regla raiz invalida en ${ItemPath}: $sid"
             }
         } elseif (-not $rule.IsInherited) {
-            throw "Regla explicita inesperada en $ItemPath: $sid"
+            throw "Regla explicita inesperada en ${ItemPath}: $sid"
         }
         $seen[$sid] = $true
     }
