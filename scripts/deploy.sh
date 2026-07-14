@@ -43,6 +43,9 @@ echo -e "\n${YELLOW}[3/9] Instalando dependencias...${NC}"
 source venv/bin/activate
 pip install --upgrade pip -q
 pip install -r requirements.txt -q
+if [ -f "requirements-dev.txt" ]; then
+    pip install -r requirements-dev.txt -q
+fi
 echo -e "${GREEN}✓ Dependencias instaladas${NC}"
 
 # 4. Verificar archivo .env
