@@ -3,6 +3,7 @@
 from .staging import StgSabiogoVentas, StgSabiogoCompras
 from .mapeos import SabiogoProductMap, SabiogoClientMap, SabiogoLocationMap, LogSabiogoCarga
 from .batch import LogSabiogoBatch
+from .sync_run import SabiogoSyncRun
 
 __all__ = [
     'StgSabiogoVentas',
@@ -12,4 +13,5 @@ __all__ = [
     'SabiogoLocationMap',
     'LogSabiogoCarga',
     'LogSabiogoBatch',
+    'SabiogoSyncRun',
 ]

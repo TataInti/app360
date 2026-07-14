@@ -1,0 +1,8 @@
+release_tag=20260713_sabiogo_sync_alerts
+created_at=2026-07-14T02:28:00Z
+git_branch=main
+git_parent_commit=58fd811be590903a8e615e7a1d382f493bdbc073
+release_kind=incremental_schema
+from_revision=20260410_instrumento_portador_m2m
+to_revision=20260713_sabiogo_sync_runs
+db_sql_sha256=02b88218be44f3e93c4d0490a89ea609ca86617087fd0bd8cb7c54112225e24d

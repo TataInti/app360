@@ -78,6 +78,7 @@ backups/manual-deploy/
 backups/excel-residual/
 backups/*.dump
 backups/**/*.sql
+!backups/db-releases/**/*.sql
 .env.local_backup*
 .env.*_backup*
 

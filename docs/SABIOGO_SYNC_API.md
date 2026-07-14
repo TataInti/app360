@@ -2,16 +2,18 @@
 
 **Ultima revision:** 2026-07-13
 
-**Version del documento:** 2.3
+**Version del documento:** 2.4
 
-**Estado:** receptor desplegado; prueba E2E e idempotencia validadas desde Windows; pendiente automatizacion en Task Scheduler
+**Estado:** E2E e idempotencia validadas; automatizacion y alertas implementadas; pendiente instalar tarea en Windows
 
 ## 1. Objetivo
 
-Una tarea diaria en el servidor Windows de SabioGo consulta ventas y compras en Firebird y envia dos requests HTTPS a App360:
+Una tarea diaria en el servidor Windows de SabioGo consulta ventas y compras en Firebird y realiza cuatro solicitudes HTTPS a App360:
 
-1. `POST /sabiogo/api/db-sync/daily` con ventas y compras, confirmadas en una sola transaccion.
-2. `POST /sabiogo/api/db-sync/finalize` para refrescar facts y objetivos PRE, solo si la carga diaria termino bien.
+1. `POST /sabiogo/api/db-sync/status` con estado `iniciada`.
+2. `POST /sabiogo/api/db-sync/daily` con ventas y compras, confirmadas en una sola transaccion.
+3. `POST /sabiogo/api/db-sync/finalize` para refrescar facts y objetivos PRE, solo si la carga diaria termino bien.
+4. `POST /sabiogo/api/db-sync/status` con estado `exitosa` o `error`.
 
 El cliente es de solo lectura sobre Firebird. No expone la base a Internet y no reemplaza todavia la carga manual como contingencia.
 
@@ -36,12 +38,13 @@ Task Scheduler                               Nginx + Gunicorn + Flask
 | Cliente Windows | Implementa ventas, compras, vacios, retries y finalizacion. |
 | Receptor Flask | Desplegado; ventas y compras atomicas por fecha. |
 | Concurrencia | Advisory lock PostgreSQL serializa cargas de la misma fecha. |
-| Autenticacion tecnica | Restringida a `db-sync`, `db-sync/daily` y `db-sync/finalize`. |
+| Autenticacion tecnica | Restringida a `db-sync`, `db-sync/daily`, `db-sync/finalize` y `db-sync/status`. |
 | Dedupe | Incluye `origen` en la firma. |
 | Facts y objetivos | Orquestados por `db-sync/finalize`. |
 | VPS productivo | Desplegado; health `200`, sync sin clave `401`, sync autenticado con payload invalido `400`. |
 | E2E Windows | Dos ejecuciones identicas para 2026-05-04, reconciliadas en staging, facts y auditorias. |
-| Task Scheduler | No configurado. |
+| Alertas web | Fallo, demora o ausencia visibles solamente para rol `gerente`. |
+| Task Scheduler | Instalador preparado para 02:00 bajo cuenta local `Administrador`; pendiente ejecutar en Windows. |
 
 La prueba manual de `run_sync.bat --fecha 2026-05-04` y su repeticion idempotente finalizaron correctamente.
 
@@ -222,14 +225,21 @@ La finalizacion:
 
 Si falla, el cliente termina con codigo distinto de cero. Repetir la fecha es seguro.
 
+### Estado operativo
+
+Cada invocacion de `sync_fecha` genera un UUID y reporta `iniciada`, `exitosa` o `error` en `/sabiogo/api/db-sync/status`. Los reportes del mismo UUID se serializan en PostgreSQL y los reintentos de un estado terminal no modifican su hora de finalizacion.
+
+Si el reporte terminal no llega al VPS despues de los retries, el cliente termina con codigo distinto de cero aunque la carga de datos haya finalizado. Desde las 03:00, App360 tambien alerta cuando falta o sigue abierta la ejecucion programada para las 02:00.
+
 ## 6. Seguridad
 
-- `X-Sync-Key` solo habilita `sabiogo_db_sync`, `sabiogo_db_sync_daily` y `sabiogo_db_sync_finalize`.
+- `X-Sync-Key` solo habilita `sabiogo_db_sync`, `sabiogo_db_sync_daily`, `sabiogo_db_sync_finalize` y `sabiogo_db_sync_status`.
 - Otras rutas siguen exigiendo sesion y permisos.
 - Las comparaciones de secretos usan `hmac.compare_digest`.
 - Las rutas tecnicas estan exentas de CSRF, pero mantienen autenticacion por header.
 - El cron PRE independiente usa `X-App360-Cron-Token`; no acepta `X-Sync-Key`.
 - Los secretos no deben guardarse en el repositorio, documentacion, logs ni Task Scheduler arguments.
+- `install_task.bat` elimina permisos heredados de `C:\SabioGoSync` y conserva acceso completo solo para `Administrador` y `SYSTEM`.
 
 Variables requeridas en el VPS:
 
@@ -279,22 +289,22 @@ La salida UTF-8 de `sync.log` puede verse corrupta con `type` bajo la pagina de 
 
 ## 9. Pruebas automatizadas
 
-Comando focalizado:
+Comando focalizado sobre una DB ya inicializada (el preflight de `scripts/deploy.sh` crea el SQLite temporal antes de pytest):
 
 ```bash
-.venv/bin/python -m pytest tests/test_sabiogo_cobertura.py tests/test_sabiogo_sync_client.py -q
+.venv/bin/python -m pytest tests/test_sabiogo_cobertura.py tests/test_sabiogo_sync_client.py tests/test_sabiogo_sync_alerts.py -q
 ```
 
 Resultado 2026-07-13:
 
 ```text
-43 passed
+52 passed
 ```
 
-Preflight equivalente al despliegue, con SQLite temporal y cada archivo en un proceso separado:
+Preflight completo por archivo, con SQLite temporal y procesos aislados:
 
 ```text
-63 passed (3 + 6 + 35 + 11 + 8)
+72 passed (3 + 6 + 35 + 11 + 7 + 10)
 ```
 
 Cobertura incluida:
@@ -311,8 +321,13 @@ Cobertura incluida:
 - extraccion de ambos procedimientos antes del unico envio diario;
 - rollback conjunto de ventas y compras;
 - autenticacion del endpoint diario;
+- autenticacion, idempotencia y serializacion del endpoint de estado;
 - validacion de respuestas VPS;
 - retries POST para errores transitorios.
+- alerta inmediata por error y control de ausencia a las 03:00;
+- fallos historicos visibles hasta recuperar la misma fecha;
+- banner visible solo para rol `gerente`;
+- codigo distinto de cero si no puede confirmarse el estado final.
 
 La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtures mutan `Config` entre archivos. El preflight de `scripts/deploy.sh` evita esa contaminacion ejecutando cada archivo en un proceso separado.
 
@@ -326,9 +341,17 @@ La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtu
 4. Servicio Gunicorn reiniciado y activo.
 5. Verificados health `200`, sync sin clave `401` y sync autenticado con payload invalido `400`.
 
+### Preparado para el siguiente deploy
+
+1. Migracion Alembic `20260713_sabiogo_sync_runs` con una unica cabeza.
+2. Release incremental `20260713_sabiogo_sync_alerts` con checksum SHA-256.
+3. Release aplicado dos veces sobre un esquema PostgreSQL local temporal: revision correcta, tabla presente y seis indices.
+4. `setup.bat` aplica la DACL antes de crear secretos; `install_task.bat` vuelve a verificarla antes de programar la tarea.
+5. `scripts/deploy.sh` aborta si una migracion falla o Alembic no queda en `head`.
+
 ### Completado en Windows
 
-1. Cuatro archivos actualizados y dependencias verificadas.
+1. Cuatro archivos iniciales actualizados y dependencias verificadas.
 2. Configuracion Firebird preservada y clave VPS instalada sin exponerla.
 3. Endpoint sin credenciales confirmado en `401`.
 4. Primera E2E confirmada con codigo 0 y finalizacion correcta.
@@ -338,11 +361,12 @@ La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtu
 
 ### Pendiente operativo
 
-1. Definir horario y cuenta de servicio para Task Scheduler.
-2. Configurar tarea diaria sin argumentos para sincronizar ayer.
-3. Definir alerta y responsable ante codigo de salida distinto de cero.
-4. Monitorear siete noches antes de retirar la carga manual habitual.
-5. Medir tamano maximo diario y revisar timeouts con volumen real.
+1. Copiar los seis archivos de `scripts/sabiogo_sync` a `C:\SabioGoSync`.
+2. Aplicar release DB `20260713_sabiogo_sync_alerts` antes de reiniciar App360.
+3. Confirmar zona `Argentina Standard Time` y ejecutar `install_task.bat` desde CMD elevado.
+4. Confirmar primera ejecucion automatica y alerta visible para rol `gerente`.
+5. Monitorear siete noches antes de retirar la carga manual habitual.
+6. Medir tamano maximo diario y revisar timeouts con volumen real.
 
 ### Riesgos residuales
 
@@ -350,12 +374,15 @@ La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtu
 - La finalizacion ocurre despues del commit diario; si falla debe reintentarse para publicar los derivados.
 - No hay particionado ni compresion para requests mayores a 10 MB.
 - No se configuro rotacion de secreto ni allowlist de IP.
-- No existe alerta automatica ante fallo nocturno.
+- Si Windows pierde red antes de reportar, la alerta depende del control de ausencia a las 03:00.
+- La contrasena de `Administrador` debe actualizarse en la tarea si cambia o expira.
+- Cambiar la zona horaria del servidor afecta todos sus procesos; el instalador solo valida y nunca la modifica.
 
 ## 11. Historial
 
 | Version | Fecha | Descripcion |
 |---|---|---|
+| `2.4` | 2026-07-13 | Tarea diaria 02:00, cuenta Administrador y alertas web para rol gerente. |
 | `2.3` | 2026-07-13 | E2E Windows, duplicado exacto, reconciliacion e idempotencia aprobadas. |
 | `2.2` | 2026-07-13 | Deploy VPS completado, secreto configurado y smoke tests `200/401/400` aprobados. |
 | `2.1` | 2026-07-13 | Request diario atomico para ventas y compras, advisory lock por fecha y rollback conjunto. |

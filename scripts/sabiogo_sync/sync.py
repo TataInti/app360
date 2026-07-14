@@ -21,6 +21,7 @@ import logging
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -379,6 +380,50 @@ def finalize_sync(cfg: configparser.ConfigParser, fecha: date) -> dict:
     return result
 
 
+def report_sync_status(
+    cfg: configparser.ConfigParser,
+    execution_id: str,
+    fecha: date,
+    estado: str,
+    *,
+    mensaje: str | None = None,
+    filas_ventas: int | None = None,
+    filas_compras: int | None = None,
+) -> dict:
+    """Informa al VPS el estado operativo de una ejecución."""
+    payload = {
+        'execution_id': execution_id,
+        'fecha': fecha.isoformat(),
+        'estado': estado,
+    }
+    if mensaje:
+        payload['mensaje'] = mensaje
+    if filas_ventas is not None:
+        payload['filas_ventas'] = filas_ventas
+    if filas_compras is not None:
+        payload['filas_compras'] = filas_compras
+
+    result = _post_json_to_vps(cfg, '/sabiogo/api/db-sync/status', payload)
+    if result.get('success') is not True:
+        raise RuntimeError('El VPS rechazó el reporte de estado')
+    if (
+        result.get('execution_id') != execution_id
+        or result.get('fecha') != fecha.isoformat()
+        or result.get('estado') != estado
+    ):
+        raise RuntimeError('El VPS respondió datos distintos al estado informado')
+    return result
+
+
+def _report_sync_status_safely(*args, **kwargs):
+    try:
+        report_sync_status(*args, **kwargs)
+        return True
+    except Exception as exc:
+        log.warning(f'No se pudo reportar el estado operativo al VPS: {exc}')
+        return False
+
+
 # ── Lógica principal ──────────────────────────────────────────────────────────
 def sync_tipo(
     cfg: configparser.ConfigParser,
@@ -410,8 +455,11 @@ def sync_tipo(
 
 def sync_fecha(cfg: configparser.ConfigParser, fecha: date, replace: bool = True) -> bool:
     """Extrae ambos tipos y los confirma juntos antes de refrescar derivados."""
+    execution_id = str(uuid4())
+    _report_sync_status_safely(cfg, execution_id, fecha, 'iniciada')
+
     datasets = {}
-    extraction_ok = True
+    extraction_errors = []
     for tipo, query in (('ventas', query_ventas), ('compras', query_compras)):
         log.info(f"{'='*60}")
         log.info(f"Extrayendo {tipo.upper()} {fecha}")
@@ -422,12 +470,21 @@ def sync_fecha(cfg: configparser.ConfigParser, fecha: date, replace: bool = True
             if not rows:
                 log.info(f'Sin datos de {tipo} para {fecha}. Se enviará lote vacío de control.')
         except Exception as exc:
-            extraction_ok = False
+            extraction_errors.append(tipo)
             log.error(f'✗ Error extrayendo {tipo} {fecha}: {exc}', exc_info=True)
 
-    if not extraction_ok:
+    if extraction_errors:
+        _report_sync_status_safely(
+            cfg,
+            execution_id,
+            fecha,
+            'error',
+            mensaje=f'Falló extracción: {", ".join(extraction_errors)}.',
+        )
         return False
 
+    ventas_total = len(datasets['ventas'][1])
+    compras_total = len(datasets['compras'][1])
     try:
         result = push_daily_to_vps(
             cfg,
@@ -443,6 +500,28 @@ def sync_fecha(cfg: configparser.ConfigParser, fecha: date, replace: bool = True
         finalize_sync(cfg, fecha)
     except Exception as exc:
         log.error(f'✗ Error sincronizando o finalizando {fecha}: {exc}', exc_info=True)
+        _report_sync_status_safely(
+            cfg,
+            execution_id,
+            fecha,
+            'error',
+            mensaje='Falló la carga o finalización en App360.',
+            filas_ventas=ventas_total,
+            filas_compras=compras_total,
+        )
+        return False
+
+    status_reported = _report_sync_status_safely(
+        cfg,
+        execution_id,
+        fecha,
+        'exitosa',
+        mensaje='Carga y finalización completadas.',
+        filas_ventas=ventas_total,
+        filas_compras=compras_total,
+    )
+    if not status_reported:
+        log.error('La carga terminó bien, pero no se pudo confirmar su estado operativo.')
         return False
     return True
 

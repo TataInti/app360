@@ -275,6 +275,7 @@ def protect_blueprint(bp, module):
             'sabiogo.sabiogo_db_sync',
             'sabiogo.sabiogo_db_sync_daily',
             'sabiogo.sabiogo_db_sync_finalize',
+            'sabiogo.sabiogo_db_sync_status',
         }
         if request.endpoint in sync_endpoints:
             if not _sync_key:

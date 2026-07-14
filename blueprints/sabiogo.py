@@ -11,6 +11,7 @@ import os
 import re
 from datetime import datetime, date, timedelta
 from typing import Optional
+from uuid import UUID
 from sqlalchemy import text, func, inspect as sa_inspect
 from sqlalchemy.orm import joinedload
 
@@ -22,7 +23,9 @@ from models.sabiogo import (
     SabiogoClientMap,
     SabiogoLocationMap,
     LogSabiogoCarga,
+    SabiogoSyncRun,
 )
+from models.time_utils import now_local
 from models.core.product import Product
 from models.crm.client import Client
 from services.sabiogo_service import SabiogoService
@@ -69,6 +72,15 @@ def _parse_sync_fecha(value) -> Optional[date]:
         return date.fromisoformat(str(value)[:10])
     except (TypeError, ValueError):
         return None
+
+
+def _parse_sync_count(payload: dict, field_name: str) -> Optional[int]:
+    value = payload.get(field_name)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f'{field_name} debe ser un entero no negativo')
+    return value
 
 
 def _build_empresa_map(custom_map) -> dict[str, str]:
@@ -412,6 +424,16 @@ def _acquire_sync_lock(fecha_lote: date):
     )
 
 
+def _acquire_sync_status_lock(execution_id: str):
+    """Serializa reportes del mismo intento técnico en PostgreSQL."""
+    if db.engine.dialect.name != 'postgresql':
+        return
+    db.session.execute(
+        text('SELECT pg_advisory_xact_lock(hashtext(:lock_key))'),
+        {'lock_key': f'sabiogo-db-sync-status:{execution_id}'},
+    )
+
+
 def _process_sync_lote(
     *,
     tipo: str,
@@ -650,6 +672,82 @@ def sabiogo_db_sync_finalize():
         'fecha': fecha_lote.isoformat(),
         'facts': facts,
         'objetivos': objetivos,
+    }), 200
+
+
+@sabiogo_bp.route('/api/db-sync/status', methods=['POST'])
+@csrf.exempt
+def sabiogo_db_sync_status():
+    """Registra el inicio o resultado de una ejecución del cliente Windows."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({'error': 'Payload JSON inválido'}), 400
+
+    try:
+        execution_id = str(UUID(str(payload.get('execution_id') or '')))
+    except (ValueError, TypeError, AttributeError):
+        return jsonify({'error': 'execution_id debe ser un UUID válido'}), 400
+
+    fecha_objetivo = _parse_sync_fecha(payload.get('fecha'))
+    if not fecha_objetivo:
+        return jsonify({'error': 'fecha requerida con formato YYYY-MM-DD'}), 400
+
+    estado = str(payload.get('estado') or '').strip().lower()
+    if estado not in {'iniciada', 'exitosa', 'error'}:
+        return jsonify({'error': 'estado debe ser iniciada, exitosa o error'}), 400
+
+    mensaje = str(payload.get('mensaje') or '').strip() or None
+    if mensaje and len(mensaje) > 500:
+        return jsonify({'error': 'mensaje no puede superar 500 caracteres'}), 400
+
+    try:
+        filas_ventas = _parse_sync_count(payload, 'filas_ventas')
+        filas_compras = _parse_sync_count(payload, 'filas_compras')
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    _acquire_sync_status_lock(execution_id)
+    run = SabiogoSyncRun.query.filter_by(execution_id=execution_id).first()
+    if run and run.fecha_objetivo != fecha_objetivo:
+        return jsonify({'error': 'execution_id ya pertenece a otra fecha'}), 409
+    if run and run.estado in {'exitosa', 'error'} and run.estado != estado:
+        return jsonify({'error': 'la ejecución ya tiene un estado final distinto'}), 409
+
+    timestamp = now_local()
+    if run is None:
+        run = SabiogoSyncRun(
+            execution_id=execution_id,
+            fecha_objetivo=fecha_objetivo,
+            estado=estado,
+            iniciada_en=timestamp,
+        )
+        db.session.add(run)
+
+    run.estado = estado
+    run.mensaje = mensaje
+    run.actualizada_en = timestamp
+    if filas_ventas is not None:
+        run.filas_ventas = filas_ventas
+    if filas_compras is not None:
+        run.filas_compras = filas_compras
+    if estado in {'exitosa', 'error'} and run.finalizada_en is None:
+        run.finalizada_en = timestamp
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.error(
+            f'[db-sync/status] error execution_id={execution_id}',
+            exc_info=True,
+        )
+        return jsonify({'error': 'No se pudo registrar el estado de sincronización'}), 500
+
+    return jsonify({
+        'success': True,
+        'execution_id': run.execution_id,
+        'fecha': run.fecha_objetivo.isoformat(),
+        'estado': run.estado,
     }), 200
 
 

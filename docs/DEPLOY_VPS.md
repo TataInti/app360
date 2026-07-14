@@ -95,7 +95,7 @@ sudo systemctl reload nginx
 
 Lo único que puede tocar estructura de DB es si se habilita explícitamente:
 
-- `RUN_MIGRATIONS=true` → corre Alembic (`flask db upgrade`).
+- `RUN_MIGRATIONS=true` → corre Alembic (`flask db upgrade`) y aborta si la migracion falla o `current` no coincide con `heads`.
 
 Si seguimos Local First DB, normalmente dejamos `RUN_MIGRATIONS=false` y aplicamos releases SQL versionadas.
 

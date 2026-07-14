@@ -164,12 +164,28 @@ def create_app():
 
     @app.context_processor
     def inject_user_context():
+        role = session.get("role")
+
         def can_access(module):
-            return module_allowed(module, session.get("role"), session.get("user_id"))
+            return module_allowed(module, role, session.get("user_id"))
+
+        sabiogo_sync_alert = None
+        if role == "gerente":
+            try:
+                from services.sabiogo_sync_monitor import get_sabiogo_sync_alert
+                sabiogo_sync_alert = get_sabiogo_sync_alert()
+            except Exception:
+                db.session.rollback()
+                app.logger.error(
+                    "No se pudo calcular la alerta de sincronización SabioGo",
+                    exc_info=True,
+                )
+
         return {
             "current_user": session.get("user"),
-            "current_role": session.get("role"),
+            "current_role": role,
             "can_access": can_access,
+            "sabiogo_sync_alert": sabiogo_sync_alert,
         }
 
     from blueprints.products import products_bp

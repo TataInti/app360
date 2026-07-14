@@ -18,6 +18,8 @@ y comprobar estas cosas:
 5. Que las credenciales permiten conectarse a la base correcta.
 6. Que existen P_VENTAS_GLOBALES y P_COMPRAS_GLOBALES.
 7. Que ambos procedimientos devuelven columnas, filas y valores de EMPRESA.
+8. Que la tarea diaria corre a las 02:00 con la cuenta Administrador.
+9. Que los fallos se muestran a los usuarios con rol gerente en App360.
 
 Las pruebas de Firebird incluidas aqui son solamente de lectura.
 
@@ -37,12 +39,17 @@ NO EJECUTAR CON ARCHIVOS VIEJOS NI CON API KEY DE EJEMPLO:
     run_sync.bat
 
 El cliente corregido ya lee host y puerto de Firebird y envia ventas y compras
-en una sola carga diaria. La prueba final manual queda habilitada solamente para
-la fecha controlada 2026-05-04, despues de completar la PARTE E.
+en una sola carga diaria. La prueba final manual y su repeticion idempotente para
+2026-05-04 fueron aprobadas. La automatizacion queda autorizada con estos datos:
+
+- horario diario: 02:00;
+- cuenta local: Administrador;
+- comando: C:\SabioGoSync\run_sync.bat sin argumentos;
+- alertas web: solamente para usuarios con rol gerente.
 
 El envio real requiere estas condiciones:
 
-- instalar los cuatro archivos aprobados;
+- instalar los seis archivos aprobados;
 - se configure la API key real;
 - confirmar HTTP 401 sin credenciales;
 - usar solamente la fecha controlada 2026-05-04.
@@ -56,7 +63,7 @@ El envio real requiere estas condiciones:
 - No enviar una captura completa de config.ini.
 - No copiar config.ini a una carpeta compartida.
 - No usar un usuario administrador de Firebird si existe uno de solo lectura.
-- No crear todavia una tarea en Task Scheduler.
+- Crear la tarea solamente con install_task.bat y despues de completar la PARTE E.
 - No ejecutar run_sync.bat hasta recibir autorizacion expresa.
 
 Si una persona solicita las credenciales por chat, detenerse y consultar al
@@ -126,12 +133,14 @@ En el repositorio de App360, la carpeta de origen es:
 
     scripts\sabiogo_sync
 
-Copiar estos cuatro archivos dentro de C:\SabioGoSync:
+Copiar estos seis archivos dentro de C:\SabioGoSync:
 
     sync.py
     setup.bat
     run_sync.bat
     requirements.txt
+    install_task.bat
+    secure_folder.ps1
 
 Despues de copiarlos, volver a CMD.
 
@@ -149,6 +158,8 @@ La lista debe contener exactamente estos nombres como minimo:
     setup.bat
     run_sync.bat
     requirements.txt
+    install_task.bat
+    secure_folder.ps1
 
 Si falta alguno, detenerse y copiarlo antes de continuar.
 
@@ -292,6 +303,10 @@ setup.bat debe crear:
 
     C:\SabioGoSync\venv
     C:\SabioGoSync\config.ini
+
+Antes de crear config.ini o venv, setup.bat ejecuta secure_folder.ps1. La carpeta
+queda protegida para que solamente Administrador y SYSTEM tengan FullControl. Si
+la ACL no puede establecerse o verificarse, setup.bat se detiene.
 
 COMANDO 16:
 
@@ -711,7 +726,7 @@ archivos, configurar la clave real y llegar a la PARTE E.
 
 Si el COMANDO 34 no devuelve 401, detenerse.
 
-NO CREAR TAREA PROGRAMADA.
+NO CREAR TAREA PROGRAMADA antes de aprobar la prueba manual de la PARTE E.
 
 Si devuelve 401 y ya se recibieron los archivos y la clave, continuar a la
 PARTE E.
@@ -752,8 +767,8 @@ Condiciones que deben estar cumplidas:
 
 1. El equipo de desarrollo confirma que el receptor esta desplegado.
 2. El COMANDO 34 devuelve 401 sin API key.
-3. Se reemplazaron sync.py, setup.bat, run_sync.bat y requirements.txt por la
-   version aprobada.
+3. Se instalaron sync.py, setup.bat, run_sync.bat, requirements.txt,
+    install_task.bat y secure_folder.ps1 de la version aprobada.
 4. El nuevo cliente consulta ventas y compras antes de enviar.
 5. El nuevo cliente valida errores parciales del VPS.
 6. El nuevo cliente envia ambos tipos en una transaccion y solo despues finaliza facts y objetivos.
@@ -934,11 +949,96 @@ Accion:
 3. Esperar correccion del despliegue antes de continuar.
 
 
-30. LISTA FINAL PARA MARCAR
+30. INSTALAR LA TAREA DIARIA A LAS 02:00
+========================================
+
+Condiciones previas:
+
+1. La prueba manual y la repeticion idempotente deben estar aprobadas.
+2. El VPS debe tener desplegado el endpoint /sabiogo/api/db-sync/status.
+3. C:\SabioGoSync debe contener sync.py, install_task.bat y secure_folder.ps1.
+4. La cuenta local Administrador debe estar habilitada y tener contrasena.
+
+Primero consultar la zona horaria:
+
+    tzutil /g
+
+Resultado requerido:
+
+    Argentina Standard Time
+
+Si muestra otro valor, detenerse. Cambiar la zona horaria afecta todo el servidor,
+no solo esta tarea. El administrador responsable debe autorizar el cambio antes de
+ejecutar:
+
+    tzutil /s "Argentina Standard Time"
+
+Abrir Simbolo del sistema como administrador. Luego ejecutar:
+
+    cd /d C:\SabioGoSync
+
+    install_task.bat
+
+SchTasks pedira la contrasena de la cuenta Administrador. Escribirla directamente
+en CMD. No enviarla por chat ni guardarla en un archivo. Mientras se escribe no
+se muestran caracteres; es normal.
+
+El instalador crea o actualiza esta tarea:
+
+    Nombre: App360 SabioGo Sync
+    Horario: todos los dias a las 02:00
+    Cuenta: NOMBRE_DEL_SERVIDOR\Administrador
+    Privilegios: nivel mas alto
+    Comando: C:\SabioGoSync\run_sync.bat
+
+**Advertencia de seguridad:** el instalador reconstruye la ACL de
+C:\SabioGoSync, elimina permisos heredados o explicitos anteriores y verifica el
+resultado. Despues, solamente Administrador y SYSTEM tienen acceso. Esto protege
+config.ini, la API key, la contrasena Firebird y sync.log.
+
+No usa /IT: la tarea corre aunque Administrador no tenga una sesion abierta.
+No usa /NP: Windows conserva las credenciales necesarias para acceder por HTTPS.
+El instalador no ejecuta la sincronizacion inmediatamente.
+
+Resultado esperado:
+
+    [OK] Tarea programada creada. No se ejecuto manualmente.
+
+Verificacion independiente:
+
+    schtasks /Query /TN "App360 SabioGo Sync" /V /FO LIST
+
+Confirmar en la salida:
+
+- Hora de inicio: 02:00.
+- Ejecutar como usuario: NOMBRE_DEL_SERVIDOR\Administrador.
+- Proxima hora de ejecucion: el siguiente dia a las 02:00.
+
+Si cambia la contrasena de Administrador, volver a ejecutar install_task.bat para
+actualizar la credencial guardada por Task Scheduler.
+
+
+31. ALERTAS EN LA WEB APP360
+============================
+
+Las alertas aparecen arriba del contenido de cualquier pagina, solamente para
+usuarios cuya sesion tiene rol gerente.
+
+- Fallo informado por Windows: alerta roja inmediata.
+- Ejecucion ausente o sin finalizar: alerta ambar desde las 03:00.
+- Ejecucion finalizada correctamente: la alerta de esa fecha desaparece.
+- Un fallo anterior sigue visible hasta reejecutar correctamente esa misma fecha.
+- Si el estado final no llega al VPS, la tarea termina con codigo distinto de cero.
+
+El boton con flecha abre SabioGo Admin para revisar el estado. Los roles admin,
+manager, hr y otros no reciben esta alerta por definicion actual.
+
+
+32. LISTA FINAL PARA MARCAR
 ===========================
 
 [x] C:\SabioGoSync creada.
-[x] Cuatro archivos copiados.
+[x] Cuatro archivos iniciales copiados.
 [x] Python 3.11 o superior instalado.
 [x] Python y fbclient.dll tienen arquitectura compatible.
 [x] Entorno venv creado.
@@ -955,16 +1055,23 @@ Accion:
 [x] Columnas, filas y empresas de ventas anotadas.
 [x] P_COMPRAS_GLOBALES probado.
 [x] Columnas, filas y empresas de compras anotadas.
-[x] Cuatro archivos actualizados con la version aprobada.
+[x] Cuatro archivos iniciales actualizados con la version aprobada.
 [x] API key real configurada sin compartirla.
 [x] Endpoint consultado sin credenciales: HTTP 401.
 [x] Primera ejecucion E2E finalizada con codigo 0.
 [x] Duplicado LACTEOS confirmado identico en las 29 columnas.
 [x] Staging, facts y auditorias reconciliados.
 [x] Segunda ejecucion idempotente finalizada con codigo 0.
-[x] Task Scheduler NO configurado.
+[ ] Nuevo sync.py e install_task.bat copiados a C:\SabioGoSync.
+[ ] Nuevo setup.bat y secure_folder.ps1 copiados a C:\SabioGoSync.
+[ ] Zona horaria confirmada: Argentina Standard Time.
+[ ] ACL confirmada: solo Administrador y SYSTEM.
+[ ] Tarea App360 SabioGo Sync creada para las 02:00.
+[ ] Cuenta de ejecucion confirmada: NOMBRE_DEL_SERVIDOR\Administrador.
+[ ] Primera ejecucion automatica confirmada con resultado 0.
+[ ] Alerta web validada con un usuario de rol gerente.
 [x] Resultados enviados sin secretos.
 
 
-FIN DE LA GUIA DE PRUEBA FINAL
-==============================
+FIN DE LA GUIA DE OPERACION
+===========================

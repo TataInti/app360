@@ -1,4 +1,5 @@
 @echo off
+setlocal EnableExtensions
 :: =============================================================================
 :: setup.bat — Configuración inicial del sincronizador SabioGo → App360
 :: Ejecutar UNA SOLA VEZ como Administrador en el servidor SabioGo
@@ -9,6 +10,14 @@ echo ============================================================
 echo  SabioGo Sync - Configuracion inicial
 echo ============================================================
 echo.
+
+set "SCRIPT_DIR=%~dp0"
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT_DIR%secure_folder.ps1" -Path "%SCRIPT_DIR%"
+if errorlevel 1 (
+    echo ERROR: No se pudo proteger C:\SabioGoSync.
+    pause
+    exit /b 1
+)
 
 :: Verificar Python
 python --version >nul 2>&1
@@ -79,7 +88,7 @@ echo  Proximos pasos:
 echo    1. Editar config.ini con credenciales, cliente y api_key
 echo    2. Verificar el endpoint sin clave segun guia_windows.txt
 echo    3. Ejecutar solo la prueba manual autorizada en la guia
-echo    4. No configurar Task Scheduler hasta reconciliar la prueba
+echo    4. Tras reconciliar la prueba: ejecutar install_task.bat
 echo ============================================================
 echo.
 pause

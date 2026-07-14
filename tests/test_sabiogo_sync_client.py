@@ -1,4 +1,5 @@
 import configparser
+import json
 import sys
 import types
 from datetime import date
@@ -126,6 +127,7 @@ def test_query_compras_configura_servidor_y_procedimiento(monkeypatch):
 def test_sync_fecha_envia_ventas_compras_y_lotes_vacios(monkeypatch):
     sent = []
     finalized = []
+    reports = []
     target_date = date(2026, 5, 4)
 
     monkeypatch.setattr(sync, 'query_ventas', lambda *args: (['EMPRESA'], []))
@@ -141,16 +143,25 @@ def test_sync_fecha_envia_ventas_compras_y_lotes_vacios(monkeypatch):
         'finalize_sync',
         lambda cfg, fecha: finalized.append(fecha) or {'success': True},
     )
+    monkeypatch.setattr(
+        sync,
+        '_report_sync_status_safely',
+        lambda *args, **kwargs: reports.append((args, kwargs)) or True,
+    )
 
     assert sync.sync_fecha(make_config(), target_date) is True
     assert sent == [(target_date, (['EMPRESA'], []), (['EMPRESA'], []), True)]
     assert finalized == [target_date]
+    assert [report[0][3] for report in reports] == ['iniciada', 'exitosa']
+    assert reports[-1][1]['filas_ventas'] == 0
+    assert reports[-1][1]['filas_compras'] == 0
 
 
 def test_sync_fecha_intenta_compras_si_ventas_falla(monkeypatch):
     compras_consultadas = []
     sent = []
     finalized = []
+    reports = []
     target_date = date(2026, 5, 4)
 
     def fail_ventas(*args):
@@ -169,11 +180,18 @@ def test_sync_fecha_intenta_compras_si_ventas_falla(monkeypatch):
         'finalize_sync',
         lambda cfg, fecha: finalized.append(fecha),
     )
+    monkeypatch.setattr(
+        sync,
+        '_report_sync_status_safely',
+        lambda *args, **kwargs: reports.append((args, kwargs)) or True,
+    )
 
     assert sync.sync_fecha(make_config(), target_date) is False
     assert compras_consultadas == [True]
     assert sent == []
     assert finalized == []
+    assert [report[0][3] for report in reports] == ['iniciada', 'error']
+    assert reports[-1][1]['mensaje'] == 'Falló extracción: ventas.'
 
 
 def test_push_daily_envia_ambos_tipos_en_un_request(monkeypatch):
@@ -285,3 +303,60 @@ def test_finalize_rechaza_respuesta_no_exitosa(monkeypatch):
 
     with pytest.raises(RuntimeError, match='fallo de refresh'):
         sync.finalize_sync(make_config(), date(2026, 5, 4))
+
+
+def test_report_sync_status_envia_estado_y_conteos(monkeypatch):
+    execution_id = 'ca96c00e-08f9-45d0-b194-5a5f3f56f5cf'
+    target_date = date(2026, 5, 4)
+    session = FakeSession(FakeResponse({
+        'success': True,
+        'execution_id': execution_id,
+        'fecha': target_date.isoformat(),
+        'estado': 'exitosa',
+    }))
+    monkeypatch.setattr(sync, '_build_http_session', lambda *args: session)
+
+    sync.report_sync_status(
+        make_config(),
+        execution_id,
+        target_date,
+        'exitosa',
+        mensaje='Carga y finalización completadas.',
+        filas_ventas=279,
+        filas_compras=53,
+    )
+
+    url, request_kwargs = session.request
+    payload = json.loads(request_kwargs['data'].decode('utf-8'))
+    assert url == 'https://app360.example/sabiogo/api/db-sync/status'
+    assert payload == {
+        'execution_id': execution_id,
+        'fecha': '2026-05-04',
+        'estado': 'exitosa',
+        'mensaje': 'Carga y finalización completadas.',
+        'filas_ventas': 279,
+        'filas_compras': 53,
+    }
+
+
+def test_sync_fecha_falla_si_no_puede_reportar_exito(monkeypatch):
+    target_date = date(2026, 5, 4)
+    states = []
+
+    monkeypatch.setattr(sync, 'query_ventas', lambda *args: (['EMPRESA'], []))
+    monkeypatch.setattr(sync, 'query_compras', lambda *args: (['EMPRESA'], []))
+    monkeypatch.setattr(
+        sync,
+        'push_daily_to_vps',
+        lambda cfg, fecha, *args, **kwargs: daily_success_response(fecha, 0, 0),
+    )
+    monkeypatch.setattr(sync, 'finalize_sync', lambda *args: {'success': True})
+
+    def fail_final_status(*args, **kwargs):
+        states.append(args[3])
+        return args[3] != 'exitosa'
+
+    monkeypatch.setattr(sync, '_report_sync_status_safely', fail_final_status)
+
+    assert sync.sync_fecha(make_config(), target_date) is False
+    assert states == ['iniciada', 'exitosa']

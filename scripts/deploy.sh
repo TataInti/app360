@@ -97,12 +97,18 @@ echo -e "\n${YELLOW}[7/9] Migraciones (opcional)...${NC}"
 if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     echo "RUN_MIGRATIONS=true → ejecutando flask db upgrade"
     if [ -d "migrations" ]; then
-        flask db upgrade || echo "Advertencia: Migraciones no aplicadas (puede ser normal en primera instalación)"
+        flask db upgrade
     else
         echo "Inicializando migraciones..."
         flask db init
         flask db migrate -m "Initial migration"
         flask db upgrade
+    fi
+    current_revision="$(flask db current | awk '/\(head\)$/{print $1}' | tail -n1)"
+    head_revision="$(flask db heads | awk '/\(head\)$/{print $1}' | tail -n1)"
+    if [ -z "$current_revision" ] || [ "$current_revision" != "$head_revision" ]; then
+        echo -e "${RED}Error: Alembic no quedo en head (current=${current_revision:-none}, head=${head_revision:-none})${NC}"
+        exit 1
     fi
     echo -e "${GREEN}✓ Migraciones ejecutadas${NC}"
 else

@@ -69,6 +69,10 @@ echo "   SQL: $SQL_FILE"
 echo "   SHA256: $SHA_FILE"
 echo "   Meta: $META_FILE"
 echo ""
+if git check-ignore -q "$SQL_FILE"; then
+  echo "❌ $SQL_FILE esta ignorado por Git. Corregir .gitignore antes de publicar."
+  exit 1
+fi
 echo "Siguiente paso sugerido:"
 echo "  git add $RELEASE_DIR"
 echo "  git commit -m 'db: release $RELEASE_TAG'"
