@@ -110,10 +110,40 @@ fi
 echo -e "\n${YELLOW}[8/9] Ejecutando tests seguros en entorno aislado...${NC}"
 if [ -d "tests" ]; then
     rm -f /tmp/app360_test.sqlite
-    PYTHONPATH=/var/www/app360 DATABASE_URL=sqlite:////tmp/app360_test.sqlite pytest tests/ -v --tb=short || {
+    export PYTHONPATH=/var/www/app360
+    export DATABASE_URL=sqlite:////tmp/app360_test.sqlite
+
+    # Bootstrap de esquema en el SQLite temporal.
+    # Algunos archivos de test asumen una DB ya migrada (equivalente a Postgres)
+    # y no crean su propio esquema en memoria (a diferencia de los que usan
+    # `sqlite:///:memory:` + db.create_all()/drop_all() por test). Sin este paso,
+    # esos tests fallan con "no such table: ..." aunque el código de la app esté
+    # correcto (falso positivo detectado en despliegues reales).
+    python3 -c "
+from app import create_app
+from models import db
+app = create_app()
+with app.app_context():
+    db.create_all()
+" || { echo -e "${RED}Error: No se pudo inicializar el esquema de tests en SQLite temporal${NC}"; exit 1; }
+
+    # Cada archivo de test corre en un proceso pytest separado.
+    # Algunos fixtures mutan atributos de clase en `Config` (p.ej.
+    # SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:") sin revertirlos al terminar.
+    # Si todos los archivos corrieran en un único proceso pytest, un archivo
+    # "contamina" la config para los que se ejecutan después en ese mismo proceso
+    # (bug de aislamiento ya detectado en despliegues reales). Procesos separados
+    # por archivo evitan ese acoplamiento sin tener que tocar cada test.
+    tests_failed=0
+    for test_file in tests/test_*.py; do
+        pytest "$test_file" -v --tb=short || tests_failed=1
+    done
+    unset PYTHONPATH DATABASE_URL
+
+    if [ "$tests_failed" -ne 0 ]; then
         echo -e "${RED}Error: Fallaron tests seguros en VPS${NC}"
         exit 1
-    }
+    fi
     echo -e "${GREEN}✓ Tests seguros ejecutados correctamente${NC}"
 else
     echo -e "${YELLOW}Advertencia: carpeta tests/ no encontrada, se omite validación${NC}"

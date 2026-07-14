@@ -1,5 +1,6 @@
 from functools import wraps
 from datetime import datetime, timedelta, timezone
+import hmac
 import logging
 import jwt
 
@@ -16,6 +17,12 @@ from flask import (
 
 # Security Logger
 security_logger = logging.getLogger('security')
+
+
+def secrets_match(received, configured):
+    if not received or not configured:
+        return False
+    return hmac.compare_digest(str(received), str(configured))
 
 ACCESS_MAP = {
     "admin": ["all"],  # Administrador con acceso total
@@ -264,8 +271,25 @@ def protect_blueprint(bp, module):
 
         # Sincronización servidor-a-servidor: API key en header como alternativa a sesión
         _sync_key = current_app.config.get('SABIOGO_SYNC_API_KEY')
-        if _sync_key and request.headers.get('X-Sync-Key') == _sync_key:
-            return
+        sync_endpoints = {
+            'sabiogo.sabiogo_db_sync',
+            'sabiogo.sabiogo_db_sync_daily',
+            'sabiogo.sabiogo_db_sync_finalize',
+        }
+        if request.endpoint in sync_endpoints:
+            if not _sync_key:
+                return jsonify({'error': 'SABIOGO_SYNC_API_KEY no configurado'}), 503
+            if secrets_match(request.headers.get('X-Sync-Key'), _sync_key):
+                return
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        if request.endpoint == 'sabiogo.sync_objetivos_pre_cron':
+            cron_token = current_app.config.get('SABIOGO_CRON_TOKEN')
+            if not cron_token:
+                return jsonify({'error': 'SABIOGO_CRON_TOKEN no configurado'}), 503
+            if secrets_match(request.headers.get('X-App360-Cron-Token'), cron_token):
+                return
+            return jsonify({'error': 'Token de cron inválido'}), 401
 
         if module_allowed(module):
             # Enforce read-only for 'view' level on mutating methods

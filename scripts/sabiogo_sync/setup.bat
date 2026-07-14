@@ -49,17 +49,23 @@ echo [OK] Dependencias instaladas.
 echo.
 if not exist "config.ini" (
     > config.ini echo [firebird]
-    >> config.ini echo database = localhost/VYP
-    >> config.ini echo user = ^<SABIOGO_DB_USER^>
-    >> config.ini echo password = ^<SABIOGO_DB_PASSWORD^>
+    >> config.ini echo host = localhost
+    >> config.ini echo port = 3050
+    >> config.ini echo database = VYP
+    >> config.ini echo user = CAMBIAR_USUARIO_FIREBIRD
+    >> config.ini echo password = CAMBIAR_PASSWORD_FIREBIRD
+    >> config.ini echo client_library =
     >> config.ini echo.
     >> config.ini echo [vps]
-    >> config.ini echo url = https://^<tu-dominio-app360^>
-    >> config.ini echo api_key = ^<SABIOGO_SYNC_API_KEY^>
+    >> config.ini echo url = https://vyp.app360.com.ar
+    >> config.ini echo api_key = NO_EJECUTAR_SYNC_AUN
     >> config.ini echo timeout_seconds = 120
+    >> config.ini echo max_retries = 3
+    >> config.ini echo backoff_factor = 1
+    >> config.ini echo origenes = CARNES,LACTEOS
     echo [OK] config.ini creado con estructura base local.
     echo.
-    echo >>> ACCION REQUERIDA: Editar config.ini con los valores reales:
+    echo ACCION REQUERIDA: Editar config.ini con los valores reales:
     echo     - [vps] api_key = la clave del archivo .env del VPS
     echo.
 ) else (
@@ -70,7 +76,7 @@ echo.
 echo ============================================================
 echo  Setup completado.
 echo  Proximos pasos:
-echo    1. Editar config.ini con la api_key del VPS
+echo    1. Editar config.ini con credenciales, cliente y api_key
 echo    2. Probar: run_sync.bat --fecha 2026-06-01
 echo    3. Configurar tarea programada con Task Scheduler
 echo       (ver instrucciones en README del directorio)

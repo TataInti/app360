@@ -13,9 +13,11 @@ def _marcar_duplicados_para_descarte(session, model_class):
     - Intra-lote: si hay varias pendientes con la misma firma, se conserva la
       primera y se marcan las restantes.
     """
-    from sqlalchemy import func, select, tuple_
+    from sqlalchemy import func, select
+    from sqlalchemy.orm import aliased
 
     firma_cols = (
+        model_class.origen,
         model_class.nro_comprob,
         model_class.tipo,
         model_class.fecha,
@@ -23,29 +25,20 @@ def _marcar_duplicados_para_descarte(session, model_class):
         model_class.subtot,
     )
 
-    firmas_existentes_sq = session.query(
-        model_class.nro_comprob.label('nro_comprob'),
-        model_class.tipo.label('tipo'),
-        model_class.fecha.label('fecha'),
-        model_class.codigo.label('codigo'),
-        model_class.subtot.label('subtot'),
-    ).filter(
-        model_class.estado == 'procesado'
-    ).group_by(
-        *firma_cols,
-    ).subquery()
+    procesado = aliased(model_class)
+    firma_procesada = session.query(procesado.id).filter(
+        procesado.estado == 'procesado',
+        model_class.origen.isnot_distinct_from(procesado.origen),
+        model_class.nro_comprob.isnot_distinct_from(procesado.nro_comprob),
+        model_class.tipo.isnot_distinct_from(procesado.tipo),
+        model_class.fecha.isnot_distinct_from(procesado.fecha),
+        model_class.codigo.isnot_distinct_from(procesado.codigo),
+        model_class.subtot.isnot_distinct_from(procesado.subtot),
+    ).exists()
 
     cross_ids_sq = session.query(model_class.id.label('id')).filter(
         model_class.estado == 'pendiente',
-        tuple_(*firma_cols).in_(
-            select(
-                firmas_existentes_sq.c.nro_comprob,
-                firmas_existentes_sq.c.tipo,
-                firmas_existentes_sq.c.fecha,
-                firmas_existentes_sq.c.codigo,
-                firmas_existentes_sq.c.subtot,
-            )
-        ),
+        firma_procesada,
     ).subquery()
 
     cross_count = session.query(model_class).filter(

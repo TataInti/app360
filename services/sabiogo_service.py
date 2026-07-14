@@ -9,6 +9,7 @@ from models import db
 from models.hr.employee import Employee
 from models.hr.goal import Goal
 from models.sabiogo import StgSabiogoVentas
+from sqlalchemy import text
 
 
 class SabiogoService:
@@ -177,6 +178,41 @@ class SabiogoService:
             observaciones=observaciones,
             auto_commit=auto_commit,
         )
+
+    def refresh_facts(self) -> Dict:
+        """Promueve staging y refresca las vistas materializadas SabioGo."""
+        try:
+            promoted_ventas = db.session.execute(text("""
+                UPDATE stg_sabiogo_ventas
+                SET estado = 'procesado'
+                WHERE estado IN ('cargado', 'pendiente')
+            """)).rowcount
+            promoted_compras = db.session.execute(text("""
+                UPDATE stg_sabiogo_compras
+                SET estado = 'procesado'
+                WHERE estado IN ('cargado', 'pendiente')
+            """)).rowcount
+            db.session.commit()
+
+            try:
+                with db.engine.connect().execution_options(isolation_level='AUTOCOMMIT') as conn:
+                    conn.execute(text('REFRESH MATERIALIZED VIEW CONCURRENTLY fact_ventas_sabiogo'))
+                    conn.execute(text('REFRESH MATERIALIZED VIEW CONCURRENTLY fact_costos_sabiogo'))
+            except Exception:
+                db.session.execute(text('REFRESH MATERIALIZED VIEW fact_ventas_sabiogo'))
+                db.session.execute(text('REFRESH MATERIALIZED VIEW fact_costos_sabiogo'))
+                db.session.commit()
+
+            return {
+                'mensaje': 'Vistas materializadas actualizadas',
+                'staging_promovidos': {
+                    'ventas': int(promoted_ventas or 0),
+                    'compras': int(promoted_compras or 0),
+                },
+            }
+        except Exception:
+            db.session.rollback()
+            raise
 
     def get_resumen_pre_fac(self, fecha_corte: Optional[date] = None) -> Dict:
         """Retorna métrica global Pre/Fac acumulada al corte."""

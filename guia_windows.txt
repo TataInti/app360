@@ -1,0 +1,960 @@
+GUIA PARA PRINCIPIANTES
+PRUEBA DE SABIOGO EN SERVIDOR WINDOWS
+=====================================
+
+Fecha de esta guia: 2026-07-13
+
+
+1. OBJETIVO DE ESTA GUIA
+========================
+
+Esta guia permite preparar desde cero el servidor Windows donde corre SabioGo
+y comprobar estas cosas:
+
+1. Que Python esta instalado.
+2. Que los archivos del sincronizador estan en una carpeta estable.
+3. Que Firebird esta instalado o accesible.
+4. Que Python puede cargar la biblioteca fbclient.dll.
+5. Que las credenciales permiten conectarse a la base correcta.
+6. Que existen P_VENTAS_GLOBALES y P_COMPRAS_GLOBALES.
+7. Que ambos procedimientos devuelven columnas, filas y valores de EMPRESA.
+
+Las pruebas de Firebird incluidas aqui son solamente de lectura.
+
+
+2. ESTADO ACTUAL Y ADVERTENCIA IMPORTANTE
+=========================================
+
+El 2026-07-13 se comprobo desde desarrollo esta direccion:
+
+    https://vyp.app360.com.ar/sabiogo/api/db-sync/daily
+
+Actualmente responde HTTP 404. Esto significa que el receptor todavia no esta
+desplegado en el VPS.
+
+NO EJECUTAR TODAVIA:
+
+    run_sync.bat
+
+NO EJECUTAR TODAVIA:
+
+    run_sync.bat --fecha 2026-05-01
+
+El cliente corregido ya lee host y puerto de Firebird y envia ventas y compras
+en una sola carga diaria. Todavia no esta habilitado para ejecucion productiva.
+
+Primero se completan las pruebas locales. Luego se envia el resultado al equipo
+de desarrollo. El envio real se habilitara solamente cuando:
+
+- el endpoint del VPS ya no responda 404;
+- se entregue una version corregida del script;
+- se configure la API key real;
+- se elija una fecha controlada para la primera carga.
+
+
+3. REGLAS DE SEGURIDAD
+======================
+
+- No enviar por chat la contrasena de Firebird.
+- No enviar por chat la API key del VPS.
+- No enviar una captura completa de config.ini.
+- No copiar config.ini a una carpeta compartida.
+- No usar un usuario administrador de Firebird si existe uno de solo lectura.
+- No crear todavia una tarea en Task Scheduler.
+- No ejecutar run_sync.bat hasta recibir autorizacion expresa.
+
+Si una persona solicita las credenciales por chat, detenerse y consultar al
+responsable tecnico.
+
+
+4. COMO USAR LOS COMANDOS DE ESTA GUIA
+======================================
+
+Todos los comandos se ejecutan en SIMBOLO DEL SISTEMA, tambien llamado CMD.
+
+Para abrirlo:
+
+1. Abrir el menu Inicio de Windows.
+2. Escribir: cmd
+3. Hacer clic derecho sobre "Simbolo del sistema".
+4. Elegir "Ejecutar como administrador".
+5. Aceptar la pregunta de Control de cuentas de usuario.
+
+Reglas para cada comando:
+
+1. Copiar solamente la linea mostrada como comando.
+2. Pegarla en la ventana negra.
+3. Presionar Enter.
+4. Esperar a que termine.
+5. Leer el resultado antes de pasar al comando siguiente.
+
+No copiar textos como "Resultado esperado" dentro de CMD.
+
+
+PARTE A - PREPARAR WINDOWS DESDE CERO
+=====================================
+
+
+5. CREAR LA CARPETA DE TRABAJO
+==============================
+
+COMANDO 1:
+
+    mkdir C:\SabioGoSync
+
+Si informa que la carpeta ya existe, no es un error.
+
+COMANDO 2:
+
+    cd /d C:\SabioGoSync
+
+COMANDO 3:
+
+    cd
+
+Resultado esperado:
+
+    C:\SabioGoSync
+
+Si muestra otra carpeta, repetir el COMANDO 2.
+
+
+6. COPIAR LOS ARCHIVOS DEL SINCRONIZADOR
+========================================
+
+No se supone que Git exista en el servidor. La forma recomendada para esta
+primera prueba es copiar los archivos mediante un medio aprobado por la empresa:
+carpeta de red privada, acceso remoto o dispositivo autorizado.
+
+En el repositorio de App360, la carpeta de origen es:
+
+    scripts\sabiogo_sync
+
+Copiar estos cuatro archivos dentro de C:\SabioGoSync:
+
+    sync.py
+    setup.bat
+    run_sync.bat
+    requirements.txt
+
+Despues de copiarlos, volver a CMD.
+
+COMANDO 4:
+
+    cd /d C:\SabioGoSync
+
+COMANDO 5:
+
+    dir
+
+La lista debe contener exactamente estos nombres como minimo:
+
+    sync.py
+    setup.bat
+    run_sync.bat
+    requirements.txt
+
+Si falta alguno, detenerse y copiarlo antes de continuar.
+
+
+7. COMPROBAR SI PYTHON YA EXISTE
+================================
+
+COMANDO 6:
+
+    python --version
+
+Resultado valido:
+
+    Python 3.11.x
+
+Tambien pueden funcionar Python 3.12 o una version posterior compatible.
+
+Si aparece "python no se reconoce como un comando", seguir con la seccion 8.
+
+Si aparece una version anterior a Python 3.11, seguir con la seccion 8.
+
+Si Python 3.11 o superior ya funciona, pasar a la seccion 9.
+
+
+8. INSTALAR PYTHON 3.11 SI NO EXISTE
+====================================
+
+Primero comprobar si Windows Package Manager esta disponible.
+
+COMANDO 7:
+
+    winget --version
+
+
+CASO A: WINGET FUNCIONA
+-----------------------
+
+Ejecutar:
+
+COMANDO 8:
+
+    winget install --exact --id Python.Python.3.11
+
+Esperar hasta que termine.
+
+Cerrar la ventana de CMD.
+
+Abrir nuevamente CMD como administrador siguiendo la seccion 4.
+
+COMANDO 9:
+
+    python --version
+
+Debe mostrar Python 3.11.x.
+
+
+CASO B: WINGET NO EXISTE
+------------------------
+
+Ejecutar:
+
+COMANDO 10:
+
+    start https://www.python.org/downloads/windows/
+
+En el navegador:
+
+1. Descargar Python 3.11 para Windows, instalador de 64 bits.
+2. Abrir el instalador.
+3. Marcar la casilla "Add python.exe to PATH".
+4. Elegir "Install Now".
+5. Esperar a que termine.
+6. Cerrar el instalador.
+7. Cerrar CMD.
+8. Abrir nuevamente CMD como administrador.
+
+COMANDO 11:
+
+    python --version
+
+Debe mostrar Python 3.11.x.
+
+Si sigue sin reconocer python, no continuar. Reiniciar Windows una vez y probar
+de nuevo. Si todavia falla, informar el mensaje exacto.
+
+
+9. COMPROBAR LA ARQUITECTURA DE PYTHON
+======================================
+
+COMANDO 12:
+
+    python -c "import struct, sys; print(sys.version); print('BITS_PYTHON=', struct.calcsize('P') * 8)"
+
+Resultado recomendado:
+
+    BITS_PYTHON= 64
+
+Guardar este dato. La biblioteca fbclient.dll debe tener la misma arquitectura.
+Python de 64 bits necesita fbclient.dll de 64 bits.
+
+
+10. COMPROBAR ACCESO A INTERNET PARA INSTALAR DEPENDENCIAS
+==========================================================
+
+COMANDO 13:
+
+    powershell -NoProfile -Command "Test-NetConnection pypi.org -Port 443"
+
+Buscar esta linea:
+
+    TcpTestSucceeded : True
+
+Si dice True, continuar.
+
+Si dice False:
+
+1. No ejecutar setup.bat todavia.
+2. Informar que el servidor no tiene salida HTTPS a pypi.org.
+3. El equipo de desarrollo debera preparar un paquete de dependencias offline.
+
+
+11. CREAR EL ENTORNO E INSTALAR DEPENDENCIAS
+=============================================
+
+Volver a la carpeta correcta.
+
+COMANDO 14:
+
+    cd /d C:\SabioGoSync
+
+COMANDO 15:
+
+    setup.bat
+
+El proceso puede tardar varios minutos.
+
+Al final aparece "Setup completado" y pide presionar una tecla. Presionar una
+tecla una sola vez.
+
+setup.bat debe crear:
+
+    C:\SabioGoSync\venv
+    C:\SabioGoSync\config.ini
+
+COMANDO 16:
+
+    dir /a
+
+Comprobar que aparecen venv y config.ini.
+
+Si setup.bat termina con ERROR, no continuar. Copiar el mensaje de error sin
+copiar contrasenas.
+
+
+12. COMPROBAR LAS DEPENDENCIAS INSTALADAS
+=========================================
+
+COMANDO 17:
+
+    venv\Scripts\python.exe --version
+
+COMANDO 18:
+
+    venv\Scripts\python.exe -m pip show firebird-driver
+
+COMANDO 19:
+
+    venv\Scripts\python.exe -m pip show requests
+
+En el resultado de firebird-driver, anotar la linea Version.
+
+
+PARTE B - IDENTIFICAR FIREBIRD SIN SUPONER SU UBICACION
+======================================================
+
+
+13. BUSCAR EL SERVICIO FIREBIRD
+===============================
+
+COMANDO 20:
+
+    powershell -NoProfile -Command "Get-CimInstance Win32_Service | Where-Object { $_.Name -match 'Firebird' -or $_.DisplayName -match 'Firebird' } | Format-List Name,DisplayName,State,PathName"
+
+Guardar estas lineas si aparecen:
+
+    Name
+    DisplayName
+    State
+    PathName
+
+El estado esperado es:
+
+    State : Running
+
+Si no aparece ningun servicio, ejecutar el comando siguiente.
+
+COMANDO 21:
+
+    tasklist | findstr /I "firebird.exe fbserver.exe fb_inet_server.exe"
+
+Si tampoco aparece un proceso, no significa necesariamente que SabioGo no use
+Firebird. Puede usar un servidor en otro equipo. Consultar al administrador de
+SabioGo cual es el host de Firebird antes de continuar.
+
+
+14. BUSCAR CLIENTE, HERRAMIENTAS Y ARCHIVOS DE CONFIGURACION
+============================================================
+
+COMANDO 22:
+
+    powershell -NoProfile -Command "Get-ChildItem -Path 'C:\Program Files\Firebird','C:\Program Files (x86)\Firebird' -Include fbclient.dll,isql.exe,databases.conf,aliases.conf -File -Recurse -ErrorAction SilentlyContinue | Select-Object FullName,@{Name='Version';Expression={$_.VersionInfo.FileVersion}} | Format-Table -AutoSize"
+
+Anotar las rutas encontradas para:
+
+    fbclient.dll
+    isql.exe
+    databases.conf o aliases.conf
+
+Si no aparece nada:
+
+1. Buscar el acceso directo de SabioGo en el Escritorio o menu Inicio.
+2. Hacer clic derecho sobre el acceso directo.
+3. Elegir "Propiedades".
+4. Anotar la carpeta mostrada en "Iniciar en" o "Destino".
+5. Reemplazar C:\RUTA\DE\SABIOGO en el comando siguiente por esa carpeta.
+
+EJEMPLO DE COMANDO. NO COPIAR SIN CAMBIAR LA RUTA:
+
+    powershell -NoProfile -Command "Get-ChildItem -Path 'C:\RUTA\DE\SABIOGO' -Include fbclient.dll,isql.exe,databases.conf,aliases.conf -File -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName"
+
+Si no se encuentra fbclient.dll, detenerse. Informar la ruta de instalacion de
+SabioGo y la salida de los COMANDOS 20, 21 y 22.
+
+
+15. COMPROBAR VERSION DE FBCLIENT.DLL
+=====================================
+
+En el comando siguiente hay que reemplazar la ruta de ejemplo por la ruta real
+encontrada en la seccion anterior.
+
+EJEMPLO. NO COPIAR SIN CAMBIAR LA RUTA:
+
+    powershell -NoProfile -Command "(Get-Item 'C:\Program Files\Firebird\Firebird_4_0\fbclient.dll').VersionInfo | Format-List FileVersion,ProductVersion"
+
+La version principal debe ser Firebird 3, 4 o superior.
+
+Si muestra Firebird 2.5 o anterior, detenerse. firebird-driver no soporta esas
+versiones del cliente. Informar la version exacta antes de instalar otra DLL.
+
+No reemplazar fbclient.dll dentro de SabioGo.
+
+
+16. COMPROBAR EL PUERTO FIREBIRD
+================================
+
+Primero probar el puerto estandar 3050 en el mismo servidor.
+
+COMANDO 23:
+
+    powershell -NoProfile -Command "Test-NetConnection localhost -Port 3050"
+
+Buscar:
+
+    TcpTestSucceeded : True
+
+Si dice True, anotar:
+
+    host = localhost
+    port = 3050
+
+Si dice False, no adivinar otro puerto. Revisar PathName del COMANDO 20 y
+consultar la configuracion de SabioGo o al administrador. Tambien puede ocurrir
+que Firebird este en otro servidor.
+
+Si Firebird esta en otro equipo, repetir reemplazando SERVIDOR_FIREBIRD por su
+nombre o direccion IP:
+
+    powershell -NoProfile -Command "Test-NetConnection SERVIDOR_FIREBIRD -Port 3050"
+
+No continuar hasta obtener True para el host y puerto correctos.
+
+
+17. CONFIRMAR EL ALIAS O RUTA DE LA BASE
+========================================
+
+Si se encontro databases.conf o aliases.conf, abrirlo con Notepad. Reemplazar
+la ruta de ejemplo por la ruta real.
+
+EJEMPLO PARA FIREBIRD 3 O 4:
+
+    notepad "C:\Program Files\Firebird\Firebird_4_0\databases.conf"
+
+EJEMPLO PARA UNA INSTALACION ANTERIOR:
+
+    notepad "C:\Program Files\Firebird\Firebird_3_0\aliases.conf"
+
+Dentro del archivo:
+
+1. Presionar Ctrl+F.
+2. Buscar: VYP
+3. Anotar el nombre exacto del alias y la ruta asociada.
+4. Cerrar Notepad sin modificar el archivo.
+
+Un ejemplo posible es:
+
+    VYP = D:\Datos\SabioGo\VYP.FDB
+
+En ese ejemplo, el alias a usar es solamente:
+
+    VYP
+
+Si VYP no aparece, no inventar una ruta. Consultar al administrador de SabioGo
+o al proveedor cual es el alias o archivo de base productiva.
+
+
+18. CONFIRMAR LOS DATOS NECESARIOS
+==================================
+
+Antes de seguir, completar esta lista en papel o en un lugar seguro:
+
+    HOST FIREBIRD: __________________________________
+    PUERTO FIREBIRD: ________________________________
+    ALIAS O RUTA DE BASE: ___________________________
+    RUTA FBCLIENT.DLL: ______________________________
+    VERSION FIREBIRD: _______________________________
+    USUARIO FIREBIRD: _______________________________
+    CONTRASENA FIREBIRD: disponible, no escribir aqui
+
+No continuar si falta host, puerto, base, usuario o contrasena.
+
+
+PARTE C - CONFIGURAR SINCRONIZADOR PARA PRUEBAS LOCALES
+=======================================================
+
+
+19. ABRIR CONFIG.INI
+====================
+
+COMANDO 24:
+
+    cd /d C:\SabioGoSync
+
+COMANDO 25:
+
+    notepad config.ini
+
+Reemplazar todo el contenido por la estructura siguiente, usando valores reales.
+No copiar literalmente los textos TU_USUARIO, TU_PASSWORD o la ruta de ejemplo.
+
+    [firebird]
+    host = localhost
+    port = 3050
+    database = VYP
+    user = TU_USUARIO
+    password = TU_PASSWORD
+    client_library = C:\Program Files\Firebird\Firebird_4_0\fbclient.dll
+
+    [vps]
+    url = https://vyp.app360.com.ar
+    api_key = NO_EJECUTAR_SYNC_AUN
+    timeout_seconds = 120
+    max_retries = 3
+    backoff_factor = 1
+    origenes = CARNES,LACTEOS
+
+Cambiar host si Firebird esta en otro equipo.
+
+Cambiar port si el administrador confirmo otro puerto.
+
+En database escribir el alias confirmado, por ejemplo VYP. No escribir
+localhost/VYP con las versiones actuales del driver.
+
+En client_library escribir la ruta exacta encontrada.
+
+Dejar api_key con el texto NO_EJECUTAR_SYNC_AUN. La clave real no debe cargarse
+todavia.
+
+En Notepad:
+
+1. Elegir Archivo.
+2. Elegir Guardar.
+3. Cerrar Notepad.
+
+
+20. VALIDAR CONFIG.INI SIN MOSTRAR SECRETOS
+===========================================
+
+El comando siguiente no muestra usuario ni contrasena. Solamente confirma que
+los campos existen.
+
+COMANDO 26:
+
+    venv\Scripts\python.exe -c "import configparser; c=configparser.ConfigParser(); print('ARCHIVOS_LEIDOS=', c.read('config.ini', encoding='utf-8')); print('SECCIONES=', c.sections()); print('HOST=', c['firebird'].get('host')); print('PORT=', c['firebird'].get('port')); print('DATABASE=', c['firebird'].get('database')); print('CLIENT_LIBRARY=', c['firebird'].get('client_library')); print('USER_CONFIGURADO=', bool(c['firebird'].get('user','').strip())); print('PASSWORD_CONFIGURADO=', bool(c['firebird'].get('password','').strip()))"
+
+Resultado esperado:
+
+    SECCIONES= ['firebird', 'vps']
+    USER_CONFIGURADO= True
+    PASSWORD_CONFIGURADO= True
+
+Revisar tambien que HOST, PORT, DATABASE y CLIENT_LIBRARY sean correctos.
+
+Si aparece KeyError, NoSectionError o False, volver a la seccion 19.
+
+
+PARTE D - PRUEBAS LOCALES DE SOLO LECTURA
+=========================================
+
+
+21. PRUEBA MINIMA DE CONEXION
+=============================
+
+Esta prueba no ejecuta los procedimientos y no envia nada al VPS. Solamente se
+conecta, consulta informacion del servidor y cierra la conexion.
+
+COMANDO 27:
+
+    venv\Scripts\python.exe -c "import configparser; import firebird.driver as fb; c=configparser.ConfigParser(); c.read('config.ini', encoding='utf-8'); f=c['firebird']; client=f.get('client_library','').strip(); client and setattr(fb.driver_config.fb_client_library,'value',client); fb.driver_config.server_defaults.host.value=f.get('host','localhost'); fb.driver_config.server_defaults.port.value=f.get('port','3050'); con=fb.connect(f['database'], user=f['user'], password=f['password'], charset='UTF8'); print('CONEXION_OK'); print('VERSION_FIREBIRD=', con.info.version); print('BASE_CONECTADA=', con.info.name); con.close()"
+
+Resultado esperado:
+
+    CONEXION_OK
+    VERSION_FIREBIRD= ...
+    BASE_CONECTADA= ...
+
+Comprobar que BASE_CONECTADA corresponda a la base productiva de SabioGo.
+
+Si aparece cualquier error, detenerse. No ejecutar las siguientes pruebas hasta
+resolverlo. Consultar la seccion 29 de diagnostico.
+
+
+22. ELEGIR UNA FECHA DE PRUEBA
+==============================
+
+Elegir un dia cerrado que tenga operaciones conocidas. El ejemplo acordado es:
+
+    2026-05-01
+
+Para usar esa fecha:
+
+COMANDO 28:
+
+    set FECHA_PRUEBA=2026-05-01
+
+COMANDO 29:
+
+    echo %FECHA_PRUEBA%
+
+Debe mostrar:
+
+    2026-05-01
+
+Para usar otra fecha, repetir el COMANDO 28 cambiando solamente YYYY-MM-DD.
+
+
+23. PROBAR P_VENTAS_GLOBALES SIN ENVIAR DATOS
+=============================================
+
+Este comando usa la funcion de consulta del sincronizador, pero no llama a la
+API del VPS.
+
+COMANDO 30:
+
+    venv\Scripts\python.exe -c "import configparser, os; from datetime import date; import firebird.driver as fb; c=configparser.ConfigParser(); c.read('config.ini', encoding='utf-8'); f=c['firebird']; fb.driver_config.server_defaults.host.value=f.get('host','localhost'); fb.driver_config.server_defaults.port.value=f.get('port','3050'); from sync import query_ventas; d=date.fromisoformat(os.environ['FECHA_PRUEBA']); cols, rows=query_ventas(c,d,d); print('VENTAS_CONSULTA_OK'); print('FECHA=',d); print('COLUMNAS_CANTIDAD=',len(cols)); print('COLUMNAS=',cols); print('FILAS=',len(rows)); print('EMPRESAS=',sorted({str(r[cols.index('EMPRESA')]).strip() for r in rows}) if 'EMPRESA' in cols else 'ERROR_FALTA_EMPRESA')"
+
+La ejecucion puede tardar. Esperar hasta que vuelva a aparecer el indicador
+C:\SabioGoSync>.
+
+Resultado esperado:
+
+    VENTAS_CONSULTA_OK
+    COLUMNAS_CANTIDAD= 29
+    FILAS= un numero igual o mayor que 0
+    EMPRESAS= una lista de empresas
+
+Valores de EMPRESA esperados por el receptor actual:
+
+    VYP
+    CARNES
+    VYP_LACTEOS
+    LACTEOS_VP
+    LACTEOS
+
+Si FILAS=0, la consulta funciono, pero la fecha puede no tener ventas. Confirmar
+con SabioGo o elegir otra fecha conocida.
+
+Si COLUMNAS_CANTIDAD no es 29, guardar la lista completa de COLUMNAS.
+
+Si aparece ERROR_FALTA_EMPRESA, guardar el resultado y detenerse.
+
+
+24. PROBAR P_COMPRAS_GLOBALES SIN ENVIAR DATOS
+==============================================
+
+El cliente actual todavia no sincroniza compras. Este comando comprueba el
+procedimiento directamente en Firebird, sin llamar al VPS.
+
+COMANDO 31:
+
+    venv\Scripts\python.exe -c "import configparser, os; from datetime import date; import firebird.driver as fb; c=configparser.ConfigParser(); c.read('config.ini', encoding='utf-8'); f=c['firebird']; client=f.get('client_library','').strip(); client and setattr(fb.driver_config.fb_client_library,'value',client); fb.driver_config.server_defaults.host.value=f.get('host','localhost'); fb.driver_config.server_defaults.port.value=f.get('port','3050'); d=date.fromisoformat(os.environ['FECHA_PRUEBA']); con=fb.connect(f['database'],user=f['user'],password=f['password'],charset='UTF8'); cur=con.cursor(); cur.execute('SELECT * FROM P_COMPRAS_GLOBALES(?, ?)',(d,d)); cols=[x[0].upper() for x in cur.description]; rows=cur.fetchall(); print('COMPRAS_CONSULTA_OK'); print('FECHA=',d); print('COLUMNAS_CANTIDAD=',len(cols)); print('COLUMNAS=',cols); print('FILAS=',len(rows)); print('EMPRESAS=',sorted({str(r[cols.index('EMPRESA')]).strip() for r in rows}) if 'EMPRESA' in cols else 'ERROR_FALTA_EMPRESA'); con.close()"
+
+Resultado esperado:
+
+    COMPRAS_CONSULTA_OK
+    COLUMNAS_CANTIDAD= un numero
+    COLUMNAS= lista completa
+    FILAS= un numero igual o mayor que 0
+    EMPRESAS= una lista de empresas
+
+No se debe suponer que compras tiene exactamente las mismas 29 columnas. Guardar
+la cantidad y la lista completa para definir el contrato correcto.
+
+Si FILAS=0, confirmar si hubo compras en esa fecha o elegir otra fecha conocida.
+
+
+25. REVISAR EL LOG LOCAL
+========================
+
+La prueba de ventas escribe actividad en sync.log.
+
+COMANDO 32:
+
+    dir sync.log
+
+COMANDO 33:
+
+    type sync.log
+
+El log no deberia contener la contrasena, pero puede contener nombres de empresa,
+rutas y mensajes internos. Revisarlo antes de compartirlo.
+
+
+26. COMPROBAR EL ENDPOINT SIN CREDENCIALES Y SIN DATOS
+======================================================
+
+Esta prueba no puede insertar datos: no envia clave y el body no contiene filas.
+
+COMANDO 34:
+
+    curl.exe -i -X POST https://vyp.app360.com.ar/sabiogo/api/db-sync/daily -H "Content-Type: application/json" --data "{}"
+
+Estado conocido al crear esta guia:
+
+    HTTP 404
+
+Interpretacion:
+
+    404 = receptor no desplegado; detenerse.
+    503 = receptor desplegado, pero falta configurar secreto en VPS; detenerse.
+    401 = receptor desplegado y protegido; avisar al equipo de desarrollo.
+    400 = revisar inmediatamente la proteccion antes de continuar.
+    200 = detenerse inmediatamente; una llamada sin clave no debe ser aceptada.
+
+Aunque aparezca 401, no ejecutar run_sync.bat sin recibir la version corregida y
+la autorizacion para la fecha controlada.
+
+
+27. PUNTO DE DETENCION OBLIGATORIO
+==================================
+
+AL LLEGAR AQUI, DETENERSE.
+
+NO EJECUTAR run_sync.bat.
+
+NO CREAR TAREA PROGRAMADA.
+
+NO CARGAR API KEY REAL.
+
+Enviar al equipo de desarrollo solamente estos resultados:
+
+1. Salida de python --version.
+2. BITS_PYTHON.
+3. Version de firebird-driver.
+4. Nombre y estado del servicio Firebird.
+5. Version de fbclient.dll.
+6. Host y puerto, sin credenciales.
+7. VERSION_FIREBIRD y BASE_CONECTADA.
+8. Para ventas: fecha, cantidad de columnas, lista de columnas, filas y empresas.
+9. Para compras: fecha, cantidad de columnas, lista de columnas, filas y empresas.
+10. Codigo HTTP del COMANDO 34.
+11. Mensajes de error completos, si existieron.
+
+No enviar:
+
+- password de Firebird;
+- API key;
+- contenido completo de config.ini;
+- datos de clientes, importes o filas individuales.
+
+
+PARTE E - SOLO DESPUES DE RECIBIR AUTORIZACION
+==============================================
+
+
+28. PRIMER ENVIO REAL, TODAVIA NO HABILITADO
+============================================
+
+Esta seccion es una referencia futura. No ejecutarla mientras el endpoint
+responda 404 o mientras no se haya entregado el script corregido.
+
+Condiciones que deben estar cumplidas:
+
+1. El equipo de desarrollo confirma que el receptor esta desplegado.
+2. El COMANDO 34 devuelve 401 sin API key.
+3. Se reemplazaron sync.py, setup.bat, run_sync.bat y requirements.txt por la
+   version aprobada.
+4. El nuevo cliente consulta ventas y compras antes de enviar.
+5. El nuevo cliente valida errores parciales del VPS.
+6. El nuevo cliente envia ambos tipos en una transaccion y solo despues finaliza facts y objetivos.
+7. Se entrego la API key mediante un canal seguro.
+8. Se eligio una fecha cerrada para la prueba.
+9. Hay una persona disponible para reconciliar resultados en App360.
+
+Cuando todas las condiciones esten confirmadas, el responsable tecnico indicara
+editar config.ini y colocar la API key real.
+
+Luego se ejecutara una fecha, no un rango:
+
+    cd /d C:\SabioGoSync
+
+    run_sync.bat --fecha 2026-05-04
+
+Inmediatamente despues:
+
+    echo CODIGO_SALIDA=%ERRORLEVEL%
+
+Y luego:
+
+    type sync.log
+
+Un codigo 0 no sera suficiente por si solo. El responsable debe reconciliar en
+App360 las filas de ventas y compras por fecha y origen.
+
+
+29. DIAGNOSTICO DE ERRORES COMUNES
+=================================
+
+
+ERROR: "python no se reconoce como un comando"
+------------------------------------------------
+
+Causa probable:
+
+- Python no esta instalado.
+- No se marco "Add python.exe to PATH".
+- CMD estaba abierto antes de instalar Python.
+
+Accion:
+
+1. Cerrar CMD.
+2. Abrir CMD de nuevo.
+3. Ejecutar python --version.
+4. Si falla, repetir la seccion 8.
+
+
+ERROR: setup.bat no puede descargar paquetes
+---------------------------------------------
+
+Causa probable:
+
+- El servidor no tiene salida HTTPS.
+- Existe un proxy corporativo.
+- pypi.org esta bloqueado.
+
+Accion:
+
+1. Repetir el COMANDO 13.
+2. Guardar el resultado.
+3. Solicitar paquete offline al equipo de desarrollo.
+
+
+ERROR: cannot load fbclient.dll, WinError 126 o biblioteca no encontrada
+-----------------------------------------------------------------------
+
+Causa probable:
+
+- Ruta client_library incorrecta.
+- Python y fbclient.dll tienen distinta arquitectura.
+- Falta Microsoft Visual C++ Redistributable requerido por Firebird.
+- Se intento usar un cliente Firebird 2.5.
+
+Accion:
+
+1. Revisar COMANDO 12.
+2. Revisar secciones 14 y 15.
+3. No descargar DLL de sitios no oficiales.
+4. Informar ruta, version y arquitectura, sin enviar la DLL.
+
+
+ERROR: unavailable database
+---------------------------
+
+Causa probable:
+
+- Alias incorrecto.
+- Ruta de base incorrecta.
+- Host o puerto incorrecto.
+- Firebird no esta iniciado.
+
+Accion:
+
+1. Revisar COMANDOS 20 y 23.
+2. Revisar databases.conf o aliases.conf.
+3. Confirmar BASE_CONECTADA con el administrador.
+
+
+ERROR: user name and password are not defined o authentication error
+--------------------------------------------------------------------
+
+Causa probable:
+
+- Usuario o contrasena incorrectos.
+- Usuario creado en otra base de seguridad.
+- Cliente incompatible con el metodo de autenticacion.
+
+Accion:
+
+1. No mostrar la contrasena.
+2. Pedir al administrador que pruebe la misma cuenta.
+3. Confirmar version del servidor y fbclient.dll.
+
+
+ERROR: procedure unknown P_VENTAS_GLOBALES o P_COMPRAS_GLOBALES
+---------------------------------------------------------------
+
+Causa probable:
+
+- Se conecto a otra base.
+- El procedimiento no fue instalado.
+- El nombre real es distinto.
+
+Accion:
+
+1. Revisar BASE_CONECTADA.
+2. Informar que procedimiento falta.
+3. No cambiar sync.py para ocultar el problema.
+
+
+ERROR: no permission for SELECT o EXECUTE sobre procedimiento
+--------------------------------------------------------------
+
+Causa probable:
+
+- El usuario existe, pero no tiene permisos sobre el procedimiento o sus tablas.
+
+Accion:
+
+1. Informar el error exacto al administrador Firebird.
+2. Solicitar solamente permisos de lectura y ejecucion necesarios.
+3. No reemplazar la cuenta por SYSDBA como solucion permanente.
+
+
+ERROR: FILAS=0
+--------------
+
+Esto no siempre es un error. Puede ser un dia sin operaciones.
+
+Accion:
+
+1. Confirmar la fecha en SabioGo.
+2. Elegir un dia cerrado con ventas o compras conocidas.
+3. Repetir desde el COMANDO 28.
+
+
+ERROR HTTP 404 EN DB-SYNC/DAILY
+-------------------------
+
+Estado esperado actualmente. El receptor no esta desplegado.
+
+Accion:
+
+1. No ejecutar run_sync.bat.
+2. Informar el 404.
+3. Esperar despliegue y autorizacion.
+
+
+30. LISTA FINAL PARA MARCAR
+===========================
+
+[x] C:\SabioGoSync creada.
+[x] Cuatro archivos copiados.
+[x] Python 3.11 o superior instalado.
+[x] Python y fbclient.dll tienen arquitectura compatible.
+[x] Entorno venv creado.
+[x] firebird-driver instalado y version anotada.
+[x] Servicio o servidor Firebird identificado.
+[x] Host confirmado.
+[x] Puerto confirmado.
+[x] Alias o ruta de base confirmado.
+[x] Usuario de lectura disponible.
+[x] config.ini creado sin API key real.
+[x] Conexion minima muestra CONEXION_OK.
+[x] BASE_CONECTADA verificada.
+[x] P_VENTAS_GLOBALES probado.
+[x] Columnas, filas y empresas de ventas anotadas.
+[x] P_COMPRAS_GLOBALES probado.
+[x] Columnas, filas y empresas de compras anotadas.
+[x] Endpoint consultado sin credenciales: HTTP 404.
+[x] run_sync.bat NO ejecutado.
+[x] Task Scheduler NO configurado.
+[x] Resultados enviados sin secretos.
+
+
+FIN DE LA GUIA DE PRUEBA LOCAL
+==============================

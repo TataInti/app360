@@ -2,8 +2,8 @@
 """
 sync.py — Sincronizador SabioGo (Firebird) → App360 VPS
 
-Consulta p_ventas_globales en la DB local de SabioGo y empuja los datos
-al endpoint /sabiogo/api/db-sync del VPS vía HTTPS.
+Consulta ventas y compras en la DB local de SabioGo y empuja ambos lotes al
+endpoint /sabiogo/api/db-sync/daily del VPS vía HTTPS.
 
 Uso:
   python sync.py                              # sincroniza ayer (modo normal diario)
@@ -23,6 +23,8 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).parent
@@ -55,7 +57,7 @@ def load_config() -> configparser.ConfigParser:
 
 def _validate_config(cfg: configparser.ConfigParser):
     required = {
-        'firebird': ['database', 'user', 'password'],
+        'firebird': ['host', 'port', 'database', 'user', 'password'],
         'vps': ['url', 'api_key'],
     }
     for section, keys in required.items():
@@ -63,9 +65,33 @@ def _validate_config(cfg: configparser.ConfigParser):
             log.error(f"Sección [{section}] faltante en config.ini")
             sys.exit(1)
         for key in keys:
-            if not cfg.get(section, key, fallback='').strip():
+            value = cfg.get(section, key, fallback='').strip()
+            if not value or _is_placeholder(value):
                 log.error(f"Valor requerido faltante: [{section}] {key}")
                 sys.exit(1)
+
+    try:
+        port = int(cfg['firebird']['port'])
+    except ValueError:
+        log.error("[firebird] port debe ser un número entero")
+        sys.exit(1)
+    if not 1 <= port <= 65535:
+        log.error("[firebird] port debe estar entre 1 y 65535")
+        sys.exit(1)
+
+    if not cfg['vps']['url'].lower().startswith('https://'):
+        log.error("[vps] url debe usar HTTPS")
+        sys.exit(1)
+
+
+def _is_placeholder(value: str) -> bool:
+    normalized = value.strip().upper()
+    return (
+        (normalized.startswith('<') and normalized.endswith('>'))
+        or normalized.startswith('TU_')
+        or normalized.startswith('CAMBIAR_')
+        or normalized == 'NO_EJECUTAR_SYNC_AUN'
+    )
 
 
 # ── Serialización JSON ────────────────────────────────────────────────────────
@@ -90,8 +116,23 @@ def rows_to_dicts(col_names: list, raw_rows: list) -> list:
 
 
 # ── Firebird ──────────────────────────────────────────────────────────────────
-def query_ventas(cfg: configparser.ConfigParser, fecha_desde: date, fecha_hasta: date):
-    """Ejecuta p_ventas_globales y retorna (col_names, rows_as_dicts)."""
+PROCEDURES = {
+    'ventas': 'P_VENTAS_GLOBALES',
+    'compras': 'P_COMPRAS_GLOBALES',
+}
+
+
+def query_globales(
+    cfg: configparser.ConfigParser,
+    tipo: str,
+    fecha_desde: date,
+    fecha_hasta: date,
+):
+    """Ejecuta el procedimiento global del tipo y retorna columnas y filas."""
+    procedure = PROCEDURES.get(tipo)
+    if not procedure:
+        raise ValueError(f'Tipo de sincronización inválido: {tipo}')
+
     try:
         import firebird.driver as fb
     except ImportError:
@@ -106,19 +147,23 @@ def query_ventas(cfg: configparser.ConfigParser, fecha_desde: date, fecha_hasta:
         fb.driver_config.fb_client_library.value = client_lib
         log.debug(f"Usando Firebird client: {client_lib}")
 
-    db_conn = fb_cfg['database']
+    host = fb_cfg['host']
+    port = fb_cfg['port']
+    database = fb_cfg['database']
     user = fb_cfg['user']
-    log.info(f"Conectando a Firebird: {db_conn} (usuario: {user})")
+    fb.driver_config.server_defaults.host.value = host
+    fb.driver_config.server_defaults.port.value = port
+    log.info(f"Conectando a Firebird: {host}:{port}/{database} (usuario: {user})")
 
     with fb.connect(
-        database=db_conn,
+        database,
         user=user,
         password=fb_cfg['password'],
         charset='UTF8',
     ) as con:
         with con.cursor() as cur:
-            sql = "SELECT * FROM p_ventas_globales(?, ?)"
-            log.info(f"Ejecutando query: {fecha_desde} → {fecha_hasta}")
+            sql = f"SELECT * FROM {procedure}(?, ?)"
+            log.info(f"Ejecutando {procedure}: {fecha_desde} → {fecha_hasta}")
             cur.execute(sql, (fecha_desde, fecha_hasta))
             col_names = [desc[0].upper() for desc in cur.description]
             raw_rows = cur.fetchall()
@@ -134,44 +179,92 @@ def query_ventas(cfg: configparser.ConfigParser, fecha_desde: date, fecha_hasta:
     return col_names, raw_rows
 
 
+def query_ventas(cfg: configparser.ConfigParser, fecha_desde: date, fecha_hasta: date):
+    return query_globales(cfg, 'ventas', fecha_desde, fecha_hasta)
+
+
+def query_compras(cfg: configparser.ConfigParser, fecha_desde: date, fecha_hasta: date):
+    return query_globales(cfg, 'compras', fecha_desde, fecha_hasta)
+
+
 # ── HTTP Push ─────────────────────────────────────────────────────────────────
-def push_to_vps(
-    cfg: configparser.ConfigParser,
-    tipo: str,
+def _build_http_session(max_retries: int, backoff_factor: float) -> requests.Session:
+    retry = Retry(
+        total=max_retries,
+        connect=max_retries,
+        read=max_retries,
+        status=max_retries,
+        other=0,
+        allowed_methods=frozenset({'POST'}),
+        status_forcelist=(429, 500, 502, 503, 504),
+        backoff_factor=backoff_factor,
+        respect_retry_after_header=True,
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session = requests.Session()
+    session.mount('https://', adapter)
+    return session
+
+
+def _validate_vps_result(result: dict, *, tipo: str, fecha: date, total_filas: int):
+    if not isinstance(result, dict):
+        raise RuntimeError('El VPS respondió un JSON que no es un objeto')
+    if result.get('success') is not True:
+        detail = result.get('error') or 'success no es true'
+        raise RuntimeError(f'El VPS rechazó el lote: {detail}')
+    if result.get('errores'):
+        raise RuntimeError(f'El VPS informó errores parciales: {result["errores"]}')
+    if result.get('tipo') != tipo or result.get('fecha') != fecha.isoformat():
+        raise RuntimeError('El VPS respondió tipo o fecha distintos del lote enviado')
+    if result.get('total_filas') != total_filas:
+        raise RuntimeError('El VPS respondió una cantidad de filas distinta de la enviada')
+
+
+def _validate_daily_vps_result(
+    result: dict,
+    *,
     fecha: date,
-    col_names: list,
-    raw_rows: list,
-    replace: bool = True,
-) -> dict:
-    """Serializa y envía los datos al VPS. Retorna la respuesta JSON."""
-    vps_cfg = cfg['vps']
-    base_url = vps_cfg['url'].rstrip('/')
-    api_key = vps_cfg['api_key']
-    timeout = int(vps_cfg.get('timeout_seconds', '120'))
+    ventas_total: int,
+    compras_total: int,
+):
+    if not isinstance(result, dict):
+        raise RuntimeError('El VPS respondió un JSON que no es un objeto')
+    if result.get('success') is not True:
+        detail = result.get('error') or 'success no es true'
+        raise RuntimeError(f'El VPS rechazó la sincronización diaria: {detail}')
+    if result.get('errores'):
+        raise RuntimeError(f'El VPS informó errores parciales: {result["errores"]}')
+    if result.get('fecha') != fecha.isoformat():
+        raise RuntimeError('El VPS respondió una fecha distinta de la enviada')
 
-    rows = rows_to_dicts(col_names, raw_rows)
-
-    payload = {
-        'tipo': tipo,
-        'fecha': fecha.isoformat(),
-        'rows': rows,
-        'replace': replace,
+    expected_totals = {
+        'ventas': ventas_total,
+        'compras': compras_total,
+        'total': ventas_total + compras_total,
     }
+    if result.get('total_filas') != expected_totals:
+        raise RuntimeError('El VPS respondió cantidades de filas distintas de las enviadas')
+    resultados = result.get('resultados')
+    if not isinstance(resultados, dict) or not {'ventas', 'compras'} <= set(resultados):
+        raise RuntimeError('El VPS no respondió resultados para ventas y compras')
 
-    # Serializar con encoder seguro antes de enviar para evitar errores de tipos
+
+def _post_json_to_vps(cfg: configparser.ConfigParser, path: str, payload: dict) -> dict:
+    vps_cfg = cfg['vps']
+    url = f"{vps_cfg['url'].rstrip('/')}{path}"
+    timeout = int(vps_cfg.get('timeout_seconds', '120'))
+    max_retries = int(vps_cfg.get('max_retries', '3'))
+    backoff_factor = float(vps_cfg.get('backoff_factor', '1'))
     payload_bytes = json.dumps(payload, ensure_ascii=False).encode('utf-8')
-    payload_kb = len(payload_bytes) / 1024
-
-    url = f"{base_url}/sabiogo/api/db-sync"
     headers = {
-        'X-Sync-Key': api_key,
+        'X-Sync-Key': vps_cfg['api_key'],
         'Content-Type': 'application/json; charset=utf-8',
     }
 
-    log.info(f"Enviando {len(rows)} filas ({payload_kb:.1f} KB) → {url}")
-
     try:
-        resp = requests.post(url, data=payload_bytes, headers=headers, timeout=timeout)
+        with _build_http_session(max_retries, backoff_factor) as session:
+            resp = session.post(url, data=payload_bytes, headers=headers, timeout=timeout)
     except requests.exceptions.ConnectionError as exc:
         log.error(f"No se pudo conectar al VPS: {exc}")
         raise
@@ -183,40 +276,180 @@ def push_to_vps(
         log.error(f"VPS respondió HTTP {resp.status_code}: {resp.text[:500]}")
         resp.raise_for_status()
 
-    result = resp.json()
+    try:
+        result = resp.json()
+    except ValueError as exc:
+        raise RuntimeError('El VPS no respondió JSON válido') from exc
+    if not isinstance(result, dict):
+        raise RuntimeError('El VPS respondió un JSON que no es un objeto')
+    return result
+
+
+def push_to_vps(
+    cfg: configparser.ConfigParser,
+    tipo: str,
+    fecha: date,
+    col_names: list,
+    raw_rows: list,
+    replace: bool = True,
+) -> dict:
+    """Serializa y envía los datos al VPS. Retorna la respuesta JSON."""
+    rows = rows_to_dicts(col_names, raw_rows)
+    origenes = [
+        origen.strip().upper()
+        for origen in cfg['vps'].get('origenes', 'CARNES,LACTEOS').split(',')
+        if origen.strip()
+    ]
+    if not origenes:
+        raise ValueError('[vps] origenes debe contener al menos un origen')
+    payload = {
+        'tipo': tipo,
+        'fecha': fecha.isoformat(),
+        'rows': rows,
+        'origenes': origenes,
+        'replace': replace,
+    }
+    payload_bytes = json.dumps(payload, ensure_ascii=False).encode('utf-8')
+    payload_kb = len(payload_bytes) / 1024
+    log.info(f"Enviando {len(rows)} filas ({payload_kb:.1f} KB) al VPS")
+
+    result = _post_json_to_vps(cfg, '/sabiogo/api/db-sync', payload)
+    _validate_vps_result(result, tipo=tipo, fecha=fecha, total_filas=len(rows))
     log.info(f"VPS result: {json.dumps(result, indent=2, ensure_ascii=False)}")
     return result
 
 
+def push_daily_to_vps(
+    cfg: configparser.ConfigParser,
+    fecha: date,
+    ventas_data: tuple[list, list],
+    compras_data: tuple[list, list],
+    replace: bool = True,
+) -> dict:
+    """Envía ventas y compras de la fecha para confirmarlas en una transacción."""
+    ventas_columns, ventas_raw = ventas_data
+    compras_columns, compras_raw = compras_data
+    ventas = rows_to_dicts(ventas_columns, ventas_raw)
+    compras = rows_to_dicts(compras_columns, compras_raw)
+    origenes = [
+        origen.strip().upper()
+        for origen in cfg['vps'].get('origenes', 'CARNES,LACTEOS').split(',')
+        if origen.strip()
+    ]
+    if not origenes:
+        raise ValueError('[vps] origenes debe contener al menos un origen')
+
+    payload = {
+        'fecha': fecha.isoformat(),
+        'ventas': ventas,
+        'compras': compras,
+        'origenes': origenes,
+        'replace': replace,
+    }
+    payload_kb = len(json.dumps(payload, ensure_ascii=False).encode('utf-8')) / 1024
+    log.info(
+        f'Enviando sincronización diaria: {len(ventas)} ventas, '
+        f'{len(compras)} compras ({payload_kb:.1f} KB)'
+    )
+
+    result = _post_json_to_vps(cfg, '/sabiogo/api/db-sync/daily', payload)
+    _validate_daily_vps_result(
+        result,
+        fecha=fecha,
+        ventas_total=len(ventas),
+        compras_total=len(compras),
+    )
+    log.info(f"VPS result: {json.dumps(result, indent=2, ensure_ascii=False)}")
+    return result
+
+
+def finalize_sync(cfg: configparser.ConfigParser, fecha: date) -> dict:
+    """Refresca facts y objetivos después de completar ambos tipos."""
+    log.info(f"Finalizando sincronización {fecha}: facts y objetivos PRE")
+    result = _post_json_to_vps(
+        cfg,
+        '/sabiogo/api/db-sync/finalize',
+        {'fecha': fecha.isoformat()},
+    )
+    if result.get('success') is not True:
+        detail = result.get('error') or 'success no es true'
+        raise RuntimeError(f'El VPS no pudo finalizar la sincronización: {detail}')
+    if result.get('fecha') != fecha.isoformat():
+        raise RuntimeError('El VPS finalizó una fecha distinta de la solicitada')
+    return result
+
+
 # ── Lógica principal ──────────────────────────────────────────────────────────
-def sync_fecha(cfg: configparser.ConfigParser, fecha: date, replace: bool = True) -> bool:
-    """Sincroniza ventas de una fecha. Retorna True si exitoso."""
+def sync_tipo(
+    cfg: configparser.ConfigParser,
+    tipo: str,
+    fecha: date,
+    replace: bool = True,
+) -> bool:
+    """Sincroniza un tipo de una fecha. Retorna True si fue exitoso."""
+    query = query_ventas if tipo == 'ventas' else query_compras
     log.info(f"{'='*60}")
-    log.info(f"Sincronizando VENTAS {fecha}")
+    log.info(f"Sincronizando {tipo.upper()} {fecha}")
     log.info(f"{'='*60}")
 
     try:
-        col_names, raw_rows = query_ventas(cfg, fecha, fecha)
-
+        col_names, raw_rows = query(cfg, fecha, fecha)
         if not raw_rows:
-            log.info(f"Sin datos de ventas para {fecha}. Nada que enviar.")
-            return True
-
-        result = push_to_vps(cfg, 'ventas', fecha, col_names, raw_rows, replace=replace)
+            log.info(f"Sin datos de {tipo} para {fecha}. Enviando lote vacío de control.")
+        result = push_to_vps(cfg, tipo, fecha, col_names, raw_rows, replace=replace)
 
         total = result.get('total_filas', '?')
         resultados = result.get('resultados', {})
-        log.info(f"✓ Sync completado: {total} filas | detalle: {resultados}")
+        log.info(f"✓ Sync {tipo} completado: {total} filas | detalle: {resultados}")
         return True
 
     except Exception as exc:
-        log.error(f"✗ Error sincronizando {fecha}: {exc}", exc_info=True)
+        log.error(f"✗ Error sincronizando {tipo} {fecha}: {exc}", exc_info=True)
         return False
+
+
+def sync_fecha(cfg: configparser.ConfigParser, fecha: date, replace: bool = True) -> bool:
+    """Extrae ambos tipos y los confirma juntos antes de refrescar derivados."""
+    datasets = {}
+    extraction_ok = True
+    for tipo, query in (('ventas', query_ventas), ('compras', query_compras)):
+        log.info(f"{'='*60}")
+        log.info(f"Extrayendo {tipo.upper()} {fecha}")
+        log.info(f"{'='*60}")
+        try:
+            columns, rows = query(cfg, fecha, fecha)
+            datasets[tipo] = (columns, rows)
+            if not rows:
+                log.info(f'Sin datos de {tipo} para {fecha}. Se enviará lote vacío de control.')
+        except Exception as exc:
+            extraction_ok = False
+            log.error(f'✗ Error extrayendo {tipo} {fecha}: {exc}', exc_info=True)
+
+    if not extraction_ok:
+        return False
+
+    try:
+        result = push_daily_to_vps(
+            cfg,
+            fecha,
+            datasets['ventas'],
+            datasets['compras'],
+            replace=replace,
+        )
+        log.info(
+            f"✓ Carga diaria completada: {result['total_filas']['total']} filas | "
+            f"detalle: {result.get('resultados', {})}"
+        )
+        finalize_sync(cfg, fecha)
+    except Exception as exc:
+        log.error(f'✗ Error sincronizando o finalizando {fecha}: {exc}', exc_info=True)
+        return False
+    return True
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Sincroniza ventas de SabioGo al VPS App360',
+        description='Sincroniza ventas y compras de SabioGo al VPS App360',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

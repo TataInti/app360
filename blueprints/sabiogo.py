@@ -5,6 +5,7 @@ from functools import wraps
 from werkzeug.utils import secure_filename
 import pandas as pd
 import hashlib
+import json
 import gc
 import os
 import re
@@ -30,7 +31,8 @@ from dtos.sabiogo_dto import (
     RentabilidadResumenDTO,
     ProductoTopMargenDTO
 )
-from security import protect_blueprint
+from extensions import csrf
+from security import protect_blueprint, secrets_match
 from models.core.user import User
 
 sabiogo_bp = Blueprint("sabiogo", __name__, url_prefix="/sabiogo")
@@ -43,6 +45,97 @@ ALLOWED_EXTENSIONS = {'xls', 'xlsx'}
 ORIGEN_LEGACY = 'LEGACY'
 ORIGEN_CARNES = 'CARNES'
 ORIGEN_LACTEOS = 'LACTEOS'
+DEFAULT_EMPRESA_MAP = {
+    'VYP': ORIGEN_CARNES,
+    'CARNES': ORIGEN_CARNES,
+    'VYP_LACTEOS': ORIGEN_LACTEOS,
+    'LACTEOS_VP': ORIGEN_LACTEOS,
+    'LACTEOS': ORIGEN_LACTEOS,
+}
+
+
+def _parse_sync_bool(value, default: bool = True) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() not in {'false', '0', 'no', 'off'}
+
+
+def _parse_sync_fecha(value) -> Optional[date]:
+    if value in (None, ''):
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_empresa_map(custom_map) -> dict[str, str]:
+    empresa_map = {k.upper(): v.upper() for k, v in DEFAULT_EMPRESA_MAP.items()}
+    if not isinstance(custom_map, dict):
+        return empresa_map
+
+    for empresa, origen in custom_map.items():
+        empresa_norm = str(empresa or '').strip().upper()
+        origen_norm = str(origen or '').strip().upper()
+        if origen_norm and origen_norm not in {ORIGEN_CARNES, ORIGEN_LACTEOS}:
+            raise ValueError(
+                f'empresa_map contiene un origen inválido para {empresa_norm or empresa}: '
+                f'{origen_norm}'
+            )
+        if empresa_norm and origen_norm:
+            empresa_map[empresa_norm] = origen_norm
+    return empresa_map
+
+
+def _hash_sync_payload(tipo: str, fecha_lote: date, origen: str, rows: list[dict], replace: bool) -> str:
+    canonical_payload = {
+        'tipo': tipo,
+        'fecha': fecha_lote.isoformat(),
+        'origen': origen,
+        'replace': replace,
+        'rows': rows,
+    }
+    payload_json = json.dumps(canonical_payload, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(payload_json.encode('utf-8')).hexdigest()
+
+
+def _group_sync_rows(rows, *, fecha_lote: date, empresa_map: dict[str, str]) -> dict[str, list[dict]]:
+    rows_por_origen: dict[str, list[dict]] = {}
+
+    for idx, row in enumerate(rows, start=1):
+        if not isinstance(row, dict):
+            raise ValueError(f'Fila {idx} inválida: se esperaba un objeto JSON')
+
+        empresa_raw = row.get('EMPRESA', row.get('empresa'))
+        empresa = str(empresa_raw or '').strip().upper()
+        if not empresa:
+            raise ValueError(f'Fila {idx} inválida: columna EMPRESA faltante')
+
+        origen = empresa_map.get(empresa)
+        if not origen:
+            raise ValueError(f'Fila {idx} inválida: EMPRESA no mapeada ({empresa})')
+
+        normalized = {
+            str(key).strip().lower(): value
+            for key, value in row.items()
+        }
+
+        fecha_row = _parse_sync_fecha(normalized.get('fecha'))
+        if fecha_row is None:
+            normalized['fecha'] = fecha_lote
+        elif fecha_row != fecha_lote:
+            raise ValueError(
+                f'Fila {idx} inválida: FECHA {fecha_row.isoformat()} '
+                f'no coincide con el lote {fecha_lote.isoformat()}'
+            )
+        else:
+            normalized['fecha'] = fecha_row
+
+        rows_por_origen.setdefault(origen, []).append(normalized)
+
+    return rows_por_origen
 
 
 def infer_origen_from_filename(filename: str) -> Optional[str]:
@@ -270,6 +363,296 @@ def admin_panel():
 # ENDPOINTS API - CARGA DE DATOS
 # ============================================================================
 
+def _prepare_sync_rows(
+    rows,
+    *,
+    field_name: str,
+    fecha_lote: date,
+    empresa_map: dict[str, str],
+    origenes_payload,
+) -> tuple[list, dict[str, list[dict]]]:
+    if not isinstance(rows, list):
+        raise ValueError(f'{field_name} requerido y debe ser una lista')
+
+    rows_por_origen = _group_sync_rows(rows, fecha_lote=fecha_lote, empresa_map=empresa_map)
+    if origenes_payload is None:
+        if not rows_por_origen:
+            raise ValueError(f'origenes requerido cuando {field_name} está vacío')
+        origenes = list(rows_por_origen)
+    else:
+        if not isinstance(origenes_payload, list) or not origenes_payload:
+            raise ValueError('origenes debe ser una lista no vacía')
+        origenes = list(dict.fromkeys(
+            str(origen or '').strip().upper()
+            for origen in origenes_payload
+            if str(origen or '').strip()
+        ))
+        allowed_origins = set(empresa_map.values())
+        invalid_origins = sorted(set(origenes) - allowed_origins)
+        if invalid_origins:
+            raise ValueError(f'origenes inválidos: {invalid_origins}')
+        missing_origins = sorted(set(rows_por_origen) - set(origenes))
+        if missing_origins:
+            raise ValueError(
+                f'origenes no incluye unidades presentes en {field_name}: {missing_origins}'
+            )
+
+    for origen in origenes:
+        rows_por_origen.setdefault(origen, [])
+    return rows, rows_por_origen
+
+
+def _acquire_sync_lock(fecha_lote: date):
+    """Serializa cargas técnicas de la misma fecha en PostgreSQL."""
+    if db.engine.dialect.name != 'postgresql':
+        return
+    db.session.execute(
+        text('SELECT pg_advisory_xact_lock(hashtext(:lock_key))'),
+        {'lock_key': f'sabiogo-db-sync:{fecha_lote.isoformat()}'},
+    )
+
+
+def _process_sync_lote(
+    *,
+    tipo: str,
+    fecha_lote: date,
+    rows_por_origen: dict[str, list[dict]],
+    replace: bool,
+    service: SabiogoService,
+) -> dict:
+    model_class = StgSabiogoVentas if tipo == 'ventas' else StgSabiogoCompras
+    resultados = {}
+
+    for origen, origen_rows in rows_por_origen.items():
+        try:
+            batch_filename = f'api_sync_{tipo}_{fecha_lote.isoformat()}_{origen.lower()}.json'
+            batch_hash = _hash_sync_payload(tipo, fecha_lote, origen, origen_rows, replace)
+
+            if replace:
+                eliminados = db.session.query(model_class).filter(
+                    model_class.origen == origen,
+                    model_class.fecha == fecha_lote,
+                ).delete(synchronize_session=False)
+                current_app.logger.info(
+                    f'[db-sync] replace: eliminados {eliminados} registros '
+                    f'{model_class.__tablename__} fecha={fecha_lote} origen={origen}'
+                )
+
+            stats = _importar_df_a_staging(
+                pd.DataFrame(origen_rows),
+                ModelClass=model_class,
+                origen=origen,
+                filename=batch_filename,
+                file_sha256=batch_hash,
+            )
+            if stats['filas_error']:
+                raise ValueError(
+                    f'{stats["filas_error"]} filas no pudieron procesarse para {origen}'
+                )
+
+            service.registrar_carga(
+                archivo_nombre=batch_filename,
+                tipo_carga=tipo,
+                hash_archivo=batch_hash,
+                filas_insertadas=stats['filas_insertadas'],
+                filas_duplicadas=stats['filas_duplicadas'],
+                filas_sin_mapeo=0,
+                filas_error=stats['filas_error'],
+                usuario_id=None,
+                observaciones=f'api-sync fecha={fecha_lote.isoformat()} origen={origen}',
+                auto_commit=False,
+            )
+            resultados[origen] = stats
+        except Exception as exc:
+            raise RuntimeError(f'falló tipo={tipo} origen={origen}: {exc}') from exc
+
+    return resultados
+
+@sabiogo_bp.route('/api/db-sync', methods=['POST'])
+@csrf.exempt
+def sabiogo_db_sync():
+    """Recibe lotes diarios desde el servidor local SabioGo y los inserta en staging."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({'error': 'Payload JSON inválido'}), 400
+
+    tipo = str(payload.get('tipo') or 'ventas').strip().lower()
+    if tipo not in {'ventas', 'compras'}:
+        return jsonify({'error': 'tipo inválido. Use ventas o compras'}), 400
+
+    fecha_lote = _parse_sync_fecha(payload.get('fecha'))
+    if not fecha_lote:
+        return jsonify({'error': 'fecha requerida con formato YYYY-MM-DD'}), 400
+
+    try:
+        replace = _parse_sync_bool(payload.get('replace'), default=True)
+        empresa_map = _build_empresa_map(payload.get('empresa_map'))
+        rows, rows_por_origen = _prepare_sync_rows(
+            payload.get('rows'),
+            field_name='rows',
+            fecha_lote=fecha_lote,
+            empresa_map=empresa_map,
+            origenes_payload=payload.get('origenes'),
+        )
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    service = SabiogoService()
+
+    try:
+        _acquire_sync_lock(fecha_lote)
+        resultados = _process_sync_lote(
+            tipo=tipo,
+            fecha_lote=fecha_lote,
+            rows_por_origen=rows_por_origen,
+            replace=replace,
+            service=service,
+        )
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.error(
+            f'[db-sync] rollback tipo={tipo} fecha={fecha_lote}: {exc}',
+            exc_info=True,
+        )
+        return jsonify({
+            'success': False,
+            'error': 'No se pudo procesar el lote.',
+            'tipo': tipo,
+            'fecha': fecha_lote.isoformat(),
+            'total_filas': len(rows),
+            'resultados': None,
+            'errores': {'lote': 'Error interno al procesar el lote'},
+            'replace': replace,
+        }), 500
+    finally:
+        db.session.expire_all()
+        gc.collect()
+
+    return jsonify({
+        'success': True,
+        'tipo': tipo,
+        'fecha': fecha_lote.isoformat(),
+        'total_filas': len(rows),
+        'resultados': resultados,
+        'errores': None,
+        'replace': replace,
+    }), 200
+
+
+@sabiogo_bp.route('/api/db-sync/daily', methods=['POST'])
+@csrf.exempt
+def sabiogo_db_sync_daily():
+    """Reemplaza ventas y compras de una fecha en una sola transacción."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({'error': 'Payload JSON inválido'}), 400
+
+    fecha_lote = _parse_sync_fecha(payload.get('fecha'))
+    if not fecha_lote:
+        return jsonify({'error': 'fecha requerida con formato YYYY-MM-DD'}), 400
+
+    prepared = {}
+    try:
+        replace = _parse_sync_bool(payload.get('replace'), default=True)
+        empresa_map = _build_empresa_map(payload.get('empresa_map'))
+        origenes_payload = payload.get('origenes')
+        for tipo in ('ventas', 'compras'):
+            prepared[tipo] = _prepare_sync_rows(
+                payload.get(tipo),
+                field_name=tipo,
+                fecha_lote=fecha_lote,
+                empresa_map=empresa_map,
+                origenes_payload=origenes_payload,
+            )
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    service = SabiogoService()
+    resultados = {}
+    try:
+        _acquire_sync_lock(fecha_lote)
+        for tipo in ('ventas', 'compras'):
+            _, rows_por_origen = prepared[tipo]
+            resultados[tipo] = _process_sync_lote(
+                tipo=tipo,
+                fecha_lote=fecha_lote,
+                rows_por_origen=rows_por_origen,
+                replace=replace,
+                service=service,
+            )
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.error(
+            f'[db-sync/daily] rollback fecha={fecha_lote}: {exc}',
+            exc_info=True,
+        )
+        return jsonify({
+            'success': False,
+            'error': 'No se pudo procesar la sincronización diaria.',
+            'fecha': fecha_lote.isoformat(),
+            'total_filas': None,
+            'resultados': None,
+            'errores': {'lote': 'Error interno al procesar la sincronización diaria'},
+            'replace': replace,
+        }), 500
+    finally:
+        db.session.expire_all()
+        gc.collect()
+
+    ventas_rows = prepared['ventas'][0]
+    compras_rows = prepared['compras'][0]
+    return jsonify({
+        'success': True,
+        'fecha': fecha_lote.isoformat(),
+        'total_filas': {
+            'ventas': len(ventas_rows),
+            'compras': len(compras_rows),
+            'total': len(ventas_rows) + len(compras_rows),
+        },
+        'resultados': resultados,
+        'errores': None,
+        'replace': replace,
+    }), 200
+
+
+@sabiogo_bp.route('/api/db-sync/finalize', methods=['POST'])
+@csrf.exempt
+def sabiogo_db_sync_finalize():
+    """Refresca derivados después de completar ventas y compras de una fecha."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({'error': 'Payload JSON inválido'}), 400
+
+    fecha_lote = _parse_sync_fecha(payload.get('fecha'))
+    if not fecha_lote:
+        return jsonify({'error': 'fecha requerida con formato YYYY-MM-DD'}), 400
+
+    periodo = fecha_lote.strftime('%Y-%m')
+    service = SabiogoService()
+    try:
+        facts = service.refresh_facts()
+        objetivos = service.sincronizar_objetivos_pre(periodo=periodo)
+    except Exception as exc:
+        current_app.logger.error(
+            f'[db-sync/finalize] error fecha={fecha_lote}: {exc}',
+            exc_info=True,
+        )
+        return jsonify({
+            'success': False,
+            'error': 'No se pudo finalizar la sincronización.',
+            'fecha': fecha_lote.isoformat(),
+        }), 500
+
+    return jsonify({
+        'success': True,
+        'fecha': fecha_lote.isoformat(),
+        'facts': facts,
+        'objetivos': objetivos,
+    }), 200
+
+
 @sabiogo_bp.route("/api/cargar-xls", methods=["POST"])
 @login_required
 def cargar_xls():
@@ -412,10 +795,7 @@ def _importar_df_a_staging(df: pd.DataFrame, *, ModelClass, origen: str, filenam
             db.session.expire_all()
 
     # Marcar duplicados pendientes
-    try:
-        duplicados = ModelClass.validar_duplicados(db.session)
-    except Exception:
-        duplicados = 0
+    duplicados = ModelClass.validar_duplicados(db.session)
 
     filas_descartadas = _descartar_duplicados_importados(ModelClass, file_sha256=file_sha256)
 
@@ -619,6 +999,7 @@ def sync_objetivos_pre():
 
 
 @sabiogo_bp.route('/api/sync-objetivos-pre-cron', methods=['POST'])
+@csrf.exempt
 def sync_objetivos_pre_cron():
     """Endpoint para cron nocturno protegido por token en header."""
     configured_token = current_app.config.get('SABIOGO_CRON_TOKEN') or os.getenv('SABIOGO_CRON_TOKEN')
@@ -626,7 +1007,7 @@ def sync_objetivos_pre_cron():
         return jsonify({'error': 'SABIOGO_CRON_TOKEN no configurado'}), 503
 
     received_token = request.headers.get('X-App360-Cron-Token', '')
-    if received_token != configured_token:
+    if not secrets_match(received_token, configured_token):
         return jsonify({'error': 'Token de cron inválido'}), 401
 
     payload = request.get_json(silent=True) or {}
@@ -1016,52 +1397,10 @@ def listar_ventas_staging():
 @login_required
 def refresh_facts():
     """Ejecuta REFRESH MATERIALIZED VIEW en facts."""
+    service = SabiogoService()
     try:
-        # Si hay datos cargados pero no procesados, promover estado a 'procesado'
-        # para que las facts (que filtran por estado) muestren datos.
-        promoted_ventas = db.session.execute(
-            text(
-                """
-                UPDATE stg_sabiogo_ventas
-                SET estado = 'procesado'
-                WHERE estado IN ('cargado', 'pendiente')
-                """
-            )
-        ).rowcount
-
-        promoted_compras = db.session.execute(
-            text(
-                """
-                UPDATE stg_sabiogo_compras
-                SET estado = 'procesado'
-                WHERE estado IN ('cargado', 'pendiente')
-                """
-            )
-        ).rowcount
-
-        db.session.commit()
-
-        # Refrescar vistas materializadas sin bloquear lecturas cuando haya soporte.
-        try:
-            with db.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-                conn.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY fact_ventas_sabiogo"))
-                conn.execute(text("REFRESH MATERIALIZED VIEW CONCURRENTLY fact_costos_sabiogo"))
-        except Exception as refresh_error:
-            current_app.logger.warning(
-                f"Refresh CONCURRENTLY no disponible, usando refresh estándar: {refresh_error}"
-            )
-            db.session.execute(text("REFRESH MATERIALIZED VIEW fact_ventas_sabiogo"))
-            db.session.execute(text("REFRESH MATERIALIZED VIEW fact_costos_sabiogo"))
-            db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'mensaje': 'Vistas materializadas actualizadas',
-            'staging_promovidos': {
-                'ventas': int(promoted_ventas or 0),
-                'compras': int(promoted_compras or 0),
-            },
-        })
+        result = service.refresh_facts()
+        return jsonify({'success': True, **result})
     except Exception as e:
         current_app.logger.error(f"Error refrescando facts: {e}")
         return jsonify({'error': str(e)}), 500
