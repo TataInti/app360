@@ -53,10 +53,16 @@ echo Acceso a carpeta: Administrador y SYSTEM.
 echo SchTasks solicitara la contrasena de la cuenta. No se mostrara en pantalla.
 echo.
 
-schtasks /Create /TN "%TASK_NAME%" /TR "%RUNNER%" /SC DAILY /ST 02:00 /RU "%RUN_AS%" /RL HIGHEST /F
+schtasks /Create /TN "%TASK_NAME%" /TR "%RUNNER%" /SC DAILY /ST 02:00 /RU "%RUN_AS%" /RP * /RL HIGHEST /F
 if errorlevel 1 (
     echo.
     echo ERROR: No se pudo crear la tarea programada.
+    exit /b 1
+)
+
+powershell.exe -NoProfile -NonInteractive -Command "$task = Get-ScheduledTask -TaskName '%TASK_NAME%' -ErrorAction Stop; if ($task.Principal.LogonType -ne 'Password') { throw ('Modo de inicio invalido: ' + $task.Principal.LogonType) }"
+if errorlevel 1 (
+    echo ERROR: La tarea no quedo configurada para ejecutarse sin sesion.
     exit /b 1
 )
 
