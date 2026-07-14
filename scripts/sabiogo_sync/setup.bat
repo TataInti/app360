@@ -77,9 +77,9 @@ echo ============================================================
 echo  Setup completado.
 echo  Proximos pasos:
 echo    1. Editar config.ini con credenciales, cliente y api_key
-echo    2. Probar: run_sync.bat --fecha 2026-06-01
-echo    3. Configurar tarea programada con Task Scheduler
-echo       (ver instrucciones en README del directorio)
+echo    2. Verificar el endpoint sin clave segun guia_windows.txt
+echo    3. Ejecutar solo la prueba manual autorizada en la guia
+echo    4. No configurar Task Scheduler hasta reconciliar la prueba
 echo ============================================================
 echo.
 pause

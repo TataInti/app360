@@ -2,9 +2,9 @@
 
 **Ultima revision:** 2026-07-13
 
-**Version del documento:** 2.2
+**Version del documento:** 2.3
 
-**Estado:** receptor desplegado en el VPS; autenticacion y preflight validados; pendiente prueba E2E manual desde Windows
+**Estado:** receptor desplegado; prueba E2E e idempotencia validadas desde Windows; pendiente automatizacion en Task Scheduler
 
 ## 1. Objetivo
 
@@ -40,9 +40,10 @@ Task Scheduler                               Nginx + Gunicorn + Flask
 | Dedupe | Incluye `origen` en la firma. |
 | Facts y objetivos | Orquestados por `db-sync/finalize`. |
 | VPS productivo | Desplegado; health `200`, sync sin clave `401`, sync autenticado con payload invalido `400`. |
+| E2E Windows | Dos ejecuciones identicas para 2026-05-04, reconciliadas en staging, facts y auditorias. |
 | Task Scheduler | No configurado. |
 
-La prueba manual de `run_sync.bat --fecha 2026-05-04` queda habilitada despues de actualizar los cuatro archivos Windows y configurar el secreto entregado fuera del repositorio.
+La prueba manual de `run_sync.bat --fecha 2026-05-04` y su repeticion idempotente finalizaron correctamente.
 
 ## 3. Configuracion Windows
 
@@ -266,8 +267,15 @@ Validacion realizada el 2026-07-13:
 - Empresas observadas: `VYP` y `LACTEOS_VP`.
 - HTTPS Windows -> VPS y TLS/Nginx funcionan.
 - Receptor productivo desplegado; HTTPS y autenticacion validados sin insertar datos.
+- `setup.bat` ejecutado correctamente sobre Python 3.12.3 y el entorno existente.
+- Primera E2E: 279 ventas, 53 compras, total recibido 332, codigo de salida 0.
+- Una venta LACTEOS duplicada fue descartada; ambas filas eran identicas en las 29 columnas.
+- Estado publicado: ventas CARNES 217, ventas LACTEOS 61, compras CARNES 47 y compras LACTEOS 6.
+- Staging y facts contienen exactamente los mismos conteos, todos con estado procesado.
+- Segunda E2E produjo los mismos conteos, hashes y resultado; idempotencia confirmada.
+- Cada uno de los cuatro lotes tiene dos auditorias, un unico hash y cero errores.
 
-No se probo todavia el nuevo `setup.bat` en Windows despues de corregir su generacion de `config.ini`.
+La salida UTF-8 de `sync.log` puede verse corrupta con `type` bajo la pagina de codigos predeterminada de CMD; `chcp 65001` corrige solo la visualizacion.
 
 ## 9. Pruebas automatizadas
 
@@ -318,23 +326,23 @@ La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtu
 4. Servicio Gunicorn reiniciado y activo.
 5. Verificados health `200`, sync sin clave `401` y sync autenticado con payload invalido `400`.
 
-### Pendiente inmediato en Windows
+### Completado en Windows
 
-1. Reemplazar `sync.py`, `setup.bat`, `run_sync.bat` y `requirements.txt` en `C:\SabioGoSync`.
-2. Conservar credenciales Firebird existentes en `config.ini` y actualizar solo la clave VPS.
-3. Ejecutar `setup.bat` desde CMD para actualizar dependencias.
-4. Confirmar que el endpoint sin credenciales responde `401`.
-5. Ejecutar `run_sync.bat --fecha 2026-05-04` manualmente.
-6. Reconciliar 279 ventas, 53 compras, staging, auditorias, facts y objetivos.
-7. Reejecutar la misma fecha para validar idempotencia.
+1. Cuatro archivos actualizados y dependencias verificadas.
+2. Configuracion Firebird preservada y clave VPS instalada sin exponerla.
+3. Endpoint sin credenciales confirmado en `401`.
+4. Primera E2E confirmada con codigo 0 y finalizacion correcta.
+5. Duplicado real verificado como dos filas identicas en las 29 columnas.
+6. Staging, facts y auditorias reconciliados en PostgreSQL.
+7. Segunda ejecucion confirmada idempotente.
 
-### Despues de E2E
+### Pendiente operativo
 
-- Medir tamano maximo diario contra `client_max_body_size` de Nginx.
-- Alinear timeouts Nginx, Gunicorn y cliente.
-- Configurar Task Scheduler con cuenta de servicio.
-- Definir alerta y responsable operativo.
-- Monitorear siete noches antes de retirar la carga manual habitual.
+1. Definir horario y cuenta de servicio para Task Scheduler.
+2. Configurar tarea diaria sin argumentos para sincronizar ayer.
+3. Definir alerta y responsable ante codigo de salida distinto de cero.
+4. Monitorear siete noches antes de retirar la carga manual habitual.
+5. Medir tamano maximo diario y revisar timeouts con volumen real.
 
 ### Riesgos residuales
 
@@ -348,6 +356,7 @@ La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtu
 
 | Version | Fecha | Descripcion |
 |---|---|---|
+| `2.3` | 2026-07-13 | E2E Windows, duplicado exacto, reconciliacion e idempotencia aprobadas. |
 | `2.2` | 2026-07-13 | Deploy VPS completado, secreto configurado y smoke tests `200/401/400` aprobados. |
 | `2.1` | 2026-07-13 | Request diario atomico para ventas y compras, advisory lock por fecha y rollback conjunto. |
 | `2.0` | 2026-07-13 | Contrato dual y atomico, origenes explicitos, vacios auditados, finalizacion, retries y evidencia Windows. |

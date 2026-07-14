@@ -781,6 +781,16 @@ Y luego:
 Un codigo 0 no sera suficiente por si solo. El responsable debe reconciliar en
 App360 las filas de ventas y compras por fecha y origen.
 
+Resultado validado el 2026-07-13:
+
+- Primera ejecucion: codigo 0 y finalizacion correcta.
+- Entrada: 279 ventas y 53 compras.
+- Una venta LACTEOS duplicada era identica en las 29 columnas y fue descartada.
+- Publicado: 217 ventas CARNES, 61 ventas LACTEOS, 47 compras CARNES y 6 compras LACTEOS.
+- Staging y facts reconciliados con los mismos conteos.
+- Segunda ejecucion: mismos hashes, conteos y cero errores.
+- Idempotencia confirmada.
+
 
 29. DIAGNOSTICO DE ERRORES COMUNES
 =================================
@@ -945,13 +955,16 @@ Accion:
 [x] Columnas, filas y empresas de ventas anotadas.
 [x] P_COMPRAS_GLOBALES probado.
 [x] Columnas, filas y empresas de compras anotadas.
-[ ] Cuatro archivos actualizados con la version aprobada.
-[ ] API key real configurada sin compartirla.
-[ ] Endpoint consultado sin credenciales: HTTP 401.
-[x] run_sync.bat NO ejecutado.
+[x] Cuatro archivos actualizados con la version aprobada.
+[x] API key real configurada sin compartirla.
+[x] Endpoint consultado sin credenciales: HTTP 401.
+[x] Primera ejecucion E2E finalizada con codigo 0.
+[x] Duplicado LACTEOS confirmado identico en las 29 columnas.
+[x] Staging, facts y auditorias reconciliados.
+[x] Segunda ejecucion idempotente finalizada con codigo 0.
 [x] Task Scheduler NO configurado.
 [x] Resultados enviados sin secretos.
 
 
-FIN DE LA GUIA DE PRUEBA LOCAL
+FIN DE LA GUIA DE PRUEBA FINAL
 ==============================
