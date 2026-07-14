@@ -164,13 +164,14 @@ def create_app():
 
     @app.context_processor
     def inject_user_context():
+        username = session.get("user")
         role = session.get("role")
 
         def can_access(module):
             return module_allowed(module, role, session.get("user_id"))
 
         sabiogo_sync_alert = None
-        if role == "gerente":
+        if role == "gerente" or username == "gerente":
             try:
                 from services.sabiogo_sync_monitor import get_sabiogo_sync_alert
                 sabiogo_sync_alert = get_sabiogo_sync_alert()
@@ -182,7 +183,7 @@ def create_app():
                 )
 
         return {
-            "current_user": session.get("user"),
+            "current_user": username,
             "current_role": role,
             "can_access": can_access,
             "sabiogo_sync_alert": sabiogo_sync_alert,

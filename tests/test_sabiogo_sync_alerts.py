@@ -191,7 +191,7 @@ def test_status_requiere_clave_y_actualiza_ejecucion(client, app):
         assert run.finalizada_en == first_finished_at
 
 
-def test_banner_visible_solo_para_rol_gerente(client, app):
+def test_banner_visible_para_usuario_o_rol_gerente(client, app):
     with app.app_context():
         add_run(date(2026, 7, 12), 'error', 'Falló la carga.')
 
@@ -202,6 +202,13 @@ def test_banner_visible_solo_para_rol_gerente(client, app):
     assert b'Fall\xc3\xb3 la sincronizaci\xc3\xb3n SabioGo' in gerente_response.data
 
     with client.session_transaction() as user_session:
+        user_session['user'] = 'gerente'
+        user_session['role'] = 'admin'
+    legacy_gerente_response = client.get('/_test/sync-alert')
+    assert b'Fall\xc3\xb3 la sincronizaci\xc3\xb3n SabioGo' in legacy_gerente_response.data
+
+    with client.session_transaction() as user_session:
+        user_session['user'] = 'Otro administrador'
         user_session['role'] = 'manager'
     manager_response = client.get('/_test/sync-alert')
     assert b'Fall\xc3\xb3 la sincronizaci\xc3\xb3n SabioGo' not in manager_response.data

@@ -43,7 +43,7 @@ Task Scheduler                               Nginx + Gunicorn + Flask
 | Facts y objetivos | Orquestados por `db-sync/finalize`. |
 | VPS productivo | Desplegado; health `200`, sync sin clave `401`, sync autenticado con payload invalido `400`. |
 | E2E Windows | Dos ejecuciones identicas para 2026-05-04, reconciliadas en staging, facts y auditorias. |
-| Alertas web | Fallo, demora o ausencia visibles solamente para rol `gerente`. |
+| Alertas web | Fallo, demora o ausencia visibles para la cuenta `gerente` o el rol `gerente`. |
 | Task Scheduler | Instalador preparado para 02:00 bajo cuenta local `Administrador`; pendiente ejecutar en Windows. |
 
 La prueba manual de `run_sync.bat --fecha 2026-05-04` y su repeticion idempotente finalizaron correctamente.
@@ -326,7 +326,7 @@ Cobertura incluida:
 - retries POST para errores transitorios.
 - alerta inmediata por error y control de ausencia a las 03:00;
 - fallos historicos visibles hasta recuperar la misma fecha;
-- banner visible solo para rol `gerente`;
+- banner visible para la cuenta `gerente` o el rol `gerente`, y oculto para los demas usuarios;
 - codigo distinto de cero si no puede confirmarse el estado final.
 
 La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtures mutan `Config` entre archivos. El preflight de `scripts/deploy.sh` evita esa contaminacion ejecutando cada archivo en un proceso separado.
@@ -364,7 +364,7 @@ La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtu
 1. Copiar los seis archivos de `scripts/sabiogo_sync` a `C:\SabioGoSync`.
 2. Aplicar release DB `20260713_sabiogo_sync_alerts` antes de reiniciar App360.
 3. Confirmar zona `Argentina Standard Time` y ejecutar `install_task.bat` desde CMD elevado.
-4. Confirmar primera ejecucion automatica y alerta visible para rol `gerente`.
+4. Confirmar primera ejecucion automatica y alerta visible al iniciar sesion como `gerente`.
 5. Monitorear siete noches antes de retirar la carga manual habitual.
 6. Medir tamano maximo diario y revisar timeouts con volumen real.
 
@@ -382,7 +382,7 @@ La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtu
 
 | Version | Fecha | Descripcion |
 |---|---|---|
-| `2.4` | 2026-07-13 | Tarea diaria 02:00, cuenta Administrador y alertas web para rol gerente. |
+| `2.4` | 2026-07-13 | Tarea diaria 02:00, cuenta Administrador y alertas web para usuario/rol gerente. |
 | `2.3` | 2026-07-13 | E2E Windows, duplicado exacto, reconciliacion e idempotencia aprobadas. |
 | `2.2` | 2026-07-13 | Deploy VPS completado, secreto configurado y smoke tests `200/401/400` aprobados. |
 | `2.1` | 2026-07-13 | Request diario atomico para ventas y compras, advisory lock por fecha y rollback conjunto. |

@@ -19,7 +19,7 @@ y comprobar estas cosas:
 6. Que existen P_VENTAS_GLOBALES y P_COMPRAS_GLOBALES.
 7. Que ambos procedimientos devuelven columnas, filas y valores de EMPRESA.
 8. Que la tarea diaria corre a las 02:00 con la cuenta Administrador.
-9. Que los fallos se muestran a los usuarios con rol gerente en App360.
+9. Que los fallos se muestran a la cuenta gerente o al rol gerente en App360.
 
 Las pruebas de Firebird incluidas aqui son solamente de lectura.
 
@@ -45,7 +45,7 @@ en una sola carga diaria. La prueba final manual y su repeticion idempotente par
 - horario diario: 02:00;
 - cuenta local: Administrador;
 - comando: C:\SabioGoSync\run_sync.bat sin argumentos;
-- alertas web: solamente para usuarios con rol gerente.
+- alertas web: para la cuenta gerente o usuarios con rol gerente.
 
 El envio real requiere estas condiciones:
 
@@ -1022,7 +1022,7 @@ actualizar la credencial guardada por Task Scheduler.
 ============================
 
 Las alertas aparecen arriba del contenido de cualquier pagina, solamente para
-usuarios cuya sesion tiene rol gerente.
+la cuenta gerente o usuarios cuya sesion tiene rol gerente.
 
 - Fallo informado por Windows: alerta roja inmediata.
 - Ejecucion ausente o sin finalizar: alerta ambar desde las 03:00.
@@ -1069,7 +1069,7 @@ manager, hr y otros no reciben esta alerta por definicion actual.
 [ ] Tarea App360 SabioGo Sync creada para las 02:00.
 [ ] Cuenta de ejecucion confirmada: NOMBRE_DEL_SERVIDOR\Administrador.
 [ ] Primera ejecucion automatica confirmada con resultado 0.
-[ ] Alerta web validada con un usuario de rol gerente.
+[ ] Alerta web validada iniciando sesion con la cuenta gerente.
 [x] Resultados enviados sin secretos.
 
 
