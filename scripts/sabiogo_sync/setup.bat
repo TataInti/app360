@@ -12,7 +12,8 @@ echo ============================================================
 echo.
 
 set "SCRIPT_DIR=%~dp0"
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT_DIR%secure_folder.ps1" -Path "%SCRIPT_DIR%"
+set "APP_DIR=%SCRIPT_DIR:~0,-1%"
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%SCRIPT_DIR%secure_folder.ps1" -Path "%APP_DIR%"
 if errorlevel 1 (
     echo ERROR: No se pudo proteger C:\SabioGoSync.
     pause
