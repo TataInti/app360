@@ -58,14 +58,13 @@ if [[ "$EXPECTED_SHA" != "$CURRENT_SHA" ]]; then
 fi
 
 echo "🚀 Aplicando release $RELEASE_TAG en $PROD_SSH_USER@$PROD_SSH_HOST"
-ssh "$PROD_SSH_USER@$PROD_SSH_HOST" "bash -lc '
+ssh "$PROD_SSH_USER@$PROD_SSH_HOST" "
   set -e
   test -f "$PROD_ENV_FILE" || { echo "No existe $PROD_ENV_FILE"; exit 2; }
-  set -a
-  source "$PROD_ENV_FILE" >/dev/null 2>&1
-  set +a
+  test -x "$PROD_APP_DIR/venv/bin/python" || { echo "No existe el Python del venv"; exit 2; }
+  DATABASE_URL=\"\$(\"$PROD_APP_DIR/venv/bin/python\" -c 'from dotenv import dotenv_values; import sys; print(dotenv_values(sys.argv[1]).get(\"DATABASE_URL\", \"\"))' \"$PROD_ENV_FILE\")\"
   test -n "\$DATABASE_URL" || { echo "DATABASE_URL vacío en VPS"; exit 3; }
   psql --set ON_ERROR_STOP=1 --dbname="\$DATABASE_URL" --file=-
-'" < "$SQL_FILE"
+" < "$SQL_FILE"
 
 echo "✅ Release aplicada en VPS"
