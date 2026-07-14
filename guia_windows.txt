@@ -25,31 +25,27 @@ Las pruebas de Firebird incluidas aqui son solamente de lectura.
 2. ESTADO ACTUAL Y ADVERTENCIA IMPORTANTE
 =========================================
 
-El 2026-07-13 se comprobo desde desarrollo esta direccion:
+El 2026-07-13 se desplego y comprobo esta direccion:
 
     https://vyp.app360.com.ar/sabiogo/api/db-sync/daily
 
-Actualmente responde HTTP 404. Esto significa que el receptor todavia no esta
-desplegado en el VPS.
+Sin credenciales responde HTTP 401. Esto confirma que el receptor esta
+desplegado y protegido en el VPS.
 
-NO EJECUTAR TODAVIA:
+NO EJECUTAR CON ARCHIVOS VIEJOS NI CON API KEY DE EJEMPLO:
 
     run_sync.bat
 
-NO EJECUTAR TODAVIA:
-
-    run_sync.bat --fecha 2026-05-01
-
 El cliente corregido ya lee host y puerto de Firebird y envia ventas y compras
-en una sola carga diaria. Todavia no esta habilitado para ejecucion productiva.
+en una sola carga diaria. La prueba final manual queda habilitada solamente para
+la fecha controlada 2026-05-04, despues de completar la PARTE E.
 
-Primero se completan las pruebas locales. Luego se envia el resultado al equipo
-de desarrollo. El envio real se habilitara solamente cuando:
+El envio real requiere estas condiciones:
 
-- el endpoint del VPS ya no responda 404;
-- se entregue una version corregida del script;
+- instalar los cuatro archivos aprobados;
 - se configure la API key real;
-- se elija una fecha controlada para la primera carga.
+- confirmar HTTP 401 sin credenciales;
+- usar solamente la fecha controlada 2026-05-04.
 
 
 3. REGLAS DE SEGURIDAD
@@ -647,8 +643,8 @@ Si aparece ERROR_FALTA_EMPRESA, guardar el resultado y detenerse.
 24. PROBAR P_COMPRAS_GLOBALES SIN ENVIAR DATOS
 ==============================================
 
-El cliente actual todavia no sincroniza compras. Este comando comprueba el
-procedimiento directamente en Firebird, sin llamar al VPS.
+El cliente actual sincroniza compras. Este comando comprueba el procedimiento
+directamente en Firebird, sin llamar al VPS.
 
 COMANDO 31:
 
@@ -657,13 +653,13 @@ COMANDO 31:
 Resultado esperado:
 
     COMPRAS_CONSULTA_OK
-    COLUMNAS_CANTIDAD= un numero
+    COLUMNAS_CANTIDAD= 29
     COLUMNAS= lista completa
     FILAS= un numero igual o mayor que 0
     EMPRESAS= una lista de empresas
 
-No se debe suponer que compras tiene exactamente las mismas 29 columnas. Guardar
-la cantidad y la lista completa para definir el contrato correcto.
+Compras fue validado con 29 columnas. Si la cantidad cambia, guardar la lista
+completa y detenerse antes del envio.
 
 Si FILAS=0, confirmar si hubo compras en esa fecha o elegir otra fecha conocida.
 
@@ -694,32 +690,31 @@ COMANDO 34:
 
     curl.exe -i -X POST https://vyp.app360.com.ar/sabiogo/api/db-sync/daily -H "Content-Type: application/json" --data "{}"
 
-Estado conocido al crear esta guia:
+Estado esperado desde el despliegue:
 
-    HTTP 404
+    HTTP 401
 
 Interpretacion:
 
-    404 = receptor no desplegado; detenerse.
-    503 = receptor desplegado, pero falta configurar secreto en VPS; detenerse.
-    401 = receptor desplegado y protegido; avisar al equipo de desarrollo.
+    404 = despliegue ausente o ruta incorrecta; detenerse.
+    503 = falta configurar secreto en VPS; detenerse.
+    401 = receptor desplegado y protegido; continuar a la PARTE E.
     400 = revisar inmediatamente la proteccion antes de continuar.
     200 = detenerse inmediatamente; una llamada sin clave no debe ser aceptada.
 
-Aunque aparezca 401, no ejecutar run_sync.bat sin recibir la version corregida y
-la autorizacion para la fecha controlada.
+Aunque aparezca 401, no ejecutar run_sync.bat hasta reemplazar los cuatro
+archivos, configurar la clave real y llegar a la PARTE E.
 
 
 27. PUNTO DE DETENCION OBLIGATORIO
 ==================================
 
-AL LLEGAR AQUI, DETENERSE.
-
-NO EJECUTAR run_sync.bat.
+Si el COMANDO 34 no devuelve 401, detenerse.
 
 NO CREAR TAREA PROGRAMADA.
 
-NO CARGAR API KEY REAL.
+Si devuelve 401 y ya se recibieron los archivos y la clave, continuar a la
+PARTE E.
 
 Enviar al equipo de desarrollo solamente estos resultados:
 
@@ -747,11 +742,11 @@ PARTE E - SOLO DESPUES DE RECIBIR AUTORIZACION
 ==============================================
 
 
-28. PRIMER ENVIO REAL, TODAVIA NO HABILITADO
-============================================
+28. PRIMER ENVIO REAL, PRUEBA MANUAL HABILITADA
+===============================================
 
-Esta seccion es una referencia futura. No ejecutarla mientras el endpoint
-responda 404 o mientras no se haya entregado el script corregido.
+Esta seccion habilita una unica prueba manual para 2026-05-04. No usar otra
+fecha ni un rango en esta etapa.
 
 Condiciones que deben estar cumplidas:
 
@@ -918,15 +913,15 @@ Accion:
 
 
 ERROR HTTP 404 EN DB-SYNC/DAILY
--------------------------
+-------------------------------
 
-Estado esperado actualmente. El receptor no esta desplegado.
+Estado inesperado. El receptor fue desplegado.
 
 Accion:
 
 1. No ejecutar run_sync.bat.
 2. Informar el 404.
-3. Esperar despliegue y autorizacion.
+3. Esperar correccion del despliegue antes de continuar.
 
 
 30. LISTA FINAL PARA MARCAR
@@ -950,7 +945,9 @@ Accion:
 [x] Columnas, filas y empresas de ventas anotadas.
 [x] P_COMPRAS_GLOBALES probado.
 [x] Columnas, filas y empresas de compras anotadas.
-[x] Endpoint consultado sin credenciales: HTTP 404.
+[ ] Cuatro archivos actualizados con la version aprobada.
+[ ] API key real configurada sin compartirla.
+[ ] Endpoint consultado sin credenciales: HTTP 401.
 [x] run_sync.bat NO ejecutado.
 [x] Task Scheduler NO configurado.
 [x] Resultados enviados sin secretos.

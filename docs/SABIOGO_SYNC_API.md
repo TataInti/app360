@@ -2,9 +2,9 @@
 
 **Ultima revision:** 2026-07-13
 
-**Version del documento:** 2.1
+**Version del documento:** 2.2
 
-**Estado:** implementacion completa en el working tree local; extraccion Firebird validada en Windows; receptor todavia no desplegado en el VPS
+**Estado:** receptor desplegado en el VPS; autenticacion y preflight validados; pendiente prueba E2E manual desde Windows
 
 ## 1. Objetivo
 
@@ -34,15 +34,15 @@ Task Scheduler                               Nginx + Gunicorn + Flask
 | `P_VENTAS_GLOBALES` | Validado: 279 filas y 29 columnas para 2026-05-04. |
 | `P_COMPRAS_GLOBALES` | Validado: 53 filas y 29 columnas para 2026-05-04. |
 | Cliente Windows | Implementa ventas, compras, vacios, retries y finalizacion. |
-| Receptor Flask | Implementado localmente; ventas y compras atomicas por fecha. |
+| Receptor Flask | Desplegado; ventas y compras atomicas por fecha. |
 | Concurrencia | Advisory lock PostgreSQL serializa cargas de la misma fecha. |
 | Autenticacion tecnica | Restringida a `db-sync`, `db-sync/daily` y `db-sync/finalize`. |
 | Dedupe | Incluye `origen` en la firma. |
 | Facts y objetivos | Orquestados por `db-sync/finalize`. |
-| VPS productivo | Aun responde HTTP 404 porque este codigo no fue desplegado. |
+| VPS productivo | Desplegado; health `200`, sync sin clave `401`, sync autenticado con payload invalido `400`. |
 | Task Scheduler | No configurado. |
 
-No ejecutar `run_sync.bat` en Windows hasta desplegar el receptor y configurar el secreto.
+La prueba manual de `run_sync.bat --fecha 2026-05-04` queda habilitada despues de actualizar los cuatro archivos Windows y configurar el secreto entregado fuera del repositorio.
 
 ## 3. Configuracion Windows
 
@@ -265,7 +265,7 @@ Validacion realizada el 2026-07-13:
 - Ambos procedimientos devuelven 29 columnas.
 - Empresas observadas: `VYP` y `LACTEOS_VP`.
 - HTTPS Windows -> VPS y TLS/Nginx funcionan.
-- El receptor productivo devuelve 404 porque aun no esta desplegado.
+- Receptor productivo desplegado; HTTPS y autenticacion validados sin insertar datos.
 
 No se probo todavia el nuevo `setup.bat` en Windows despues de corregir su generacion de `config.ini`.
 
@@ -310,18 +310,23 @@ La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtu
 
 ## 10. Salida a produccion
 
-### Pendiente inmediato
+### Completado en VPS
 
-1. Revisar el diff completo y preservar cambios locales no relacionados.
-2. Integrar estos archivos por el flujo normal del repositorio.
-3. Desplegar receptor y finalizacion en VPS.
-4. Generar/configurar `SABIOGO_SYNC_API_KEY` sin exponerla.
-5. Verificar `401`, `400`, `503` y luego `200` de `db-sync/daily`.
-6. Actualizar archivos en `C:\SabioGoSync` y volver a ejecutar `setup.bat` en una carpeta de prueba.
-7. Cargar la clave real en `config.ini` solo al iniciar la prueba E2E.
-8. Ejecutar `run_sync.bat --fecha 2026-05-04` manualmente.
-9. Reconciliar 279 ventas, 53 compras, staging, auditorias, facts y objetivos.
-10. Reejecutar la misma fecha para validar idempotencia.
+1. Codigo integrado en `main` y descargado por fast-forward.
+2. `SABIOGO_SYNC_API_KEY` generada y configurada sin guardarla en Git.
+3. Deploy completo con conexion PostgreSQL y 63 pruebas aprobadas.
+4. Servicio Gunicorn reiniciado y activo.
+5. Verificados health `200`, sync sin clave `401` y sync autenticado con payload invalido `400`.
+
+### Pendiente inmediato en Windows
+
+1. Reemplazar `sync.py`, `setup.bat`, `run_sync.bat` y `requirements.txt` en `C:\SabioGoSync`.
+2. Conservar credenciales Firebird existentes en `config.ini` y actualizar solo la clave VPS.
+3. Ejecutar `setup.bat` desde CMD para actualizar dependencias.
+4. Confirmar que el endpoint sin credenciales responde `401`.
+5. Ejecutar `run_sync.bat --fecha 2026-05-04` manualmente.
+6. Reconciliar 279 ventas, 53 compras, staging, auditorias, facts y objetivos.
+7. Reejecutar la misma fecha para validar idempotencia.
 
 ### Despues de E2E
 
@@ -336,7 +341,6 @@ La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtu
 - Convivencia con carga manual: una importacion global puede borrar datos cargados por API.
 - La finalizacion ocurre despues del commit diario; si falla debe reintentarse para publicar los derivados.
 - No hay particionado ni compresion para requests mayores a 10 MB.
-- No se verifico aun la clave ni el endpoint en produccion.
 - No se configuro rotacion de secreto ni allowlist de IP.
 - No existe alerta automatica ante fallo nocturno.
 
@@ -344,6 +348,7 @@ La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtu
 
 | Version | Fecha | Descripcion |
 |---|---|---|
+| `2.2` | 2026-07-13 | Deploy VPS completado, secreto configurado y smoke tests `200/401/400` aprobados. |
 | `2.1` | 2026-07-13 | Request diario atomico para ventas y compras, advisory lock por fecha y rollback conjunto. |
 | `2.0` | 2026-07-13 | Contrato dual y atomico, origenes explicitos, vacios auditados, finalizacion, retries y evidencia Windows. |
 | `1.1` | 2026-07-13 | Brecha ventas/compras y datos faltantes para Firebird. |
