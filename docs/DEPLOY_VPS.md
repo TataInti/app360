@@ -196,13 +196,16 @@ Para actualizar una instalación existente, normalmente alcanza con:
 ```bash
 cd /var/www/app360
 sudo -u www-data git pull
-sudo -u www-data bash scripts/deploy.sh
 
 # si hay release DB versionada:
 bash scripts/apply_db_release_to_vps.sh <release_tag>
 
+sudo -u www-data bash scripts/deploy.sh
 sudo systemctl restart app360
 curl -fsS http://127.0.0.1:5000/api/health
 ```
+
+La release DB debe aplicarse antes de ejecutar el codigo nuevo o reiniciar el
+servicio. Si falla, detener el despliegue y mantener la version anterior activa.
 
 No debería haber “duplicados” por correr `scripts/deploy.sh`, porque el script no hace seed ni create_all.
