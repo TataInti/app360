@@ -61,8 +61,17 @@
                             <tr>
                                     <th>ID</th>
                                     {% for field in data.fields %}
+                                    {% if modulo == 'movimientos' and entidad == 'conceptos' and field == 'incluye_resultado' %}
+                                    <th title="Incluir en el resultado comercial">Participa</th>
+                                    {% else %}
                                     <th>{{ field_labels.get(field, field)|replace('_', ' ')|capitalize }}</th>
+                                    {% endif %}
                                     {% endfor %}
+                                    {% if modulo == 'movimientos' and entidad == 'conceptos' %}
+                                    <th>Efecto</th>
+                                    <th>Movimientos</th>
+                                    <th>Conflictos</th>
+                                    {% endif %}
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
@@ -79,6 +88,18 @@
                                             {% else %}
                                             <span class="badge bg-secondary">Inactivo</span>
                                             {% endif %}
+                                        {% elif field == 'naturaleza' %}
+                                            {% if val == 'ingreso' %}
+                                            <span class="badge bg-success">Ingreso</span>
+                                            {% elif val == 'egreso' %}
+                                            <span class="badge bg-danger">Egreso</span>
+                                            {% elif val == 'ambos' %}
+                                            <span class="badge bg-primary">Ambos</span>
+                                            {% else %}
+                                            <span class="badge bg-warning text-dark">Pendiente</span>
+                                            {% endif %}
+                                        {% elif field == 'incluye_resultado' %}
+                                            {{ 'Sí' if val else 'No' }}
                                         {% elif field == 'location_id' and item.location is defined and item.location %}
                                             {{ item.location.name }}
                                         {% elif field == 'turno_id' and item.turno is defined and item.turno %}
@@ -88,6 +109,30 @@
                                         {% endif %}
                                     </td>
                                     {% endfor %}
+                                    {% if modulo == 'movimientos' and entidad == 'conceptos' %}
+                                    {% set stat = concepto_stats.get(item.id, {}) %}
+                                    <td>
+                                        {% if stat.get('efecto') == 'suma' %}
+                                        <span class="badge bg-success">Suma</span>
+                                        {% elif stat.get('efecto') == 'resta' %}
+                                        <span class="badge bg-danger">Resta</span>
+                                        {% elif stat.get('efecto') == 'segun_movimiento' %}
+                                        <span class="badge bg-primary">Según movimiento</span>
+                                        {% elif stat.get('efecto') == 'pendiente' %}
+                                        <span class="badge bg-warning text-dark">Pendiente</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">No participa</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ stat.get('movimientos', 0) }}</td>
+                                    <td>
+                                        {% if stat.get('conflictos', 0) %}
+                                        <span class="badge bg-danger">{{ stat.get('conflictos') }}</span>
+                                        {% else %}
+                                        <span class="text-muted">0</span>
+                                        {% endif %}
+                                    </td>
+                                    {% endif %}
                                     <td>
                                         <div class="btn-group btn-group-sm">
                                             <button class="btn btn-outline-primary"
@@ -120,8 +165,12 @@
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="{{ data.fields|length + 2 }}" class="text-center text-muted">
-                                        No hay registros
+                                    <td colspan="{{ data.fields|length + (5 if modulo == 'movimientos' and entidad == 'conceptos' else 2) }}">
+                                        <div class="empty-state">
+                                            <i class="bi bi-inbox empty-icon"></i>
+                                            <div class="empty-title">Todavía no hay registros</div>
+                                            <div class="empty-text">Creá el primero para completar este catálogo.</div>
+                                        </div>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -245,7 +294,7 @@ function isEmployeeEntity(entidad) {
 }
 
 function getFieldLabel(entidad, field) {
-    if (isEmployeeEntity(entidad) && FIELD_LABELS[field]) {
+    if (FIELD_LABELS[field]) {
         return FIELD_LABELS[field];
     }
     return field.replace('_', ' ');
@@ -273,6 +322,24 @@ function appendField(container, entidad, field, value, required) {
     const label = getFieldLabel(entidad, field);
     const div = document.createElement('div');
     div.className = 'mb-3';
+
+    if (MODULO === 'movimientos' && entidad === 'conceptos' && field === 'naturaleza') {
+        const selectedValue = value || '';
+        div.innerHTML = `
+            <label class="form-label">${label} ${required ? '*' : ''}</label>
+            <select class="form-select" name="${field}" id="field-${field}" required>
+                <option value="">Seleccionar…</option>
+                ${buildSelectOptions([
+                    { value: 'ingreso', label: 'Ingreso' },
+                    { value: 'egreso', label: 'Egreso' },
+                    { value: 'ambos', label: 'Ambos' }
+                ], selectedValue)}
+            </select>
+            <div class="form-text">Ingreso suma, Egreso resta y Ambos usa el tipo elegido al registrar el movimiento.</div>
+        `;
+        container.appendChild(div);
+        return;
+    }
 
     if (isEmployeeEntity(entidad) && field === 'position') {
         const options = EMPLOYEE_POSITIONS.map(role => ({ value: role, label: role }));
@@ -341,15 +408,16 @@ function appendField(container, entidad, field, value, required) {
         return;
     }
 
-    const tipo = (field === 'activo' || field === 'requiere_portador') ? 'checkbox' : getInputType(field);
+    const tipo = (field === 'activo' || field === 'requiere_portador' || field === 'incluye_resultado') ? 'checkbox' : getInputType(field);
 
     if (tipo === 'checkbox') {
-        const checked = value !== undefined ? !!value : true;
+        const checked = value !== undefined ? !!value : field !== 'incluye_resultado';
         div.innerHTML = `
             <div class="form-check">
                 <input type="checkbox" class="form-check-input" name="${field}" id="field-${field}" ${checked ? 'checked' : ''}>
                 <label class="form-check-label" for="field-${field}">${label}</label>
             </div>
+            ${field === 'incluye_resultado' ? '<div class="form-text">La regla se aplica a todos los movimientos históricos asociados.</div>' : ''}
         `;
     } else {
         const step = tipo === 'number' ? 'step="0.01"' : '';
@@ -512,6 +580,17 @@ document.getElementById('formEntidad')?.addEventListener('submit', async functio
 
     const url = id ? `/api/admin/${MODULO}/${entidad}/${id}` : `/api/admin/${MODULO}/${entidad}`;
     const method = id ? 'PUT' : 'POST';
+
+    if (id && MODULO === 'movimientos' && entidad === 'conceptos') {
+        const confirmed = await askConfirmation({
+            variant: 'warning',
+            title: 'Actualizar concepto',
+            subtitle: 'El resultado comercial se recalcula de forma retroactiva.',
+            message: 'Los movimientos históricos asociados usarán esta configuración.',
+            confirmText: 'Guardar cambios',
+        });
+        if (!confirmed) return;
+    }
     
     try {
         const resp = await fetch(url, {

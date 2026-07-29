@@ -14,7 +14,7 @@ git status
 
 - No debe aparecer `.env`, DBs locales (`instance/*.db`) ni dumps (`backups/db-sync/*.dump`).
 - Los dumps operativos deben vivir fuera del repo. Default actual para sync local: `$HOME/.app360/backups/db-sync/`.
-- La única carpeta de DB que sí puede vivir en el repo es `backups/db-releases/`, porque contiene releases versionadas para GitHub.
+- `backups/db-releases/` es histórico. No agregar dumps productivos nuevos al repositorio.
 - Notas de acceso al VPS deben vivir en `docs/_local/` (ignoradas) o en un archivo local ignorado.
 
 2. Backend tests:
@@ -93,17 +93,15 @@ sudo systemctl reload nginx
 - **No** inserta datos ni “seed” (no debería generar duplicados de registros).
 - **No** reinicia systemd por sí mismo.
 
-Lo único que puede tocar estructura de DB es si se habilita explícitamente:
-
-- `RUN_MIGRATIONS=true` → corre Alembic (`flask db upgrade`) y aborta si la migracion falla o `current` no coincide con `heads`.
-
-Si seguimos Local First DB, normalmente dejamos `RUN_MIGRATIONS=false` y aplicamos releases SQL versionadas.
+`RUN_MIGRATIONS=true` está bloqueado. La estructura de DB solo se modifica con
+`scripts/migrate_db_safely.sh`, que exige backup, restore de ensayo y revisiones
+Alembic explícitas.
 
 ### Riesgos/consideraciones al correr `scripts/deploy.sh` en un VPS ya corriendo
 
 - No genera duplicados en datos por sí solo, pero **sí puede cambiar el entorno** (dependencias Python). Para que el código nuevo se vea, igual hay que **reiniciar** Gunicorn.
 - Si el proceso Gunicorn está usando el mismo `venv/`, instalar deps mientras corre normalmente no rompe el proceso activo, pero el cambio no se aplica hasta el restart. Aun así, conviene ejecutar deploy en una ventana controlada.
-- Si se activa `RUN_MIGRATIONS=true` sin querer, ahí sí puede haber cambios de schema.
+- Si se activa `RUN_MIGRATIONS=true`, el deploy aborta sin cambiar el esquema.
 
 ### Update standard (recomendado)
 
@@ -121,25 +119,24 @@ cd /var/www/app360
 sudo -u www-data bash scripts/deploy.sh
 ```
 
-3) Base de datos (Local First DB)
+3) Base de datos (forward-only)
 
-- Generar release en local:
-
-```bash
-bash scripts/create_local_db_release.sh
-```
-
-Salida esperada en repo versionado:
-
-- `backups/db-releases/<release_tag>/db.sql`
-- `backups/db-releases/<release_tag>/db.sql.sha256`
-- `backups/db-releases/<release_tag>/release_meta.txt`
-
-- Aplicar release versionada en VPS:
+Desde el checkout local que contiene el mismo commit ya descargado en el VPS:
 
 ```bash
-bash scripts/apply_db_release_to_vps.sh <release_tag>
+EXPECTED_GIT_SHA=<sha_completo> \
+PROD_SSH_HOST=<host> \
+MAINTENANCE_CONFIRMED=true \
+bash scripts/apply_db_migrations_to_vps.sh \
+  20260713_sabiogo_sync_runs \
+  20260729_ensure_efectivo_iva \
+  scripts/sql/validate_20260729_resultado_comercial.sql
 ```
+
+Antes de ejecutarlo se deben pausar las escrituras y declarar
+`MAINTENANCE_CONFIRMED=true`. El comando crea el backup en
+`/var/backups/app360`, ensaya una restauración, aplica Alembic y valida Resultado
+comercial. No reinicia el servicio.
 
 4) Restart servicio (aplica el código nuevo):
 
@@ -161,6 +158,8 @@ curl -fsS http://127.0.0.1:5000/api/health
 - Convención para nuevos archivos de test que usan la base de datos: preferir un fixture `app` autocontenido que fuerce `SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"` y llame a `db.create_all()`/`db.session.remove()`/`db.drop_all()` (ver `tests/test_rrhh_fichadas.py`, `tests/test_dashboards_v2.py`, `tests/test_sabiogo_service.py`). Si un test necesita depender del `DATABASE_URL` del entorno (por ejemplo para correr contra Postgres real en desarrollo local), el bootstrap de `scripts/deploy.sh` ya cubre el caso del SQLite temporal, pero no reemplaza migraciones reales si el modelo cambia de forma incompatible con SQLite.
 - Este repositorio no incluye actualmente un frontend estatico separado. Si se vuelve a desplegar uno, documentar en el mismo cambio la ruta de build y copia asociada en Nginx.
 - Los backups operativos del VPS no deben quedar dentro de `/var/www/app360`; usar `/var/backups/app360/...`.
+- `create_local_db_release.sh` y `apply_db_release_to_vps.sh` están bloqueados
+  para impedir restauraciones completas accidentales.
 - `scripts/sync_prod_db_to_local.sh` guarda por default sus dumps temporales en `$HOME/.app360/backups/db-sync/` salvo override con `BACKUP_DIR`.
 
 ## Cron nocturno: sincronización PRE -> objetivos comerciales
@@ -197,15 +196,20 @@ Para actualizar una instalación existente, normalmente alcanza con:
 cd /var/www/app360
 sudo -u www-data git pull
 
-# si hay release DB versionada:
-bash scripts/apply_db_release_to_vps.sh <release_tag>
-
 sudo -u www-data bash scripts/deploy.sh
+
+# desde la maquina operadora, antes del restart:
+EXPECTED_GIT_SHA=<sha_completo> \
+PROD_SSH_HOST=<host> \
+MAINTENANCE_CONFIRMED=true \
+bash scripts/apply_db_migrations_to_vps.sh \
+  <revision_actual> <revision_objetivo> <sql_de_validacion>
+
 sudo systemctl restart app360
 curl -fsS http://127.0.0.1:5000/api/health
 ```
 
-La release DB debe aplicarse antes de ejecutar el codigo nuevo o reiniciar el
-servicio. Si falla, detener el despliegue y mantener la version anterior activa.
+La migración debe aplicarse antes de reiniciar el servicio con el código nuevo.
+Si falla, detener el despliegue y mantener la versión anterior activa.
 
 No debería haber “duplicados” por correr `scripts/deploy.sh`, porque el script no hace seed ni create_all.

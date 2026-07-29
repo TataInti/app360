@@ -11,10 +11,10 @@ El desarrollo se hace primero en entorno local. La base local es la fuente de tr
 1. Todo cambio de base de datos se hace primero en local.
 2. No se aplican cambios manuales directos en VPS sin pasar por GitHub.
 3. Cada cambio de DB debe tener:
-   - Migración/versionado de esquema (Alembic o SQL versionado).
-   - Release de DB versionada para replicación (archivo SQL + checksum).
+   - Migración Alembic forward-only.
+   - Validación de revisión inicial/final y controles de aceptación.
 4. La interfaz se valida localmente antes de publicar.
-5. El despliegue a VPS usa release versionada desde el repositorio.
+5. El despliegue a VPS usa exclusivamente código y migraciones versionadas.
 
 ## Flujo estándar (obligatorio)
 
@@ -57,22 +57,20 @@ Este script también corrige ownership de vistas materializadas SabioGo. Si al r
 
 Si en SabioGo “no se ve nada” aun con datos cargados, revisar estados de staging: las facts/BI filtran por `estado='procesado'`. El refresh de facts promueve `cargado/pendiente` a `procesado`, pero si venís de un dump viejo puede quedar desalineado.
 
-### 3) Generar release de base para GitHub
+### 3) Validar el camino de migración
 
 ```bash
-bash scripts/create_local_db_release.sh
+flask db heads
+flask db current
+flask db upgrade
 ```
-
-Salida esperada:
-
-- `backups/db-releases/<release_tag>/db.sql`
-- `backups/db-releases/<release_tag>/db.sql.sha256`
-- `backups/db-releases/<release_tag>/release_meta.txt`
 
 Importante:
 
-- `backups/db-releases/` sigue dentro del repo porque forma parte del cambio versionado.
-- Los dumps operativos o temporales no deben quedar dentro del working tree; usar rutas externas al repo.
+- Debe existir una única cabecera Alembic.
+- La migración se prueba contra una copia aislada del esquema/datos productivos.
+- Los backups operativos o temporales nunca quedan dentro del working tree.
+- `create_local_db_release.sh` está bloqueado: un dump `--clean` no es una migración.
 
 ### 4) Control de cambios en GitHub
 
@@ -80,7 +78,7 @@ Commit mínimo recomendado:
 
 - Código backend/frontend.
 - Migraciones SQL/Alembic.
-- Carpeta de release DB (`backups/db-releases/<release_tag>`).
+- SQL de validación asociado, si corresponde.
 - Actualización de documentación.
 
 Ejemplo:
@@ -91,19 +89,36 @@ git commit -m "db: cambios locales + release <release_tag>"
 git push origin <branch>
 ```
 
-### 5) Replicar en VPS desde release versionada
+### 5) Replicar en VPS con migración segura
 
 ```bash
-bash scripts/apply_db_release_to_vps.sh <release_tag>
+EXPECTED_GIT_SHA=<sha_completo> \
+PROD_SSH_HOST=<host> \
+MAINTENANCE_CONFIRMED=true \
+bash scripts/apply_db_migrations_to_vps.sh \
+  <revision_actual> \
+  <revision_objetivo> \
+  <sql_de_validacion>
 ```
 
-Este script valida SHA256 y aplica el SQL sobre la `DATABASE_URL` del VPS tomada desde `/var/www/app360/.env`.
+El flujo:
+
+1. exige checkout limpio y commit exacto;
+2. exige confirmación de que las escrituras están pausadas;
+3. valida una sola revisión actual y una sola cabecera objetivo;
+4. crea backup custom + SHA256;
+5. restaura el backup en una base temporal;
+6. aplica Alembic forward-only;
+7. ejecuta controles SQL y conserva el manifiesto.
+
+No reinicia Gunicorn.
 
 ## Checklist previo a merge/deploy
 
 - [ ] Funcionalidad validada en local (UI + backend).
 - [ ] Migraciones aplican sin error en local.
-- [ ] Release DB generada y versionada en Git.
+- [ ] Upgrade validado desde la revisión real de producción.
+- [ ] SQL de aceptación validado.
 - [ ] Documentación actualizada.
 - [ ] Cambios subidos a GitHub.
 

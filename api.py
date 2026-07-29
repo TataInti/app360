@@ -434,33 +434,57 @@ def api_dashboard_financiero():
             if (ingresos_by_day.get(key, 0.0) - egresos_by_day.get(key, 0.0)) < 0:
                 dias_neto_negativo += 1
 
-        if periodo_key == "ytd":
-            # Agregación mensual en Python (DB-agnóstica)
-            mensual: dict[str, dict[str, float]] = {}
+        total_dias = (hasta - desde).days + 1
+        granularidad = (
+            "mes"
+            if periodo_key == "ytd" or total_dias > 210
+            else "semana"
+            if periodo_key == "6m" or total_dias > 45
+            else "dia"
+        )
+
+        if granularidad in ("mes", "semana"):
+            # Agregación adaptable en Python (DB-agnóstica).
+            agregados: dict[str, dict[str, float]] = {}
             d = desde
             while d <= hasta:
-                mensual[d.strftime("%Y-%m")] = {"ingresos": 0.0, "egresos": 0.0}
+                key = (
+                    d.strftime("%Y-%m")
+                    if granularidad == "mes"
+                    else (d - timedelta(days=d.weekday())).isoformat()
+                )
+                agregados.setdefault(key, {"ingresos": 0.0, "egresos": 0.0})
                 d = d + timedelta(days=1)
 
             for day_key, val in ingresos_by_day.items():
-                month_key = str(day_key)[:7]
-                if month_key in mensual:
-                    mensual[month_key]["ingresos"] += _to_float(val)
+                day_value = date.fromisoformat(str(day_key)[:10])
+                key = (
+                    day_value.strftime("%Y-%m")
+                    if granularidad == "mes"
+                    else (day_value - timedelta(days=day_value.weekday())).isoformat()
+                )
+                if key in agregados:
+                    agregados[key]["ingresos"] += _to_float(val)
             for day_key, val in egresos_by_day.items():
-                month_key = str(day_key)[:7]
-                if month_key in mensual:
-                    mensual[month_key]["egresos"] += _to_float(val)
+                day_value = date.fromisoformat(str(day_key)[:10])
+                key = (
+                    day_value.strftime("%Y-%m")
+                    if granularidad == "mes"
+                    else (day_value - timedelta(days=day_value.weekday())).isoformat()
+                )
+                if key in agregados:
+                    agregados[key]["egresos"] += _to_float(val)
 
-            labels = sorted(mensual.keys())
-            ingresos_series = [mensual[k]["ingresos"] for k in labels]
-            egresos_series = [mensual[k]["egresos"] for k in labels]
+            labels = sorted(agregados.keys())
+            ingresos_series = [agregados[k]["ingresos"] for k in labels]
+            egresos_series = [agregados[k]["egresos"] for k in labels]
             neto_series = [ingresos_series[i] - egresos_series[i] for i in range(len(labels))]
             series["flujo"] = {
                 "labels": labels,
                 "ingresos": ingresos_series,
                 "egresos": egresos_series,
                 "neto": neto_series,
-                "granularidad": "mes",
+                "granularidad": granularidad,
             }
         else:
             labels = []
@@ -889,76 +913,62 @@ def api_dashboard_comercial_v2():
 # -----------------------------------------------------------------------------
 @api.get("/panel-ejecutivo-v2")
 def api_panel_ejecutivo_v2():
-    # Por defecto: últimos 30 días
     periodo_key, desde, hasta = _parse_periodo_o_fechas(
         request.args.get("period") or "30",
         request.args.get("fecha_desde"),
         request.args.get("fecha_hasta"),
     )
-    dt_desde = datetime.combine(desde, datetime.min.time())
-    dt_hasta = datetime.combine(hasta, datetime.max.time())
+    from services.resultado_comercial_service import ResultadoComercialService
 
-    MovimientoCaja = get_model("MovimientoCaja")
-    InstrumentoPago = get_model("InstrumentoPago")
+    empresa = (request.args.get("empresa") or "TODAS").upper().strip()
+    resumen = ResultadoComercialService().calcular(desde, hasta, empresa)
+    k = resumen["kpis"]
+
     CuentaCorrienteFriar = get_model("CuentaCorrienteFriar")
     PagoFriar = get_model("PagoFriar")
-    StgSabiogoVentas = get_model("StgSabiogoVentas")
+    LiquidacionFriar = get_model("LiquidacionFriar")
 
     result = {
         "period": periodo_key,
         "desde": desde.isoformat(),
         "hasta": hasta.isoformat(),
+        "empresa": empresa,
         "kpis": {
-            "sabiogo_ingresos": 0.0,
-            "sabiogo_costos": 0.0,
-            "sabiogo_margen": 0.0,
-            "sabiogo_margen_pct": 0.0,
+            "facturacion": k["facturacion"],
+            "compras": k["compras"],
+            "diferencia_facturacion_compras": k["diferencia_facturacion_compras"],
+            "ingresos_incluidos": k["ingresos_incluidos"],
+            "egresos_incluidos": k["egresos_incluidos"],
+            "resultado_gestion": k["resultado_gestion"],
+            "resultado_sobre_facturacion_pct": k["resultado_sobre_facturacion_pct"],
+            "caja_neta": k["caja_neta"],
+            # Compatibilidad con consumidores anteriores.
+            "sabiogo_ingresos": k["facturacion"],
+            "sabiogo_costos": k["compras"],
+            "sabiogo_margen": k["diferencia_facturacion_compras"],
+            "sabiogo_margen_pct": (
+                k["diferencia_facturacion_compras"] / k["facturacion"] * 100
+                if k["facturacion"]
+                else 0.0
+            ),
             "cta_cte_friar_saldo_actual": 0.0,
             "cta_cte_friar_total": 0.0,
         },
-        "top_clientes": [],
+        "top_clientes": resumen["clientes"]["top"],
+        "concentracion_clientes": resumen["clientes"],
         "instrumentos": {"labels": [], "values": []},
+        "conceptos": resumen["conceptos"],
+        "series": resumen["series"],
+        "meta": resumen["meta"],
+        "alertas": resumen["meta"]["warnings"],
         "friar": {
             "cuenta": None,
             "ultimos_pagos": [],
         },
     }
 
-    # SabioGo: top 5 clientes por monto (YTD)
-    if StgSabiogoVentas and hasattr(StgSabiogoVentas, "fecha"):
-        monto_col = getattr(StgSabiogoVentas, "subtot", None) or getattr(StgSabiogoVentas, "neto", None)
-        if monto_col is not None:
-            rows = (
-                db.session.query(StgSabiogoVentas.cliente, func.sum(monto_col))
-                .filter(StgSabiogoVentas.fecha >= desde)
-                .filter(StgSabiogoVentas.fecha <= hasta)
-                .filter(getattr(StgSabiogoVentas, "estado", "procesado") == "procesado")
-                .group_by(StgSabiogoVentas.cliente)
-                .order_by(func.sum(monto_col).desc())
-                .limit(5)
-                .all()
-            )
-            result["top_clientes"] = [
-                {"cliente": (cliente or "(sin cliente)"), "monto": float(_to_float(total))}
-                for cliente, total in rows
-            ]
-
-    # Tesorería: distribución de instrumentos (YTD)
-    if MovimientoCaja and InstrumentoPago:
-        instrumentos_rows = (
-            db.session.query(InstrumentoPago.nombre, func.sum(MovimientoCaja.monto))
-            .join(InstrumentoPago, InstrumentoPago.id == MovimientoCaja.instrumento_id)
-            .filter(MovimientoCaja.fecha_hora >= dt_desde)
-            .filter(MovimientoCaja.fecha_hora <= dt_hasta)
-            .group_by(InstrumentoPago.nombre)
-            .order_by(func.sum(MovimientoCaja.monto).desc())
-            .all()
-        )
-        result["instrumentos"]["labels"] = [name or "Sin instrumento" for name, _ in instrumentos_rows]
-        result["instrumentos"]["values"] = [abs(float(_to_float(total))) for _, total in instrumentos_rows]
-
     # Friar: cuenta corriente y últimos 5 pagos
-    if CuentaCorrienteFriar and PagoFriar:
+    if CuentaCorrienteFriar and PagoFriar and LiquidacionFriar:
         cuenta = db.session.query(CuentaCorrienteFriar).first()
         if cuenta:
             total_pagos = (
@@ -967,11 +977,22 @@ def api_panel_ejecutivo_v2():
                 .scalar()
                 or 0
             )
-            saldo_actual = _to_float(getattr(cuenta, "saldo_inicial", 0)) - _to_float(total_pagos)
+            total_liquidaciones = (
+                db.session.query(func.sum(LiquidacionFriar.monto))
+                .filter(LiquidacionFriar.cuenta_corriente_id == cuenta.id)
+                .scalar()
+                or 0
+            )
+            saldo_actual = (
+                _to_float(getattr(cuenta, "saldo_inicial", 0))
+                + _to_float(total_liquidaciones)
+                - _to_float(total_pagos)
+            )
             result["friar"]["cuenta"] = {
                 "id": int(cuenta.id),
                 "proveedor": _safe_str(getattr(getattr(cuenta, "proveedor", None), "nombre", None)),
                 "saldo_inicial": float(_to_float(getattr(cuenta, "saldo_inicial", 0))),
+                "total_liquidaciones": float(_to_float(total_liquidaciones)),
                 "total_pagos": float(_to_float(total_pagos)),
                 "saldo_actual": float(saldo_actual),
             }
@@ -994,28 +1015,6 @@ def api_panel_ejecutivo_v2():
                 }
                 for p in ultimos
             ]
-
-    # Opcional: rentabilidad SabioGo (mismos KPIs que BI)
-    try:
-        from services.sabiogo_service import SabiogoService
-
-        sabiogo_service = SabiogoService()
-        resumen = sabiogo_service.get_rentabilidad_resumen(desde, hasta) or {}
-        ingresos = _to_float(resumen.get("total_ingresos", 0))
-        costos = _to_float(resumen.get("total_costos", 0))
-        margen = _to_float(resumen.get("margen_bruto", 0))
-        margen_pct = _to_float(resumen.get("margen_porcentual", 0))
-        result["kpis"].update(
-            {
-                "sabiogo_ingresos": float(ingresos),
-                "sabiogo_costos": float(costos),
-                "sabiogo_margen": float(margen),
-                "sabiogo_margen_pct": float(margen_pct),
-            }
-        )
-    except Exception:
-        # Si no hay tablas SabioGo o el service falla, dejamos en 0
-        pass
 
     return jsonify(result)
 

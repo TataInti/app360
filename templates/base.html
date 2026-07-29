@@ -1137,6 +1137,182 @@
             z-index: 2;
         }
 
+        /* ── Resultado comercial / Executive summary ───── */
+        .result-method {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.9rem 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid #dbeafe;
+            border-radius: 0.75rem;
+            background: #f8fbff;
+            color: #334155;
+        }
+        .result-method__title {
+            display: block;
+            margin-bottom: 0.2rem;
+            color: #1e3a8a;
+            font-size: 0.76rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .result-method__formula {
+            color: #0f172a;
+            font-size: 0.9rem;
+            font-weight: 650;
+        }
+        .result-method__note {
+            max-width: 440px;
+            color: #64748b;
+            font-size: 0.78rem;
+            line-height: 1.45;
+        }
+        .result-equation {
+            display: grid;
+            grid-template-columns: repeat(9, auto);
+            align-items: stretch;
+            gap: 0.4rem;
+            margin-bottom: 1.25rem;
+        }
+        .result-equation__step {
+            min-width: 0;
+            padding: 0.75rem 0.85rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.7rem;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+        }
+        .result-equation__step--total {
+            border-color: #bfdbfe;
+            background: #eff6ff;
+        }
+        .result-equation__label {
+            display: block;
+            margin-bottom: 0.25rem;
+            color: #64748b;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.035em;
+            text-transform: uppercase;
+        }
+        .result-equation__value {
+            color: #0f172a;
+            font-size: 1rem;
+            font-weight: 750;
+            white-space: nowrap;
+        }
+        .result-equation__operator {
+            display: grid;
+            place-items: center;
+            color: #94a3b8;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+        .chart-card-v2 h3 {
+            margin: 0 0 0.2rem;
+            color: #334155;
+            font-size: 0.9rem;
+            font-weight: 650;
+        }
+        .chart-card-v2 .chart-description {
+            display: block;
+            margin-bottom: 0.75rem;
+            color: #94a3b8;
+            font-size: 0.73rem;
+        }
+        .chart-stage {
+            position: relative;
+            height: 320px;
+        }
+        .chart-stage--compact {
+            height: 260px;
+        }
+        .chart-stage canvas {
+            max-height: none;
+            height: 100% !important;
+        }
+        .alert-stack {
+            display: grid;
+            gap: 0.45rem;
+            margin-bottom: 1rem;
+        }
+        .alert-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.6rem;
+            padding: 0.65rem 0.75rem;
+            border: 1px solid #fed7aa;
+            border-radius: 0.65rem;
+            background: #fffaf3;
+            color: #7c2d12;
+            font-size: 0.8rem;
+            line-height: 1.4;
+        }
+        .alert-item--danger {
+            border-color: #fecaca;
+            background: #fff7f7;
+            color: #991b1b;
+        }
+        .alert-item--info {
+            border-color: #bfdbfe;
+            background: #f8fbff;
+            color: #1e40af;
+        }
+        .metric-inline {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.6rem;
+            padding: 0.9rem 1rem;
+        }
+        .metric-inline__item {
+            padding: 0.7rem;
+            border-radius: 0.6rem;
+            background: #f8fafc;
+        }
+        .metric-inline__label {
+            display: block;
+            margin-bottom: 0.2rem;
+            color: #64748b;
+            font-size: 0.72rem;
+        }
+        .metric-inline__value {
+            color: #0f172a;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+        .data-cut {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.6rem;
+            padding: 0.85rem 1rem;
+        }
+        .data-cut__item {
+            color: #64748b;
+            font-size: 0.74rem;
+        }
+        .data-cut__item strong {
+            display: block;
+            margin-top: 0.1rem;
+            color: #334155;
+            font-size: 0.82rem;
+        }
+        .effect-text {
+            font-size: 0.75rem;
+            font-weight: 650;
+        }
+        .effect-text--sum { color: #15803d; }
+        .effect-text--subtract { color: #b91c1c; }
+        .empty-table {
+            padding: 1.2rem !important;
+            color: #94a3b8 !important;
+            text-align: center;
+        }
+        .result-negative { color: #b91c1c !important; }
+        .result-positive { color: #15803d !important; }
+
         /* Responsive */
         @media (max-width: 768px) {
             .kpi-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1157,6 +1333,11 @@
             .sidebar .link-text { display: none; }
             .sidebar a { justify-content: center; padding: 0.4rem; }
             .main-content { margin-left: 56px; width: calc(100% - 56px); }
+            .result-method { flex-direction: column; }
+            .result-equation { grid-template-columns: 1fr; }
+            .result-equation__operator { min-height: 1rem; }
+            .data-cut { grid-template-columns: 1fr; }
+            .chart-stage { height: 280px; }
         }
     </style>
 </head>
@@ -1364,7 +1545,7 @@
         <hr class="sidebar-sep">
         <div class="sidebar-section-title">Configuración</div>
         <a href="{% if session.get('role') == 'hr' %}/admin/rrhh{% else %}/admin{% endif %}"
-           class="{% if current == '/admin' or current.startswith('/admin/rrhh') %}active-link{% endif %}">
+           class="{% if current == '/admin' or (current.startswith('/admin/') and not current.startswith('/admin/accesos')) %}active-link{% endif %}">
             <span class="nav-icon"><i class="bi bi-gear-fill"></i></span>
             <span class="link-text">Administración</span>
         </a>

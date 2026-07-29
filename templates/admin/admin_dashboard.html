@@ -10,15 +10,15 @@
     </div>
 
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
-        <!-- Gastos -->
+        <!-- Movimientos -->
         <div class="kpi-card" style="padding:0;overflow:hidden">
             <div style="background:#fee2e2;padding:.75rem 1rem;display:flex;align-items:center;gap:.5rem">
                 <i class="bi bi-cash-stack" style="color:#dc2626;font-size:1.1rem"></i>
-                <strong style="color:#991b1b">Gastos</strong>
+                <strong style="color:#991b1b">Movimientos</strong>
             </div>
             <div style="padding:.75rem 1rem">
                 <ul class="list-group list-group-flush" style="font-size:.85rem">
-                    {% for entidad, info in stats.get('gastos', {}).items() %}
+                    {% for entidad, info in stats.get('movimientos', {}).items() %}
                     <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1 border-0">
                         {{ info.name }}
                         <span class="badge bg-primary rounded-pill">{{ info.total }}</span>
@@ -27,7 +27,7 @@
                 </ul>
             </div>
             <div style="padding:.5rem 1rem 1rem">
-                <a href="/admin/gastos" class="btn btn-sm btn-outline-danger w-100">
+                <a href="/admin/movimientos" class="btn btn-sm btn-outline-danger w-100">
                     <i class="bi bi-pencil-square"></i> Administrar
                 </a>
             </div>

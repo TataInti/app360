@@ -17,6 +17,7 @@ from models import (
     User,
     db,
 )
+from models.gastos import CategoriaMovimientoAudit
 from models.tesoreria import PortadorInstrumento
 from security import protect_blueprint
 
@@ -26,9 +27,13 @@ protect_blueprint(gastos_bp, "gastos")
 
 
 def _gastos_query():
-    """MovimientoCaja con categoria_gasto_id definida y no anulados."""
-    return MovimientoCaja.query.filter(
+    """Egresos categorizados y no anulados."""
+    return MovimientoCaja.query.join(
+        CategoriaGasto,
+        CategoriaGasto.id == MovimientoCaja.categoria_gasto_id,
+    ).filter(
         MovimientoCaja.categoria_gasto_id.isnot(None),
+        MovimientoCaja.tipo == "egreso",
         MovimientoCaja.estado != "anulado",
     )
 
@@ -44,24 +49,39 @@ def gastos_panel():
 
 @gastos_bp.route("/api/gastos/categorias", methods=["GET"])
 def categorias_listar():
-    """Listar categorías de gastos activas"""
-    categorias = CategoriaGasto.query.filter_by(activo=True).order_by(CategoriaGasto.nombre).all()
+    """Listar conceptos activos con su regla estructural."""
+    query = CategoriaGasto.query.filter_by(activo=True)
+    naturalezas = {
+        value.strip().lower()
+        for value in (request.args.get("naturaleza") or "").split(",")
+        if value.strip()
+    }
+    if naturalezas:
+        query = query.filter(CategoriaGasto.naturaleza.in_(naturalezas))
+    categorias = query.order_by(CategoriaGasto.nombre).all()
 
     return jsonify({
         "categorias": [{
             "id": c.id,
             "nombre": c.nombre,
-            "descripcion": c.descripcion
+            "descripcion": c.descripcion,
+            "naturaleza": c.naturaleza,
+            "incluye_resultado": bool(c.incluye_resultado),
+            "efecto": c.efecto_resultado,
         } for c in categorias]
     })
 
 
 @gastos_bp.route("/api/gastos/categorias", methods=["POST"])
 def categorias_crear():
-    """Crear nueva categoría de gasto"""
+    """Alias legado para crear conceptos, restringido a Administración."""
+    if session.get("role") not in ("admin", "manager", "gerente"):
+        return jsonify({
+            "error": "Los conceptos se administran desde Configuración → Administración → Movimientos."
+        }), 403
     data = request.get_json()
 
-    required_fields = ["nombre"]
+    required_fields = ["nombre", "naturaleza"]
     for field in required_fields:
         if field not in data:
             return jsonify({"error": f"Campo requerido: {field}"}), 400
@@ -69,6 +89,9 @@ def categorias_crear():
     nombre = data["nombre"].strip()
     if not nombre:
         return jsonify({"error": "Nombre no puede estar vacío"}), 400
+    naturaleza = str(data.get("naturaleza") or "").strip().lower()
+    if naturaleza not in ("ingreso", "egreso", "ambos"):
+        return jsonify({"error": "Naturaleza debe ser ingreso, egreso o ambos"}), 400
 
     # Verificar que no exista
     existente = CategoriaGasto.query.filter_by(nombre=nombre).first()
@@ -77,18 +100,38 @@ def categorias_crear():
 
     categoria = CategoriaGasto(
         nombre=nombre,
-        descripcion=data.get("descripcion", "")
+        descripcion=data.get("descripcion", ""),
+        naturaleza=naturaleza,
+        incluye_resultado=bool(data.get("incluye_resultado", False)),
     )
 
     db.session.add(categoria)
+    db.session.flush()
+    db.session.add(
+        CategoriaMovimientoAudit(
+            categoria_id=categoria.id,
+            usuario_id=session.get("user_id"),
+            accion="crear",
+            valores_anteriores={},
+            valores_nuevos={
+                "nombre": categoria.nombre,
+                "naturaleza": categoria.naturaleza,
+                "incluye_resultado": bool(categoria.incluye_resultado),
+                "activo": bool(categoria.activo),
+            },
+        )
+    )
     db.session.commit()
 
     return jsonify({
-        "message": "Categoría creada",
+        "message": "Concepto creado",
         "categoria": {
             "id": categoria.id,
             "nombre": categoria.nombre,
-            "descripcion": categoria.descripcion
+            "descripcion": categoria.descripcion,
+            "naturaleza": categoria.naturaleza,
+            "incluye_resultado": bool(categoria.incluye_resultado),
+            "efecto": categoria.efecto_resultado,
         }
     }), 201
 
@@ -192,6 +235,8 @@ def gastos_listar():
             "monto": float(m.monto),
             "tipo": m.tipo,
             "categoria_nombre": m.categoria_gasto.nombre if m.categoria_gasto else "-",
+            "categoria_naturaleza": m.categoria_gasto.naturaleza if m.categoria_gasto else None,
+            "categoria_efecto": m.categoria_gasto.efecto_resultado if m.categoria_gasto else None,
             "proveedor_nombre": m.proveedor.nombre if m.proveedor else "-",
             "instrumento": m.instrumento.nombre if m.instrumento else "-",
             "portador": m.portador.nombre if m.portador else None,
@@ -221,7 +266,14 @@ def gastos_registrar():
 
     categoria = CategoriaGasto.query.get(data["categoria_gasto_id"])
     if not categoria or not categoria.activo:
-        return jsonify({"error": "Categoría no encontrada o inactiva"}), 404
+        return jsonify({"error": "Concepto no encontrado o inactivo"}), 404
+    if categoria.naturaleza not in ("egreso", "ambos"):
+        return jsonify({
+            "error": (
+                f"El concepto “{categoria.nombre}” está configurado como Ingreso. "
+                "Elegí un concepto de Egreso o Ambos."
+            )
+        }), 422
 
     proveedor = Proveedor.query.get(data["proveedor_id"])
     if not proveedor or not proveedor.activo:

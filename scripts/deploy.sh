@@ -89,30 +89,17 @@ with app.app_context():
     print('✓ Conexión a PostgreSQL exitosa')
 " || { echo -e "${RED}Error: No se pudo conectar a PostgreSQL${NC}"; exit 1; }
 
-# 7. Migraciones (opcional)
-# Por política "Local First DB", en producción preferimos aplicar releases SQL versionadas.
-# Si querés correr Alembic en VPS, habilitalo explícitamente:
-#   RUN_MIGRATIONS=true bash scripts/deploy.sh
+# 7. Migraciones
+# Las migraciones productivas se ejecutan por separado con
+# scripts/migrate_db_safely.sh para garantizar backup, restore de ensayo y
+# revision inicial/final explicitas.
 echo -e "\n${YELLOW}[7/9] Migraciones (opcional)...${NC}"
 if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
-    echo "RUN_MIGRATIONS=true → ejecutando flask db upgrade"
-    if [ -d "migrations" ]; then
-        flask db upgrade
-    else
-        echo "Inicializando migraciones..."
-        flask db init
-        flask db migrate -m "Initial migration"
-        flask db upgrade
-    fi
-    current_revision="$(flask db current | awk '/\(head\)$/{print $1}' | tail -n1)"
-    head_revision="$(flask db heads | awk '/\(head\)$/{print $1}' | tail -n1)"
-    if [ -z "$current_revision" ] || [ "$current_revision" != "$head_revision" ]; then
-        echo -e "${RED}Error: Alembic no quedo en head (current=${current_revision:-none}, head=${head_revision:-none})${NC}"
-        exit 1
-    fi
-    echo -e "${GREEN}✓ Migraciones ejecutadas${NC}"
+    echo -e "${RED}Error: RUN_MIGRATIONS=true esta deshabilitado en deploy.sh.${NC}"
+    echo "Usar scripts/migrate_db_safely.sh con revisiones explicitas."
+    exit 1
 else
-    echo "RUN_MIGRATIONS=false → se omiten migraciones (usar release SQL versionada)."
+    echo "RUN_MIGRATIONS=false → no se modifica la base productiva."
 fi
 
 # 8. Ejecutar tests seguros (sin tocar DB productiva)

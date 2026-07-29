@@ -86,7 +86,7 @@
                         <th>Monto</th>
                         <th>Instrumento</th>
                         <th>Portador</th>
-                        <th>Categoría</th>
+                        <th>Concepto</th>
                         <th>Proveedor</th>
                         <th>Descripción</th>
                         <th>Estado</th>
@@ -117,18 +117,26 @@
                 <div class="app-modal__title-group">
                     <span class="app-modal__eyebrow">Caja</span>
                     <h5 class="modal-title" id="modalNuevoMovimientoTitle">Registrar nuevo movimiento</h5>
-                    <p class="app-modal__subtitle">Carga el movimiento con instrumento, destino y descripcion para mantener la caja conciliada.</p>
+                    <p class="app-modal__subtitle">Elegí el concepto para definir la naturaleza y el efecto del movimiento.</p>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <form id="formMovimiento">
                 <div class="modal-body">
                     <div class="mb-3">
+                        <label class="form-label">Concepto *</label>
+                        <select class="form-select" name="categoria_gasto_id" id="selectCategoriaGasto" required>
+                            <option value="">Seleccionar…</option>
+                        </select>
+                        <div class="form-text">La naturaleza y el efecto se administran en Configuración → Administración → Movimientos.</div>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Tipo *</label>
-                        <select class="form-select" name="tipo" required>
+                        <select class="form-select" name="tipo" id="selectTipoMovimiento" required disabled>
                             <option value="ingreso">Ingreso</option>
                             <option value="egreso">Egreso</option>
                         </select>
+                        <div class="form-text" id="tipoMovimientoHint">Seleccioná primero un concepto.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Monto *</label>
@@ -150,12 +158,6 @@
                                 <i class="bi bi-plus-lg"></i>
                             </button>
                         </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Categoría de Gasto (opcional)</label>
-                        <select class="form-select" name="categoria_gasto_id" id="selectCategoriaGasto">
-                            <option value="">Sin categoría</option>
-                        </select>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Proveedor (opcional)</label>
@@ -184,6 +186,7 @@ const isAdmin = ['admin', 'manager', 'gerente'].includes(userRole);
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 let movimientosChart = null;
 let _instrumentos = [];
+let _conceptos = [];
 
 function getUI() {
     return window.App360UI;
@@ -316,8 +319,13 @@ async function cargarCategoriasProveedores() {
         const provData = await provResp.json();
         const selectCat = document.getElementById('selectCategoriaGasto');
         const selectProv = document.getElementById('selectProveedor');
-        (catData.categorias || []).forEach(c => {
-            selectCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+        _conceptos = (catData.categorias || []).filter(c => c.naturaleza);
+        _conceptos.forEach(c => {
+            const efecto = c.efecto === 'suma' ? 'Suma' : c.efecto === 'resta' ? 'Resta' :
+                c.efecto === 'segun_movimiento' ? 'Según movimiento' : 'No participa';
+            const naturaleza = c.naturaleza === 'ambos' ? 'Ambos' :
+                c.naturaleza.charAt(0).toUpperCase() + c.naturaleza.slice(1);
+            selectCat.innerHTML += `<option value="${c.id}">${c.nombre} · ${naturaleza} · ${efecto}</option>`;
         });
         (provData.proveedores || []).forEach(p => {
             selectProv.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
@@ -327,6 +335,29 @@ async function cargarCategoriasProveedores() {
         notify('No se pudieron cargar categorias o proveedores.', 'danger', { title: 'No se pudo completar' });
     }
 }
+
+function sincronizarTipoConConcepto() {
+    const conceptoId = Number(document.getElementById('selectCategoriaGasto').value || 0);
+    const concepto = _conceptos.find(c => Number(c.id) === conceptoId);
+    const tipo = document.getElementById('selectTipoMovimiento');
+    const hint = document.getElementById('tipoMovimientoHint');
+    if (!concepto) {
+        tipo.disabled = true;
+        hint.textContent = 'Seleccioná primero un concepto.';
+        return;
+    }
+    if (concepto.naturaleza === 'ambos') {
+        tipo.disabled = false;
+        tipo.value = 'ingreso';
+        hint.textContent = 'Este concepto admite ingresos y egresos. Elegí el tipo de este registro.';
+    } else {
+        tipo.value = concepto.naturaleza;
+        tipo.disabled = true;
+        hint.textContent = `Tipo fijado por el concepto: ${concepto.naturaleza}.`;
+    }
+}
+
+document.getElementById('selectCategoriaGasto')?.addEventListener('change', sincronizarTipoConConcepto);
 
 function actualizarGraficoMovimientos(movimientos) {
     const agrupado = {};
@@ -410,7 +441,16 @@ async function cargarMovimientos() {
             tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">No hay movimientos</td></tr>';
         } else {
             tbody.innerHTML = movimientos.map(m => {
-                const destinoCategoria = m.categoria_gasto || '-';
+                const naturaleza = m.categoria_naturaleza
+                    ? m.categoria_naturaleza.charAt(0).toUpperCase() + m.categoria_naturaleza.slice(1)
+                    : 'Sin naturaleza';
+                const efecto = m.categoria_efecto === 'suma' ? 'Suma' :
+                    m.categoria_efecto === 'resta' ? 'Resta' :
+                    m.categoria_efecto === 'segun_movimiento' ? 'Según movimiento' :
+                    m.categoria_efecto === 'no_participa' ? 'No participa' : 'Pendiente';
+                const destinoCategoria = m.categoria_gasto
+                    ? `<div>${m.categoria_gasto}</div><small class="text-muted">${naturaleza} · ${efecto}</small>`
+                    : '<span class="text-muted">Sin concepto</span>';
                 const destinoProveedor = m.proveedor || '-';
                 const esAnulado = m.estado === 'anulado';
                 const esPendiente = m.estado === 'pendiente_anulacion';
@@ -549,6 +589,7 @@ document.getElementById('formMovimiento')?.addEventListener('submit', async func
         if (resp.ok) {
             hideModal('modalNuevoMovimiento');
             this.reset();
+            sincronizarTipoConConcepto();
             document.getElementById('portadorGroup').classList.add('d-none');
             cargarMovimientos();
             notify('Movimiento registrado correctamente.', 'success', { title: 'Caja actualizada' });

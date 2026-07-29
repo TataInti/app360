@@ -19,13 +19,13 @@ from models.sabiogo.staging import StgSabiogoVentas
 
 
 @pytest.fixture
-def app():
+def app(monkeypatch):
     # Config lee env al importar; forzamos atributos en runtime para tests
-    Config.SECRET_KEY = "test-secret"
-    Config.ADMIN_PASSWORD = "admin"
-    Config.SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
-    Config.WTF_CSRF_ENABLED = False
-    Config.RATELIMIT_ENABLED = False
+    monkeypatch.setattr(Config, "SECRET_KEY", "test-secret")
+    monkeypatch.setattr(Config, "ADMIN_PASSWORD", "admin")
+    monkeypatch.setattr(Config, "SQLALCHEMY_DATABASE_URI", "sqlite:///:memory:")
+    monkeypatch.setattr(Config, "WTF_CSRF_ENABLED", False)
+    monkeypatch.setattr(Config, "RATELIMIT_ENABLED", False)
 
     app = create_app()
     app.config["TESTING"] = True

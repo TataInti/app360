@@ -23,6 +23,7 @@ from models import (
     db,
 )
 from security import protect_blueprint
+from services.resultado_comercial_service import ResultadoComercialService
 from services.sabiogo_service import SabiogoService
 
 bi_bp = Blueprint("bi", __name__)
@@ -153,6 +154,98 @@ def bi_dashboard():
 
     if fecha_desde > fecha_hasta:
         return jsonify({"error": "fecha_desde no puede ser mayor a fecha_hasta"}), 400
+
+    # Contrato compartido con Ejecutivo. Los filtros asimétricos de vendedor y
+    # producto se conservan en la URL por compatibilidad, pero ya no alteran el
+    # cálculo porque no pueden aplicarse de forma equivalente a las compras.
+    resultado = ResultadoComercialService().calcular(
+        fecha_desde,
+        fecha_hasta,
+        empresa_filter,
+    )
+    kpis = resultado["kpis"]
+    actividad = resultado["series"]["actividad_mensual"]
+    pre_fac_resumen = SabiogoService().get_resumen_pre_fac(fecha_hasta)
+    warnings = list(resultado["meta"]["warnings"])
+    if vendedor_filter or producto_filter:
+        warnings.append(
+            {
+                "code": "filtro_asimetrico_ignorado",
+                "severity": "info",
+                "message": (
+                    "Vendedor y producto no se aplican al resultado porque las compras "
+                    "no tienen una atribución equivalente."
+                ),
+            }
+        )
+
+    payload = {
+        "periodo": resultado["periodo"],
+        "filtros": {
+            "empresa": empresa_filter,
+            "vendedor": None,
+            "producto": None,
+        },
+        "filtros_disponibles": {"vendedores": [], "productos": []},
+        "kpis": {
+            "facturacion": kpis["facturacion"],
+            "compras": kpis["compras"],
+            "diferencia_facturacion_compras": kpis["diferencia_facturacion_compras"],
+            "ingresos_incluidos": kpis["ingresos_incluidos"],
+            "egresos_incluidos": kpis["egresos_incluidos"],
+            "resultado_gestion": kpis["resultado_gestion"],
+            "resultado_sobre_facturacion_pct": kpis["resultado_sobre_facturacion_pct"],
+            "ingresos_caja": kpis["ingresos_caja"],
+            "egresos_caja": kpis["egresos_caja"],
+            "caja_neta": kpis["caja_neta"],
+            "movimientos_caja": kpis["movimientos_caja"],
+            # Compatibilidad con la pantalla/API anterior.
+            "ingresos_sabiogo": kpis["facturacion"],
+            "costos_sabiogo": kpis["compras"],
+            "margen_bruto_sabiogo": kpis["diferencia_facturacion_compras"],
+            "margen_porcentual_sabiogo": (
+                kpis["diferencia_facturacion_compras"] / kpis["facturacion"] * 100
+                if kpis["facturacion"]
+                else 0.0
+            ),
+            "productos_activos_sabiogo": 0,
+            "gastos_finanzas": kpis["egresos_incluidos"],
+            "pre_acumulado": float(pre_fac_resumen.get("pre_acumulado", 0)),
+            "fac_acumulado": float(pre_fac_resumen.get("fac_acumulado", 0)),
+            "pre_fac_saldo": float(pre_fac_resumen.get("saldo_pre_fac", 0)),
+        },
+        "series": {
+            "actividad_mensual": actividad,
+            "caja_mensual": resultado["series"]["caja_mensual"],
+            "margen_mensual": [
+                {
+                    "periodo": row["periodo"],
+                    "ingresos": row["facturacion"],
+                    "costos": row["compras"],
+                    "margen": row["diferencia"],
+                }
+                for row in actividad
+            ],
+        },
+        "detalles": {
+            "conceptos_resultado": resultado["conceptos"]["desglose"],
+            "top_productos_margen": [],
+            "gastos_por_categoria": [
+                {
+                    "categoria": row["concepto"],
+                    "tipo": row["tipo"],
+                    "monto_total": row["monto"],
+                }
+                for row in resultado["conceptos"]["desglose"]
+            ],
+        },
+        "meta": {
+            **resultado["meta"],
+            "warnings": warnings,
+        },
+        "warning": " ".join(item["message"] for item in warnings) if warnings else None,
+    }
+    return jsonify(payload)
 
     try:
         try:

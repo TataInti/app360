@@ -9,14 +9,14 @@ from models.rrhh import FichadaReloj, ResumenAsistenciaDiaria, Turno, TurnoDia
 
 
 @pytest.fixture
-def app():
-    Config.SECRET_KEY = "test-secret"
-    Config.ADMIN_PASSWORD = "admin"
-    Config.SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
-    Config.WTF_CSRF_ENABLED = False
-    Config.RATELIMIT_ENABLED = False
-    Config.FLASK_ENV = "development"
-    Config.DEBUG = False
+def app(monkeypatch):
+    monkeypatch.setattr(Config, "SECRET_KEY", "test-secret")
+    monkeypatch.setattr(Config, "ADMIN_PASSWORD", "admin")
+    monkeypatch.setattr(Config, "SQLALCHEMY_DATABASE_URI", "sqlite:///:memory:")
+    monkeypatch.setattr(Config, "WTF_CSRF_ENABLED", False)
+    monkeypatch.setattr(Config, "RATELIMIT_ENABLED", False)
+    monkeypatch.setattr(Config, "FLASK_ENV", "development")
+    monkeypatch.setattr(Config, "DEBUG", False)
 
     app = create_app()
     app.config["TESTING"] = True

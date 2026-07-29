@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from app import create_app
+from config import Config
 from models import db
 from models.core.product import Product
 from models.crm.client import Client
@@ -22,11 +23,13 @@ from services.sabiogo_service import SabiogoService
 
 
 @pytest.fixture
-def app():
+def app(monkeypatch):
     """Fixture de Flask app en modo testing."""
+    monkeypatch.setattr(Config, "SQLALCHEMY_DATABASE_URI", "sqlite:///:memory:")
+    monkeypatch.setattr(Config, "WTF_CSRF_ENABLED", False)
+    monkeypatch.setattr(Config, "RATELIMIT_ENABLED", False)
     app = create_app()
     app.config['TESTING'] = True
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
     
     with app.app_context():
         db.create_all()

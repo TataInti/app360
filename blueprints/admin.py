@@ -8,8 +8,8 @@ from sqlalchemy.exc import IntegrityError
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 
 from models import db
-from models.gastos import CategoriaGasto, Proveedor
-from models.tesoreria import InstrumentoPago, CuentaCorrienteFriar, PortadorInstrumento
+from models.gastos import CategoriaGasto, CategoriaMovimientoAudit, Proveedor
+from models.tesoreria import InstrumentoPago, CuentaCorrienteFriar, MovimientoCaja, PortadorInstrumento
 from models.rrhh import Turno
 from models.hr.employee import Employee
 from models.core import Location, Product, BusinessUnit
@@ -72,12 +72,12 @@ def _hr_modulo_allowed(modulo):
 # Mapeo de modelos por módulo
 # =============================================================================
 ADMIN_MODELS = {
-    "gastos": {
-        "categorias": {
+    "movimientos": {
+        "conceptos": {
             "model": CategoriaGasto,
-            "name": "Categorías de Gasto",
-            "fields": ["nombre", "descripcion", "activo"],
-            "required": ["nombre"],
+            "name": "Conceptos de Tesorería",
+            "fields": ["nombre", "descripcion", "naturaleza", "incluye_resultado", "activo"],
+            "required": ["nombre", "naturaleza"],
         },
         "proveedores": {
             "model": Proveedor,
@@ -177,6 +177,59 @@ EMPLOYEE_FIELD_LABELS = {
     "is_active": "Estado",
 }
 
+ADMIN_FIELD_LABELS = {
+    **EMPLOYEE_FIELD_LABELS,
+    "nombre": "Nombre",
+    "descripcion": "Descripción",
+    "naturaleza": "Naturaleza",
+    "incluye_resultado": "Incluir en el resultado comercial",
+    "activo": "Estado",
+}
+
+
+def _normalize_admin_target(modulo, entidad=None):
+    """Aliases de compatibilidad para el catálogo antes llamado Gastos."""
+    if modulo == "gastos":
+        modulo = "movimientos"
+    if modulo == "movimientos" and entidad == "categorias":
+        entidad = "conceptos"
+    return modulo, entidad
+
+
+def _concepto_stats():
+    stats = {}
+    for concepto in CategoriaGasto.query.all():
+        movimientos = MovimientoCaja.query.filter(
+            MovimientoCaja.categoria_gasto_id == concepto.id,
+            MovimientoCaja.estado != "anulado",
+        )
+        conflictos = 0
+        if concepto.naturaleza and concepto.naturaleza != "ambos":
+            conflictos = movimientos.filter(
+                MovimientoCaja.tipo != concepto.naturaleza
+            ).count()
+        stats[concepto.id] = {
+            "movimientos": movimientos.count(),
+            "conflictos": conflictos,
+            "efecto": concepto.efecto_resultado,
+        }
+    return stats
+
+
+def _audit_concepto(concepto, accion, anteriores, nuevos):
+    usuario_id = session.get("user_id")
+    if usuario_id and not db.session.get(User, usuario_id):
+        usuario_id = None
+    db.session.add(
+        CategoriaMovimientoAudit(
+            categoria_id=concepto.id,
+            usuario_id=usuario_id,
+            accion=accion,
+            valores_anteriores=anteriores,
+            valores_nuevos=nuevos,
+        )
+    )
+
 
 # =============================================================================
 # Rutas Web
@@ -210,6 +263,9 @@ def admin_dashboard():
 @admin_or_hr_required
 def admin_modulo(modulo):
     """Vista de administración para un módulo específico"""
+    if modulo == "gastos":
+        return redirect(url_for("admin.admin_modulo", modulo="movimientos"), code=301)
+    modulo, _ = _normalize_admin_target(modulo)
     err = _hr_modulo_allowed(modulo)
     if err:
         return err
@@ -223,7 +279,11 @@ def admin_modulo(modulo):
     for entidad, config in entidades.items():
         model = config["model"]
         try:
-            registros = model.query.all()
+            registros = (
+                model.query.order_by(model.nombre).all()
+                if hasattr(model, "nombre")
+                else model.query.all()
+            )
             data[entidad] = {
                 "registros": registros,
                 "name": config["name"],
@@ -241,7 +301,7 @@ def admin_modulo(modulo):
     
     locations = []
     employee_positions = []
-    field_labels = {}
+    field_labels = ADMIN_FIELD_LABELS
     employee_turnos = []
     if modulo == "rrhh":
         locations = [
@@ -264,6 +324,7 @@ def admin_modulo(modulo):
         employee_positions=employee_positions,
         field_labels=field_labels,
         employee_turnos=employee_turnos,
+        concepto_stats=_concepto_stats() if modulo == "movimientos" else {},
     )
 
 
@@ -283,7 +344,7 @@ def coerce_field_value(field, val):
             raise ValueError("ID Reloj debe ser un entero positivo.")
         return normalized
 
-    if field in ("is_active", "activo", "requiere_portador"):
+    if field in ("is_active", "activo", "requiere_portador", "incluye_resultado"):
         if isinstance(val, str):
             return val.strip().lower() in ["true", "1", "yes", "on"]
         return bool(val)
@@ -335,6 +396,7 @@ def _humanize_integrity_error(modulo, entidad, error):
 @admin_or_hr_required
 def api_listar(modulo, entidad):
     """Listar todos los registros de una entidad"""
+    modulo, entidad = _normalize_admin_target(modulo, entidad)
     err = _hr_modulo_allowed(modulo)
     if err:
         return err
@@ -345,8 +407,17 @@ def api_listar(modulo, entidad):
     model = config["model"]
     
     try:
-        items = model.query.all()
+        items = (
+            model.query.order_by(model.nombre).all()
+            if hasattr(model, "nombre")
+            else model.query.all()
+        )
         result = []
+        concepto_stats = (
+            _concepto_stats()
+            if modulo == "movimientos" and entidad == "conceptos"
+            else {}
+        )
         for item in items:
             row = {"id": item.id}
             for field in config["fields"]:
@@ -367,6 +438,15 @@ def api_listar(modulo, entidad):
                     except Exception:
                         val = str(val)
                 row[field] = val
+            if modulo == "movimientos" and entidad == "conceptos":
+                stat = concepto_stats.get(item.id, {})
+                row.update(
+                    {
+                        "efecto": stat.get("efecto", item.efecto_resultado),
+                        "movimientos_asociados": stat.get("movimientos", 0),
+                        "conflictos": stat.get("conflictos", 0),
+                    }
+                )
             result.append(row)
         return jsonify({"items": result, "total": len(result)})
     except Exception as e:
@@ -377,6 +457,7 @@ def api_listar(modulo, entidad):
 @admin_or_hr_required
 def api_crear(modulo, entidad):
     """Crear un nuevo registro"""
+    modulo, entidad = _normalize_admin_target(modulo, entidad)
     err = _hr_modulo_allowed(modulo)
     if err:
         return err
@@ -404,11 +485,27 @@ def api_crear(modulo, entidad):
                     val = time(int(parts[0]), int(parts[1]))
                 setattr(item, field, val)
 
+        if modulo == "movimientos" and entidad == "conceptos":
+            if item.naturaleza not in ("ingreso", "egreso", "ambos"):
+                raise ValueError("Seleccioná una naturaleza: Ingreso, Egreso o Ambos.")
         if modulo == "tesoreria" and entidad == "cuenta_friar":
             # No pedir proveedor_id: Friar es único y se asigna server-side
             item.proveedor_id = get_or_create_friar_proveedor_id()
         
         db.session.add(item)
+        db.session.flush()
+        if modulo == "movimientos" and entidad == "conceptos":
+            _audit_concepto(
+                item,
+                "crear",
+                {},
+                {
+                    "nombre": item.nombre,
+                    "naturaleza": item.naturaleza,
+                    "incluye_resultado": bool(item.incluye_resultado),
+                    "activo": bool(item.activo),
+                },
+            )
         db.session.commit()
         return jsonify({"success": True, "id": item.id}), 201
     except ValueError as e:
@@ -426,6 +523,7 @@ def api_crear(modulo, entidad):
 @admin_or_hr_required
 def api_actualizar(modulo, entidad, id):
     """Actualizar un registro existente"""
+    modulo, entidad = _normalize_admin_target(modulo, entidad)
     err = _hr_modulo_allowed(modulo)
     if err:
         return err
@@ -438,6 +536,14 @@ def api_actualizar(modulo, entidad, id):
     
     try:
         item = model.query.get_or_404(id)
+        anteriores = None
+        if modulo == "movimientos" and entidad == "conceptos":
+            anteriores = {
+                "nombre": item.nombre,
+                "naturaleza": item.naturaleza,
+                "incluye_resultado": bool(item.incluye_resultado),
+                "activo": bool(item.activo),
+            }
         for field in config["fields"]:
             if field in data:
                 val = coerce_field_value(field, data[field])
@@ -447,6 +553,18 @@ def api_actualizar(modulo, entidad, id):
                     parts = val.split(':')
                     val = time(int(parts[0]), int(parts[1]))
                 setattr(item, field, val)
+
+        if modulo == "movimientos" and entidad == "conceptos":
+            if item.naturaleza not in ("ingreso", "egreso", "ambos"):
+                raise ValueError("Seleccioná una naturaleza: Ingreso, Egreso o Ambos.")
+            nuevos = {
+                "nombre": item.nombre,
+                "naturaleza": item.naturaleza,
+                "incluye_resultado": bool(item.incluye_resultado),
+                "activo": bool(item.activo),
+            }
+            if anteriores != nuevos:
+                _audit_concepto(item, "actualizar", anteriores, nuevos)
         
         db.session.commit()
         return jsonify({"success": True})
@@ -465,6 +583,7 @@ def api_actualizar(modulo, entidad, id):
 @admin_or_hr_required
 def api_eliminar(modulo, entidad, id):
     """Eliminar un registro"""
+    modulo, entidad = _normalize_admin_target(modulo, entidad)
     err = _hr_modulo_allowed(modulo)
     if err:
         return err
@@ -476,6 +595,30 @@ def api_eliminar(modulo, entidad, id):
     
     try:
         item = model.query.get_or_404(id)
+        if modulo == "movimientos" and entidad == "conceptos":
+            referenciados = MovimientoCaja.query.filter_by(categoria_gasto_id=item.id).count()
+            if referenciados:
+                anteriores = {
+                    "nombre": item.nombre,
+                    "naturaleza": item.naturaleza,
+                    "incluye_resultado": bool(item.incluye_resultado),
+                    "activo": bool(item.activo),
+                }
+                item.activo = False
+                _audit_concepto(
+                    item,
+                    "desactivar",
+                    anteriores,
+                    {**anteriores, "activo": False},
+                )
+                db.session.commit()
+                return jsonify(
+                    {
+                        "success": True,
+                        "deactivated": True,
+                        "message": "El concepto tiene movimientos y fue desactivado.",
+                    }
+                )
         db.session.delete(item)
         db.session.commit()
         return jsonify({"success": True})
@@ -488,6 +631,7 @@ def api_eliminar(modulo, entidad, id):
 @admin_or_hr_required
 def api_toggle(modulo, entidad, id):
     """Activar/Desactivar un registro"""
+    modulo, entidad = _normalize_admin_target(modulo, entidad)
     err = _hr_modulo_allowed(modulo)
     if err:
         return err
@@ -501,8 +645,23 @@ def api_toggle(modulo, entidad, id):
         item = model.query.get_or_404(id)
         if not hasattr(item, 'activo'):
             return jsonify({"error": "Esta entidad no soporta activación/desactivación"}), 400
-        
+
+        anteriores = None
+        if modulo == "movimientos" and entidad == "conceptos":
+            anteriores = {
+                "nombre": item.nombre,
+                "naturaleza": item.naturaleza,
+                "incluye_resultado": bool(item.incluye_resultado),
+                "activo": bool(item.activo),
+            }
         item.activo = not item.activo
+        if anteriores is not None:
+            _audit_concepto(
+                item,
+                "activar" if item.activo else "desactivar",
+                anteriores,
+                {**anteriores, "activo": bool(item.activo)},
+            )
         db.session.commit()
         return jsonify({"success": True, "activo": item.activo})
     except Exception as e:

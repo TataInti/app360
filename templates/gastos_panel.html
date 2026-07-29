@@ -277,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function cargarRefs() {
     const [catR, provR, instR] = await Promise.all([
-        fetch('/api/gastos/categorias'), fetch('/api/gastos/proveedores'),
+        fetch('/api/gastos/categorias?naturaleza=egreso,ambos'), fetch('/api/gastos/proveedores'),
         fetch('/api/tesoreria/instrumentos')
     ]);
     const [catD, provD, instD] = await Promise.all([catR.json(), provR.json(), instR.json()]);

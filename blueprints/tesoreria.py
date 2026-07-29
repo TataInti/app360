@@ -119,6 +119,9 @@ def movimientos_listar():
             "descripcion": m.descripcion,
             "instrumento": m.instrumento.nombre,
             "categoria_gasto": m.categoria_gasto.nombre if m.categoria_gasto else None,
+            "categoria_naturaleza": m.categoria_gasto.naturaleza if m.categoria_gasto else None,
+            "categoria_incluye_resultado": bool(m.categoria_gasto.incluye_resultado) if m.categoria_gasto else False,
+            "categoria_efecto": m.categoria_gasto.efecto_resultado if m.categoria_gasto else None,
             "proveedor": m.proveedor.nombre if m.proveedor else None,
             "portador": m.portador.nombre if m.portador else None,
             "referencia": m.referencia,
@@ -270,16 +273,44 @@ def movimientos_crear():
     if not usuario_id:
         return jsonify({"error": "Usuario no encontrado"}), 401
 
-    if tipo not in ["ingreso", "egreso"]:
-        return jsonify({"error": "Tipo debe ser 'ingreso' o 'egreso'"}), 400
-
     if not monto or not descripcion or not instrumento_id:
         return jsonify({"error": "Monto, descripción e instrumento requeridos"}), 400
+    if not categoria_gasto_id:
+        return jsonify({
+            "error": "Seleccioná un concepto para interpretar correctamente el movimiento."
+        }), 400
 
     try:
         monto = Decimal(str(monto))
-    except:
+        if monto <= 0:
+            raise ValueError
+    except (TypeError, ValueError, ArithmeticError):
         return jsonify({"error": "Monto inválido"}), 400
+
+    categoria = db.session.get(CategoriaGasto, categoria_gasto_id)
+    if not categoria or not categoria.activo:
+        return jsonify({"error": "Concepto no encontrado o inactivo"}), 404
+    if categoria.naturaleza not in ("ingreso", "egreso", "ambos"):
+        return jsonify({
+            "error": (
+                f"El concepto “{categoria.nombre}” todavía no tiene naturaleza. "
+                "Configurala desde Administración → Movimientos."
+            )
+        }), 409
+    if categoria.naturaleza == "ambos":
+        if tipo not in ("ingreso", "egreso"):
+            return jsonify({
+                "error": "Indicá si este movimiento es un ingreso o un egreso."
+            }), 400
+    else:
+        if tipo and tipo != categoria.naturaleza:
+            return jsonify({
+                "error": (
+                    f"El concepto “{categoria.nombre}” está configurado como "
+                    f"{categoria.naturaleza.capitalize()}."
+                )
+            }), 422
+        tipo = categoria.naturaleza
 
     instrumento = InstrumentoPago.query.get(instrumento_id)
     if not instrumento:
@@ -321,7 +352,10 @@ def movimientos_crear():
             "tipo": movimiento.tipo,
             "monto": float(movimiento.monto),
             "descripcion": movimiento.descripcion,
-            "instrumento": movimiento.instrumento.nombre
+            "instrumento": movimiento.instrumento.nombre,
+            "concepto": categoria.nombre,
+            "naturaleza": categoria.naturaleza,
+            "efecto": categoria.efecto_resultado,
         }
     }), 201
 

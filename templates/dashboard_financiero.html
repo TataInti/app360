@@ -45,7 +45,7 @@
     <div class="kpi-grid">
       <div class="kpi-card accent-green"><span class="kpi-label">Ingresos</span><span class="kpi-value" id="kpi-ingresos">$0</span></div>
       <div class="kpi-card accent-red"><span class="kpi-label">Egresos</span><span class="kpi-value" id="kpi-egresos">$0</span></div>
-      <div class="kpi-card accent-blue"><span class="kpi-label">Neto</span><span class="kpi-value" id="kpi-neto">$0</span></div>
+      <div class="kpi-card accent-blue"><span class="kpi-label">Caja neta</span><span class="kpi-value" id="kpi-neto">$0</span><span class="kpi-sub">Ingresos − Egresos</span></div>
       <div class="kpi-card accent-sky"><span class="kpi-label">Movimientos</span><span class="kpi-value" id="kpi-movimientos">0</span><span class="kpi-sub" id="kpi-mov-detail"></span></div>
     </div>
 
@@ -91,7 +91,13 @@
   const CB = CC.map(c=>c+'40');
 
   const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  function fmtL(l,g){ if(!l)return'-'; const p=String(l).split('-'); if(g==='mes'&&p.length>=2){const m=parseInt(p[1],10); if(m>=1&&m<=12)return MESES[m-1]+' '+p[0];} return String(l).slice(0,10); }
+  function fmtL(l,g){
+    if(!l)return'-';
+    const p=String(l).split('-');
+    if(g==='mes'&&p.length>=2){const m=parseInt(p[1],10); if(m>=1&&m<=12)return MESES[m-1]+' '+p[0];}
+    if(g==='semana'&&p.length>=3)return 'Sem. '+p[2]+'/'+p[1];
+    return String(l).slice(0,10);
+  }
   function fmtFechaHora(s){ if(!s)return'-'; const [dt,tm]=String(s).split('T'); return (dt||'-')+' '+(tm||'').slice(0,5); }
 
   // Plugin datalabels para barras/líneas
