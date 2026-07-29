@@ -83,7 +83,7 @@
         <i class="bi bi-chevron-down" id="analisis-chevron" style="transition:transform .25s"></i>
       </div>
 
-      <div id="analisis-body" style="padding:1rem;display:none">
+      <div id="analisis-body" style="padding:1rem;display:block">
 
         <!-- Filtros independientes del análisis -->
         <div class="dim-bar" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.6rem;padding:0.4rem 0.6rem;margin-bottom:0.9rem;display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap">
@@ -98,6 +98,14 @@
           <select id="a-producto" class="form-select form-select-sm" style="width:auto;min-width:130px">
               <option value="">Producto</option>
           </select>
+          <span class="filter-sep"></span>
+          <div class="period-pills" data-section-periods="analisis">
+            <button class="pp" type="button" data-section-period="7">7d</button>
+            <button class="pp" type="button" data-section-period="15">15d</button>
+            <button class="pp active" type="button" data-section-period="30">30d</button>
+            <button class="pp" type="button" data-section-period="6m">6m</button>
+            <button class="pp" type="button" data-section-period="ytd">YTD</button>
+          </div>
           <span class="filter-sep"></span>
           <div style="display:flex;align-items:center;gap:0.25rem">
             <label style="font-size:0.68rem;color:#6b7280;margin:0">Desde</label>
@@ -144,7 +152,7 @@
         <i class="bi bi-chevron-down" id="mix-chevron" style="transition:transform .25s"></i>
       </div>
 
-      <div id="mix-body" style="padding:1rem;display:none">
+      <div id="mix-body" style="padding:1rem;display:block">
 
         <!-- Filtros independientes del mix -->
         <div class="period-bar dim-bar" style="background:#f8f4ff;border-color:#ddd6fe;margin-bottom:0.9rem">
@@ -162,6 +170,14 @@
           <select id="m-producto" class="form-select form-select-sm" style="width:auto;min-width:130px">
             <option value="">Producto</option>
           </select>
+          <span class="filter-sep"></span>
+          <div class="period-pills" data-section-periods="mix">
+            <button class="pp" type="button" data-section-period="7">7d</button>
+            <button class="pp" type="button" data-section-period="15">15d</button>
+            <button class="pp active" type="button" data-section-period="30">30d</button>
+            <button class="pp" type="button" data-section-period="6m">6m</button>
+            <button class="pp" type="button" data-section-period="ytd">YTD</button>
+          </div>
           <span class="filter-sep"></span>
           <div class="date-group">
             <button class="pp pp-month" id="m-este-mes">&#x1F4C5; Este mes</button>
@@ -200,11 +216,11 @@
     <div class="accordion mb-3" id="acc-crm">
       <div class="accordion-item" style="border-color:#e5e7eb">
         <h2 class="accordion-header">
-          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#crm-body" style="font-size:0.9rem;padding:0.6rem 1rem;background:#f9fafb;color:#374151">
+          <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#crm-body" aria-expanded="true" style="font-size:0.9rem;padding:0.6rem 1rem;background:#f9fafb;color:#374151">
             CRM · Leads &amp; Campañas
           </button>
         </h2>
-        <div id="crm-body" class="accordion-collapse collapse" data-bs-parent="#acc-crm">
+        <div id="crm-body" class="accordion-collapse collapse show" data-bs-parent="#acc-crm">
           <div class="accordion-body" style="padding:1rem">
             <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
               <div class="kpi-card"><span class="kpi-label">Total Leads</span><span class="kpi-value" id="kpi-leads-total">0</span></div>
@@ -233,7 +249,24 @@
   const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
   function fmtFecha(s){ if(!s)return'-'; return String(s).slice(0,10); }
-  function esEsteMes(){ const n=new Date(); return { desde:new Date(n.getFullYear(),n.getMonth(),1).toISOString().slice(0,10), hasta:n.toISOString().slice(0,10) }; }
+  function isoLocal(date){
+    const year=date.getFullYear(), month=String(date.getMonth()+1).padStart(2,'0'), day=String(date.getDate()).padStart(2,'0');
+    return `${year}-${month}-${day}`;
+  }
+  function argentinaTodayISO(){
+    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Tucuman',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const values=Object.fromEntries(parts.map(part=>[part.type,part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  }
+  function dateFromISO(value){ const [year,month,day]=String(value).split('-').map(Number); return new Date(year,month-1,day,12,0,0); }
+  function periodToDates(period){
+    const hasta=argentinaTodayISO(), desde=dateFromISO(hasta);
+    if(period==='ytd') desde.setMonth(0,1);
+    else if(period==='6m'){ desde.setMonth(desde.getMonth()-6); desde.setDate(desde.getDate()+1); }
+    else desde.setDate(desde.getDate()-Number(period)+1);
+    return {desde:isoLocal(desde),hasta};
+  }
+  function esEsteMes(){ const hasta=argentinaTodayISO(), desde=dateFromISO(hasta); desde.setDate(1); return {desde:isoLocal(desde),hasta}; }
 
   /* ── TomSelect: poblar select evitando recrear si no cambian los items ── */
   const _tsInstances = {};
@@ -378,6 +411,9 @@
       document.getElementById('content').style.display='';
       if(document.getElementById('analisis-body').style.display !== 'none'){
         loadAnalisis(_analisisTipo);
+      }
+      if(document.getElementById('mix-body').style.display !== 'none'){
+        loadMix();
       }
     }
   }
@@ -559,12 +595,23 @@
   }
 
   document.addEventListener('DOMContentLoaded', ()=>{
-    /* Inicializar fechas análisis y mix a "este mes" */
-    const _m = esEsteMes();
+    /* Inicializar fechas análisis y mix al período de 30 días */
+    const _m = periodToDates('30');
     document.getElementById('a-desde').value = _m.desde;
     document.getElementById('a-hasta').value = _m.hasta;
     document.getElementById('m-desde').value = _m.desde;
     document.getElementById('m-hasta').value = _m.hasta;
+
+    function setSectionPeriod(section, period){
+      document.querySelectorAll(`[data-section-periods="${section}"] [data-section-period]`).forEach(button=>button.classList.toggle('active',button.dataset.sectionPeriod===period));
+    }
+    function applySectionPeriod(section, period){
+      const range=periodToDates(period), prefix=section==='analisis'?'a':'m';
+      document.getElementById(`${prefix}-desde`).value=range.desde;
+      document.getElementById(`${prefix}-hasta`).value=range.hasta;
+      setSectionPeriod(section,period);
+      section==='analisis' ? loadAnalisis(_analisisTipo) : loadMix();
+    }
 
     /* Toggle sección análisis */
     const analisisBody    = document.getElementById('analisis-body');
@@ -600,11 +647,13 @@
     });
     document.getElementById('a-vendedor').addEventListener('change', ()=>loadAnalisis(_analisisTipo));
     document.getElementById('a-producto').addEventListener('change', ()=>loadAnalisis(_analisisTipo));
-    document.getElementById('a-aplicar').addEventListener('click',   ()=>loadAnalisis(_analisisTipo));
+    document.getElementById('a-aplicar').addEventListener('click',   ()=>{ setSectionPeriod('analisis',''); loadAnalisis(_analisisTipo); });
+    document.querySelectorAll('[data-section-periods="analisis"] [data-section-period]').forEach(button=>button.addEventListener('click',()=>applySectionPeriod('analisis',button.dataset.sectionPeriod)));
     document.getElementById('a-este-mes').addEventListener('click',  ()=>{
       const m=esEsteMes();
       document.getElementById('a-desde').value=m.desde;
       document.getElementById('a-hasta').value=m.hasta;
+      setSectionPeriod('analisis','');
       loadAnalisis(_analisisTipo);
     });
 
@@ -630,9 +679,11 @@
       const m=esEsteMes();
       document.getElementById('m-desde').value=m.desde;
       document.getElementById('m-hasta').value=m.hasta;
+      setSectionPeriod('mix','');
       loadMix();
     });
-    document.getElementById('m-aplicar').addEventListener('click', ()=>loadMix());
+    document.getElementById('m-aplicar').addEventListener('click', ()=>{ setSectionPeriod('mix',''); loadMix(); });
+    document.querySelectorAll('[data-section-periods="mix"] [data-section-period]').forEach(button=>button.addEventListener('click',()=>applySectionPeriod('mix',button.dataset.sectionPeriod)));
 
     /* Carga inicial: primero listas de filtros, luego datos */
     Promise.all([

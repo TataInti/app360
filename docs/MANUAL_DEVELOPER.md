@@ -1,6 +1,6 @@
 # Manual de Developer — App360
 
-Última actualización: 2026-04-02
+Última actualización: 2026-07-29
 Estado: Activo
 
 ---
@@ -19,6 +19,7 @@ Documentos relacionados:
 - `README.md`
 - `docs/PRIORIDAD_LOCAL_FIRST_DB.md`
 - `docs/DEPLOY_VPS.md`
+- `docs/SABIOGO_SYNC_API.md`
 
 ---
 
@@ -66,7 +67,7 @@ Documentos relacionados:
 
 - `blueprints/`: rutas web y APIs por módulo de negocio.
 - `models/`: entidades SQLAlchemy (core, crm, hr, purchases, sales, sabiogo, etc.).
-- `services/`: lógica de negocio y orquestación.
+- `services/`: lógica de negocio y orquestación. El cálculo compartido de resultado comercial vive en `services/resultado_comercial_service.py`.
 - `repositories/`: consultas y agregaciones de acceso a datos.
 - `dtos/`: objetos de transferencia para respuestas estructuradas.
 
@@ -74,8 +75,10 @@ Documentos relacionados:
 
 - `migrations/`: Alembic (`env.py` + `versions/`).
 - `alembic.ini`: configuración de migraciones.
-- `scripts/create_local_db_release.sh`: genera release SQL versionada.
-- `scripts/apply_db_release_to_vps.sh`: aplica release en VPS validando SHA256.
+- `scripts/migrate_db_safely.sh`: backup, restore de ensayo y Alembic forward-only.
+- `scripts/apply_db_migrations_to_vps.sh`: invocación remota con commit y revisiones explícitas.
+- `scripts/sabiogo_sync/rebaseline_2026.bat`: recarga controlada 2026 desde Windows/SabioGo.
+- `scripts/sabiogo_sync/validate_rebaseline_2026.sql`: auditoría SQL posterior a rebaseline productivo.
 
 ### 3.4 Operación / Infra
 
@@ -113,6 +116,9 @@ Roles con acceso total: `admin`, `manager`, `gerente`.
 Notas de permisos:
 - El rol `caja` incluye `gastos` para visualizar conceptos/categorías en tesorería.
 - El módulo de gastos usa `protect_blueprint(..., "gastos")` para respetar permisos de `gastos`.
+- Los conceptos de Tesorería se administran en `/admin/movimientos`; `/admin/gastos` redirige por compatibilidad.
+- Las APIs legacy `/api/admin/gastos/categorias` se normalizan internamente a `/api/admin/movimientos/conceptos`.
+- La creación de conceptos desde `/api/gastos/categorias` queda restringida a `admin`, `manager` y `gerente`.
 
 ### 4.3 Seguridad operativa
 
@@ -137,6 +143,7 @@ Variables relevantes adicionales:
 - `WTF_CSRF_ENABLED`
 - `RATELIMIT_ENABLED`, `RATELIMIT_DEFAULT`
 - `LOG_LEVEL`, `LOG_FILE`, `SECURITY_LOG_FILE`
+- `SABIOGO_SYNC_API_KEY`, `SABIOGO_CRON_TOKEN` si se opera la integración automática SabioGo
 
 No se versionan plantillas de entorno en el repositorio.
 
@@ -195,33 +202,26 @@ Fuente oficial: `docs/PRIORIDAD_LOCAL_FIRST_DB.md`
 
 Reglas operativas:
 1. Cambio DB primero en local.
-2. Todo cambio DB pasa por GitHub (migración + release SQL versionada).
+2. Todo cambio DB pasa por GitHub como migración Alembic forward-only.
 3. No aplicar cambios ad-hoc en VPS por fuera del flujo.
 
-### 7.1 Release de DB
+### 7.1 Migración segura
 
-Generar release local:
-
-```bash
-bash scripts/create_local_db_release.sh
-```
-
-Salida esperada:
-- `backups/db-releases/<release_tag>/db.sql`
-- `backups/db-releases/<release_tag>/db.sql.sha256`
-- `backups/db-releases/<release_tag>/release_meta.txt`
-
-Notas:
-- `backups/db-releases/` sigue dentro del repo porque es una release versionada y auditable en Git.
-- Los backups operativos/temporales deben vivir fuera del repo.
-
-Aplicar en VPS:
+Aplicar desde la máquina operadora:
 
 ```bash
-bash scripts/apply_db_release_to_vps.sh <release_tag>
+EXPECTED_GIT_SHA=<sha_completo> \
+PROD_SSH_HOST=<host> \
+MAINTENANCE_CONFIRMED=true \
+bash scripts/apply_db_migrations_to_vps.sh \
+  <revision_actual> <revision_objetivo> <sql_de_validacion>
 ```
 
-El script valida hash SHA256 antes de aplicar.
+El ejecutor exige escrituras pausadas, valida commit y revisiones, crea backup
+con SHA256, ensaya su restauración y aplica solamente Alembic forward-only. Los
+backups viven en `/var/backups/app360`, fuera del repositorio.
+
+Los scripts históricos de dump completo están bloqueados.
 
 ### 7.2 Sync de productiva a local (uso controlado)
 
@@ -238,6 +238,11 @@ Advertencia:
 ```bash
 bash scripts/fix_local_db_privileges.sh
 ```
+
+### 7.4 Migraciones recientes relevantes
+
+- `20260729_conceptos_movimientos_resultado.py`: descendiente directo de `20260713_sabiogo_sync_runs`; agrega naturaleza, participación y auditoría sin introducir geofencing.
+- `20260729_ensure_efectivo_iva.py`: conciliación idempotente de `EFECTIVO IVA`.
 
 ---
 
@@ -259,7 +264,7 @@ Fuente operativa: `docs/DEPLOY_VPS.md`
 cd /var/www/app360
 sudo -u www-data git pull
 sudo -u www-data bash scripts/deploy.sh
-bash scripts/apply_db_release_to_vps.sh <release_tag>   # si corresponde
+# aplicar scripts/apply_db_migrations_to_vps.sh desde la máquina operadora
 sudo systemctl restart app360
 curl -fsS http://127.0.0.1:5000/api/health
 ```
@@ -303,19 +308,18 @@ Backend:
 PYTHONPATH=$PWD pytest
 ```
 
-Frontend:
+No hay app React/Vite separada en este checkout. La validación UI se hace sobre las plantillas Flask/Jinja servidas por el backend.
+
+Tests focalizados para cambios recientes:
 
 ```bash
-cd frontend
-npm test
+PYTHONPATH=$PWD pytest tests/test_resultado_comercial.py
+PYTHONPATH=$PWD pytest tests/test_dashboards_v2.py tests/test_rrhh_fichadas.py tests/test_sabiogo_service.py
 ```
 
-E2E (si aplica):
-
-```bash
-cd frontend
-npx playwright test
-```
+Notas de aislamiento:
+- Los fixtures nuevos deben usar `monkeypatch.setattr(Config, ...)` en vez de mutar `Config` globalmente.
+- `tests/test_resultado_comercial.py` cubre la coincidencia Ejecutivo/BI, validación de conceptos y granularidad semanal del dashboard financiero.
 
 ---
 
@@ -323,25 +327,115 @@ npx playwright test
 
 ### 11.1 Flujo
 
-1. Ingesta XLS (manual o batch).
+1. Ingesta API automática desde Firebird Windows o carga manual/batch como contingencia.
 2. Carga a staging (`stg_sabiogo_ventas`, `stg_sabiogo_compras`).
 3. Mapeos producto/cliente/ubicación.
-4. Procesamiento a facts/consultas de rentabilidad.
+4. Finalización a facts/materialized views y objetivos PRE.
+5. Consumo por dashboards de resultado comercial.
 
 ### 11.2 Consideraciones actuales
 
 - Manejo de `origen` (`LEGACY`, `CARNES`, `LACTEOS`) para joins correctos.
 - Normalización de `codigo` / preservación de `codigo_raw` en importaciones.
+- La integración diaria usa `replace=true` por fecha y origen para mantener idempotencia.
+- `docs/SABIOGO_SYNC_API.md` contiene el contrato completo de endpoints, seguridad y operación Windows.
 - Scripts y servicios relevantes:
   - `services/sabiogo_service.py`
   - `services/sabiogo_batch_importer.py`
+  - `services/sabiogo_sync_monitor.py`
   - `scripts/import_sabiogo_batch.py`
+  - `scripts/sabiogo_sync/sync.py`
+
+### 11.3 Rebaseline SabioGo 2026
+
+Scripts nuevos:
+- `scripts/sabiogo_sync/rebaseline_2026.bat`: ejecuta enero a julio 2026 por rangos mensuales, fecha por fecha, con `replace=true`.
+- `scripts/sabiogo_sync/validate_rebaseline_2026.sql`: audita ejecuciones, staging, facts y logs posteriores.
+
+Reglas:
+- Pausar temporalmente la tarea diaria `App360 SabioGo Sync` antes de correr el rebaseline.
+- Ejecutar desde `C:\SabioGoSync` con `config.ini`, `run_sync.bat` y `venv` válidos.
+- No usar `--no-replace` en recargas productivas.
+- Si un mes falla, el script se detiene; es seguro reintentar ese mes con `replace=true`.
+- El rango actual documentado llega hasta `2026-07-28`, último día cerrado al momento de la recarga.
 
 ---
 
-## 12) Recuperación y continuidad operativa
+## 12) Resultado comercial y conceptos de Tesorería
 
-### 12.1 Recuperación de código
+### 12.1 Métrica compartida
+
+El cálculo oficial vive en `services/resultado_comercial_service.py` y alimenta:
+- `GET /api/panel-ejecutivo-v2`
+- `GET /api/bi/dashboard`
+
+Fórmula:
+
+```text
+resultado_gestion = facturación sin PRE - compras + ingresos incluidos - egresos incluidos
+```
+
+Esta métrica es un indicador de gestión, no utilidad contable. Las compras representan entradas de mercadería; no sustituyen costo de mercadería vendida ni inventario valorizado.
+
+### 12.2 Fuentes, filtros y advertencias
+
+Fuentes:
+- Facturación: `stg_sabiogo_ventas`, `estado='procesado'`, excluyendo comprobante `PRE`.
+- Compras: `stg_sabiogo_compras`, `estado='procesado'`.
+- Tesorería: `movimientos_caja` no anulados y conceptos incluidos en resultado.
+
+Filtros:
+- `fecha_desde` y `fecha_hasta` aplican a todas las fuentes.
+- `empresa` (`TODAS`, `CARNES`, `LACTEOS`) aplica a ventas/compras por `origen`.
+- Tesorería es global; no se distribuye por empresa. Si se filtra una empresa, la API devuelve advertencia `tesoreria_global`.
+- Los filtros asimétricos `vendedor` y `producto` en BI se conservan por compatibilidad de URL, pero no modifican el resultado porque compras no tiene atribución equivalente.
+
+Advertencias generadas:
+- Fuentes sin datos o con corte anterior al período consultado.
+- Conceptos activos sin `naturaleza`.
+- Movimientos cuyo `tipo` contradice la naturaleza del concepto.
+
+### 12.3 Conceptos de Tesorería
+
+La tabla histórica `categoria_gasto` se conserva por compatibilidad, pero en la interfaz/API nueva representa conceptos estructurales de Tesorería.
+
+Campos clave:
+- `naturaleza`: `ingreso`, `egreso`, `ambos` o `NULL` si está pendiente de clasificar.
+- `incluye_resultado`: indica si el concepto participa del resultado comercial.
+- `efecto_resultado`: propiedad derivada (`suma`, `resta`, `segun_movimiento`, `pendiente`, `no_participa`).
+
+Administración:
+- UI: `/admin/movimientos`
+- API canónica: `/api/admin/movimientos/conceptos`
+- Alias legacy: `/admin/gastos` redirige y `/api/admin/gastos/categorias` normaliza a conceptos.
+- Los cambios de concepto se auditan en `categoria_movimiento_audit` porque pueden recalcular períodos históricos.
+- Si un concepto tiene movimientos asociados, eliminarlo desde administración lo desactiva en vez de borrarlo físicamente.
+
+### 12.4 Validación al cargar movimientos
+
+`POST /api/tesoreria/movimientos` ahora requiere `categoria_gasto_id`.
+
+Reglas:
+- Concepto inactivo o inexistente: `404`.
+- Concepto sin `naturaleza`: `409`, debe corregirse en Administración → Movimientos.
+- Concepto `ingreso` o `egreso`: el backend deriva/fija `tipo`.
+- Si el request contradice la naturaleza del concepto: `422`.
+- Concepto `ambos`: el request debe indicar `tipo` (`ingreso` o `egreso`).
+- `monto` debe ser numérico positivo.
+
+El módulo de gastos usa solo egresos categorizados y no anulados. El selector de gastos pide conceptos con `naturaleza=egreso,ambos`.
+
+### 12.5 Dashboards relacionados
+
+- Ejecutivo (`/panel-ejecutivo` → `/api/panel-ejecutivo-v2`): resultado de gestión, caja neta, concentración de clientes y cuenta corriente Friar.
+- BI (`/bi` → `/api/bi/dashboard`): mismo contrato de resultado que Ejecutivo, con desglose de conceptos y frescura de datos.
+- Financiero (`/api/dashboard-financiero`): adapta la granularidad de flujo a `dia`, `semana` o `mes` según período/rango.
+
+---
+
+## 13) Recuperación y continuidad operativa
+
+### 13.1 Recuperación de código
 
 Fuente de recuperación: `GitHub/main`.
 
@@ -351,13 +445,14 @@ cd app360
 git checkout main
 ```
 
-### 12.2 Recuperación de esquema/datos
+### 13.2 Recuperación de esquema/datos
 
-- Preferir releases versionadas (`backups/db-releases/<tag>`).
-- Validar checksum antes de aplicar.
+- Usar backups operativos de `/var/backups/app360`.
+- Validar SHA256 y catálogo antes de restaurar.
+- Restaurar primero en una base aislada.
 - Ejecutar smoke test de salud posterior.
 
-### 12.3 Checklist post-recuperación
+### 13.3 Checklist post-recuperación
 
 - [ ] `git rev-parse HEAD` coincide con versión objetivo
 - [ ] `DATABASE_URL` correcto en `.env`
@@ -367,7 +462,7 @@ git checkout main
 
 ---
 
-## 13) Convenciones de mantenimiento
+## 14) Convenciones de mantenimiento
 
 - Mantener cambios pequeños y trazables.
 - Evitar mezcla de refactors masivos con fixes urgentes.
@@ -376,9 +471,9 @@ git checkout main
 
 ---
 
-## 14) Runbooks rápidos
+## 15) Runbooks rápidos
 
-### 14.1 Ver estado Git local limpio
+### 15.1 Ver estado Git local limpio
 
 ```bash
 git fetch --all --prune
@@ -386,13 +481,13 @@ git status --short
 git rev-list --left-right --count origin/main...main
 ```
 
-### 14.2 Ver estado Git en VPS
+### 15.2 Ver estado Git en VPS
 
 ```bash
 ssh <user>@<host> "cd /var/www/app360 && git status --short && git rev-parse HEAD && git branch --show-current"
 ```
 
-### 14.3 Validación de servicio en VPS
+### 15.3 Validación de servicio en VPS
 
 ```bash
 ssh <user>@<host> "sudo systemctl status app360 --no-pager && curl -fsS http://127.0.0.1:5000/api/health"
@@ -400,24 +495,25 @@ ssh <user>@<host> "sudo systemctl status app360 --no-pager && curl -fsS http://1
 
 ---
 
-## 15) Historial de actualizaciones del manual
+## 16) Historial de actualizaciones del manual
 
+- 2026-07-29: documentación de conceptos de Tesorería, resultado comercial compartido, migraciones geofence/sync/conceptos, rebaseline SabioGo 2026 y tests focalizados.
 - 2026-03-04: creación inicial del manual exhaustivo.
 
 ---
 
-## 16) Módulo de Control de Asistencia (Fichadas)
+## 17) Módulo de Control de Asistencia (Fichadas)
 
-### 16.1 Descripción
+### 17.1 Descripción
 
 Sistema de control de asistencia basado en fichadas de reloj biométrico. Permite importar registros desde Excel, asociarlos con empleados, procesar contra turnos asignados y generar un resumen diario con KPIs.
 
-### 16.2 Modelos
+### 17.2 Modelos
 
 - **`FichadaReloj`** (`fichadas_reloj`): registro crudo importado del reloj. Campos clave: `clock_id_original` (ID del reloj, String), `empleado_id` (nullable FK a Employee), `nombre_reloj`, `fecha`, `hora`, `fecha_hora`. UniqueConstraint en `(clock_id_original, fecha_hora)`.
 - **`ResumenAsistenciaDiaria`** (`resumen_asistencia_diaria`): resultado del procesamiento. Un registro por empleado/fecha con conteo de fichadas, horas de entrada/salida, minutos tarde, flags (es_falta, es_tarde, fichada_faltante, justificado).
 
-### 16.3 Flujo de datos
+### 17.3 Flujo de datos
 
 ```
 Excel (Transacciones_*.xlsx, skiprows=7)
@@ -448,7 +544,7 @@ GET /api/rrhh/fichadas/resumen
   → Alimenta el tablero (rrhh_ausentismo.html)
 ```
 
-### 16.4 Endpoints
+### 17.4 Endpoints
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
@@ -459,14 +555,14 @@ GET /api/rrhh/fichadas/resumen
 | GET | `/api/rrhh/fichadas/resumen-empleado` | Detalle mensual de un empleado |
 | PUT | `/api/rrhh/fichadas/resumen/<id>/justificar` | Justifica una falta/tardanza |
 
-### 16.5 Configuración de empleados
+### 17.5 Configuración de empleados
 
 - Cada Employee necesita `clock_id` (entero, configurado en `/admin/rrhh`) que corresponde al ID del reloj biométrico.
 - Cada Employee necesita `turno_id` asignado para que el procesamiento funcione.
 - Sin turno asignado, las fichadas se importan y asocian pero no se procesan.
 - El Admin normaliza `clock_id` al guardar y rechaza duplicados con error legible.
 
-### 16.5.1 Diagnóstico de asociación
+### 17.5.1 Diagnóstico de asociación
 
 - `diagnostico.empleados_con_clock_id`: cantidad de empleados con ID Reloj configurado.
 - `diagnostico.matchables`: clock IDs pendientes que sí encuentran empleado.
@@ -475,19 +571,19 @@ GET /api/rrhh/fichadas/resumen
 - `diagnostico.ambiguos`: casos con empleados duplicados tras normalizar clock IDs; no se auto-asocian.
 - `procesamiento.sin_turno`: cantidad de empleados asociados que no pudieron procesarse por falta de turno.
 
-### 16.6 Formato Excel esperado
+### 17.6 Formato Excel esperado
 
 - Archivo: `Transacciones_*.xlsx`
 - Se saltan las primeras 7 filas (`skiprows=7`)
 - Columnas requeridas: `ID` (clock_id), `fecha`, `Hora de registro de entrada` (formato HH:MM o HH:MM:SS)
 - Columnas opcionales: `Nombre`, `Apellido` (se guardan como `nombre_reloj`)
 
-### 16.7 Migraciones
+### 17.7 Migraciones
 
 - `20260401_fichadas_reloj.py`: creación de tablas `fichadas_reloj` y `resumen_asistencia_diaria`
 - `20260401_fichadas_nullable.py`: empleado_id nullable, +nombre_reloj, UniqueConstraint actualizado
 
-### 16.8 Template
+### 17.8 Template
 
 - `templates/rrhh_ausentismo.html`: panel completo con KPIs, charts (Chart.js), tabla de detalle, modal de importación, banner de fichadas sin asociar
 - El banner `fichadas_sin_procesar` se calcula sobre el período visible del tablero, no sobre todo el historial.

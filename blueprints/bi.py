@@ -25,6 +25,7 @@ from models import (
 from security import protect_blueprint
 from services.resultado_comercial_service import ResultadoComercialService
 from services.sabiogo_service import SabiogoService
+from models.time_utils import today_local_date
 
 bi_bp = Blueprint("bi", __name__)
 
@@ -125,21 +126,8 @@ def bi_dashboard():
     empresa_filter = (request.args.get("empresa") or "TODAS").upper().strip()
 
     if not fecha_desde_raw or not fecha_hasta_raw:
-        ultima_fecha_sabiogo = db.session.execute(
-            text(
-                """
-                SELECT MAX(fecha_max) AS ultima_fecha
-                FROM (
-                    SELECT MAX(fecha)::date AS fecha_max FROM stg_sabiogo_ventas
-                    UNION ALL
-                    SELECT MAX(fecha)::date AS fecha_max FROM stg_sabiogo_compras
-                ) f
-                """
-            )
-        ).scalar()
-
-        fecha_hasta_base = ultima_fecha_sabiogo or date.today()
-        fecha_desde_base = fecha_hasta_base - timedelta(days=30)
+        fecha_hasta_base = today_local_date()
+        fecha_desde_base = fecha_hasta_base - timedelta(days=29)
 
         if not fecha_desde_raw:
             fecha_desde_raw = fecha_desde_base.isoformat()
@@ -154,6 +142,8 @@ def bi_dashboard():
 
     if fecha_desde > fecha_hasta:
         return jsonify({"error": "fecha_desde no puede ser mayor a fecha_hasta"}), 400
+    if fecha_hasta > today_local_date():
+        return jsonify({"error": "fecha_hasta no puede ser una fecha futura"}), 400
 
     # Contrato compartido con Ejecutivo. Los filtros asimétricos de vendedor y
     # producto se conservan en la URL por compatibilidad, pero ya no alteran el
@@ -167,17 +157,14 @@ def bi_dashboard():
     actividad = resultado["series"]["actividad_mensual"]
     pre_fac_resumen = SabiogoService().get_resumen_pre_fac(fecha_hasta)
     warnings = list(resultado["meta"]["warnings"])
-    if vendedor_filter or producto_filter:
-        warnings.append(
-            {
-                "code": "filtro_asimetrico_ignorado",
-                "severity": "info",
-                "message": (
-                    "Vendedor y producto no se aplican al resultado porque las compras "
-                    "no tienen una atribución equivalente."
-                ),
-            }
+    ignored_filters = [
+        name
+        for name, value in (
+            ("vendedor", vendedor_filter),
+            ("producto", producto_filter),
         )
+        if value
+    ]
 
     payload = {
         "periodo": resultado["periodo"],
@@ -227,8 +214,10 @@ def bi_dashboard():
                 for row in actividad
             ],
         },
+        "analisis_financiero": resultado["analisis_financiero"],
         "detalles": {
             "conceptos_resultado": resultado["conceptos"]["desglose"],
+            "conceptos_participantes": resultado["conceptos"]["participantes"],
             "top_productos_margen": [],
             "gastos_por_categoria": [
                 {
@@ -239,9 +228,11 @@ def bi_dashboard():
                 for row in resultado["conceptos"]["desglose"]
             ],
         },
+        "conceptos": resultado["conceptos"],
         "meta": {
             **resultado["meta"],
             "warnings": warnings,
+            "ignored_filters": ignored_filters,
         },
         "warning": " ".join(item["message"] for item in warnings) if warnings else None,
     }

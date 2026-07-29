@@ -8,6 +8,7 @@ from sqlalchemy import func
 
 import models as m
 from models import db
+from models.time_utils import today_local_date
 
 api = Blueprint("api", __name__, url_prefix="/api")
 
@@ -19,7 +20,7 @@ def get_model(name):
 
 def _parse_periodo(periodo_raw: str | None) -> tuple[str, date, date]:
     """Parsea periodo soportado: '7', '15', '30', '6m', 'ytd'. Devuelve (key, desde, hasta)."""
-    today = date.today()
+    today = today_local_date()
     if not periodo_raw:
         periodo_raw = "30"
 
@@ -58,7 +59,7 @@ def _parse_periodo_o_fechas(periodo_raw: str | None, fecha_desde_raw: str | None
             desde, hasta = hasta, desde
         return ("custom", desde, hasta)
 
-    today = date.today()
+    today = today_local_date()
     if desde and not hasta:
         return ("custom", desde, today)
     if hasta and not desde:
@@ -913,10 +914,26 @@ def api_dashboard_comercial_v2():
 # -----------------------------------------------------------------------------
 @api.get("/panel-ejecutivo-v2")
 def api_panel_ejecutivo_v2():
+    fecha_desde_raw = request.args.get("fecha_desde")
+    fecha_hasta_raw = request.args.get("fecha_hasta")
+    fecha_desde = _parse_iso_date(fecha_desde_raw)
+    fecha_hasta = _parse_iso_date(fecha_hasta_raw)
+    if fecha_desde_raw and not fecha_desde:
+        return jsonify({"error": "fecha_desde tiene un formato inválido"}), 400
+    if fecha_hasta_raw and not fecha_hasta:
+        return jsonify({"error": "fecha_hasta tiene un formato inválido"}), 400
+    if fecha_desde and fecha_hasta and fecha_desde > fecha_hasta:
+        return jsonify({"error": "fecha_desde no puede ser mayor a fecha_hasta"}), 400
+    today = today_local_date()
+    if fecha_desde and fecha_desde > today:
+        return jsonify({"error": "fecha_desde no puede ser una fecha futura"}), 400
+    if fecha_hasta and fecha_hasta > today:
+        return jsonify({"error": "fecha_hasta no puede ser una fecha futura"}), 400
+
     periodo_key, desde, hasta = _parse_periodo_o_fechas(
         request.args.get("period") or "30",
-        request.args.get("fecha_desde"),
-        request.args.get("fecha_hasta"),
+        fecha_desde_raw,
+        fecha_hasta_raw,
     )
     from services.resultado_comercial_service import ResultadoComercialService
 
@@ -958,6 +975,7 @@ def api_panel_ejecutivo_v2():
         "concentracion_clientes": resumen["clientes"],
         "instrumentos": {"labels": [], "values": []},
         "conceptos": resumen["conceptos"],
+        "analisis_financiero": resumen["analisis_financiero"],
         "series": resumen["series"],
         "meta": resumen["meta"],
         "alertas": resumen["meta"]["warnings"],

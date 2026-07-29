@@ -1,6 +1,8 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
+import io
 
+import pandas as pd
 import pytest
 
 from app import create_app
@@ -10,6 +12,7 @@ from models.core.user import User
 from models.gastos import CategoriaGasto, CategoriaMovimientoAudit, Proveedor
 from models.sabiogo.staging import StgSabiogoCompras, StgSabiogoVentas
 from models.tesoreria import InstrumentoPago, MovimientoCaja
+from models.time_utils import today_local_date
 from services.resultado_comercial_service import ResultadoComercialService
 
 
@@ -182,13 +185,53 @@ def test_resultado_excluye_pre_y_aplica_conceptos_compatibles(app, scenario):
         assert kpis["egresos_incluidos"] == 100
         assert kpis["resultado_gestion"] == 760
         assert kpis["caja_neta"] == 45
+        financial = result["analisis_financiero"]
+        assert financial["flujo_caja"]["ingresos"] == 200
+        assert financial["flujo_caja"]["egresos"] == 155
+        assert financial["flujo_caja"]["neto"] == 45
+        assert financial["relacion_resultado_caja"]["brecha_caja_menos_resultado"] == -715
+        assert financial["tendencia"]["meses"] == 1
+        assert financial["tendencia"]["flujo_mensual"][0]["neto"] == 45
+        assert financial["insights"]
         assert result["conceptos"]["conflictos"] == 1
         assert result["conceptos"]["pendientes"] == 1
+        assert result["meta"]["warnings"] == []
+        assert result["meta"]["data_quality"] == {
+            "movimientos_incompatibles": 1,
+            "conceptos_pendientes": 1,
+        }
         both_rows = [
             row for row in result["conceptos"]["desglose"]
             if row["concepto"] == "FINANCIERA"
         ]
         assert {row["tipo"] for row in both_rows} == {"ingreso", "egreso"}
+        participants = {
+            row["concepto"]: row
+            for row in result["conceptos"]["participantes"]
+        }
+        assert participants["EFECTIVO IVA"]["suma"] == {"cantidad": 1, "monto": 100.0}
+        assert participants["SUELDOS"]["resta"] == {"cantidad": 1, "monto": 80.0}
+        assert participants["FINANCIERA"]["suma"] == {"cantidad": 1, "monto": 50.0}
+        assert participants["FINANCIERA"]["resta"] == {"cantidad": 1, "monto": 20.0}
+        assert participants["HISTORICO"]["activo"] is False
+
+
+def test_participantes_permanecen_visibles_sin_movimientos(app, scenario):
+    with app.app_context():
+        result = ResultadoComercialService().calcular(
+            date(2026, 6, 1),
+            date(2026, 6, 30),
+            "TODAS",
+        )
+        participants = {
+            row["concepto"]: row
+            for row in result["conceptos"]["participantes"]
+        }
+        assert participants["SUELDOS"]["resta"] == {"cantidad": 0, "monto": 0.0}
+        assert participants["EFECTIVO IVA"]["suma"] == {"cantidad": 0, "monto": 0.0}
+        assert participants["FINANCIERA"]["suma"] == {"cantidad": 0, "monto": 0.0}
+        assert participants["FINANCIERA"]["resta"] == {"cantidad": 0, "monto": 0.0}
+        assert result["analisis_financiero"]["insights"][0]["code"] == "sin_movimientos_caja"
 
 
 def test_resultado_normaliza_fechas_datetime(app, scenario):
@@ -203,12 +246,57 @@ def test_resultado_normaliza_fechas_datetime(app, scenario):
 
 
 def test_ejecutivo_y_bi_coinciden(client, scenario):
-    params = "fecha_desde=2026-07-01&fecha_hasta=2026-07-31&empresa=CARNES"
+    params = "fecha_desde=2026-07-01&fecha_hasta=2026-07-29&empresa=CARNES"
     executive = client.get(f"/api/panel-ejecutivo-v2?{params}").get_json()
     commercial = client.get(f"/api/bi/dashboard?{params}").get_json()
     assert executive["kpis"]["resultado_gestion"] == commercial["kpis"]["resultado_gestion"] == 760
     assert executive["kpis"]["facturacion"] == commercial["kpis"]["facturacion"] == 1000
     assert executive["kpis"]["caja_neta"] == commercial["kpis"]["caja_neta"] == 45
+    assert executive["conceptos"]["participantes"] == commercial["conceptos"]["participantes"]
+    assert executive["analisis_financiero"] == commercial["analisis_financiero"]
+    assert executive["alertas"] == commercial["meta"]["warnings"] == []
+
+
+def test_dashboards_rechazan_fechas_futuras(client, scenario):
+    future = (today_local_date() + timedelta(days=1)).isoformat()
+    today = today_local_date().isoformat()
+    executive = client.get(
+        f"/api/panel-ejecutivo-v2?fecha_desde={today}&fecha_hasta={future}"
+    )
+    commercial = client.get(
+        f"/api/bi/dashboard?fecha_desde={today}&fecha_hasta={future}"
+    )
+    assert executive.status_code == 400
+    assert commercial.status_code == 400
+    assert "futura" in executive.get_json()["error"]
+    assert "futura" in commercial.get_json()["error"]
+
+
+def test_movimientos_filtran_y_exportan_por_concepto(client, scenario):
+    login(client, scenario["user_id"])
+    salary_id = scenario["concept_ids"]["salary"]
+    response = client.get(
+        "/api/tesoreria/movimientos"
+        f"?fecha_desde=2026-07-01&fecha_hasta=2026-07-29&categoria_gasto_id={salary_id}"
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["total"] == 1
+    assert payload["movimientos"][0]["categoria_gasto_id"] == salary_id
+    assert payload["movimientos"][0]["categoria_gasto"] == "SUELDOS"
+
+    invalid = client.get("/api/tesoreria/movimientos?categoria_gasto_id=abc")
+    missing = client.get("/api/tesoreria/movimientos?categoria_gasto_id=999999")
+    assert invalid.status_code == 400
+    assert missing.status_code == 400
+
+    exported = client.get(
+        "/api/tesoreria/movimientos/exportar"
+        f"?fecha_desde=2026-07-01&fecha_hasta=2026-07-29&categoria_gasto_id={salary_id}"
+    )
+    assert exported.status_code == 200
+    sheet = pd.read_excel(io.BytesIO(exported.data))
+    assert sheet["Concepto"].tolist() == ["SUELDOS"]
 
 
 def test_tesoreria_adapta_granularidad(client, scenario):

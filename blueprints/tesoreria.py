@@ -20,6 +20,19 @@ tesoreria_bp = Blueprint("tesoreria", __name__)
 protect_blueprint(tesoreria_bp, "tesoreria")
 
 
+def _categoria_filter_id():
+    raw = request.args.get("categoria_gasto_id")
+    if raw in (None, ""):
+        return None
+    try:
+        categoria_id = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("categoria_gasto_id debe ser un entero positivo") from exc
+    if categoria_id <= 0 or db.session.get(CategoriaGasto, categoria_id) is None:
+        raise ValueError("categoria_gasto_id no corresponde a un concepto válido")
+    return categoria_id
+
+
 # RUTAS WEB
 @tesoreria_bp.route("/tesoreria", methods=["GET"])
 def tesoreria_dashboard():
@@ -94,6 +107,10 @@ def movimientos_listar():
     arqueo_id = request.args.get("arqueo_id")
     page = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 50))
+    try:
+        categoria_gasto_id = _categoria_filter_id()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     query = MovimientoCaja.query.filter(MovimientoCaja.estado != "anulado")
 
@@ -105,6 +122,8 @@ def movimientos_listar():
         query = query.filter(MovimientoCaja.tipo == tipo)
     if instrumento_id:
         query = query.filter(MovimientoCaja.instrumento_id == instrumento_id)
+    if categoria_gasto_id:
+        query = query.filter(MovimientoCaja.categoria_gasto_id == categoria_gasto_id)
     if arqueo_id:
         query = query.filter(MovimientoCaja.arqueo_id == arqueo_id)
 
@@ -118,6 +137,7 @@ def movimientos_listar():
             "monto": float(m.monto),
             "descripcion": m.descripcion,
             "instrumento": m.instrumento.nombre,
+            "categoria_gasto_id": m.categoria_gasto_id,
             "categoria_gasto": m.categoria_gasto.nombre if m.categoria_gasto else None,
             "categoria_naturaleza": m.categoria_gasto.naturaleza if m.categoria_gasto else None,
             "categoria_incluye_resultado": bool(m.categoria_gasto.incluye_resultado) if m.categoria_gasto else False,
@@ -198,6 +218,10 @@ def movimientos_exportar():
     tipo = request.args.get("tipo")
     instrumento_id = request.args.get("instrumento_id")
     arqueo_id = request.args.get("arqueo_id")
+    try:
+        categoria_gasto_id = _categoria_filter_id()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     query = MovimientoCaja.query.filter(MovimientoCaja.estado != "anulado")
 
@@ -213,6 +237,8 @@ def movimientos_exportar():
         query = query.filter(MovimientoCaja.tipo == tipo)
     if instrumento_id:
         query = query.filter(MovimientoCaja.instrumento_id == instrumento_id)
+    if categoria_gasto_id:
+        query = query.filter(MovimientoCaja.categoria_gasto_id == categoria_gasto_id)
     if arqueo_id:
         query = query.filter(MovimientoCaja.arqueo_id == arqueo_id)
 
@@ -225,7 +251,7 @@ def movimientos_exportar():
             "Tipo": m.tipo,
             "Monto": float(m.monto),
             "Instrumento": m.instrumento.nombre if m.instrumento else "",
-            "Categoría Gasto": m.categoria_gasto.nombre if m.categoria_gasto else "",
+            "Concepto": m.categoria_gasto.nombre if m.categoria_gasto else "",
             "Proveedor": m.proveedor.nombre if m.proveedor else "",
             "Descripcion": m.descripcion,
             "Referencia": m.referencia or "",

@@ -10,12 +10,14 @@
   </div>
 
   <div class="period-bar dim-bar" aria-label="Filtros de resultado comercial">
-    <label for="sel-empresa">Empresa</label>
-    <select id="sel-empresa" class="form-select form-select-sm">
-      <option value="TODAS">Todas</option>
-      <option value="CARNES">Carnes</option>
-      <option value="LACTEOS">Lácteos</option>
-    </select>
+    <div class="filter-company">
+      <label for="sel-empresa">Empresa</label>
+      <select id="sel-empresa" class="form-select form-select-sm">
+        <option value="TODAS">Todas</option>
+        <option value="CARNES">Carnes</option>
+        <option value="LACTEOS">Lácteos</option>
+      </select>
+    </div>
     <span class="filter-sep" aria-hidden="true"></span>
     <div class="period-pills">
       <button class="pp" data-period="7" type="button">7d</button>
@@ -41,6 +43,7 @@
         <i class="bi bi-check2" aria-hidden="true"></i> Aplicar
       </button>
     </div>
+    <div class="period-context" id="empresa-context"></div>
   </div>
 
   <div id="warnings" class="alert-stack d-none" aria-live="polite"></div>
@@ -109,63 +112,69 @@
       </div>
     </div>
 
-    <div class="result-equation" aria-label="Puente del resultado de gestión">
-      <div class="result-equation__step">
-        <span class="result-equation__label">Facturación</span>
-        <span class="result-equation__value" id="bridge-facturacion">$0</span>
+    <section class="financial-analysis" aria-labelledby="financial-analysis-title">
+      <div class="financial-analysis__head">
+        <div>
+          <span class="financial-analysis__eyebrow">Análisis financiero</span>
+          <h2 class="financial-analysis__title" id="financial-analysis-title">Resultado, caja y señales de liquidez</h2>
+        </div>
+        <div class="financial-analysis__note">
+          La caja usa movimientos efectivamente registrados. El resultado usa facturación y compras procesadas; la comparación ayuda a detectar desfases, pero no reemplaza una conciliación contable.
+        </div>
       </div>
-      <div class="result-equation__operator">−</div>
-      <div class="result-equation__step">
-        <span class="result-equation__label">Compras</span>
-        <span class="result-equation__value" id="bridge-compras">$0</span>
+      <div class="financial-analysis__metrics">
+        <div class="financial-metric">
+          <span class="financial-metric__label">Flujo neto de caja</span>
+          <span class="financial-metric__value" id="financial-neto">$0</span>
+          <span class="financial-metric__sub" id="financial-neto-sub">Ingresos registrados − egresos registrados</span>
+        </div>
+        <div class="financial-metric">
+          <span class="financial-metric__label">Cobertura de egresos</span>
+          <span class="financial-metric__value" id="financial-coverage">–</span>
+          <span class="financial-metric__sub">Ingresos de caja por cada $100 egresados</span>
+        </div>
+        <div class="financial-metric">
+          <span class="financial-metric__label">Brecha caja vs. resultado</span>
+          <span class="financial-metric__value" id="financial-gap">$0</span>
+          <span class="financial-metric__sub">Señal referencial de timing y alcance</span>
+        </div>
+        <div class="financial-metric">
+          <span class="financial-metric__label">Meses con flujo positivo</span>
+          <span class="financial-metric__value" id="financial-months">0 de 0</span>
+          <span class="financial-metric__sub" id="financial-months-sub">Sin movimientos: 0 meses</span>
+        </div>
       </div>
-      <div class="result-equation__operator">+</div>
-      <div class="result-equation__step">
-        <span class="result-equation__label">Conceptos que suman</span>
-        <span class="result-equation__value" id="bridge-suman">$0</span>
+      <div class="financial-analysis__body">
+        <div class="financial-analysis__chart">
+          <span class="financial-analysis__section-title">Flujo de dinero mensual</span>
+          <span class="financial-analysis__section-note">Barras: entradas y salidas. Línea: flujo neto de Tesorería.</span>
+          <div class="financial-analysis__chart-stage"><canvas id="cashflow-analysis-chart"></canvas></div>
+        </div>
       </div>
-      <div class="result-equation__operator">−</div>
-      <div class="result-equation__step">
-        <span class="result-equation__label">Conceptos que restan</span>
-        <span class="result-equation__value" id="bridge-restan">$0</span>
+      <div class="financial-analysis__insights">
+        <span class="financial-analysis__section-title">Insights derivados del período</span>
+        <span class="financial-analysis__section-note">Lecturas automáticas para orientar la revisión.</span>
+        <ul class="financial-insights" id="financial-insights"></ul>
       </div>
-      <div class="result-equation__operator">=</div>
-      <div class="result-equation__step result-equation__step--total">
-        <span class="result-equation__label">Resultado</span>
-        <span class="result-equation__value" id="bridge-resultado">$0</span>
+      <div class="financial-analysis__footnote" id="financial-participation">
+        Los conceptos configurados se explican debajo del gráfico de componentes; aquí se muestra la relación entre la caja total y el resultado de gestión.
       </div>
+    </section>
+
+    <div class="charts-grid">
+      <section class="chart-card-v2" aria-labelledby="components-title">
+        <h3 id="components-title">Componentes del resultado</h3>
+        <span class="chart-description">Compara cada importe desde una misma base; compras y egresos son componentes que restan.</span>
+        <div class="chart-stage"><canvas id="components-chart"></canvas></div>
+      </section>
     </div>
 
     <div class="charts-grid">
-      <section class="chart-card-v2" aria-labelledby="bridge-title">
-        <h3 id="bridge-title">Puente del resultado</h3>
-        <span class="chart-description">Muestra cuánto aporta cada componente al valor final.</span>
-        <div class="chart-stage"><canvas id="bridge-chart"></canvas></div>
-      </section>
       <section class="chart-card-v2" aria-labelledby="monthly-title">
         <h3 id="monthly-title">Evolución mensual</h3>
         <span class="chart-description">Facturación, compras y resultado calculados con la misma metodología.</span>
         <div class="chart-stage"><canvas id="monthly-chart"></canvas></div>
       </section>
-    </div>
-
-    <div class="table-card">
-      <div class="table-card-head">Conceptos de Tesorería que participan</div>
-      <div class="table-responsive">
-        <table class="table table-sm align-middle">
-          <thead>
-            <tr>
-              <th>Concepto</th>
-              <th>Naturaleza</th>
-              <th>Tipo efectivo</th>
-              <th>Efecto</th>
-              <th class="text-end">Movimientos</th>
-              <th class="text-end">Monto</th>
-            </tr>
-          </thead>
-          <tbody id="conceptos-body"></tbody>
-        </table>
-      </div>
     </div>
 
     <div class="table-card">
@@ -176,12 +185,40 @@
         <div class="data-cut__item">Tesorería<strong id="fresh-tesoreria">Sin datos</strong></div>
       </div>
     </div>
+
+    <div class="concept-breakdown" aria-label="Conceptos de Tesorería que participan">
+      <section class="table-card" aria-labelledby="conceptos-suman-title">
+        <div class="table-card-head concept-breakdown__head">
+          <span id="conceptos-suman-title">Conceptos que suman</span>
+          <span class="concept-breakdown__total concept-breakdown__total--sum" id="conceptos-suman-total">$0</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Concepto</th><th class="text-end">Mov.</th><th class="text-end">Monto</th><th></th></tr></thead>
+            <tbody id="conceptos-suman-body"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="table-card" aria-labelledby="conceptos-restan-title">
+        <div class="table-card-head concept-breakdown__head">
+          <span id="conceptos-restan-title">Conceptos que restan</span>
+          <span class="concept-breakdown__total concept-breakdown__total--subtract" id="conceptos-restan-total">$0</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Concepto</th><th class="text-end">Mov.</th><th class="text-end">Monto</th><th></th></tr></thead>
+            <tbody id="conceptos-restan-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   </div>
 </div>
 
 <script>
-  let bridgeChart;
+  let componentsChart;
   let monthlyChart;
+  let cashflowAnalysisChart;
   const money = value => {
     const number = Number(value || 0);
     return new Intl.NumberFormat('es-AR', {
@@ -211,10 +248,29 @@
     return `${year}-${month}-${day}`;
   }
 
+  function argentinaTodayISO() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Argentina/Tucuman',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  }
+
+  function dateFromISO(value) {
+    const [year, month, day] = String(value).split('-').map(Number);
+    return new Date(year, month - 1, day, 12, 0, 0);
+  }
+
   function periodToDates(period) {
-    const hasta = new Date();
+    const hastaISO = argentinaTodayISO();
+    const hasta = dateFromISO(hastaISO);
     const desde = new Date(hasta);
-    if (period === 'ytd') {
+    if (period === 'month') {
+      desde.setDate(1);
+    } else if (period === 'ytd') {
       desde.setMonth(0, 1);
     } else if (period === '6m') {
       desde.setMonth(desde.getMonth() - 6);
@@ -222,13 +278,14 @@
     } else {
       desde.setDate(desde.getDate() - Number(period) + 1);
     }
-    return { desde: isoLocal(desde), hasta: isoLocal(hasta) };
+    return { desde: isoLocal(desde), hasta: hastaISO };
   }
 
   function setActivePeriod(period) {
     document.querySelectorAll('.period-pills .pp').forEach(button => {
       button.classList.toggle('active', button.dataset.period === period);
     });
+    document.getElementById('btn-este-mes').classList.toggle('active', period === 'month');
   }
 
   function setSignedClass(element, value) {
@@ -253,47 +310,84 @@
     container.classList.remove('d-none');
   }
 
-  function renderConcepts(rows) {
-    const body = document.getElementById('conceptos-body');
-    if (!rows?.length) {
-      body.innerHTML = '<tr><td colspan="6" class="empty-table">No hay conceptos configurados que participen en este período.</td></tr>';
+  function movementLink(conceptoId, tipo) {
+    const params = new URLSearchParams({
+      categoria_gasto_id: String(conceptoId),
+      fecha_desde: document.getElementById('fecha-desde').value,
+      fecha_hasta: document.getElementById('fecha-hasta').value,
+      tipo
+    });
+    return `/tesoreria/movimientos?${params}`;
+  }
+
+  function renderConceptGroup(rows, effect) {
+    const body = document.getElementById(`conceptos-${effect === 'suma' ? 'suman' : 'restan'}-body`);
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="4" class="empty-table">No hay conceptos configurados que ${effect === 'suma' ? 'sumen' : 'resten'}.</td></tr>`;
       return;
     }
-    body.innerHTML = rows.map(row => {
-      const sum = row.efecto === 'suma';
+    body.innerHTML = rows.map(({ participant, values }) => {
+      const naturaleza = participant.naturaleza === 'ambos'
+        ? 'Ambos'
+        : participant.naturaleza === 'ingreso' ? 'Ingreso' : 'Egreso';
+      const estado = participant.activo ? 'Activo' : 'Inactivo';
       return `<tr>
-        <td class="fw-semibold">${escapeHtml(row.concepto)}</td>
-        <td>${escapeHtml(row.naturaleza || 'Pendiente')}</td>
-        <td>${escapeHtml(row.tipo)}</td>
-        <td><span class="effect-text ${sum ? 'effect-text--sum' : 'effect-text--subtract'}">${sum ? 'Suma' : 'Resta'}</span></td>
-        <td class="text-end">${Number(row.cantidad || 0).toLocaleString('es-AR')}</td>
-        <td class="text-end fw-semibold">${money(row.monto)}</td>
+        <td>
+          <div class="fw-semibold">${escapeHtml(participant.concepto)}</div>
+          <div class="concept-status">${naturaleza} · ${estado}</div>
+        </td>
+        <td class="text-end">${Number(values.cantidad || 0).toLocaleString('es-AR')}</td>
+        <td class="text-end fw-semibold">${money(values.monto)}</td>
+        <td class="text-end"><a class="concept-link" href="${movementLink(participant.concepto_id, effect === 'suma' ? 'ingreso' : 'egreso')}">Ver movimientos</a></td>
       </tr>`;
     }).join('');
   }
 
-  function renderBridge(kpis) {
+  function renderConcepts(participants, kpis) {
+    const rows = participants || [];
+    const additions = rows
+      .filter(participant => ['ingreso', 'ambos'].includes(participant.naturaleza))
+      .map(participant => ({ participant, values: participant.suma || {} }));
+    const subtractions = rows
+      .filter(participant => ['egreso', 'ambos'].includes(participant.naturaleza))
+      .map(participant => ({ participant, values: participant.resta || {} }));
+    renderConceptGroup(additions, 'suma');
+    renderConceptGroup(subtractions, 'resta');
+    document.getElementById('conceptos-suman-total').textContent = money(kpis.ingresos_incluidos);
+    document.getElementById('conceptos-restan-total').textContent = money(kpis.egresos_incluidos);
+  }
+
+  function renderComponents(kpis) {
     const facturacion = Number(kpis.facturacion || 0);
     const compras = Number(kpis.compras || 0);
     const ingresos = Number(kpis.ingresos_incluidos || 0);
     const egresos = Number(kpis.egresos_incluidos || 0);
-    const diferencia = facturacion - compras;
-    const antesEgresos = diferencia + ingresos;
     const resultado = Number(kpis.resultado_gestion || 0);
-    const deltas = [facturacion, -compras, ingresos, -egresos, resultado];
-    if (bridgeChart) bridgeChart.destroy();
-    bridgeChart = new Chart(document.getElementById('bridge-chart'), {
+    const values = [facturacion, compras, ingresos, egresos, resultado];
+    const effects = ['Suma', 'Resta', 'Suma', 'Resta', 'Resultado'];
+    if (componentsChart) componentsChart.destroy();
+    componentsChart = new Chart(document.getElementById('components-chart'), {
       type: 'bar',
+      plugins: [{
+        id: 'componentValueLabels',
+        afterDatasetsDraw(chart) {
+          const { ctx } = chart;
+          chart.getDatasetMeta(0).data.forEach((bar, index) => {
+            const value = values[index];
+            ctx.save();
+            ctx.fillStyle = '#334155';
+            ctx.font = '650 11px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = value < 0 ? 'top' : 'bottom';
+            ctx.fillText(shortMoney(value), bar.x, value < 0 ? bar.y + 7 : bar.y - 7);
+            ctx.restore();
+          });
+        }
+      }],
       data: {
-        labels: ['Facturación', 'Compras', 'Suman', 'Restan', 'Resultado'],
+        labels: ['Facturación', 'Compras', 'Ingresos incluidos', 'Egresos incluidos', 'Resultado'],
         datasets: [{
-          data: [
-            [0, facturacion],
-            [facturacion, diferencia],
-            [diferencia, antesEgresos],
-            [antesEgresos, resultado],
-            [0, resultado]
-          ],
+          data: values,
           backgroundColor: ['rgba(22,163,74,.22)', 'rgba(220,38,38,.22)', 'rgba(22,163,74,.22)', 'rgba(220,38,38,.22)', 'rgba(37,99,235,.25)'],
           borderColor: ['#16a34a', '#dc2626', '#16a34a', '#dc2626', '#2563eb'],
           borderWidth: 1.5,
@@ -306,13 +400,13 @@
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: context => `${deltas[context.dataIndex] >= 0 ? '+' : '−'} ${money(Math.abs(deltas[context.dataIndex]))}`
+              label: context => `${effects[context.dataIndex]}: ${money(context.parsed.y)}`
             }
           }
         },
         scales: {
           x: { grid: { display: false }, ticks: { color: '#64748b' } },
-          y: { ticks: { callback: shortMoney, color: '#64748b' }, grid: { color: '#eef2f7' } }
+          y: { beginAtZero: true, ticks: { callback: shortMoney, color: '#64748b' }, grid: { color: '#eef2f7' } }
         }
       }
     });
@@ -340,6 +434,87 @@
         scales: {
           x: { grid: { display: false }, ticks: { color: '#64748b' } },
           y: { ticks: { callback: shortMoney, color: '#64748b' }, grid: { color: '#eef2f7' } }
+        }
+      }
+    });
+  }
+
+  function renderFinancialAnalysis(analysis) {
+    const cash = analysis?.flujo_caja || {};
+    const relation = analysis?.relacion_resultado_caja || {};
+    const trend = analysis?.tendencia || {};
+    const participation = analysis?.participacion_tesoreria || {};
+    const neto = Number(cash.neto || 0);
+    const gap = Number(relation.brecha_caja_menos_resultado || 0);
+    const coverage = cash.cobertura_egresos_pct;
+    const months = Number(trend.meses || 0);
+
+    document.getElementById('financial-neto').textContent = money(neto);
+    setSignedClass(document.getElementById('financial-neto'), neto);
+    document.getElementById('financial-neto-sub').textContent = neto < 0
+      ? 'Los egresos registrados superan a los ingresos'
+      : 'Ingresos registrados − egresos registrados';
+    document.getElementById('financial-coverage').textContent = coverage == null
+      ? 'Sin base'
+      : `${Number(coverage).toLocaleString('es-AR', { maximumFractionDigits: 1 })} %`;
+    document.getElementById('financial-gap').textContent = money(gap);
+    setSignedClass(document.getElementById('financial-gap'), gap);
+    document.getElementById('financial-months').textContent = `${Number(trend.meses_flujo_positivo || 0)} de ${months}`;
+    document.getElementById('financial-months-sub').textContent = `Sin movimientos: ${Number(cash.meses_sin_movimiento || 0)} meses`;
+
+    const insights = Array.isArray(analysis?.insights) ? analysis.insights : [];
+    const insightsContainer = document.getElementById('financial-insights');
+    if (!insights.length) {
+      insightsContainer.innerHTML = '<li class="financial-insight"><span class="financial-insight__message">No hay señales suficientes para inferir una lectura adicional en este período.</span></li>';
+    } else {
+      const allowedSeverities = new Set(['danger', 'warning', 'positive', 'info']);
+      insightsContainer.innerHTML = insights.map(item => {
+        const severity = allowedSeverities.has(item.severity) ? item.severity : 'info';
+        return `<li class="financial-insight financial-insight--${severity}">
+          <span class="financial-insight__title">${escapeHtml(item.title)}</span>
+          <span class="financial-insight__message">${escapeHtml(item.message)}</span>
+        </li>`;
+      }).join('');
+    }
+
+    const incomeShare = participation.ingresos_incluidos_sobre_caja_pct;
+    const expenseShare = participation.egresos_incluidos_sobre_caja_pct;
+    const formatShare = value => value == null
+      ? 'sin base comparable'
+      : `${Number(value).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`;
+    document.getElementById('financial-participation').textContent =
+      `Los conceptos incluidos explican ${formatShare(incomeShare)} de los ingresos y ${formatShare(expenseShare)} de los egresos registrados. La brecha de caja frente al resultado es referencial: puede reflejar cobranzas, pagos y fechas diferentes.`;
+
+    const rows = Array.isArray(trend.flujo_mensual) ? trend.flujo_mensual : [];
+    if (cashflowAnalysisChart) cashflowAnalysisChart.destroy();
+    const chartStage = document.querySelector('.financial-analysis__chart-stage');
+    const hasFlowData = rows.some(row => Number(row.ingresos || 0) !== 0 || Number(row.egresos || 0) !== 0);
+    if (!hasFlowData) {
+      chartStage.innerHTML = '<div class="financial-chart-empty">No hay movimientos de Tesorería registrados en este período.</div>';
+      cashflowAnalysisChart = null;
+      return;
+    }
+    chartStage.innerHTML = '<canvas id="cashflow-analysis-chart"></canvas>';
+    cashflowAnalysisChart = new Chart(document.getElementById('cashflow-analysis-chart'), {
+      type: 'bar',
+      data: {
+        labels: rows.map(row => new Date(`${row.periodo}T00:00:00`).toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })),
+        datasets: [
+          { label: 'Ingresos', data: rows.map(row => row.ingresos), backgroundColor: 'rgba(21,147,111,.28)', borderColor: '#15936f', borderWidth: 1.2, borderRadius: 4 },
+          { label: 'Egresos', data: rows.map(row => row.egresos), backgroundColor: 'rgba(220,38,38,.24)', borderColor: '#dc2626', borderWidth: 1.2, borderRadius: 4 },
+          { type: 'line', label: 'Flujo neto', data: rows.map(row => row.neto), borderColor: '#2563eb', backgroundColor: '#2563eb', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: .25, fill: false }
+        ]
+      },
+      options: {
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#475569', usePointStyle: true } },
+          tooltip: { callbacks: { label: context => `${context.dataset.label}: ${money(context.parsed.y)}` } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#64748b' } },
+          y: { beginAtZero: true, ticks: { callback: shortMoney, color: '#64748b' }, grid: { color: '#e5eeee' } }
         }
       }
     });
@@ -377,23 +552,21 @@
         ['kpi-compras', kpis.compras],
         ['kpi-diferencia', kpis.diferencia_facturacion_compras],
         ['kpi-suman', kpis.ingresos_incluidos],
-        ['kpi-restan', kpis.egresos_incluidos],
-        ['bridge-facturacion', kpis.facturacion],
-        ['bridge-compras', kpis.compras],
-        ['bridge-suman', kpis.ingresos_incluidos],
-        ['bridge-restan', kpis.egresos_incluidos],
-        ['bridge-resultado', kpis.resultado_gestion]
+        ['kpi-restan', kpis.egresos_incluidos]
       ].forEach(([id, value]) => { document.getElementById(id).textContent = money(value); });
       document.getElementById('kpi-resultado-pct').textContent = `${percent(kpis.resultado_sobre_facturacion_pct)} sobre facturación`;
       setSignedClass(document.getElementById('kpi-resultado'), kpis.resultado_gestion);
-      setSignedClass(document.getElementById('bridge-resultado'), kpis.resultado_gestion);
       setSignedClass(document.getElementById('kpi-caja'), kpis.caja_neta);
       setSignedClass(document.getElementById('kpi-diferencia'), kpis.diferencia_facturacion_compras);
-      renderWarnings(data.meta?.warnings || []);
-      renderConcepts(data.detalles?.conceptos_resultado || []);
-      renderBridge(kpis);
+      renderWarnings([]);
+      renderFinancialAnalysis(data.analisis_financiero || {});
+      renderConcepts(data.conceptos?.participantes || data.detalles?.conceptos_participantes || [], kpis);
+      renderComponents(kpis);
       renderMonthly(data.series?.actividad_mensual || []);
       setFreshness(data.meta || {});
+      document.getElementById('empresa-context').textContent = empresa === 'TODAS'
+        ? ''
+        : 'La facturación y las compras se filtran por empresa; Tesorería y sus conceptos se muestran de forma global.';
       document.getElementById('content').classList.remove('d-none');
     } catch (error) {
       console.error(error);
@@ -405,6 +578,9 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    const today = argentinaTodayISO();
+    document.getElementById('fecha-desde').max = today;
+    document.getElementById('fecha-hasta').max = today;
     document.querySelectorAll('.period-pills .pp').forEach(button => {
       button.addEventListener('click', () => load(button.dataset.period));
     });
@@ -412,8 +588,7 @@
       load('', document.getElementById('fecha-desde').value, document.getElementById('fecha-hasta').value);
     });
     document.getElementById('btn-este-mes').addEventListener('click', () => {
-      const today = new Date();
-      load('', isoLocal(new Date(today.getFullYear(), today.getMonth(), 1)), isoLocal(today));
+      load('month');
     });
     document.getElementById('sel-empresa').addEventListener('change', () => {
       load('', document.getElementById('fecha-desde').value, document.getElementById('fecha-hasta').value);

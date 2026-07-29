@@ -132,6 +132,28 @@ class ResultadoComercialService:
             .all()
         )
 
+        conceptos_configurados = (
+            CategoriaGasto.query
+            .filter(
+                CategoriaGasto.incluye_resultado.is_(True),
+                CategoriaGasto.naturaleza.isnot(None),
+            )
+            .order_by(CategoriaGasto.nombre)
+            .all()
+        )
+        participantes_por_id = {
+            int(concepto.id): {
+                "concepto_id": int(concepto.id),
+                "concepto": concepto.nombre,
+                "naturaleza": concepto.naturaleza,
+                "activo": bool(concepto.activo),
+                "efecto": concepto.efecto_resultado,
+                "suma": {"cantidad": 0, "monto": 0.0},
+                "resta": {"cantidad": 0, "monto": 0.0},
+            }
+            for concepto in conceptos_configurados
+        }
+
         ingresos_incluidos = 0.0
         egresos_incluidos = 0.0
         desglose = []
@@ -154,6 +176,14 @@ class ResultadoComercialService:
                     "cantidad": int(row.cantidad or 0),
                 }
             )
+            participante = participantes_por_id.get(int(row.id))
+            if participante:
+                participante[efecto] = {
+                    "cantidad": int(row.cantidad or 0),
+                    "monto": monto,
+                }
+
+        participantes = list(participantes_por_id.values())
 
         conflictos = int(
             db.session.query(func.count(MovimientoCaja.id))
@@ -190,14 +220,25 @@ class ResultadoComercialService:
         self._aplicar_conceptos_mensuales(actividad_mensual, desde, hasta)
 
         top_clientes = self._top_clientes(ventas_filters, facturacion)
-        freshness = self._freshness()
-        warnings = self._warnings(
+        analisis_financiero = self._analisis_financiero(
+            desde=desde,
             hasta=hasta,
-            freshness=freshness,
-            conflictos=conflictos,
-            pendientes=conceptos_pendientes,
-            empresa=empresa,
+            kpis={
+                "facturacion": facturacion,
+                "compras": compras,
+                "ingresos_incluidos": ingresos_incluidos,
+                "egresos_incluidos": egresos_incluidos,
+                "resultado_gestion": resultado,
+                "ingresos_caja": ingresos_caja,
+                "egresos_caja": egresos_caja,
+                "caja_neta": ingresos_caja - egresos_caja,
+            },
+            actividad_mensual=actividad_mensual,
+            caja_mensual=caja_mensual,
+            participantes=participantes,
+            clientes=top_clientes,
         )
+        freshness = self._freshness()
 
         return {
             "periodo": {"desde": desde.isoformat(), "hasta": hasta.isoformat()},
@@ -219,8 +260,10 @@ class ResultadoComercialService:
                 "actividad_mensual": list(actividad_mensual.values()),
                 "caja_mensual": list(caja_mensual.values()),
             },
+            "analisis_financiero": analisis_financiero,
             "conceptos": {
                 "desglose": desglose,
+                "participantes": participantes,
                 "conflictos": conflictos,
                 "pendientes": conceptos_pendientes,
             },
@@ -231,7 +274,13 @@ class ResultadoComercialService:
                 "accounting_profit": False,
                 "treasury_scope": "global",
                 "freshness": freshness,
-                "warnings": warnings,
+                "data_quality": {
+                    "movimientos_incompatibles": conflictos,
+                    "conceptos_pendientes": conceptos_pendientes,
+                },
+                # Los cortes y pendientes son metadatos, no errores operativos.
+                # Los consumidores reservan este canal para fallos accionables.
+                "warnings": [],
             },
         }
 
@@ -350,6 +399,249 @@ class ResultadoComercialService:
         return dict(sorted(result.items()))
 
     @staticmethod
+    def _month_keys(desde, hasta):
+        """Devuelve todos los meses calendario del período, incluidos los vacíos."""
+        keys = []
+        year, month = desde.year, desde.month
+        while (year, month) <= (hasta.year, hasta.month):
+            keys.append(f"{year:04d}-{month:02d}")
+            month += 1
+            if month == 13:
+                year += 1
+                month = 1
+        return keys
+
+    @staticmethod
+    def _pct(numerator, denominator):
+        if not denominator:
+            return None
+        return round(float(numerator) / float(denominator) * 100, 1)
+
+    @staticmethod
+    def _money_text(value):
+        return f"{float(value):,.0f}".replace(",", ".")
+
+    def _analisis_financiero(
+        self,
+        *,
+        desde,
+        hasta,
+        kpis,
+        actividad_mensual,
+        caja_mensual,
+        participantes,
+        clientes,
+    ):
+        """Genera lecturas financieras, sin presentarlas como utilidad contable.
+
+        La caja y el resultado tienen bases temporales distintas: la primera usa
+        movimientos registrados y el segundo usa facturación/compras procesadas.
+        Por eso la brecha es una señal de gestión, no una conciliación contable.
+        """
+        month_keys = self._month_keys(desde, hasta)
+        actividad_por_mes = {
+            key: value for key, value in actividad_mensual.items()
+        }
+        caja_por_mes = {key: value for key, value in caja_mensual.items()}
+        flujo_mensual = []
+        for key in month_keys:
+            actividad = actividad_por_mes.get(key, {})
+            caja = caja_por_mes.get(key, {})
+            ingresos = _float(caja.get("ingresos"))
+            egresos = _float(caja.get("egresos"))
+            flujo_mensual.append(
+                {
+                    "periodo": f"{key}-01",
+                    "ingresos": ingresos,
+                    "egresos": egresos,
+                    "neto": ingresos - egresos,
+                    "resultado_gestion": _float(actividad.get("resultado_gestion")),
+                }
+            )
+
+        flujo_neto = _float(kpis["caja_neta"])
+        resultado = _float(kpis["resultado_gestion"])
+        ingresos_caja = _float(kpis["ingresos_caja"])
+        egresos_caja = _float(kpis["egresos_caja"])
+        ingresos_incluidos = _float(kpis["ingresos_incluidos"])
+        egresos_incluidos = _float(kpis["egresos_incluidos"])
+        brecha = flujo_neto - resultado
+        cobertura = self._pct(ingresos_caja, egresos_caja)
+        cobertura_incluidos = self._pct(ingresos_incluidos, egresos_incluidos)
+        meses_positivos = sum(item["neto"] > 0 for item in flujo_mensual)
+        meses_negativos = sum(item["neto"] < 0 for item in flujo_mensual)
+        meses_sin_movimiento = sum(
+            item["ingresos"] == 0 and item["egresos"] == 0
+            for item in flujo_mensual
+        )
+        resultados_positivos = sum(
+            item["resultado_gestion"] > 0 for item in flujo_mensual
+        )
+        resultados_negativos = sum(
+            item["resultado_gestion"] < 0 for item in flujo_mensual
+        )
+        hay_movimientos_caja = any(
+            item["ingresos"] != 0 or item["egresos"] != 0
+            for item in flujo_mensual
+        )
+
+        insights = []
+
+        def add(code, severity, title, message):
+            insights.append(
+                {
+                    "code": code,
+                    "severity": severity,
+                    "title": title,
+                    "message": message,
+                }
+            )
+
+        if not hay_movimientos_caja:
+            add(
+                "sin_movimientos_caja",
+                "info",
+                "Sin movimientos de caja registrados",
+                "No hay entradas ni salidas de Tesorería en el período. La caja observada no alcanza para inferir liquidez ni cobertura de egresos.",
+            )
+        elif flujo_neto < 0 and resultado >= 0:
+            add(
+                "resultado_sin_caja",
+                "danger",
+                "Resultado positivo, caja negativa",
+                "La actividad comercial es positiva, pero los movimientos registrados consumieron más caja de la que ingresó. Revisar cobranzas, pagos y desfases de fechas.",
+            )
+        elif flujo_neto >= 0 and resultado < 0:
+            add(
+                "caja_sin_resultado",
+                "warning",
+                "Caja positiva, resultado negativo",
+                "Entró más dinero del que salió en Tesorería, aunque el resultado de gestión es negativo. Puede reflejar cobranzas de períodos anteriores o compras aún no convertidas en ventas.",
+            )
+        elif flujo_neto < 0:
+            add(
+                "flujo_negativo",
+                "danger",
+                "Flujo neto negativo",
+                "Los egresos registrados superan a los ingresos del período. La operación necesita financiamiento o una mejora en el ritmo de cobros.",
+            )
+        else:
+            add(
+                "flujo_positivo",
+                "positive",
+                "Flujo neto positivo",
+                "Los movimientos registrados dejan una entrada neta de dinero en el período. Esto describe liquidez observada, no utilidad contable.",
+            )
+
+        if cobertura is not None and cobertura < 100:
+            add(
+                "cobertura_insuficiente",
+                "warning",
+                "Cobertura de egresos insuficiente",
+                f"Por cada $100 de egresos registrados ingresaron $ {cobertura:.1f}. La caja del período no se autofinanció con sus entradas.",
+            )
+        elif cobertura is not None:
+            add(
+                "cobertura_suficiente",
+                "positive",
+                "Cobertura de egresos",
+                f"Los ingresos registrados cubrieron el {cobertura:.1f}% de los egresos del período.",
+            )
+
+        if brecha and abs(brecha) > max(100000.0, abs(resultado) * 0.1):
+            sentido = "por encima" if brecha > 0 else "por debajo"
+            add(
+                "brecha_caja_resultado",
+                "info",
+                "Brecha entre caja y resultado",
+                f"La caja neta quedó {sentido} del resultado de gestión en $ {self._money_text(abs(brecha))}. Es una señal de timing y alcance de datos, no una conciliación contable.",
+            )
+
+        top5 = _float(clientes.get("top_5_pct"))
+        if top5 >= 60:
+            add(
+                "concentracion_clientes",
+                "warning",
+                "Concentración comercial elevada",
+                f"Los cinco principales clientes explican el {top5:.1f}% de la facturación. Una demora o pérdida en pocos clientes puede impactar rápidamente la caja.",
+            )
+        elif top5 >= 40:
+            add(
+                "concentracion_clientes",
+                "info",
+                "Concentración a monitorear",
+                f"Los cinco principales clientes representan el {top5:.1f}% de la facturación. Conviene seguir sus plazos y saldos por separado.",
+            )
+
+        mayor_egreso = max(
+            (
+                participant
+                for participant in participantes
+                if _float(participant.get("resta", {}).get("monto")) > 0
+            ),
+            key=lambda item: _float(item["resta"]["monto"]),
+            default=None,
+        )
+        if mayor_egreso:
+            add(
+                "principal_egreso_incluido",
+                "info",
+                "Principal egreso que impacta el resultado",
+                f"{mayor_egreso['concepto']} concentra $ {self._money_text(mayor_egreso['resta']['monto'])} de los conceptos que restan al resultado.",
+            )
+
+        if resultados_negativos >= 2 and resultados_negativos >= resultados_positivos:
+            add(
+                "tendencia_resultado",
+                "warning",
+                "Resultado débil en la mayoría de los meses",
+                f"El resultado de gestión fue negativo en {resultados_negativos} de {len(flujo_mensual)} meses del período analizado.",
+            )
+        elif meses_negativos >= 2 and meses_negativos >= meses_positivos:
+            add(
+                "tendencia_caja",
+                "warning",
+                "Flujo irregular o contractivo",
+                f"El flujo neto fue negativo en {meses_negativos} de {len(flujo_mensual)} meses del período analizado.",
+            )
+
+        severity_order = {"danger": 0, "warning": 1, "info": 2, "positive": 3}
+        insights.sort(key=lambda item: severity_order.get(item["severity"], 9))
+
+        return {
+            "flujo_caja": {
+                "ingresos": ingresos_caja,
+                "egresos": egresos_caja,
+                "neto": flujo_neto,
+                "cobertura_egresos_pct": cobertura,
+                "promedio_mensual_neto": flujo_neto / len(month_keys) if month_keys else 0.0,
+                "meses_positivos": meses_positivos,
+                "meses_negativos": meses_negativos,
+                "meses_sin_movimiento": meses_sin_movimiento,
+            },
+            "relacion_resultado_caja": {
+                "resultado_gestion": resultado,
+                "caja_neta": flujo_neto,
+                "brecha_caja_menos_resultado": brecha,
+                "interpretacion": "referencial_no_conciliacion_contable",
+            },
+            "participacion_tesoreria": {
+                "ingresos_incluidos_sobre_caja_pct": self._pct(ingresos_incluidos, ingresos_caja),
+                "egresos_incluidos_sobre_caja_pct": self._pct(egresos_incluidos, egresos_caja),
+                "cobertura_conceptos_incluidos_pct": cobertura_incluidos,
+            },
+            "tendencia": {
+                "meses": len(month_keys),
+                "meses_resultado_positivo": resultados_positivos,
+                "meses_resultado_negativo": resultados_negativos,
+                "meses_flujo_positivo": meses_positivos,
+                "meses_flujo_negativo": meses_negativos,
+                "flujo_mensual": flujo_mensual,
+            },
+            "insights": insights[:6],
+        }
+
+    @staticmethod
     def _top_clientes(ventas_filters, total_facturacion):
         rows = (
             db.session.query(
@@ -392,56 +684,3 @@ class ResultadoComercialService:
                 .scalar()
             ),
         }
-
-    @staticmethod
-    def _warnings(*, hasta, freshness, conflictos, pendientes, empresa):
-        warnings = []
-        for source, value in freshness.items():
-            if not value:
-                warnings.append(
-                    {
-                        "code": f"{source}_sin_datos",
-                        "severity": "warning",
-                        "message": f"{source.capitalize()} no tiene datos cargados.",
-                    }
-                )
-                continue
-            source_date = date.fromisoformat(value[:10])
-            if source_date < hasta:
-                warnings.append(
-                    {
-                        "code": f"{source}_corte_parcial",
-                        "severity": "warning",
-                        "message": (
-                            f"{source.capitalize()} tiene datos hasta "
-                            f"{source_date.strftime('%d/%m/%Y')}."
-                        ),
-                    }
-                )
-        if conflictos:
-            warnings.append(
-                {
-                    "code": "movimientos_incompatibles",
-                    "severity": "danger",
-                    "message": f"{conflictos} movimientos contradicen la naturaleza de su concepto.",
-                }
-            )
-        if pendientes:
-            warnings.append(
-                {
-                    "code": "conceptos_pendientes",
-                    "severity": "warning",
-                    "message": f"{pendientes} conceptos activos todavía no tienen naturaleza.",
-                }
-            )
-        if empresa not in ("", "TODAS"):
-            warnings.append(
-                {
-                    "code": "tesoreria_global",
-                    "severity": "info",
-                    "message": (
-                        "Los conceptos de Tesorería son globales y no se distribuyen por empresa."
-                    ),
-                }
-            )
-        return warnings

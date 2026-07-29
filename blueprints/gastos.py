@@ -50,7 +50,9 @@ def gastos_panel():
 @gastos_bp.route("/api/gastos/categorias", methods=["GET"])
 def categorias_listar():
     """Listar conceptos activos con su regla estructural."""
-    query = CategoriaGasto.query.filter_by(activo=True)
+    query = CategoriaGasto.query
+    if request.args.get("incluir_inactivos") not in ("1", "true", "True"):
+        query = query.filter_by(activo=True)
     naturalezas = {
         value.strip().lower()
         for value in (request.args.get("naturaleza") or "").split(",")
@@ -68,6 +70,7 @@ def categorias_listar():
             "naturaleza": c.naturaleza,
             "incluye_resultado": bool(c.incluye_resultado),
             "efecto": c.efecto_resultado,
+            "activo": bool(c.activo),
         } for c in categorias]
     })
 

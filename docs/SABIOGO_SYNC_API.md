@@ -1,10 +1,10 @@
 # Integracion automatica SabioGo (Firebird) -> App360
 
-**Ultima revision:** 2026-07-13
+**Ultima revision:** 2026-07-29
 
-**Version del documento:** 2.4
+**Version del documento:** 2.5
 
-**Estado:** E2E e idempotencia validadas; automatizacion y alertas implementadas; pendiente instalar tarea en Windows
+**Estado:** E2E e idempotencia validadas; automatizacion y alertas implementadas; rebaseline 2026 preparado; pendiente instalar tarea en Windows
 
 ## 1. Objetivo
 
@@ -44,6 +44,7 @@ Task Scheduler                               Nginx + Gunicorn + Flask
 | VPS productivo | Desplegado; health `200`, sync sin clave `401`, sync autenticado con payload invalido `400`. |
 | E2E Windows | Dos ejecuciones identicas para 2026-05-04, reconciliadas en staging, facts y auditorias. |
 | Alertas web | Fallo, demora o ausencia visibles para la cuenta `gerente` o el rol `gerente`. |
+| Rebaseline 2026 | Scripts preparados para recarga mensual enero-julio 2026 con `replace=true` y auditoria SQL posterior. |
 | Task Scheduler | Instalador preparado para 02:00 bajo cuenta local `Administrador`; pendiente ejecutar en Windows. |
 
 La prueba manual de `run_sync.bat --fecha 2026-05-04` y su repeticion idempotente finalizaron correctamente.
@@ -262,7 +263,49 @@ Cada lote genera un hash SHA-256 canonico que incluye tipo, fecha, origen, filas
 
 Con `replace=true`, reejecutar una fecha reconstruye el mismo estado logico. Las cargas concurrentes de una fecha se serializan hasta commit o rollback. `--no-replace` queda reservado para diagnostico controlado.
 
-## 8. Evidencia Windows
+## 8. Rebaseline 2026
+
+El rebaseline productivo se ejecuta desde el servidor Windows de SabioGo con:
+
+```bat
+C:\SabioGoSync\rebaseline_2026.bat
+```
+
+El script procesa estos rangos, fecha por fecha:
+- `2026-01-01` a `2026-01-31`
+- `2026-02-01` a `2026-02-28`
+- `2026-03-01` a `2026-03-31`
+- `2026-04-01` a `2026-04-30`
+- `2026-05-01` a `2026-05-31`
+- `2026-06-01` a `2026-06-30`
+- `2026-07-01` a `2026-07-28`
+
+Reglas operativas:
+
+- Pausar temporalmente la tarea diaria `App360 SabioGo Sync`.
+- Ejecutar desde `C:\SabioGoSync` con `config.ini`, `run_sync.bat` y `venv\Scripts\python.exe` presentes.
+- Verificar que `config.ini` use `origenes=CARNES,LACTEOS`.
+- Mantener `replace=true`; no agregar `--no-replace`.
+- Si falla un mes, la recarga se detiene y queda registrada en `rebaseline_logs\rebaseline_2026.log`.
+- Es seguro reintentar el mes fallido porque cada fecha/origen se reemplaza de forma atomica.
+
+Luego de finalizar, auditar desde PostgreSQL en el VPS:
+
+```bash
+cd /var/www/app360
+set -a; source .env; set +a
+psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f scripts/sabiogo_sync/validate_rebaseline_2026.sql
+```
+
+La auditoria revisa:
+- dias esperados vs. ejecuciones exitosas en `sabiogo_sync_runs`;
+- fechas sin ejecucion exitosa;
+- staging 2026 por mes, origen y estado;
+- estados no procesados;
+- rangos de facts;
+- cargas API mas recientes en `logs_sabiogo_carga`.
+
+## 9. Evidencia Windows
 
 Validacion realizada el 2026-07-13:
 
@@ -287,7 +330,7 @@ Validacion realizada el 2026-07-13:
 
 La salida UTF-8 de `sync.log` puede verse corrupta con `type` bajo la pagina de codigos predeterminada de CMD; `chcp 65001` corrige solo la visualizacion.
 
-## 9. Pruebas automatizadas
+## 10. Pruebas automatizadas
 
 Comando focalizado sobre una DB ya inicializada (el preflight de `scripts/deploy.sh` crea el SQLite temporal antes de pytest):
 
@@ -331,7 +374,7 @@ Cobertura incluida:
 
 La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtures mutan `Config` entre archivos. El preflight de `scripts/deploy.sh` evita esa contaminacion ejecutando cada archivo en un proceso separado.
 
-## 10. Salida a produccion
+## 11. Salida a produccion
 
 ### Completado en VPS
 
@@ -362,7 +405,7 @@ La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtu
 ### Pendiente operativo
 
 1. Copiar los seis archivos de `scripts/sabiogo_sync` a `C:\SabioGoSync`.
-2. Aplicar release DB `20260713_sabiogo_sync_alerts` antes de reiniciar App360.
+2. La revisión `20260713_sabiogo_sync_runs` ya fue aplicada; futuras revisiones deben usar el ejecutor Alembic seguro.
 3. Confirmar zona `Argentina Standard Time` y ejecutar `install_task.bat` desde CMD elevado.
 4. Confirmar primera ejecucion automatica y alerta visible al iniciar sesion como `gerente`.
 5. Monitorear siete noches antes de retirar la carga manual habitual.
@@ -378,10 +421,11 @@ La suite monolitica tiene un problema preexistente de aislamiento: algunos fixtu
 - La contrasena de `Administrador` debe actualizarse en la tarea si cambia o expira.
 - Cambiar la zona horaria del servidor afecta todos sus procesos; el instalador solo valida y nunca la modifica.
 
-## 11. Historial
+## 12. Historial
 
 | Version | Fecha | Descripcion |
 |---|---|---|
+| `2.5` | 2026-07-29 | Scripts de rebaseline 2026 y auditoria SQL posterior. |
 | `2.4` | 2026-07-13 | Tarea diaria 02:00, cuenta Administrador y alertas web para usuario/rol gerente. |
 | `2.3` | 2026-07-13 | E2E Windows, duplicado exacto, reconciliacion e idempotencia aprobadas. |
 | `2.2` | 2026-07-13 | Deploy VPS completado, secreto configurado y smoke tests `200/401/400` aprobados. |

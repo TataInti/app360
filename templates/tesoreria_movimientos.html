@@ -24,16 +24,16 @@
 
     <!-- Filtros -->
     <div class="period-bar dim-bar">
-        <div class="row g-3 w-100">
-            <div class="col-md-3">
+        <div class="row g-2 w-100">
+            <div class="col-lg-2 col-md-4">
                 <label class="form-label">Desde</label>
                 <input type="date" id="fechaDesde" class="form-control form-control-sm">
             </div>
-            <div class="col-md-3">
+            <div class="col-lg-2 col-md-4">
                 <label class="form-label">Hasta</label>
                 <input type="date" id="fechaHasta" class="form-control form-control-sm">
             </div>
-            <div class="col-md-2">
+            <div class="col-lg-2 col-md-4">
                 <label class="form-label">Tipo</label>
                 <select id="tipoFiltro" class="form-select form-select-sm">
                     <option value="">Todos</option>
@@ -41,13 +41,19 @@
                     <option value="egreso">Egresos</option>
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-lg-2 col-md-4">
                 <label class="form-label">Instrumento</label>
                 <select id="instrumentoFiltro" class="form-select form-select-sm">
                     <option value="">Todos</option>
                 </select>
             </div>
-            <div class="col-md-2 d-flex align-items-end">
+            <div class="col-lg-2 col-md-4">
+                <label class="form-label">Concepto</label>
+                <select id="conceptoFiltro" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div class="col-lg-2 col-md-4 d-flex align-items-end">
                 <button class="btn btn-sm btn-primary w-100" onclick="cargarMovimientos()">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
@@ -262,15 +268,46 @@ function fmtNumAbbr(n) {
     return '$' + n.toFixed(0);
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    const hoy = new Date();
-    const hace30 = new Date(hoy.getTime() - 30*24*60*60*1000);
-    document.getElementById('fechaHasta').value = hoy.toISOString().split('T')[0];
-    document.getElementById('fechaDesde').value = hace30.toISOString().split('T')[0];
-    
-    cargarInstrumentos();
-    cargarCategoriasProveedores();
-    cargarMovimientos();
+function argentinaTodayISO() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Argentina/Tucuman',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(new Date());
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+}
+
+function isoLocal(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function dateFromISO(value) {
+    const [year, month, day] = String(value).split('-').map(Number);
+    return new Date(year, month - 1, day, 12, 0, 0);
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
+    const hoyISO = argentinaTodayISO();
+    const hace30 = dateFromISO(hoyISO);
+    hace30.setDate(hace30.getDate() - 29);
+    const params = new URLSearchParams(window.location.search);
+    const fechaDesde = document.getElementById('fechaDesde');
+    const fechaHasta = document.getElementById('fechaHasta');
+    fechaDesde.max = hoyISO;
+    fechaHasta.max = hoyISO;
+    fechaHasta.value = params.get('fecha_hasta') || hoyISO;
+    fechaDesde.value = params.get('fecha_desde') || isoLocal(hace30);
+    document.getElementById('tipoFiltro').value = params.get('tipo') || '';
+
+    await Promise.all([cargarInstrumentos(), cargarCategoriasProveedores()]);
+    document.getElementById('instrumentoFiltro').value = params.get('instrumento_id') || '';
+    document.getElementById('conceptoFiltro').value = params.get('categoria_gasto_id') || '';
+    await cargarMovimientos();
 
     // Toggle portador field based on instrument and load filtered list
     document.getElementById('selectInstrumento').addEventListener('change', function() {
@@ -295,6 +332,7 @@ document.addEventListener('DOMContentLoaded', function() {
 async function cargarInstrumentos() {
     try {
         const resp = await fetch('/api/tesoreria/instrumentos');
+        if (!resp.ok) throw new Error('No se pudieron cargar los instrumentos.');
         const data = await resp.json();
         _instrumentos = data.instrumentos || [];
         const select = document.getElementById('selectInstrumento');
@@ -312,14 +350,20 @@ async function cargarInstrumentos() {
 async function cargarCategoriasProveedores() {
     try {
         const [catResp, provResp] = await Promise.all([
-            fetch('/api/gastos/categorias'),
+            fetch('/api/gastos/categorias?incluir_inactivos=1'),
             fetch('/api/gastos/proveedores')
         ]);
+        if (!catResp.ok || !provResp.ok) throw new Error('No se pudieron cargar conceptos o proveedores.');
         const catData = await catResp.json();
         const provData = await provResp.json();
         const selectCat = document.getElementById('selectCategoriaGasto');
+        const filtroCat = document.getElementById('conceptoFiltro');
         const selectProv = document.getElementById('selectProveedor');
-        _conceptos = (catData.categorias || []).filter(c => c.naturaleza);
+        const categorias = catData.categorias || [];
+        categorias.forEach(c => {
+            filtroCat.innerHTML += `<option value="${c.id}">${c.nombre}${c.activo ? '' : ' · Inactivo'}</option>`;
+        });
+        _conceptos = categorias.filter(c => c.activo && c.naturaleza);
         _conceptos.forEach(c => {
             const efecto = c.efecto === 'suma' ? 'Suma' : c.efecto === 'resta' ? 'Resta' :
                 c.efecto === 'segun_movimiento' ? 'Según movimiento' : 'No participa';
@@ -415,15 +459,24 @@ async function cargarMovimientos() {
     const hasta = document.getElementById('fechaHasta').value;
     const tipo = document.getElementById('tipoFiltro').value;
     const instrumento = document.getElementById('instrumentoFiltro').value;
-    
-    let url = `/api/tesoreria/movimientos?fecha_desde=${desde}&fecha_hasta=${hasta}&per_page=5000`;
-    if (tipo) url += `&tipo=${tipo}`;
-    if (instrumento) url += `&instrumento_id=${instrumento}`;
+    const concepto = document.getElementById('conceptoFiltro').value;
+    const params = new URLSearchParams({
+        fecha_desde: desde,
+        fecha_hasta: hasta,
+        per_page: '5000'
+    });
+    if (tipo) params.set('tipo', tipo);
+    if (instrumento) params.set('instrumento_id', instrumento);
+    if (concepto) params.set('categoria_gasto_id', concepto);
     
     try {
-        const resp = await fetch(url);
+        const resp = await fetch(`/api/tesoreria/movimientos?${params}`);
         const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'No se pudieron cargar los movimientos.');
         const movimientos = data.movimientos || [];
+        const visibleParams = new URLSearchParams(params);
+        visibleParams.delete('per_page');
+        window.history.replaceState({}, '', `${window.location.pathname}?${visibleParams}`);
         
         let ingresos = 0, egresos = 0;
         movimientos.forEach(m => {
@@ -510,7 +563,8 @@ async function cargarMovimientos() {
     } catch(e) {
         console.error('Error:', e);
         document.getElementById('tablaMovimientos').innerHTML = 
-            '<tr><td colspan="10" class="text-center text-danger">Error al cargar datos</td></tr>';
+            '<tr><td colspan="11" class="text-center text-danger">Error al cargar datos</td></tr>';
+        notify(e.message || 'No se pudieron cargar los movimientos.', 'danger', { title: 'Error de consulta' });
     }
 }
 
@@ -548,12 +602,14 @@ function exportarMovimientos() {
     const hasta = document.getElementById('fechaHasta').value;
     const tipo = document.getElementById('tipoFiltro').value;
     const instrumento = document.getElementById('instrumentoFiltro').value;
+    const concepto = document.getElementById('conceptoFiltro').value;
 
     const params = new URLSearchParams();
     if (desde) params.append('fecha_desde', desde);
     if (hasta) params.append('fecha_hasta', hasta);
     if (tipo) params.append('tipo', tipo);
     if (instrumento) params.append('instrumento_id', instrumento);
+    if (concepto) params.append('categoria_gasto_id', concepto);
 
     const query = params.toString();
     const url = query

@@ -11,7 +11,7 @@ Documento oficial de desarrollo:
 Desde 2026-02-12, la prioridad del proyecto es:
 
 - Trabajar y validar primero en local.
-- Versionar en GitHub todos los cambios de DB (migraciones + release SQL).
+- Versionar en GitHub todos los cambios de DB como migraciones Alembic.
 - Replicar en VPS solo desde cambios versionados.
 
 Documento oficial de trabajo:
@@ -20,8 +20,8 @@ Documento oficial de trabajo:
 
 Scripts operativos:
 
-- `bash scripts/create_local_db_release.sh` (genera release DB local versionable)
-- `bash scripts/apply_db_release_to_vps.sh <release_tag>` (aplica release versionada en VPS)
+- `scripts/migrate_db_safely.sh`: backup, restore de ensayo y migración forward-only.
+- `scripts/apply_db_migrations_to_vps.sh`: invocación remota con revisiones y commit explícitos.
 
 ## Deploy a VPS (GitHub -> VPS)
 
@@ -29,7 +29,7 @@ Guía completa y checklist pre-push/post-pull:
 
 - `docs/DEPLOY_VPS.md`
 
-Nota: `scripts/deploy.sh` es seguro de ejecutar en un VPS ya instalado (update), porque no hace seed ni `db.create_all()`; solo instala deps y valida configuración. Los únicos cambios de schema ocurren si se habilita `RUN_MIGRATIONS=true` o si se aplica un release DB versionado.
+Nota: `scripts/deploy.sh` no modifica el esquema. `RUN_MIGRATIONS=true` está bloqueado; las migraciones productivas pasan exclusivamente por el ejecutor seguro.
 
 ### Archivos locales (no versionar)
 
@@ -41,19 +41,19 @@ El repo está configurado para ignorar:
 - dumps temporales fuera del repo (default actual: `$HOME/.app360/backups/db-sync/`)
 - `docs/_local/*` (notas locales, accesos, etc.)
 
-Nota: `backups/db-releases/` sí permanece dentro del repo porque contiene releases DB versionadas.
+Nota: `backups/db-releases/` conserva únicamente releases históricas. Los backups nuevos viven fuera del repositorio.
 
 Tip: si necesitás guardar accesos/credenciales del VPS, guardalos en `docs/_local/` (no se pushea).
 
 ## Caracteristicas Principales
 
-- Dashboard ejecutivo con KPIs clave.
+- Dashboard ejecutivo y BI con resultado de gestión compartido.
 - Inventario y productos con ubicaciones.
 - CRM con leads, clientes y campañas.
 - RRHH: empleados, asistencia, adelantos y liquidaciones.
 - Compras y proveedores.
-- Tesoreria: movimientos, arqueos y cuenta corriente.
-- Gastos y reportes exportables a Excel.
+- Tesoreria: movimientos con conceptos estructurales, arqueos y cuenta corriente.
+- Gastos/egresos y reportes exportables a Excel.
 - Autenticacion por roles y control de acceso.
 
 ## Modulos Destacados
@@ -64,11 +64,11 @@ Tip: si necesitás guardar accesos/credenciales del VPS, guardalos en `docs/_loc
     - Adelantos y prestamos, con flujo de aprobacion.
     - Liquidacion mensual de sueldos.
 - Tesoreria
-    - Arqueos de caja y movimientos con destino.
+    - Arqueos de caja y movimientos clasificados por concepto.
     - Exportacion de movimientos y arqueos a Excel.
     - Cuenta corriente con proveedor Friar y pagos.
 - Gastos
-    - Registro de gastos por categoria y proveedor.
+    - Registro de egresos por concepto y proveedor.
     - KPIs de gastos y exportacion a Excel.
 
 ## Tecnologias
@@ -86,10 +86,10 @@ Tip: si necesitás guardar accesos/credenciales del VPS, guardalos en `docs/_loc
 ## Integracion con SabioGo
 
 - SabioGo sigue siendo el facturador legal; App360 funciona como soporte para decision de direccion y necesita nutrirse de sus datos de ventas y costos.
-- Importamos diariamente dos archivos XLS generados desde SabioGo: `ventas_globales.xls` (ventas) y `compras_globales.xls` (costos). Se pueden cargar de forma manual por UI o por proceso programado/cron.
-- Ambos archivos traen 28 columnas: RUBRO, FECHA, SUBRUBRO, CODIGO, MODELO, PRODUCTO, MARCA, COMPROBANTE, NRO_COMPROB, CLIENTE, CONDICION_IVA, VENDEDOR, DEPOSITO, UNINEGOCIO, FORMA_PAGO, KILOS, CAJAS, DTOS, NETO, LOCALIDAD, ZONA, SUCURSAL, IVA, MONIVA, TIPO, SUBTOT, NUMLISPRE, LISPREC.
-- En PostgreSQL se cargan primero a tablas de staging (`stg_sabiogo_ventas` y `stg_sabiogo_compras`) con metadatos de import (archivo, fecha_import, hash, estado) antes de procesarlas hacia tablas de negocio y KPIs de rentabilidad/margen por linea de producto y canal.
-- Tesoreria es el modulo con mas carga manual de usuarios; se complementa con los movimientos financieros y costos/ventas importados desde SabioGo para mantener consistencia diaria.
+- La integracion principal es una tarea Windows que consulta Firebird y envia ventas/compras por HTTPS a App360. La carga manual/batch queda como contingencia.
+- En PostgreSQL se cargan primero a staging (`stg_sabiogo_ventas` y `stg_sabiogo_compras`) con metadatos de import antes de finalizar facts, objetivos PRE y dashboards.
+- El resultado comercial compartido se calcula como: facturacion sin PRE - compras + ingresos incluidos - egresos incluidos.
+- Contrato tecnico completo: `docs/SABIOGO_SYNC_API.md`.
 
 ## Requisitos
 
@@ -162,19 +162,23 @@ app360/
 pytest
 ```
 
-## Release de base de datos (GitHub -> VPS)
+## Migraciones de base de datos (GitHub -> VPS)
 
-Generar release local de DB:
-
-```bash
-bash scripts/create_local_db_release.sh
-```
-
-Aplicar release en VPS:
+Los dumps completos están deshabilitados. Para una migración productiva:
 
 ```bash
-bash scripts/apply_db_release_to_vps.sh <release_tag>
+EXPECTED_GIT_SHA=<sha_completo> \
+PROD_SSH_HOST=<host> \
+MAINTENANCE_CONFIRMED=true \
+bash scripts/apply_db_migrations_to_vps.sh \
+  <revision_actual> \
+  <revision_objetivo> \
+  <sql_de_validacion>
 ```
+
+El flujo comprueba el commit, exige una única cabecera Alembic, crea un backup,
+ensaya su restauración, aplica únicamente las revisiones forward y conserva un
+manifiesto operativo. No reinicia la aplicación.
 
 ### Test seguro en VPS (post-deploy)
 
