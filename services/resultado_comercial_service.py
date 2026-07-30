@@ -12,7 +12,15 @@ from datetime import date, datetime, time
 
 from sqlalchemy import and_, case, extract, func, or_
 
-from models import CategoriaGasto, MovimientoCaja, StgSabiogoCompras, StgSabiogoVentas, db
+from models import (
+    Adelanto,
+    CategoriaGasto,
+    LiquidacionSueldo,
+    MovimientoCaja,
+    StgSabiogoCompras,
+    StgSabiogoVentas,
+    db,
+)
 
 
 def _float(value) -> float:
@@ -210,6 +218,7 @@ class ResultadoComercialService:
         diferencia = facturacion - compras
         resultado = diferencia + ingresos_incluidos - egresos_incluidos
         resultado_pct = (resultado / facturacion * 100) if facturacion else 0.0
+        sueldos_pagados = self._sueldos_pagados(desde, hasta, diferencia)
 
         actividad_mensual = self._actividad_mensual(
             desde,
@@ -261,6 +270,7 @@ class ResultadoComercialService:
                 "caja_mensual": list(caja_mensual.values()),
             },
             "analisis_financiero": analisis_financiero,
+            "sueldos_pagados": sueldos_pagados,
             "conceptos": {
                 "desglose": desglose,
                 "participantes": participantes,
@@ -282,6 +292,78 @@ class ResultadoComercialService:
                 # Los consumidores reservan este canal para fallos accionables.
                 "warnings": [],
             },
+        }
+
+    def _sueldos_pagados(self, desde: date, hasta: date, margen_comercial: float) -> dict:
+        """Resume los pagos de personal sin alterar el resultado de gestión.
+
+        Tesorería se toma por su categoría SUELDOS y los movimientos anulados
+        quedan afuera. En RRHH se consideran las liquidaciones emitidas y los
+        adelantos de sueldo efectivamente entregados; los préstamos no son una
+        remuneración y por eso no integran esta lectura.
+        """
+        desde_dt = datetime.combine(desde, time.min)
+        hasta_dt = datetime.combine(hasta, time.max)
+
+        tesoreria = (
+            db.session.query(
+                func.sum(MovimientoCaja.monto).label("monto"),
+                func.count(MovimientoCaja.id).label("cantidad"),
+            )
+            .join(CategoriaGasto, CategoriaGasto.id == MovimientoCaja.categoria_gasto_id)
+            .filter(
+                *self._movimientos_filters(desde, hasta),
+                MovimientoCaja.tipo == "egreso",
+                func.upper(func.trim(CategoriaGasto.nombre)) == "SUELDOS",
+            )
+            .first()
+        )
+        liquidaciones = (
+            db.session.query(
+                func.sum(LiquidacionSueldo.sueldo_neto).label("monto"),
+                func.count(LiquidacionSueldo.id).label("cantidad"),
+            )
+            .filter(
+                LiquidacionSueldo.fecha_liquidacion >= desde_dt,
+                LiquidacionSueldo.fecha_liquidacion <= hasta_dt,
+            )
+            .first()
+        )
+        adelantos = (
+            db.session.query(
+                func.sum(Adelanto.monto).label("monto"),
+                func.count(Adelanto.id).label("cantidad"),
+            )
+            .filter(
+                Adelanto.aprobado.is_(True),
+                Adelanto.pagado.is_(True),
+                Adelanto.tipo.in_(("adelanto_efectivo", "adelanto_mercaderia")),
+                Adelanto.fecha_pago >= desde_dt,
+                Adelanto.fecha_pago <= hasta_dt,
+            )
+            .first()
+        )
+
+        tesoreria_monto = _float(getattr(tesoreria, "monto", 0))
+        liquidaciones_monto = _float(getattr(liquidaciones, "monto", 0))
+        adelantos_monto = _float(getattr(adelantos, "monto", 0))
+        total = tesoreria_monto + liquidaciones_monto + adelantos_monto
+        return {
+            "tesoreria_sueldos": {
+                "monto": tesoreria_monto,
+                "cantidad": int(getattr(tesoreria, "cantidad", 0) or 0),
+            },
+            "liquidaciones_rrhh": {
+                "monto": liquidaciones_monto,
+                "cantidad": int(getattr(liquidaciones, "cantidad", 0) or 0),
+            },
+            "adelantos_rrhh": {
+                "monto": adelantos_monto,
+                "cantidad": int(getattr(adelantos, "cantidad", 0) or 0),
+            },
+            "total": total,
+            "margen_comercial": margen_comercial,
+            "margen_despues_sueldos_pagados": margen_comercial - total,
         }
 
     def _actividad_mensual(self, desde, hasta, empresa):
@@ -432,12 +514,7 @@ class ResultadoComercialService:
         participantes,
         clientes,
     ):
-        """Genera lecturas financieras, sin presentarlas como utilidad contable.
-
-        La caja y el resultado tienen bases temporales distintas: la primera usa
-        movimientos registrados y el segundo usa facturación/compras procesadas.
-        Por eso la brecha es una señal de gestión, no una conciliación contable.
-        """
+        """Genera lecturas de gestión para orientar la revisión del período."""
         month_keys = self._month_keys(desde, hasta)
         actividad_por_mes = {
             key: value for key, value in actividad_mensual.items()
@@ -502,59 +579,58 @@ class ResultadoComercialService:
                 "sin_movimientos_caja",
                 "info",
                 "Sin movimientos de caja registrados",
-                "No hay entradas ni salidas de Tesorería en el período. La caja observada no alcanza para inferir liquidez ni cobertura de egresos.",
+                "No se registraron ingresos ni egresos en Tesorería para este período. Revisá si faltan cargar movimientos antes de usar esta lectura.",
             )
         elif flujo_neto < 0 and resultado >= 0:
             add(
                 "resultado_sin_caja",
                 "danger",
                 "Resultado positivo, caja negativa",
-                "La actividad comercial es positiva, pero los movimientos registrados consumieron más caja de la que ingresó. Revisar cobranzas, pagos y desfases de fechas.",
+                "El resultado del período da positivo, pero salió más dinero del que entró. Revisá cobranzas pendientes, pagos adelantados y fechas de registración.",
             )
         elif flujo_neto >= 0 and resultado < 0:
             add(
                 "caja_sin_resultado",
                 "warning",
                 "Caja positiva, resultado negativo",
-                "Entró más dinero del que salió en Tesorería, aunque el resultado de gestión es negativo. Puede reflejar cobranzas de períodos anteriores o compras aún no convertidas en ventas.",
+                "Entró más dinero del que salió, aunque el resultado del período da negativo. Revisá si ingresaron cobranzas de ventas anteriores o si las compras todavía no se reflejan en ventas.",
             )
         elif flujo_neto < 0:
             add(
                 "flujo_negativo",
                 "danger",
-                "Flujo neto negativo",
-                "Los egresos registrados superan a los ingresos del período. La operación necesita financiamiento o una mejora en el ritmo de cobros.",
+                "Caja del período en negativo",
+                "Salió más dinero del que entró. Revisá los egresos más altos y las cobranzas pendientes del período.",
             )
         else:
             add(
                 "flujo_positivo",
                 "positive",
-                "Flujo neto positivo",
-                "Los movimientos registrados dejan una entrada neta de dinero en el período. Esto describe liquidez observada, no utilidad contable.",
+                "Caja del período a favor",
+                "Entró más dinero del que salió. Revisá si esta mejora se sostiene en los próximos períodos.",
             )
 
         if cobertura is not None and cobertura < 100:
             add(
                 "cobertura_insuficiente",
                 "warning",
-                "Cobertura de egresos insuficiente",
-                f"Por cada $100 de egresos registrados ingresaron $ {cobertura:.1f}. La caja del período no se autofinanció con sus entradas.",
+                "Ingresos por debajo de los pagos",
+                f"Por cada $100 que salieron, ingresaron $ {cobertura:.1f}. Revisá pagos próximos y cobranzas pendientes.",
             )
         elif cobertura is not None:
             add(
                 "cobertura_suficiente",
                 "positive",
-                "Cobertura de egresos",
-                f"Los ingresos registrados cubrieron el {cobertura:.1f}% de los egresos del período.",
+                "Ingresos que cubren los pagos",
+                f"Por cada $100 que salieron, ingresaron $ {cobertura:.1f}. Los ingresos del período alcanzaron para cubrir los pagos registrados.",
             )
 
         if brecha and abs(brecha) > max(100000.0, abs(resultado) * 0.1):
-            sentido = "por encima" if brecha > 0 else "por debajo"
             add(
                 "brecha_caja_resultado",
                 "info",
-                "Brecha entre caja y resultado",
-                f"La caja neta quedó {sentido} del resultado de gestión en $ {self._money_text(abs(brecha))}. Es una señal de timing y alcance de datos, no una conciliación contable.",
+                "Diferencia caja–resultado",
+                f"Entre caja y resultado hay una diferencia de $ {self._money_text(abs(brecha))}. Revisá movimientos cobrados o pagados en fechas distintas a la operación.",
             )
 
         top5 = _float(clientes.get("top_5_pct"))
@@ -563,14 +639,14 @@ class ResultadoComercialService:
                 "concentracion_clientes",
                 "warning",
                 "Concentración comercial elevada",
-                f"Los cinco principales clientes explican el {top5:.1f}% de la facturación. Una demora o pérdida en pocos clientes puede impactar rápidamente la caja.",
+                f"Los cinco clientes principales concentran el {top5:.1f}% de la facturación. Revisá plazos de cobro y dependencia de esas cuentas.",
             )
         elif top5 >= 40:
             add(
                 "concentracion_clientes",
                 "info",
                 "Concentración a monitorear",
-                f"Los cinco principales clientes representan el {top5:.1f}% de la facturación. Conviene seguir sus plazos y saldos por separado.",
+                f"Los cinco clientes principales representan el {top5:.1f}% de la facturación. Conviene seguir sus plazos de cobro por separado.",
             )
 
         mayor_egreso = max(
@@ -586,8 +662,8 @@ class ResultadoComercialService:
             add(
                 "principal_egreso_incluido",
                 "info",
-                "Principal egreso que impacta el resultado",
-                f"{mayor_egreso['concepto']} concentra $ {self._money_text(mayor_egreso['resta']['monto'])} de los conceptos que restan al resultado.",
+                "Concepto que más redujo el resultado",
+                f"{mayor_egreso['concepto']} fue el concepto que más redujo el resultado: $ {self._money_text(mayor_egreso['resta']['monto'])}. Revisá su composición y evolución.",
             )
 
         if resultados_negativos >= 2 and resultados_negativos >= resultados_positivos:
@@ -595,14 +671,14 @@ class ResultadoComercialService:
                 "tendencia_resultado",
                 "warning",
                 "Resultado débil en la mayoría de los meses",
-                f"El resultado de gestión fue negativo en {resultados_negativos} de {len(flujo_mensual)} meses del período analizado.",
+                f"El resultado fue negativo en {resultados_negativos} de {len(flujo_mensual)} meses. Revisá si la facturación está alcanzando para absorber compras y egresos incluidos.",
             )
         elif meses_negativos >= 2 and meses_negativos >= meses_positivos:
             add(
                 "tendencia_caja",
                 "warning",
-                "Flujo irregular o contractivo",
-                f"El flujo neto fue negativo en {meses_negativos} de {len(flujo_mensual)} meses del período analizado.",
+                "Caja negativa en varios meses",
+                f"La caja dio negativa en {meses_negativos} de {len(flujo_mensual)} meses. Revisá en qué meses se concentraron pagos y cobranzas.",
             )
 
         severity_order = {"danger": 0, "warning": 1, "info": 2, "positive": 3}

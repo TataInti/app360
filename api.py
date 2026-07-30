@@ -633,6 +633,7 @@ def api_dashboard_comercial_v2():
     )
     empresa = (request.args.get("empresa") or "TODAS").upper().strip()
     vendedor_filter = (request.args.get("vendedor") or "").strip()
+    cliente_filter = (request.args.get("cliente") or "").strip()
     producto_filter = (request.args.get("producto") or "").strip()
     dt_desde = datetime.combine(desde, datetime.min.time())
     dt_hasta = datetime.combine(hasta, datetime.max.time())
@@ -787,6 +788,8 @@ def api_dashboard_comercial_v2():
             _pre_filters.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
         if vendedor_filter:
             _pre_filters.append(StgSabiogoVentas.vendedor == vendedor_filter)
+        if cliente_filter:
+            _pre_filters.append(StgSabiogoVentas.cliente == cliente_filter)
         if producto_filter:
             _pre_filters.append(StgSabiogoVentas.producto == producto_filter)
 
@@ -976,6 +979,7 @@ def api_panel_ejecutivo_v2():
         "instrumentos": {"labels": [], "values": []},
         "conceptos": resumen["conceptos"],
         "analisis_financiero": resumen["analisis_financiero"],
+        "sueldos_pagados": resumen["sueldos_pagados"],
         "series": resumen["series"],
         "meta": resumen["meta"],
         "alertas": resumen["meta"]["warnings"],
@@ -1042,7 +1046,7 @@ def api_panel_ejecutivo_v2():
 # -----------------------------------------------------------------------------
 @api.get("/dashboard-comercial/filtros")
 def api_dashboard_comercial_filtros():
-    """Devuelve listas completas de vendedores y productos para poblar filtros."""
+    """Devuelve listas completas de vendedores, clientes y productos para poblar filtros."""
     from models.sabiogo.staging import StgSabiogoVentas
 
     empresa = (request.args.get("empresa") or "TODAS").upper().strip()
@@ -1066,8 +1070,17 @@ def api_dashboard_comercial_filtros():
         .order_by(StgSabiogoVentas.producto)
         .all()
     )
+    clientes = (
+        db.session.query(StgSabiogoVentas.cliente)
+        .filter(*f)
+        .filter(StgSabiogoVentas.cliente.isnot(None), StgSabiogoVentas.cliente != "")
+        .distinct()
+        .order_by(StgSabiogoVentas.cliente)
+        .all()
+    )
     return jsonify({
         "vendedores": [r.vendedor for r in vend],
+        "clientes": [r.cliente for r in clientes],
         "productos": [r.producto for r in prod],
     })
 

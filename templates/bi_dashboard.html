@@ -70,12 +70,12 @@
       <div class="kpi-hero accent-purple">
         <span class="kpi-label">Resultado de gestión</span>
         <span class="kpi-value" id="kpi-resultado">$0</span>
-        <span class="kpi-sub" id="kpi-resultado-pct">0,0 % sobre facturación</span>
+        <span class="kpi-sub" id="kpi-resultado-pct">Resultado del período sobre la facturación</span>
       </div>
       <div class="kpi-hero accent-sky">
         <span class="kpi-label">Caja neta</span>
         <span class="kpi-value" id="kpi-caja">$0</span>
-        <span class="kpi-sub">Ingresos de Tesorería − Egresos de Tesorería</span>
+        <span class="kpi-sub">Dinero que entró menos dinero que salió</span>
       </div>
     </div>
 
@@ -83,22 +83,27 @@
       <div class="kpi-card accent-green">
         <span class="kpi-label">Facturación sin PRE</span>
         <span class="kpi-value" id="kpi-facturacion">$0</span>
+        <span class="kpi-sub">Facturas procesadas. No incluye presupuestos PRE.</span>
       </div>
       <div class="kpi-card accent-red">
         <span class="kpi-label">Compras de mercadería</span>
         <span class="kpi-value" id="kpi-compras">$0</span>
+        <span class="kpi-sub">Compras registradas de mercadería.</span>
       </div>
       <div class="kpi-card accent-blue">
         <span class="kpi-label">Diferencia facturación–compras</span>
         <span class="kpi-value" id="kpi-diferencia">$0</span>
+        <span class="kpi-sub">Lo que queda después de compras, antes de Tesorería.</span>
       </div>
       <div class="kpi-card accent-green">
         <span class="kpi-label">Conceptos que suman</span>
         <span class="kpi-value" id="kpi-suman">$0</span>
+        <span class="kpi-sub">Ingresos configurados que mejoran el resultado.</span>
       </div>
       <div class="kpi-card accent-red">
         <span class="kpi-label">Conceptos que restan</span>
         <span class="kpi-value" id="kpi-restan">$0</span>
+        <span class="kpi-sub">Egresos configurados que reducen el resultado.</span>
       </div>
     </div>
 
@@ -108,63 +113,111 @@
         <div class="result-method__formula">Facturación − Compras + Ingresos incluidos − Egresos incluidos</div>
       </div>
       <div class="result-method__note">
-        Es un indicador de gestión, no una utilidad contable. Las compras representan entradas de mercadería; para medir rentabilidad real se necesita inventario valorizado o costo de mercadería vendida.
+        Combina facturación, compras y los conceptos de Tesorería marcados para incluir en el resultado.
       </div>
     </div>
+
+    <section class="salary-impact" aria-labelledby="salary-impact-title">
+      <div class="salary-impact__head">
+        <div>
+          <span class="salary-impact__eyebrow">Lectura de personal</span>
+          <h2 class="salary-impact__title" id="salary-impact-title">Sueldos pagados</h2>
+        </div>
+        <p class="salary-impact__note">Egresos activos de Tesorería con categoría SUELDOS + Liquidaciones + Adelantos en RRHH.</p>
+      </div>
+      <div class="salary-impact__sources">
+        <div class="salary-source">
+          <span class="salary-source__label">Tesorería · SUELDOS</span>
+          <span class="salary-source__value" id="salary-treasury">$0</span>
+          <span class="salary-source__sub" id="salary-treasury-count">0 movimientos</span>
+        </div>
+        <div class="salary-source">
+          <span class="salary-source__label">Liquidaciones RRHH</span>
+          <span class="salary-source__value" id="salary-liquidations">$0</span>
+          <span class="salary-source__sub" id="salary-liquidations-count">0 liquidaciones</span>
+        </div>
+        <div class="salary-source">
+          <span class="salary-source__label">Adelantos RRHH</span>
+          <span class="salary-source__value" id="salary-advances">$0</span>
+          <span class="salary-source__sub" id="salary-advances-count">0 adelantos pagados</span>
+        </div>
+        <div class="salary-source salary-source--total">
+          <span class="salary-source__label">Sueldos pagados</span>
+          <span class="salary-source__value" id="salary-total">$0</span>
+          <span class="salary-source__sub">Total de las tres fuentes</span>
+        </div>
+      </div>
+      <div class="salary-impact__formula" aria-label="Cálculo del margen después de sueldos pagados">
+        <div>
+          <span>Margen comercial</span>
+          <strong id="salary-margin-commercial">$0</strong>
+        </div>
+        <span class="salary-impact__operator" aria-hidden="true">−</span>
+        <div>
+          <span>Sueldos pagados</span>
+          <strong id="salary-total-formula">$0</strong>
+        </div>
+        <span class="salary-impact__operator" aria-hidden="true">=</span>
+        <div class="salary-impact__result">
+          <span>Margen después de sueldos pagados</span>
+          <strong id="salary-margin-after">$0</strong>
+        </div>
+      </div>
+    </section>
 
     <section class="financial-analysis" aria-labelledby="financial-analysis-title">
       <div class="financial-analysis__head">
         <div>
           <span class="financial-analysis__eyebrow">Análisis financiero</span>
-          <h2 class="financial-analysis__title" id="financial-analysis-title">Resultado, caja y señales de liquidez</h2>
+          <h2 class="financial-analysis__title" id="financial-analysis-title">Resultado y caja del período</h2>
         </div>
         <div class="financial-analysis__note">
-          La caja usa movimientos efectivamente registrados. El resultado usa facturación y compras procesadas; la comparación ayuda a detectar desfases, pero no reemplaza una conciliación contable.
+          El resultado muestra cómo cerró la gestión. La caja muestra el dinero que entró y salió. Comparalos para detectar cobros o pagos que quedaron en otro momento.
         </div>
       </div>
       <div class="financial-analysis__metrics">
         <div class="financial-metric">
-          <span class="financial-metric__label">Flujo neto de caja</span>
+          <span class="financial-metric__label">Caja del período</span>
           <span class="financial-metric__value" id="financial-neto">$0</span>
           <span class="financial-metric__sub" id="financial-neto-sub">Ingresos registrados − egresos registrados</span>
         </div>
         <div class="financial-metric">
-          <span class="financial-metric__label">Cobertura de egresos</span>
+          <span class="financial-metric__label">Ingresos para cubrir pagos</span>
           <span class="financial-metric__value" id="financial-coverage">–</span>
-          <span class="financial-metric__sub">Ingresos de caja por cada $100 egresados</span>
+          <span class="financial-metric__sub">Por cada $100 que salieron, cuánto entró</span>
         </div>
         <div class="financial-metric">
-          <span class="financial-metric__label">Brecha caja vs. resultado</span>
+          <span class="financial-metric__label">Diferencia caja–resultado</span>
           <span class="financial-metric__value" id="financial-gap">$0</span>
-          <span class="financial-metric__sub">Señal referencial de timing y alcance</span>
+          <span class="financial-metric__sub">Muestra si cobros y pagos quedaron registrados en fechas distintas</span>
         </div>
         <div class="financial-metric">
-          <span class="financial-metric__label">Meses con flujo positivo</span>
+          <span class="financial-metric__label">Meses con caja a favor</span>
           <span class="financial-metric__value" id="financial-months">0 de 0</span>
-          <span class="financial-metric__sub" id="financial-months-sub">Sin movimientos: 0 meses</span>
+          <span class="financial-metric__sub" id="financial-months-sub">Meses con más ingresos que egresos</span>
         </div>
       </div>
       <div class="financial-analysis__body">
         <div class="financial-analysis__chart">
-          <span class="financial-analysis__section-title">Flujo de dinero mensual</span>
-          <span class="financial-analysis__section-note">Barras: entradas y salidas. Línea: flujo neto de Tesorería.</span>
+          <span class="financial-analysis__section-title">Flujo de caja por mes</span>
+          <span class="financial-analysis__section-note">Barras: dinero que entró y salió. Línea: saldo de cada mes.</span>
           <div class="financial-analysis__chart-stage"><canvas id="cashflow-analysis-chart"></canvas></div>
         </div>
       </div>
       <div class="financial-analysis__insights">
-        <span class="financial-analysis__section-title">Insights derivados del período</span>
-        <span class="financial-analysis__section-note">Lecturas automáticas para orientar la revisión.</span>
+        <span class="financial-analysis__section-title">Qué conviene revisar</span>
+        <span class="financial-analysis__section-note">Señales que surgen de los movimientos y la facturación del período.</span>
         <ul class="financial-insights" id="financial-insights"></ul>
       </div>
       <div class="financial-analysis__footnote" id="financial-participation">
-        Los conceptos configurados se explican debajo del gráfico de componentes; aquí se muestra la relación entre la caja total y el resultado de gestión.
+        Los conceptos incluidos muestran qué parte de Tesorería impactó en el resultado.
       </div>
     </section>
 
     <div class="charts-grid">
       <section class="chart-card-v2" aria-labelledby="components-title">
         <h3 id="components-title">Componentes del resultado</h3>
-        <span class="chart-description">Compara cada importe desde una misma base; compras y egresos son componentes que restan.</span>
+        <span class="chart-description">Cada barra muestra cuánto aportó o restó al resultado final.</span>
         <div class="chart-stage"><canvas id="components-chart"></canvas></div>
       </section>
     </div>
@@ -172,7 +225,7 @@
     <div class="charts-grid">
       <section class="chart-card-v2" aria-labelledby="monthly-title">
         <h3 id="monthly-title">Evolución mensual</h3>
-        <span class="chart-description">Facturación, compras y resultado calculados con la misma metodología.</span>
+        <span class="chart-description">Permite ver si el resultado mejora o empeora mes a mes.</span>
         <div class="chart-stage"><canvas id="monthly-chart"></canvas></div>
       </section>
     </div>
@@ -357,6 +410,32 @@
     document.getElementById('conceptos-restan-total').textContent = money(kpis.egresos_incluidos);
   }
 
+  function pluralize(count, singular, plural = `${singular}s`) {
+    return `${Number(count || 0).toLocaleString('es-AR')} ${Number(count || 0) === 1 ? singular : plural}`;
+  }
+
+  function renderSalaryImpact(salaries) {
+    const treasury = salaries?.tesoreria_sueldos || {};
+    const liquidations = salaries?.liquidaciones_rrhh || {};
+    const advances = salaries?.adelantos_rrhh || {};
+    const total = Number(salaries?.total || 0);
+    const margin = Number(salaries?.margen_comercial || 0);
+    const marginAfter = Number(salaries?.margen_despues_sueldos_pagados || 0);
+
+    document.getElementById('salary-treasury').textContent = money(treasury.monto);
+    document.getElementById('salary-liquidations').textContent = money(liquidations.monto);
+    document.getElementById('salary-advances').textContent = money(advances.monto);
+    document.getElementById('salary-total').textContent = money(total);
+    document.getElementById('salary-total-formula').textContent = money(total);
+    document.getElementById('salary-margin-commercial').textContent = money(margin);
+    document.getElementById('salary-margin-after').textContent = money(marginAfter);
+    document.getElementById('salary-treasury-count').textContent = pluralize(treasury.cantidad, 'movimiento');
+    document.getElementById('salary-liquidations-count').textContent = pluralize(liquidations.cantidad, 'liquidación', 'liquidaciones');
+    document.getElementById('salary-advances-count').textContent = `${pluralize(advances.cantidad, 'adelanto')} pagado${Number(advances.cantidad || 0) === 1 ? '' : 's'}`;
+    setSignedClass(document.getElementById('salary-margin-commercial'), margin);
+    setSignedClass(document.getElementById('salary-margin-after'), marginAfter);
+  }
+
   function renderComponents(kpis) {
     const facturacion = Number(kpis.facturacion || 0);
     const compras = Number(kpis.compras || 0);
@@ -453,19 +532,21 @@
     setSignedClass(document.getElementById('financial-neto'), neto);
     document.getElementById('financial-neto-sub').textContent = neto < 0
       ? 'Los egresos registrados superan a los ingresos'
-      : 'Ingresos registrados − egresos registrados';
+      : 'Dinero que entró menos dinero que salió';
     document.getElementById('financial-coverage').textContent = coverage == null
       ? 'Sin base'
       : `${Number(coverage).toLocaleString('es-AR', { maximumFractionDigits: 1 })} %`;
     document.getElementById('financial-gap').textContent = money(gap);
     setSignedClass(document.getElementById('financial-gap'), gap);
     document.getElementById('financial-months').textContent = `${Number(trend.meses_flujo_positivo || 0)} de ${months}`;
-    document.getElementById('financial-months-sub').textContent = `Sin movimientos: ${Number(cash.meses_sin_movimiento || 0)} meses`;
+    document.getElementById('financial-months-sub').textContent = cash.meses_sin_movimiento
+      ? `Sin movimientos: ${Number(cash.meses_sin_movimiento)} meses`
+      : 'Meses con más ingresos que egresos';
 
     const insights = Array.isArray(analysis?.insights) ? analysis.insights : [];
     const insightsContainer = document.getElementById('financial-insights');
     if (!insights.length) {
-      insightsContainer.innerHTML = '<li class="financial-insight"><span class="financial-insight__message">No hay señales suficientes para inferir una lectura adicional en este período.</span></li>';
+      insightsContainer.innerHTML = '<li class="financial-insight"><span class="financial-insight__message">No surgieron señales adicionales para revisar en este período.</span></li>';
     } else {
       const allowedSeverities = new Set(['danger', 'warning', 'positive', 'info']);
       insightsContainer.innerHTML = insights.map(item => {
@@ -483,7 +564,7 @@
       ? 'sin base comparable'
       : `${Number(value).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`;
     document.getElementById('financial-participation').textContent =
-      `Los conceptos incluidos explican ${formatShare(incomeShare)} de los ingresos y ${formatShare(expenseShare)} de los egresos registrados. La brecha de caja frente al resultado es referencial: puede reflejar cobranzas, pagos y fechas diferentes.`;
+      `Los conceptos incluidos explican ${formatShare(incomeShare)} de los ingresos y ${formatShare(expenseShare)} de los egresos registrados.`;
 
     const rows = Array.isArray(trend.flujo_mensual) ? trend.flujo_mensual : [];
     if (cashflowAnalysisChart) cashflowAnalysisChart.destroy();
@@ -554,11 +635,12 @@
         ['kpi-suman', kpis.ingresos_incluidos],
         ['kpi-restan', kpis.egresos_incluidos]
       ].forEach(([id, value]) => { document.getElementById(id).textContent = money(value); });
-      document.getElementById('kpi-resultado-pct').textContent = `${percent(kpis.resultado_sobre_facturacion_pct)} sobre facturación`;
+      document.getElementById('kpi-resultado-pct').textContent = `Resultado del período: ${percent(kpis.resultado_sobre_facturacion_pct)} de la facturación`;
       setSignedClass(document.getElementById('kpi-resultado'), kpis.resultado_gestion);
       setSignedClass(document.getElementById('kpi-caja'), kpis.caja_neta);
       setSignedClass(document.getElementById('kpi-diferencia'), kpis.diferencia_facturacion_compras);
       renderWarnings([]);
+      renderSalaryImpact(data.sueldos_pagados || {});
       renderFinancialAnalysis(data.analisis_financiero || {});
       renderConcepts(data.conceptos?.participantes || data.detalles?.conceptos_participantes || [], kpis);
       renderComponents(kpis);

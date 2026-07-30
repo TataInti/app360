@@ -215,6 +215,7 @@ def bi_dashboard():
             ],
         },
         "analisis_financiero": resultado["analisis_financiero"],
+        "sueldos_pagados": resultado["sueldos_pagados"],
         "detalles": {
             "conceptos_resultado": resultado["conceptos"]["desglose"],
             "conceptos_participantes": resultado["conceptos"]["participantes"],

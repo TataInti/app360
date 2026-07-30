@@ -66,28 +66,28 @@
       <div class="kpi-card accent-green">
         <span class="kpi-label">Facturación sin PRE</span>
         <span class="kpi-value" id="kpi-facturacion">$0</span>
-        <span class="kpi-sub">Comprobantes procesados facturados</span>
+        <span class="kpi-sub">Facturas procesadas. Los presupuestos PRE se siguen en Ventas.</span>
       </div>
       <div class="kpi-card accent-blue">
         <span class="kpi-label">Diferencia facturación–compras</span>
         <span class="kpi-value" id="kpi-diferencia">$0</span>
-        <span class="kpi-sub">Antes de conceptos de Tesorería</span>
+        <span class="kpi-sub">Lo que queda después de compras, antes de otros ingresos y egresos.</span>
       </div>
       <div class="kpi-card accent-purple">
         <span class="kpi-label">Resultado de gestión</span>
         <span class="kpi-value" id="kpi-resultado">$0</span>
-        <span class="kpi-sub" id="kpi-resultado-pct">0,0 % sobre facturación</span>
+        <span class="kpi-sub" id="kpi-resultado-pct">Resultado del período sobre la facturación</span>
       </div>
       <div class="kpi-card accent-sky">
         <span class="kpi-label">Caja neta</span>
         <span class="kpi-value" id="kpi-caja">$0</span>
-        <span class="kpi-sub">Ingresos − Egresos de Tesorería</span>
+        <span class="kpi-sub">Dinero que entró menos dinero que salió</span>
       </div>
     </div>
 
     <div class="result-method">
       <div>
-        <span class="result-method__title">Lectura ejecutiva</span>
+        <span class="result-method__title">Resumen del período</span>
         <div class="result-method__formula">
           Diferencia <span id="summary-diferencia">$0</span>
           + <span id="summary-suman">$0</span>
@@ -96,7 +96,7 @@
         </div>
       </div>
       <div class="result-method__note">
-        Este resultado incluye únicamente los conceptos habilitados en Administración. Es un indicador de gestión y no una utilidad contable.
+        Combina facturación, compras y los conceptos de Tesorería incluidos para el resultado.
       </div>
     </div>
 
@@ -106,6 +106,7 @@
           <span>Conceptos que suman</span>
           <span class="effect-text effect-text--sum" id="summary-suman-total">$0</span>
         </div>
+        <span class="concept-status">Ingresos configurados que mejoran el resultado.</span>
         <div class="concept-summary__list" id="summary-suman-list"></div>
       </section>
       <section class="concept-summary">
@@ -113,6 +114,7 @@
           <span>Conceptos que restan</span>
           <span class="effect-text effect-text--subtract" id="summary-restan-total">$0</span>
         </div>
+        <span class="concept-status">Egresos configurados que reducen el resultado.</span>
         <div class="concept-summary__list" id="summary-restan-list"></div>
       </section>
     </div>
@@ -120,12 +122,13 @@
     <div class="charts-grid">
       <section class="chart-card-v2" aria-labelledby="evolution-title">
         <h3 id="evolution-title">Evolución del resultado de gestión</h3>
-        <span class="chart-description">La línea permite detectar cambios entre períodos sin confundir compras con costo vendido.</span>
+        <span class="chart-description">Muestra si el resultado mejora o empeora mes a mes.</span>
         <div class="chart-stage"><canvas id="resultado-chart"></canvas></div>
       </section>
 
       <section class="table-card" aria-labelledby="clients-title">
         <div class="table-card-head" id="clients-title">Concentración de clientes</div>
+        <span class="panel-section-description">Mide cuánto depende la facturación de pocos clientes. Revisá plazos de cobro y continuidad de estas cuentas.</span>
         <div class="metric-inline">
           <div class="metric-inline__item">
             <span class="metric-inline__label">Cliente principal</span>
@@ -150,6 +153,7 @@
     <div class="charts-grid">
       <section class="table-card" aria-labelledby="friar-title">
         <div class="table-card-head" id="friar-title">Estado de cuenta Friar</div>
+        <span class="panel-section-description">Resume el saldo pendiente según liquidaciones y pagos registrados.</span>
         <div id="friar-cuenta"></div>
       </section>
 
@@ -381,7 +385,7 @@
         ['summary-restan', kpis.egresos_incluidos],
         ['summary-resultado', kpis.resultado_gestion]
       ].forEach(([id, value]) => { document.getElementById(id).textContent = money(value); });
-      document.getElementById('kpi-resultado-pct').textContent = `${percent(kpis.resultado_sobre_facturacion_pct)} sobre facturación`;
+      document.getElementById('kpi-resultado-pct').textContent = `Resultado del período: ${percent(kpis.resultado_sobre_facturacion_pct)} de la facturación`;
       setSignedClass(document.getElementById('kpi-diferencia'), kpis.diferencia_facturacion_compras);
       setSignedClass(document.getElementById('kpi-resultado'), kpis.resultado_gestion);
       setSignedClass(document.getElementById('kpi-caja'), kpis.caja_neta);

@@ -21,6 +21,9 @@
     <select id="sel-vendedor" class="form-select form-select-sm" style="width:auto;min-width:120px">
       <option value="">Vendedor</option>
     </select>
+    <select id="sel-cliente" class="form-select form-select-sm" style="width:auto;min-width:130px">
+      <option value="">Cliente</option>
+    </select>
     <select id="sel-producto" class="form-select form-select-sm" style="width:auto;min-width:130px">
       <option value="">Producto</option>
     </select>
@@ -270,8 +273,19 @@
 
   /* ── TomSelect: poblar select evitando recrear si no cambian los items ── */
   const _tsInstances = {};
+  const _filterLabels = {
+    'sel-vendedor': 'Vendedor',
+    'sel-cliente': 'Cliente',
+    'sel-producto': 'Producto',
+    'a-vendedor': 'Vendedor',
+    'a-producto': 'Producto',
+    'm-vendedor': 'Vendedor',
+    'm-cliente': 'Cliente',
+    'm-producto': 'Producto',
+  };
   function _poblarSelect(id, items, allLabel='Todos'){
     const sel = document.getElementById(id); if(!sel) return;
+    const emptyLabel = _filterLabels[id] || allLabel;
     const cur = _tsInstances[id] ? _tsInstances[id].getValue() : sel.value;
     const newKey = items.join('\x00');
     if(sel.dataset.tsKey === newKey){ /* items iguales → solo restaurar valor */
@@ -280,23 +294,24 @@
     }
     sel.dataset.tsKey = newKey;
     if(_tsInstances[id]){ _tsInstances[id].destroy(); delete _tsInstances[id]; }
-    sel.innerHTML = `<option value="">${allLabel}</option>` + items.map(v=>`<option value="${v}">${v}</option>`).join('');
+    sel.innerHTML = `<option value="">${emptyLabel}</option>` + items.map(v=>`<option value="${v}">${v}</option>`).join('');
     if(cur && items.includes(cur)) sel.value = cur;
     if(items.length >= 10){
       const mw = sel.style.minWidth || '';
-      _tsInstances[id] = new TomSelect('#'+id, {create:false, maxOptions:400, plugins:['dropdown_input'], placeholder:'Buscar…'});
+      _tsInstances[id] = new TomSelect('#'+id, {create:false, maxOptions:400, plugins:['dropdown_input'], placeholder:emptyLabel});
       if(mw) _tsInstances[id].wrapper.style.minWidth = mw;
       if(cur && items.includes(cur)) _tsInstances[id].setValue(cur, true);
     }
   }
 
-  /* ── Cargar listas de vendedores/productos desde endpoint ── */
-  async function _cargarFiltros(empresa, vendedorId, productoId){
+  /* ── Cargar listas de vendedores/clientes/productos desde endpoint ── */
+  async function _cargarFiltros(empresa, vendedorId, productoId, clienteId){
     try{
       const r = await fetch('/api/dashboard-comercial/filtros?empresa='+encodeURIComponent(empresa||'TODAS'));
       const d = await r.json();
       _poblarSelect(vendedorId, d.vendedores||[]);
       _poblarSelect(productoId,  d.productos||[]);
+      if(clienteId) _poblarSelect(clienteId, d.clientes||[]);
     }catch(e){ console.error('Error cargando filtros:', e); }
   }
 
@@ -357,6 +372,7 @@
     document.getElementById('content').style.display='none';
     const empresa  = document.getElementById('sel-empresa').value;
     const vendedor = (_tsInstances['sel-vendedor'] ? _tsInstances['sel-vendedor'].getValue() : document.getElementById('sel-vendedor').value) || '';
+    const cliente  = (_tsInstances['sel-cliente']  ? _tsInstances['sel-cliente'].getValue()  : document.getElementById('sel-cliente').value)  || '';
     const producto = (_tsInstances['sel-producto'] ? _tsInstances['sel-producto'].getValue() : document.getElementById('sel-producto').value) || '';
     const p = new URLSearchParams();
     if(period)  p.set('period', period);
@@ -364,6 +380,7 @@
     if(hasta)   p.set('fecha_hasta', hasta);
     p.set('empresa', empresa);
     if(vendedor) p.set('vendedor', vendedor);
+    if(cliente)  p.set('cliente', cliente);
     if(producto) p.set('producto', producto);
     try{
       const r = await fetch('/api/dashboard-comercial-v2?'+p), d = await r.json(), k = d.kpis||{}, s = d.series||{};
@@ -632,12 +649,13 @@
     document.getElementById('btn-este-mes').addEventListener('click', ()=>{ const m=esEsteMes(); setActive(''); load('', m.desde, m.hasta); });
 
     /* Empresa principal → recargar filtros de listas + datos */
-    document.getElementById('sel-empresa').addEventListener('change', ()=>{
-      _cargarFiltros(document.getElementById('sel-empresa').value, 'sel-vendedor', 'sel-producto');
+    document.getElementById('sel-empresa').addEventListener('change', async ()=>{
+      await _cargarFiltros(document.getElementById('sel-empresa').value, 'sel-vendedor', 'sel-producto', 'sel-cliente');
       const act=document.querySelector('.period-bar .period-pills .pp[data-period].active');
       if(act) load(act.dataset.period); else load('', document.getElementById('fecha-desde').value, document.getElementById('fecha-hasta').value);
     });
     document.getElementById('sel-vendedor').addEventListener('change', ()=>{ const act=document.querySelector('.period-bar .period-pills .pp[data-period].active'); if(act)load(act.dataset.period); else load('',document.getElementById('fecha-desde').value,document.getElementById('fecha-hasta').value); });
+    document.getElementById('sel-cliente').addEventListener('change',  ()=>{ const act=document.querySelector('.period-bar .period-pills .pp[data-period].active'); if(act)load(act.dataset.period); else load('',document.getElementById('fecha-desde').value,document.getElementById('fecha-hasta').value); });
     document.getElementById('sel-producto').addEventListener('change', ()=>{ const act=document.querySelector('.period-bar .period-pills .pp[data-period].active'); if(act)load(act.dataset.period); else load('',document.getElementById('fecha-desde').value,document.getElementById('fecha-hasta').value); });
 
     /* Filtros análisis independientes */
@@ -687,7 +705,7 @@
 
     /* Carga inicial: primero listas de filtros, luego datos */
     Promise.all([
-      _cargarFiltros('TODAS', 'sel-vendedor', 'sel-producto'),
+      _cargarFiltros('TODAS', 'sel-vendedor', 'sel-producto', 'sel-cliente'),
       _cargarFiltros('TODAS', 'a-vendedor',   'a-producto'),
       _cargarFiltros('TODAS', 'm-vendedor',   'm-producto'),
     ]).then(()=> load('30'));
