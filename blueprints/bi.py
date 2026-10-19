@@ -26,6 +26,7 @@ from security import protect_blueprint
 from services.resultado_comercial_service import ResultadoComercialService
 from services.sabiogo_service import SabiogoService
 from models.time_utils import today_local_date
+from models.empresa import EMPRESA_TODAS, normalizar_empresa
 
 bi_bp = Blueprint("bi", __name__)
 
@@ -123,7 +124,14 @@ def bi_dashboard():
     fecha_hasta_raw = request.args.get("fecha_hasta")
     vendedor_filter = (request.args.get("vendedor") or "").strip()
     producto_filter = (request.args.get("producto") or "").strip()
-    empresa_filter = (request.args.get("empresa") or "TODAS").upper().strip()
+    try:
+        empresa_filter = normalizar_empresa(
+            request.args.get("empresa"),
+            allow_todas=True,
+            allow_none=True,
+        ) or EMPRESA_TODAS
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     if not fecha_desde_raw or not fecha_hasta_raw:
         fecha_hasta_base = today_local_date()

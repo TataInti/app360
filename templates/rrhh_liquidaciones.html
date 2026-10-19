@@ -16,7 +16,16 @@
                 <label class="form-label">Periodo de Liquidación</label>
                 <input type="month" class="form-control form-control-sm" id="periodo-liquidacion" onchange="cargarPreview()">
             </div>
-            <div class="col-md-8 d-flex align-items-end gap-2">
+            <div class="col-md-3">
+                <label class="form-label" for="empresa-liquidacion">Empresa</label>
+                <select class="form-select form-select-sm" id="empresa-liquidacion" onchange="cargarPreview()" required>
+                    <option value="">Seleccionar…</option>
+                    {% for empresa in empresas %}
+                    <option value="{{ empresa }}">{{ 'Carnes' if empresa == 'CARNES' else 'Lácteos' }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5 d-flex align-items-end gap-2">
                 <button class="btn btn-sm btn-primary" onclick="cargarPreview()">
                     <i class="bi bi-eye"></i> Previsualizar
                 </button>
@@ -29,6 +38,7 @@
             </div>
         </div>
     </div>
+    <div id="aviso-cobertura" class="form-text mb-3" aria-live="polite"></div>
 
     <!-- Resumen -->
     <div class="kpi-grid" id="resumen-liquidacion" style="display: none;">
@@ -41,7 +51,7 @@
     <!-- Tabla de Prevsualización -->
     <div class="table-card" id="tabla-preview-container" style="display: none;">
         <div class="table-card-head">
-            <h3>Detalle de Liquidaciones</h3>
+            <h3>Detalle de Liquidaciones <span id="empresa-preview" class="badge bg-light text-dark"></span></h3>
         </div>
         <div class="scroll-table">
             <table class="table table-hover mb-0">
@@ -66,7 +76,7 @@
     <!-- Tabla de Liquidaciones Generadas -->
     <div class="table-card" id="tabla-generadas-container" style="display: none;">
         <div class="table-card-head">
-            <h3>Liquidaciones del Periodo <span id="periodo-generado"></span></h3>
+            <h3>Liquidaciones del Periodo <span id="periodo-generado"></span> <span id="empresa-generada" class="badge bg-light text-dark"></span></h3>
         </div>
         <div class="scroll-table">
             <table class="table table-hover mb-0">
@@ -102,6 +112,13 @@
                 <div class="mb-3">
                     <label class="form-label">Periodo</label>
                     <input type="month" class="form-control" id="periodo-historial">
+                    <label class="form-label mt-2" for="empresa-historial">Empresa</label>
+                    <select class="form-select" id="empresa-historial">
+                        <option value="TODAS">Todas (incluye histórico)</option>
+                        {% for empresa in empresas %}
+                        <option value="{{ empresa }}">{{ 'Carnes' if empresa == 'CARNES' else 'Lácteos' }}</option>
+                        {% endfor %}
+                    </select>
                     <button class="btn btn-sm btn-primary mt-2" onclick="buscarPeriodo()">Buscar</button>
                 </div>
                 <div id="resultado-historial">
@@ -168,12 +185,14 @@
 
     function cargarPreview() {
         const periodo = document.getElementById('periodo-liquidacion').value;
-        if (!periodo) {
-            alert('Seleccione un periodo');
+        const empresa = document.getElementById('empresa-liquidacion').value;
+        document.getElementById('btn-generar').disabled = true;
+        if (!periodo || !empresa) {
+            alert('Seleccione período y empresa');
             return;
         }
 
-        fetch(`/api/rrhh/liquidaciones/preview/${periodo}`)
+        fetch(`/api/rrhh/liquidaciones/preview/${periodo}?empresa=${encodeURIComponent(empresa)}`)
             .then(r => r.json())
             .then(data => {
                 if (data.error) {
@@ -181,8 +200,8 @@
                     return;
                 }
                 previewData = data.liquidaciones;
-                mostrarPreview(data.liquidaciones);
-                document.getElementById('btn-generar').disabled = false;
+                mostrarPreview(data.liquidaciones, data.empresa_label, data.cobertura);
+                document.getElementById('btn-generar').disabled = !data.liquidaciones.length;
             })
             .catch(e => {
                 console.error('Error:', e);
@@ -190,7 +209,7 @@
             });
     }
 
-    function mostrarPreview(liquidaciones) {
+    function mostrarPreview(liquidaciones, empresaLabel, cobertura = {}) {
         // Mostrar resumen
         document.getElementById('resumen-liquidacion').style.display = '';
         document.getElementById('tabla-preview-container').style.display = '';
@@ -207,9 +226,18 @@
         document.getElementById('total-sueldos-base').textContent = '$' + totalSueldosBase.toFixed(2);
         document.getElementById('total-descuentos').textContent = '$' + totalDescuentos.toFixed(2);
         document.getElementById('total-neto').textContent = '$' + totalNeto.toFixed(2);
+        document.getElementById('empresa-preview').textContent = empresaLabel || '';
+        const sinEmpresa = Number(cobertura.empleados_sin_empresa || 0);
+        document.getElementById('aviso-cobertura').textContent = sinEmpresa
+            ? `${sinEmpresa} empleado(s) activo(s) sin empresa asignada no se incluyen hasta completar su asignación.`
+            : '';
 
         // Mostrar tabla
         const tbody = document.getElementById('tabla-preview');
+        if (!liquidaciones.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted p-3">No hay empleados activos asignados a esta empresa.</td></tr>';
+            return;
+        }
         tbody.innerHTML = liquidaciones.map(l => `
             <tr>
                 <td>${l.empleado_nombre}</td>
@@ -231,12 +259,17 @@
 
     async function generarLiquidaciones() {
         const periodo = document.getElementById('periodo-liquidacion').value;
+        const empresa = document.getElementById('empresa-liquidacion').value;
+        if (!periodo || !empresa) {
+            alert('Seleccione período y empresa');
+            return;
+        }
 
         const confirmed = await askConfirmation({
             variant: 'warning',
-            title: `Generar liquidaciones ${periodo}`,
+            title: `Generar liquidaciones ${periodo} · ${empresa}`,
             subtitle: 'Se liquidan adelantos y se actualizan cuotas de prestamos.',
-            message: `Confirma la generación de liquidaciones para ${periodo}.`,
+            message: `Confirma la generación de liquidaciones para ${empresa} en ${periodo}.`,
             confirmText: 'Generar',
             confirmClass: 'btn-warning',
         });
@@ -247,7 +280,7 @@
         fetch('/api/rrhh/liquidaciones', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify({ periodo })
+            body: JSON.stringify({ periodo, empresa })
         })
         .then(r => r.json())
         .then(data => {
@@ -257,7 +290,7 @@
             }
             alert(data.message);
             document.getElementById('btn-generar').disabled = true;
-            cargarLiquidacionesGeneradas(periodo);
+            cargarLiquidacionesGeneradas(periodo, empresa);
         })
         .catch(e => {
             console.error('Error:', e);
@@ -265,8 +298,8 @@
         });
     }
 
-    function cargarLiquidacionesGeneradas(periodo) {
-        fetch(`/api/rrhh/liquidaciones/${periodo}`)
+    function cargarLiquidacionesGeneradas(periodo, empresa) {
+        fetch(`/api/rrhh/liquidaciones/${periodo}?empresa=${encodeURIComponent(empresa)}`)
             .then(r => r.json())
             .then(data => {
                 if (data.error) return;
@@ -274,6 +307,7 @@
                 document.getElementById('tabla-preview-container').style.display = 'none';
                 document.getElementById('tabla-generadas-container').style.display = 'block';
                 document.getElementById('periodo-generado').textContent = data.periodo;
+                document.getElementById('empresa-generada').textContent = data.liquidaciones[0]?.empresa_label || empresa;
 
                 const tbody = document.getElementById('tabla-generadas');
                 tbody.innerHTML = data.liquidaciones.map(l => `
@@ -295,17 +329,20 @@
     }
 
     function verHistorial() {
+        const empresa = document.getElementById('empresa-liquidacion').value;
+        if (empresa) document.getElementById('empresa-historial').value = empresa;
         showModal('modalHistorial');
     }
 
     function buscarPeriodo() {
         const periodo = document.getElementById('periodo-historial').value;
+        const empresa = document.getElementById('empresa-historial').value;
         if (!periodo) {
             alert('Seleccione un periodo');
             return;
         }
 
-        fetch(`/api/rrhh/liquidaciones/${periodo}`)
+        fetch(`/api/rrhh/liquidaciones/${periodo}?empresa=${encodeURIComponent(empresa)}`)
             .then(r => r.json())
             .then(data => {
                 if (data.error) {
@@ -320,6 +357,7 @@
                         <thead>
                             <tr>
                                 <th>Empleado</th>
+                                <th>Empresa</th>
                                 <th>Sueldo Base</th>
                                 <th>Descuentos</th>
                                 <th>Neto</th>
@@ -329,6 +367,7 @@
                             ${data.liquidaciones.map(l => `
                                 <tr>
                                     <td>${l.empleado.nombre}</td>
+                                    <td>${l.empresa_label || 'Histórico global'}</td>
                                     <td>$${l.sueldo_base.toFixed(2)}</td>
                                     <td>$${(l.descuento_adelanto_efectivo + l.descuento_adelanto_mercaderia + l.descuento_cuota_prestamo).toFixed(2)}</td>
                                     <td>$${l.sueldo_neto.toFixed(2)}</td>
@@ -348,5 +387,10 @@
     const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
     document.getElementById('periodo-liquidacion').value = mesActual;
     document.getElementById('periodo-historial').value = mesActual;
+    const empresaInicial = new URLSearchParams(window.location.search).get('empresa');
+    if (['CARNES', 'LACTEOS'].includes(empresaInicial)) {
+        document.getElementById('empresa-liquidacion').value = empresaInicial;
+        document.getElementById('empresa-historial').value = empresaInicial;
+    }
 </script>
 {% endblock %}

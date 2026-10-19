@@ -8,6 +8,7 @@ from sqlalchemy import func
 
 import models as m
 from models import db
+from models.empresa import EMPRESA_TODAS, normalizar_empresa
 from models.time_utils import today_local_date
 
 api = Blueprint("api", __name__, url_prefix="/api")
@@ -940,7 +941,14 @@ def api_panel_ejecutivo_v2():
     )
     from services.resultado_comercial_service import ResultadoComercialService
 
-    empresa = (request.args.get("empresa") or "TODAS").upper().strip()
+    try:
+        empresa = normalizar_empresa(
+            request.args.get("empresa"),
+            allow_todas=True,
+            allow_none=True,
+        ) or EMPRESA_TODAS
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     resumen = ResultadoComercialService().calcular(desde, hasta, empresa)
     k = resumen["kpis"]
 

@@ -13,11 +13,41 @@ from models import (
 )
 from models.tesoreria import LogArqueo, ArqueoDetalle, PortadorInstrumento
 from models.gastos import CategoriaGasto, Proveedor
+from models.empresa import EMPRESA_TODAS, empresa_es_especifica, etiqueta_empresa, normalizar_empresa
 from security import protect_blueprint
 
 tesoreria_bp = Blueprint("tesoreria", __name__)
 
 protect_blueprint(tesoreria_bp, "tesoreria")
+
+
+def _empresa_label(empresa):
+    """Etiqueta legible, conservando explícito el histórico sin asignar."""
+    return etiqueta_empresa(empresa)
+
+
+def _empresa_filtro():
+    """Normaliza el alcance opcional de los listados operativos."""
+    return normalizar_empresa(
+        request.args.get("empresa"),
+        allow_todas=True,
+        allow_none=True,
+    )
+
+
+def _empresa_requerida(value):
+    """Una nueva operación siempre debe quedar atribuida a una empresa."""
+    empresa = normalizar_empresa(value, allow_todas=False, allow_none=False)
+    if not empresa_es_especifica(empresa):
+        raise ValueError("Empresa debe ser CARNES o LACTEOS")
+    return empresa
+
+
+def _aplicar_empresa(query, empresa):
+    """Las vistas globales incluyen el histórico NULL; las específicas no."""
+    if empresa_es_especifica(empresa):
+        return query.filter(MovimientoCaja.empresa == empresa)
+    return query
 
 
 def _categoria_filter_id():
@@ -109,10 +139,12 @@ def movimientos_listar():
     per_page = int(request.args.get("per_page", 50))
     try:
         categoria_gasto_id = _categoria_filter_id()
+        empresa = _empresa_filtro()
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
     query = MovimientoCaja.query.filter(MovimientoCaja.estado != "anulado")
+    query = _aplicar_empresa(query, empresa)
 
     if fecha_desde:
         query = query.filter(MovimientoCaja.fecha_hora >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
@@ -133,6 +165,8 @@ def movimientos_listar():
         "movimientos": [{
             "id": m.id,
             "fecha_hora": m.fecha_hora.isoformat(),
+            "empresa": m.empresa,
+            "empresa_label": _empresa_label(m.empresa),
             "tipo": m.tipo,
             "monto": float(m.monto),
             "descripcion": m.descripcion,
@@ -152,7 +186,8 @@ def movimientos_listar():
         } for m in movimientos.items],
         "total": movimientos.total,
         "pages": movimientos.pages,
-        "current_page": movimientos.page
+        "current_page": movimientos.page,
+        "empresa_filtro": empresa if empresa_es_especifica(empresa) else EMPRESA_TODAS,
     })
 
 
@@ -164,6 +199,10 @@ def movimientos_resumen_instrumento():
     fecha_desde = request.args.get("fecha_desde")
     fecha_hasta = request.args.get("fecha_hasta")
     usuario_id = request.args.get("usuario_id")
+    try:
+        empresa = _empresa_filtro()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     
     # Por defecto: hoy
     if not fecha_desde and not fecha_hasta:
@@ -186,6 +225,7 @@ def movimientos_resumen_instrumento():
     
     if usuario_id:
         query = query.filter(MovimientoCaja.usuario_id == usuario_id)
+    query = _aplicar_empresa(query, empresa)
     
     query = query.group_by(
         InstrumentoPago.nombre
@@ -201,7 +241,8 @@ def movimientos_resumen_instrumento():
             "total": float(row.total or 0)
         } for row in resultados],
         "fecha_desde": fecha_desde,
-        "fecha_hasta": fecha_hasta
+        "fecha_hasta": fecha_hasta,
+        "empresa_filtro": empresa if empresa_es_especifica(empresa) else EMPRESA_TODAS,
     })
 
 
@@ -220,10 +261,12 @@ def movimientos_exportar():
     arqueo_id = request.args.get("arqueo_id")
     try:
         categoria_gasto_id = _categoria_filter_id()
+        empresa = _empresa_filtro()
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
     query = MovimientoCaja.query.filter(MovimientoCaja.estado != "anulado")
+    query = _aplicar_empresa(query, empresa)
 
     if fecha_desde:
         query = query.filter(MovimientoCaja.fecha_hora >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
@@ -248,6 +291,7 @@ def movimientos_exportar():
     for m in movimientos:
         data.append({
             "Fecha/Hora": m.fecha_hora,
+            "Empresa": _empresa_label(m.empresa),
             "Tipo": m.tipo,
             "Monto": float(m.monto),
             "Instrumento": m.instrumento.nombre if m.instrumento else "",
@@ -280,7 +324,7 @@ def movimientos_exportar():
 @tesoreria_bp.route("/api/tesoreria/movimientos", methods=["POST"])
 def movimientos_crear():
     """Crear nuevo movimiento de caja"""
-    data = request.get_json()
+    data = request.get_json() or {}
 
     tipo = data.get("tipo")
     monto = data.get("monto")
@@ -289,6 +333,10 @@ def movimientos_crear():
     categoria_gasto_id = data.get("categoria_gasto_id")
     proveedor_id = data.get("proveedor_id")
     usuario_id = data.get("usuario_id")
+    try:
+        empresa = _empresa_requerida(data.get("empresa"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     if not usuario_id:
         session_user = session.get("user")
         if session_user:
@@ -356,6 +404,7 @@ def movimientos_crear():
             return jsonify({"error": "El portador seleccionado no está habilitado para este instrumento"}), 400
 
     movimiento = MovimientoCaja(
+        empresa=empresa,
         tipo=tipo,
         monto=monto,
         descripcion=descripcion,
@@ -375,6 +424,8 @@ def movimientos_crear():
         "message": "Movimiento registrado",
         "movimiento": {
             "id": movimiento.id,
+            "empresa": movimiento.empresa,
+            "empresa_label": _empresa_label(movimiento.empresa),
             "tipo": movimiento.tipo,
             "monto": float(movimiento.monto),
             "descripcion": movimiento.descripcion,
@@ -676,6 +727,10 @@ def arqueos_crear():
 def estado_caja():
     """Obtener estado actual de caja por instrumento"""
     fecha = request.args.get("fecha", datetime.now().date().isoformat())
+    try:
+        empresa = _empresa_filtro()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     try:
         fecha_obj = datetime.strptime(fecha, "%Y-%m-%d").date()
@@ -683,19 +738,22 @@ def estado_caja():
         return jsonify({"error": "Fecha inválida"}), 400
 
     # Saldos por instrumento
-    saldos = db.session.query(
+    query = db.session.query(
         InstrumentoPago.nombre,
         db.func.sum(db.case((MovimientoCaja.tipo == "ingreso", MovimientoCaja.monto), else_=0)) -
         db.func.sum(db.case((MovimientoCaja.tipo == "egreso", MovimientoCaja.monto), else_=0))
     ).join(MovimientoCaja).filter(
         db.func.date(MovimientoCaja.fecha_hora) == fecha_obj,
         MovimientoCaja.estado != "anulado",
-    ).group_by(InstrumentoPago.nombre).all()
+    )
+    query = _aplicar_empresa(query, empresa)
+    saldos = query.group_by(InstrumentoPago.nombre).all()
 
     estado = {instrumento: float(saldo) for instrumento, saldo in saldos}
 
     return jsonify({
         "fecha": fecha,
+        "empresa_filtro": empresa if empresa_es_especifica(empresa) else EMPRESA_TODAS,
         "estado_por_instrumento": estado,
         "total_caja": sum(estado.values())
     })

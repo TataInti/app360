@@ -9,7 +9,7 @@
       <span class="panel-subtitle" id="period-label">Período: <span id="period-desde">-</span> → <span id="period-hasta">-</span></span>
     </div>
     <div class="d-flex gap-2">
-      <a href="/compras/exportar" class="btn btn-outline-secondary btn-sm">
+      <a href="/compras/exportar" id="compras-exportar" class="btn btn-outline-secondary btn-sm">
         <i class="bi bi-file-earmark-excel"></i> Exportar
       </a>
       <a href="/compras/orden-nueva" class="btn btn-primary btn-sm">
@@ -20,6 +20,14 @@
 
   <!-- Period bar -->
   <div class="period-bar">
+    <div>
+      <label for="empresaFiltroCompras" class="visually-hidden">Empresa</label>
+      <select id="empresaFiltroCompras" class="form-select form-select-sm">
+        <option value="">Todas las empresas (incluye históricos)</option>
+        <option value="CARNES">Carnes</option>
+        <option value="LACTEOS">Lácteos</option>
+      </select>
+    </div>
     <div class="period-pills">
       <button class="pp" data-period="7">7d</button>
       <button class="pp" data-period="15">15d</button>
@@ -64,7 +72,7 @@
     <div class="table-card">
       <div class="table-card-head d-flex justify-content-between align-items-center">
         <span>Últimas órdenes</span>
-        <a href="/compras" class="btn btn-sm btn-outline-secondary" style="font-size:0.75rem;">Ver listado completo</a>
+        <a href="/compras/listado" id="compras-listado" class="btn btn-sm btn-outline-secondary" style="font-size:0.75rem;">Ver listado completo</a>
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
@@ -72,13 +80,14 @@
             <tr>
               <th>ID</th>
               <th>Fecha</th>
+              <th>Empresa</th>
               <th>Proveedor</th>
               <th>Estado</th>
               <th class="text-end">Monto</th>
             </tr>
           </thead>
           <tbody id="tbody-ultimas">
-            <tr><td colspan="5" class="text-muted">
+            <tr><td colspan="6" class="text-muted">
               <span class="loading-text">Cargando datos...</span>
             </td></tr>
           </tbody>
@@ -90,6 +99,7 @@
 
 <script>
   let estadoChart;
+  let currentPeriod = '30';
 
   function money(v) {
     const n = Number(v || 0);
@@ -100,6 +110,17 @@
     document.querySelectorAll('.pp[data-period]').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.period === period);
     });
+  }
+
+  function empresaSeleccionada() {
+    return document.getElementById('empresaFiltroCompras').value;
+  }
+
+  function actualizarEnlacesEmpresa() {
+    const empresa = empresaSeleccionada();
+    const query = empresa ? `?empresa=${encodeURIComponent(empresa)}` : '';
+    document.getElementById('compras-exportar').href = `/compras/exportar${query}`;
+    document.getElementById('compras-listado').href = `/compras/listado${query}`;
   }
 
   function renderEstadoChart(series) {
@@ -116,7 +137,7 @@
   function renderUltimas(items) {
     const tbody = document.getElementById('tbody-ultimas');
     if (!items || !items.length) {
-      tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
         <div class="empty-icon"><i class="bi bi-inbox"></i></div>
         <div class="empty-title">Sin órdenes de compra</div>
         <div class="empty-text">Las órdenes aparecerán aquí cuando registres la primera.</div>
@@ -129,20 +150,25 @@
       const prov = o.supplier || (o.supplier_id ? `Proveedor ${o.supplier_id}` : '-');
       const estado = o.status || '-';
       const monto = o.total_amount !== undefined && o.total_amount !== null ? money(o.total_amount) : '$0';
-      return `<tr><td>${o.id}</td><td>${fecha}</td><td>${prov}</td><td>${estado}</td><td class="text-end">${monto}</td></tr>`;
+      const empresa = o.empresa_label || 'Histórico global';
+      return `<tr><td>${o.id}</td><td>${fecha}</td><td>${empresa}</td><td>${prov}</td><td>${estado}</td><td class="text-end">${monto}</td></tr>`;
     }).join('');
   }
 
   async function cargar(period) {
+    currentPeriod = period;
     setActivePeriodButton(period);
+    actualizarEnlacesEmpresa();
     const skel = document.getElementById('compras-skeleton');
     const content = document.getElementById('compras-content');
     if (skel) skel.style.display = '';
     if (content) content.style.display = 'none';
 
+    const empresa = empresaSeleccionada();
+    const empresaQuery = empresa ? `&empresa=${encodeURIComponent(empresa)}` : '';
     const [ovResp, listResp] = await Promise.all([
-      fetch(`/api/compras/overview?period=${encodeURIComponent(period)}`),
-      fetch(`/api/compras?per_page=10`)
+      fetch(`/api/compras/overview?period=${encodeURIComponent(period)}${empresaQuery}`),
+      fetch(`/api/compras?per_page=10${empresaQuery}`)
     ]);
 
     const ov = await ovResp.json();
@@ -163,8 +189,18 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    const empresaEnUrl = new URLSearchParams(window.location.search).get('empresa') || '';
+    document.getElementById('empresaFiltroCompras').value = empresaEnUrl;
     document.querySelectorAll('.pp[data-period]').forEach(btn => {
       btn.addEventListener('click', () => cargar(btn.dataset.period));
+    });
+    document.getElementById('empresaFiltroCompras').addEventListener('change', function() {
+      const params = new URLSearchParams(window.location.search);
+      if (this.value) params.set('empresa', this.value);
+      else params.delete('empresa');
+      const query = params.toString();
+      window.history.replaceState({}, '', query ? `${window.location.pathname}?${query}` : window.location.pathname);
+      cargar(currentPeriod);
     });
     cargar('30');
   });

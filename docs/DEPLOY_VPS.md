@@ -105,18 +105,32 @@ Alembic explícitas.
 
 ### Update standard (recomendado)
 
-1) Pull:
+0) Verificar el propietario del checkout y usar el mismo usuario para `git` y
+`deploy.sh`. En el VPS productivo actual el checkout pertenece a `root`; ejecutar
+estos dos comandos como `www-data` provoca el error de Git `dubious ownership`.
+No cambiar el propietario durante un deploy. Si se migra el checkout a
+`www-data`, actualizar este procedimiento de forma consistente.
+
+1) Validar el update y hacer pull (VPS actual, checkout administrado por `root`):
 
 ```bash
 cd /var/www/app360
-sudo -u www-data git pull
+git status --short
+git fetch origin main
+git diff --name-status HEAD..origin/main
+git diff --name-status HEAD..origin/main -- migrations
+git pull --ff-only origin main
 ```
+
+El último `git diff` debe estar vacío antes del pull y el diff de `migrations/`
+debe estar vacío para un deploy sin cambios de esquema. Si hay migraciones, no
+continuar con el reinicio: seguir el paso 3.
 
 2) Ejecutar deploy script (instala deps + checks; no toca datos):
 
 ```bash
 cd /var/www/app360
-sudo -u www-data bash scripts/deploy.sh
+RUN_MIGRATIONS=false bash scripts/deploy.sh
 ```
 
 3) Base de datos (forward-only)
@@ -128,15 +142,16 @@ EXPECTED_GIT_SHA=<sha_completo> \
 PROD_SSH_HOST=<host> \
 MAINTENANCE_CONFIRMED=true \
 bash scripts/apply_db_migrations_to_vps.sh \
-  20260713_sabiogo_sync_runs \
   20260729_ensure_efectivo_iva \
-  scripts/sql/validate_20260729_resultado_comercial.sql
+  20260730_add_empresa_attribution \
+  scripts/sql/validate_20260730_empresa_attribution.sql
 ```
 
 Antes de ejecutarlo se deben pausar las escrituras y declarar
 `MAINTENANCE_CONFIRMED=true`. El comando crea el backup en
-`/var/backups/app360`, ensaya una restauración, aplica Alembic y valida Resultado
-comercial. No reinicia el servicio.
+`/var/backups/app360`, ensaya una restauración, aplica Alembic y valida las
+columnas, restricciones, índices y conservación de los registros históricos sin
+empresa. No reinicia el servicio.
 
 4) Restart servicio (aplica el código nuevo):
 
@@ -150,6 +165,14 @@ sudo systemctl status app360 --no-pager
 ```bash
 curl -fsS http://127.0.0.1:5000/api/health
 ```
+
+### Último deploy verificado
+
+- Fecha: 2026-07-30.
+- Commit: `25c0b7c86d37ac93a979ff2f40fb5044d5a45ab0` (`fix: mejora paneles lectura rapida`).
+- Migraciones: ninguna; `RUN_MIGRATIONS=false` y PostgreSQL no fue modificado.
+- Validaciones: conexión a PostgreSQL, tests seguros del deploy y health check
+  `/api/health` exitosos; `app360.service` quedó `active`.
 
 ## Notas
 
@@ -194,9 +217,11 @@ Para actualizar una instalación existente, normalmente alcanza con:
 
 ```bash
 cd /var/www/app360
-sudo -u www-data git pull
+git fetch origin main
+git diff --name-status HEAD..origin/main -- migrations
+git pull --ff-only origin main
 
-sudo -u www-data bash scripts/deploy.sh
+RUN_MIGRATIONS=false bash scripts/deploy.sh
 
 # desde la maquina operadora, antes del restart:
 EXPECTED_GIT_SHA=<sha_completo> \

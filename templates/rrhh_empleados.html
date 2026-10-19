@@ -13,7 +13,18 @@
     <div class="col-12">
         <div class="card">
             <div class="card-body">
-                <h5 class="card-title">Lista de empleados</h5>
+                <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                    <h5 class="card-title mb-0">Lista de empleados</h5>
+                    <form method="get" class="d-flex align-items-center gap-2">
+                        <label class="small text-muted" for="filtroEmpresa">Empresa</label>
+                        <select id="filtroEmpresa" name="empresa" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="TODAS" {% if empresa == 'TODAS' %}selected{% endif %}>Todas (incluye histórico)</option>
+                            {% for codigo in empresas %}
+                            <option value="{{ codigo }}" {% if empresa == codigo %}selected{% endif %}>{{ 'Carnes' if codigo == 'CARNES' else 'Lácteos' }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-sm table-striped table-hover">
                         <thead>
@@ -21,6 +32,7 @@
                                 <th>Nombre</th>
                                 <th>Cargo</th>
                                 <th>Departamento</th>
+                                <th>Empresa</th>
                                 <th>Ubicación</th>
                                 <th>Email</th>
                                 <th>Teléfono</th>
@@ -37,6 +49,12 @@
                                 </td>
                                 <td>{{ emp.position or '-' }}</td>
                                 <td>{{ emp.department or '-' }}</td>
+                                <td>
+                                    {% if emp.empresa == 'CARNES' %}Carnes
+                                    {% elif emp.empresa == 'LACTEOS' %}Lácteos
+                                    {% else %}<span class="text-muted">Histórico global</span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ emp.location.name if emp.location else '-' }}</td>
                                 <td>{{ emp.email or '-' }}</td>
                                 <td>{{ emp.phone or '-' }}</td>

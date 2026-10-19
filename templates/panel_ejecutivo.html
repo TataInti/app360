@@ -396,7 +396,7 @@
       renderChart(data.series?.actividad_mensual || []);
       document.getElementById('empresa-context').textContent = empresa === 'TODAS'
         ? ''
-        : 'La facturación y las compras se filtran por empresa; Tesorería y sus conceptos se muestran de forma global.';
+        : 'La facturación, compras, Tesorería y pagos al personal se filtran por empresa. Los registros históricos sin empresa se consultan en Todas.';
       document.getElementById('content').classList.remove('d-none');
     } catch (error) {
       console.error(error);

@@ -16,6 +16,17 @@ class Employee(db.Model):
     is_active = db.Column(db.Boolean, default=True, index=True)
     clock_id = db.Column(db.String(50), nullable=True, unique=True, index=True)
     turno_id = db.Column(db.Integer, db.ForeignKey("turnos.id"), nullable=True)
+    # Empresa actual del empleado. Adelantos y liquidaciones guardan su propio
+    # snapshot para que cambios posteriores de asignación no alteren historia.
+    empresa = db.Column(db.String(10), nullable=True)
+
+    __table_args__ = (
+        db.CheckConstraint(
+            "empresa IS NULL OR empresa IN ('CARNES', 'LACTEOS')",
+            name="chk_employees_empresa",
+        ),
+        db.Index("idx_employees_empresa", "empresa"),
+    )
 
     # Property for backward compatibility
     @property

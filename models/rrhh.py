@@ -81,6 +81,10 @@ class Adelanto(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     empleado_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
+
+    # Snapshot de la empresa del empleado al crear el adelanto. No se vuelve a
+    # calcular desde Employee para preservar la lectura de períodos pasados.
+    empresa = db.Column(db.String(10), nullable=True)
     
     # Tipo: 'adelanto_efectivo', 'adelanto_mercaderia', 'prestamo'
     tipo = db.Column(db.String(30), nullable=False, default='adelanto_efectivo')
@@ -111,6 +115,14 @@ class Adelanto(db.Model):
     empleado = db.relationship("Employee", backref="adelantos")
     aprobado_por = db.relationship("User", backref="adelantos_aprobados")
 
+    __table_args__ = (
+        db.CheckConstraint(
+            "empresa IS NULL OR empresa IN ('CARNES', 'LACTEOS')",
+            name="chk_adelantos_empresa",
+        ),
+        db.Index('idx_adelantos_empresa_fecha_pago', 'empresa', 'fecha_pago'),
+    )
+
     def __repr__(self):
         return f'<Adelanto {self.tipo} - {self.empleado.name} - ${self.monto}>'
     
@@ -140,6 +152,10 @@ class LiquidacionSueldo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     empleado_id = db.Column(db.Integer, db.ForeignKey('employees.id'), nullable=False)
     periodo = db.Column(db.String(7), nullable=False)  # YYYY-MM
+
+    # Snapshot de empresa al liquidar; evita que un traslado de empleado
+    # reescriba analíticamente los pagos ya emitidos.
+    empresa = db.Column(db.String(10), nullable=True)
     
     # Montos
     sueldo_base = db.Column(db.Numeric(10, 2), nullable=False)
@@ -157,6 +173,18 @@ class LiquidacionSueldo(db.Model):
     # Relaciones
     empleado = db.relationship("Employee", backref="liquidaciones")
     liquidado_por = db.relationship("User", backref="liquidaciones_realizadas")
+
+    __table_args__ = (
+        db.CheckConstraint(
+            "empresa IS NULL OR empresa IN ('CARNES', 'LACTEOS')",
+            name="chk_liquidaciones_sueldo_empresa",
+        ),
+        db.Index(
+            'idx_liquidaciones_sueldo_empresa_fecha',
+            'empresa',
+            'fecha_liquidacion',
+        ),
+    )
     
     def __repr__(self):
         return f'<LiquidacionSueldo {self.empleado.name} - {self.periodo}>'

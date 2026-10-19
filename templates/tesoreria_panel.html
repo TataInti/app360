@@ -26,6 +26,20 @@
         </div>
     </div>
 
+    <div class="period-bar dim-bar mb-3">
+        <div class="d-flex align-items-end gap-2 flex-wrap">
+            <div>
+                <label class="form-label mb-1" for="empresaPanelFiltro">Empresa de los movimientos</label>
+                <select id="empresaPanelFiltro" class="form-select form-select-sm">
+                    <option value="">Todas (incluye históricos)</option>
+                    <option value="CARNES">Carnes</option>
+                    <option value="LACTEOS">Lácteos</option>
+                </select>
+            </div>
+            <small class="text-muted pb-1">Los arqueos siguen siendo globales.</small>
+        </div>
+    </div>
+
     <!-- KPIs de Caja -->
     <div class="kpi-grid">
         <div class="kpi-card accent-blue">
@@ -69,6 +83,7 @@
                     <tr>
                         <th>Fecha/Hora</th>
                         <th>Tipo</th>
+                        <th>Empresa</th>
                         <th>Monto</th>
                         <th>Instrumento</th>
                         <th>Descripción</th>
@@ -76,7 +91,7 @@
                     </tr>
                 </thead>
                 <tbody id="tabla-movimientos">
-                    <tr><td colspan="6" class="text-center text-muted">
+                    <tr><td colspan="7" class="text-center text-muted">
                         <span class="loading-text">Cargando datos...</span>
                     </td></tr>
                 </tbody>
@@ -126,6 +141,14 @@
             </div>
             <form id="formMovimiento">
                 <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Empresa *</label>
+                        <select class="form-select" name="empresa" required>
+                            <option value="">Seleccionar…</option>
+                            <option value="CARNES">Carnes</option>
+                            <option value="LACTEOS">Lácteos</option>
+                        </select>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Concepto *</label>
                         <select class="form-select" name="categoria_gasto_id" id="select-concepto-rapido" required>
@@ -232,12 +255,27 @@
 
     document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('arqueoFecha').value = new Date().toISOString().split('T')[0];
+        const empresa = new URLSearchParams(window.location.search).get('empresa') || '';
+        document.getElementById('empresaPanelFiltro').value = empresa;
+        document.getElementById('empresaPanelFiltro').addEventListener('change', function() {
+            const params = new URLSearchParams(window.location.search);
+            if (this.value) params.set('empresa', this.value);
+            else params.delete('empresa');
+            const query = params.toString();
+            window.history.replaceState({}, '', query ? `${window.location.pathname}?${query}` : window.location.pathname);
+            cargarDatos();
+        });
         cargarDatos();
     });
 
+    function empresaPanelQuery() {
+        const empresa = document.getElementById('empresaPanelFiltro')?.value;
+        return empresa ? `&empresa=${encodeURIComponent(empresa)}` : '';
+    }
+
     function cargarDatos() {
         // Cargar movimientos
-        fetch('/api/tesoreria/movimientos?per_page=10')
+        fetch(`/api/tesoreria/movimientos?per_page=10${empresaPanelQuery()}`)
             .then(r => r.json())
             .then(data => actualizarTablaMov(data.movimientos || []))
             .catch(e => console.error('Error movimientos:', e));
@@ -341,7 +379,7 @@
             const desde = fmtFechaISO(dias[0]);
             const hasta = fmtFechaISO(dias[dias.length - 1]);
 
-            const resp = await fetch(`/api/tesoreria/movimientos?fecha_desde=${desde}&fecha_hasta=${hasta}&per_page=5000`);
+            const resp = await fetch(`/api/tesoreria/movimientos?fecha_desde=${desde}&fecha_hasta=${hasta}&per_page=5000${empresaPanelQuery()}`);
             const data = await resp.json();
             const movimientos = data.movimientos || [];
 
@@ -436,7 +474,7 @@
             const desde = fmtFechaISO(dias[0]);
             const hasta = fmtFechaISO(dias[dias.length - 1]);
 
-            const resp = await fetch(`/api/tesoreria/movimientos?fecha_desde=${desde}&fecha_hasta=${hasta}&per_page=5000`);
+            const resp = await fetch(`/api/tesoreria/movimientos?fecha_desde=${desde}&fecha_hasta=${hasta}&per_page=5000${empresaPanelQuery()}`);
             const data = await resp.json();
             const movimientos = data.movimientos || [];
 
@@ -533,7 +571,7 @@
     function actualizarTablaMov(movimientos) {
         const tbody = document.getElementById('tabla-movimientos');
         if (!movimientos.length) {
-            tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">
+            tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">
                 <div class="empty-icon"><i class="bi bi-arrow-left-right"></i></div>
                 <div class="empty-title">Sin movimientos registrados</div>
                 <div class="empty-text">Los movimientos de caja aparecerán aquí.</div>
@@ -555,6 +593,7 @@
             <tr>
                 <td>${new Date(m.fecha_hora).toLocaleString('es-AR')}</td>
                 <td><span class="badge ${m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger'}">${m.tipo}</span></td>
+                <td>${m.empresa_label || 'Histórico global'}</td>
                 <td>$${parseFloat(m.monto).toLocaleString('es-AR')}</td>
                 <td>${m.instrumento}</td>
                 <td>${m.descripcion}</td>
@@ -640,6 +679,7 @@
         const formData = new FormData(this);
         const data = {
             tipo: formData.get('tipo'),
+            empresa: formData.get('empresa'),
             monto: parseFloat(formData.get('monto')),
             instrumento_id: parseInt(formData.get('instrumento_id')),
             categoria_gasto_id: parseInt(formData.get('categoria_gasto_id')),

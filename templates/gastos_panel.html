@@ -20,6 +20,11 @@
 
     <!-- Filtros -->
     <div class="period-bar dim-bar mb-3">
+        <select id="selEmpresa" style="min-width:180px">
+            <option value="">Todas las empresas (incluye históricos)</option>
+            <option value="CARNES">Carnes</option>
+            <option value="LACTEOS">Lácteos</option>
+        </select>
         <select id="selCategoria" style="min-width:130px"><option value="">Categoría</option></select>
         <select id="selProveedor" style="min-width:130px"><option value="">Proveedor</option></select>
         <select id="selInstrumento" style="min-width:120px"><option value="">Instrumento</option></select>
@@ -97,6 +102,7 @@
                     <thead>
                         <tr>
                             <th>Fecha</th>
+                            <th>Empresa</th>
                             <th>Descripción</th>
                             <th>Categoría</th>
                             <th>Proveedor</th>
@@ -107,7 +113,7 @@
                         </tr>
                     </thead>
                     <tbody id="tbodyGastos">
-                        <tr><td colspan="8" class="text-center text-muted">
+                        <tr><td colspan="9" class="text-center text-muted">
                             <span class="loading-text">Cargando datos...</span>
                         </td></tr>
                     </tbody>
@@ -131,6 +137,15 @@
             </div>
             <form id="formGasto">
                 <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Empresa *</label>
+                        <select class="form-select" name="empresa" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="CARNES">Carnes</option>
+                            <option value="LACTEOS">Lácteos</option>
+                        </select>
+                        <div class="form-text">El gasto queda atribuido completamente a esta empresa.</div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Descripción *</label>
                         <input type="text" class="form-control" name="descripcion" required>
@@ -224,7 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
         load();
     });
 
-    ['selCategoria','selProveedor','selInstrumento'].forEach(id =>
+    ['selEmpresa','selCategoria','selProveedor','selInstrumento'].forEach(id =>
         document.getElementById(id).addEventListener('change', () => load())
     );
 
@@ -336,13 +351,16 @@ async function load(period) {
     const cat = document.getElementById('selCategoria').value;
     const prov = document.getElementById('selProveedor').value;
     const inst = document.getElementById('selInstrumento').value;
+    const empresa = document.getElementById('selEmpresa').value;
 
     let url = `/api/gastos/listar?fecha_desde=${desde}&fecha_hasta=${hasta}`;
     if (cat) url += `&categoria_id=${cat}`;
     if (prov) url += `&proveedor_id=${prov}`;
     if (inst) url += `&instrumento_id=${inst}`;
+    if (empresa) url += `&empresa=${encodeURIComponent(empresa)}`;
 
     let urlR = `/api/gastos/resumen?fecha_desde=${desde}&fecha_hasta=${hasta}`;
+    if (empresa) urlR += `&empresa=${encodeURIComponent(empresa)}`;
 
     const [listR, resR] = await Promise.all([fetch(url), fetch(urlR)]);
     const listD = await listR.json();
@@ -364,7 +382,7 @@ async function load(period) {
     const gastos = listD.gastos || [];
     const tbody = document.getElementById('tbodyGastos');
     if (!gastos.length) {
-        tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state">
+        tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">
             <div class="empty-icon"><i class="bi bi-inbox"></i></div>
             <div class="empty-title">Sin gastos en el período</div>
             <div class="empty-text">Probá ajustando los filtros o registrá un nuevo gasto.</div>
@@ -375,6 +393,7 @@ async function load(period) {
     } else {
         tbody.innerHTML = gastos.map(g => `<tr>
             <td>${g.fecha}</td>
+            <td>${g.empresa_label || 'Histórico global'}</td>
             <td>${g.descripcion}</td>
             <td>${g.categoria_nombre}</td>
             <td>${g.proveedor_nombre}</td>
@@ -441,11 +460,13 @@ function exportarGastos() {
     const hasta = document.getElementById('dateHasta').value;
     const cat = document.getElementById('selCategoria').value;
     const prov = document.getElementById('selProveedor').value;
+    const empresa = document.getElementById('selEmpresa').value;
     const p = new URLSearchParams();
     if(desde) p.append('fecha_desde', desde);
     if(hasta) p.append('fecha_hasta', hasta);
     if(cat) p.append('categoria_id', cat);
     if(prov) p.append('proveedor_id', prov);
+    if(empresa) p.append('empresa', empresa);
     window.location.href = '/api/gastos/exportar?' + p.toString();
 }
 </script>

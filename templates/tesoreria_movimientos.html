@@ -42,6 +42,14 @@
                 </select>
             </div>
             <div class="col-lg-2 col-md-4">
+                <label class="form-label">Empresa</label>
+                <select id="empresaFiltro" class="form-select form-select-sm">
+                    <option value="">Todas (incluye históricos)</option>
+                    <option value="CARNES">Carnes</option>
+                    <option value="LACTEOS">Lácteos</option>
+                </select>
+            </div>
+            <div class="col-lg-2 col-md-4">
                 <label class="form-label">Instrumento</label>
                 <select id="instrumentoFiltro" class="form-select form-select-sm">
                     <option value="">Todos</option>
@@ -89,6 +97,7 @@
                     <tr>
                         <th>Fecha/Hora</th>
                         <th>Tipo</th>
+                        <th>Empresa</th>
                         <th>Monto</th>
                         <th>Instrumento</th>
                         <th>Portador</th>
@@ -101,13 +110,13 @@
                     </tr>
                 </thead>
                 <tbody id="tablaMovimientos">
-                    <tr><td colspan="11" class="text-center"><span class="loading-text">Cargando movimientos…</span></td></tr>
+                    <tr><td colspan="12" class="text-center"><span class="loading-text">Cargando movimientos…</span></td></tr>
                 </tbody>
                 <tfoot id="tfootMovimientos" class="d-none">
                     <tr class="table-light fw-bold">
                         <td colspan="2">Subtotal <small id="subtotalCount" class="text-muted fw-normal"></small></td>
                         <td id="subtotalMonto"></td>
-                        <td colspan="8"></td>
+                        <td colspan="9"></td>
                     </tr>
                 </tfoot>
             </table>
@@ -129,6 +138,15 @@
             </div>
             <form id="formMovimiento">
                 <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Empresa *</label>
+                        <select class="form-select" name="empresa" required>
+                            <option value="">Seleccionar…</option>
+                            <option value="CARNES">Carnes</option>
+                            <option value="LACTEOS">Lácteos</option>
+                        </select>
+                        <div class="form-text">Los registros históricos sin empresa sólo se muestran en “Todas”.</div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Concepto *</label>
                         <select class="form-select" name="categoria_gasto_id" id="selectCategoriaGasto" required>
@@ -303,6 +321,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     fechaHasta.value = params.get('fecha_hasta') || hoyISO;
     fechaDesde.value = params.get('fecha_desde') || isoLocal(hace30);
     document.getElementById('tipoFiltro').value = params.get('tipo') || '';
+    document.getElementById('empresaFiltro').value = params.get('empresa') || '';
 
     await Promise.all([cargarInstrumentos(), cargarCategoriasProveedores()]);
     document.getElementById('instrumentoFiltro').value = params.get('instrumento_id') || '';
@@ -458,6 +477,7 @@ async function cargarMovimientos() {
     const desde = document.getElementById('fechaDesde').value;
     const hasta = document.getElementById('fechaHasta').value;
     const tipo = document.getElementById('tipoFiltro').value;
+    const empresa = document.getElementById('empresaFiltro').value;
     const instrumento = document.getElementById('instrumentoFiltro').value;
     const concepto = document.getElementById('conceptoFiltro').value;
     const params = new URLSearchParams({
@@ -466,6 +486,7 @@ async function cargarMovimientos() {
         per_page: '5000'
     });
     if (tipo) params.set('tipo', tipo);
+    if (empresa) params.set('empresa', empresa);
     if (instrumento) params.set('instrumento_id', instrumento);
     if (concepto) params.set('categoria_gasto_id', concepto);
     
@@ -491,7 +512,7 @@ async function cargarMovimientos() {
         
         const tbody = document.getElementById('tablaMovimientos');
         if (movimientos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">No hay movimientos</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted">No hay movimientos</td></tr>';
         } else {
             tbody.innerHTML = movimientos.map(m => {
                 const naturaleza = m.categoria_naturaleza
@@ -533,6 +554,7 @@ async function cargarMovimientos() {
                 <tr ${rowClass}>
                     <td>${new Date(m.fecha_hora).toLocaleString('es-AR')}</td>
                     <td><span class="badge ${m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger'}">${m.tipo}</span></td>
+                    <td>${m.empresa_label || 'Histórico global'}</td>
                     <td>$${parseFloat(m.monto).toLocaleString('es-AR')}</td>
                     <td>${m.instrumento || '-'}</td>
                     <td>${m.portador || '-'}</td>
@@ -563,7 +585,7 @@ async function cargarMovimientos() {
     } catch(e) {
         console.error('Error:', e);
         document.getElementById('tablaMovimientos').innerHTML = 
-            '<tr><td colspan="11" class="text-center text-danger">Error al cargar datos</td></tr>';
+            '<tr><td colspan="12" class="text-center text-danger">Error al cargar datos</td></tr>';
         notify(e.message || 'No se pudieron cargar los movimientos.', 'danger', { title: 'Error de consulta' });
     }
 }
@@ -601,6 +623,7 @@ function exportarMovimientos() {
     const desde = document.getElementById('fechaDesde').value;
     const hasta = document.getElementById('fechaHasta').value;
     const tipo = document.getElementById('tipoFiltro').value;
+    const empresa = document.getElementById('empresaFiltro').value;
     const instrumento = document.getElementById('instrumentoFiltro').value;
     const concepto = document.getElementById('conceptoFiltro').value;
 
@@ -608,6 +631,7 @@ function exportarMovimientos() {
     if (desde) params.append('fecha_desde', desde);
     if (hasta) params.append('fecha_hasta', hasta);
     if (tipo) params.append('tipo', tipo);
+    if (empresa) params.append('empresa', empresa);
     if (instrumento) params.append('instrumento_id', instrumento);
     if (concepto) params.append('categoria_gasto_id', concepto);
 
@@ -626,6 +650,7 @@ document.getElementById('formMovimiento')?.addEventListener('submit', async func
     const provValue = formData.get('proveedor_id');
     const data = {
         tipo: formData.get('tipo'),
+        empresa: formData.get('empresa'),
         monto: parseFloat(formData.get('monto')),
         instrumento_id: parseInt(formData.get('instrumento_id')),
         categoria_gasto_id: catValue ? parseInt(catValue) : null,

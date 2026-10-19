@@ -9,6 +9,17 @@
         </div>
     </div>
 
+    <div class="period-bar dim-bar mb-3">
+        <label for="filtroEmpresaRRHH">Empresa</label>
+        <select id="filtroEmpresaRRHH" class="form-select form-select-sm" onchange="actualizarAlcanceEmpresa()">
+            <option value="TODAS">Todas (incluye histórico)</option>
+            {% for empresa in empresas %}
+            <option value="{{ empresa }}">{{ 'Carnes' if empresa == 'CARNES' else 'Lácteos' }}</option>
+            {% endfor %}
+        </select>
+        <span class="form-text">Aplica a dotación, adelantos y liquidaciones. La asistencia permanece global.</span>
+    </div>
+
     <!-- KPIs -->
     <div class="kpi-grid">
         <div class="kpi-card accent-blue">
@@ -43,7 +54,7 @@
                         <option value="activo" selected>Solo activos</option>
                         <option value="inactivo">Solo inactivos</option>
                     </select>
-                    <a href="/rrhh/empleados" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;padding:0.15rem 0.4rem;">
+                    <a id="link-empleados" href="/rrhh/empleados" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;padding:0.15rem 0.4rem;">
                         <i class="bi bi-arrow-right"></i>
                     </a>
                 </div>
@@ -55,12 +66,13 @@
                             <th>Nombre</th>
                             <th>Puesto</th>
                             <th>Departamento</th>
+                            <th>Empresa</th>
                             <th>Ingreso</th>
                             <th class="text-center">Estado</th>
                         </tr>
                     </thead>
                     <tbody id="tabla-empleados">
-                        <tr><td colspan="5" class="text-center p-3 text-muted">
+                        <tr><td colspan="6" class="text-center p-3 text-muted">
                             <span class="loading-text">Cargando datos...</span>
                         </td></tr>
                     </tbody>
@@ -73,7 +85,7 @@
         <div class="table-card">
             <div class="table-card-head d-flex justify-content-between align-items-center">
                 <span><i class="bi bi-cash-coin me-1"></i>Adelantos y Préstamos</span>
-                <a href="/rrhh/adelantos" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;padding:0.15rem 0.4rem;">
+                <a id="link-adelantos" href="/rrhh/adelantos" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;padding:0.15rem 0.4rem;">
                     <i class="bi bi-arrow-right"></i>
                 </a>
             </div>
@@ -107,6 +119,7 @@
                             <thead>
                                 <tr>
                                     <th>Empleado</th>
+                                    <th>Empresa</th>
                                     <th>Tipo</th>
                                     <th class="text-end">Monto</th>
                                     <th>Concepto</th>
@@ -115,7 +128,7 @@
                                 </tr>
                             </thead>
                             <tbody id="tabla-adelantos">
-                                <tr><td colspan="6" class="text-center p-3 text-muted">
+                                <tr><td colspan="7" class="text-center p-3 text-muted">
                                     <span class="loading-text">Cargando datos...</span>
                                 </td></tr>
                             </tbody>
@@ -134,7 +147,7 @@
             <div class="d-flex gap-2 align-items-center">
                 <input type="month" id="periodoLiquidacion" class="form-control form-control-sm"
                        style="width:160px;font-size:0.78rem;height:26px;" onchange="cargarLiquidaciones()">
-                <a href="/rrhh/liquidaciones" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;padding:0.15rem 0.4rem;">
+                <a id="link-liquidaciones" href="/rrhh/liquidaciones" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;padding:0.15rem 0.4rem;">
                     <i class="bi bi-arrow-right"></i>
                 </a>
             </div>
@@ -144,6 +157,7 @@
                 <thead>
                     <tr>
                         <th>Empleado</th>
+                        <th>Empresa</th>
                         <th class="text-end">Sueldo Base</th>
                         <th class="text-end">Desc. Ad. Efectivo</th>
                         <th class="text-end">Desc. Ad. Mercadería</th>
@@ -152,7 +166,7 @@
                     </tr>
                 </thead>
                 <tbody id="tabla-liquidaciones">
-                    <tr><td colspan="6" class="text-center p-3 text-muted">Seleccioná un período</td></tr>
+                    <tr><td colspan="7" class="text-center p-3 text-muted">Seleccioná un período</td></tr>
                 </tbody>
             </table>
         </div>
@@ -166,6 +180,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const now = new Date();
     const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     document.getElementById('periodoLiquidacion').value = ym;
+
+    const empresaInicial = new URLSearchParams(window.location.search).get('empresa');
+    if (['TODAS', 'CARNES', 'LACTEOS'].includes(empresaInicial)) {
+        document.getElementById('filtroEmpresaRRHH').value = empresaInicial;
+    }
+    actualizarEnlacesEmpresa();
 
     cargarKPIs();
     cargarEmpleados();
@@ -182,6 +202,30 @@ function fmtMoney(n) {
 function fmtFecha(s) {
     if (!s) return '—';
     return String(s).slice(0, 10).split('-').reverse().join('/');
+}
+
+function empresaOperativa() {
+    return document.getElementById('filtroEmpresaRRHH').value || 'TODAS';
+}
+
+function actualizarEnlacesEmpresa() {
+    const empresa = empresaOperativa();
+    const query = `?empresa=${encodeURIComponent(empresa)}`;
+    document.getElementById('link-empleados').href = `/rrhh/empleados${query}`;
+    document.getElementById('link-adelantos').href = `/rrhh/adelantos${query}`;
+    document.getElementById('link-liquidaciones').href = `/rrhh/liquidaciones${query}`;
+}
+
+function actualizarAlcanceEmpresa() {
+    const empresa = empresaOperativa();
+    const url = new URL(window.location.href);
+    url.searchParams.set('empresa', empresa);
+    window.history.replaceState({}, '', url);
+    actualizarEnlacesEmpresa();
+    cargarKPIs();
+    cargarEmpleados();
+    cargarAdelantos();
+    cargarLiquidaciones();
 }
 
 function badgeTipoAdelanto(tipo) {
@@ -207,13 +251,19 @@ async function cargarKPIs() {
         const r = await fetch('/api/rrhh');
         if (r.ok) {
             const d = await r.json();
-            document.getElementById('kpi-empleados').textContent  = d.employee_count  ?? '—';
             document.getElementById('kpi-asistencias').textContent = d.attendance_today ?? '—';
         }
     } catch (e) { console.error('KPI rrhh error:', e); }
 
     try {
-        const r = await fetch('/api/rrhh/adelantos?limite=1000');
+        const empresa = encodeURIComponent(empresaOperativa());
+        const empleados = await fetch(`/api/rrhh/empleados?per_page=1&empresa=${empresa}`);
+        if (empleados.ok) {
+            const d = await empleados.json();
+            document.getElementById('kpi-empleados').textContent = d.total ?? '—';
+        }
+
+        const r = await fetch(`/api/rrhh/adelantos?limite=1000&empresa=${empresa}`);
         if (r.ok) {
             const d = await r.json();
             const items = d.adelantos || [];
@@ -231,9 +281,9 @@ async function cargarKPIs() {
 async function cargarEmpleados() {
     const filtro = document.getElementById('filtroEstadoEmp').value;
     document.getElementById('tabla-empleados').innerHTML =
-        '<tr><td colspan="5" class="text-center p-3 text-muted">Cargando...</td></tr>';
+        '<tr><td colspan="6" class="text-center p-3 text-muted">Cargando...</td></tr>';
     try {
-        const r = await fetch('/api/rrhh/empleados?per_page=200');
+        const r = await fetch(`/api/rrhh/empleados?per_page=200&empresa=${encodeURIComponent(empresaOperativa())}`);
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const d = await r.json();
         let todos  = d.items || d.employees || [];
@@ -247,7 +297,7 @@ async function cargarEmpleados() {
 
         const tbody = document.getElementById('tabla-empleados');
         if (!items.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center p-3 text-muted">Sin empleados</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center p-3 text-muted">Sin empleados</td></tr>';
             return;
         }
         tbody.innerHTML = items.map(e => {
@@ -256,6 +306,7 @@ async function cargarEmpleados() {
                 <td class="fw-semibold">${nombre}</td>
                 <td>${e.position || '—'}</td>
                 <td>${e.department || '—'}</td>
+                <td>${e.empresa_label || 'Histórico global'}</td>
                 <td>${fmtFecha(e.hire_date)}</td>
                 <td class="text-center">${e.is_active
                     ? '<span class="badge bg-success">Activo</span>'
@@ -264,7 +315,7 @@ async function cargarEmpleados() {
         }).join('');
     } catch (e) {
         document.getElementById('tabla-empleados').innerHTML =
-            '<tr><td colspan="5" class="text-center text-danger p-3">Error al cargar</td></tr>';
+            '<tr><td colspan="6" class="text-center text-danger p-3">Error al cargar</td></tr>';
         console.error('Empleados error:', e);
     }
 }
@@ -274,9 +325,9 @@ async function cargarAdelantos() {
     const tipo   = document.getElementById('filtroTipoAdel').value;
     const estado = document.getElementById('filtroEstadoAdel').value;
     document.getElementById('tabla-adelantos').innerHTML =
-        '<tr><td colspan="6" class="text-center p-3 text-muted">Cargando...</td></tr>';
+        '<tr><td colspan="7" class="text-center p-3 text-muted">Cargando...</td></tr>';
     try {
-        let url = '/api/rrhh/adelantos?limite=500';
+        let url = `/api/rrhh/adelantos?limite=500&empresa=${encodeURIComponent(empresaOperativa())}`;
         if (tipo)             url += `&tipo=${tipo}`;
         if (estado === 'pendiente') url += '&aprobado=false';
         if (estado === 'aprobado')  url += '&aprobado=true&pagado=false';
@@ -303,11 +354,12 @@ async function cargarAdelantos() {
 
         const tbody = document.getElementById('tabla-adelantos');
         if (!items.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center p-3 text-muted">Sin registros</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center p-3 text-muted">Sin registros</td></tr>';
             return;
         }
         tbody.innerHTML = items.map(a => `<tr>
             <td class="fw-semibold">${a.empleado?.nombre || '—'}</td>
+            <td>${a.empresa_label || 'Histórico global'}</td>
             <td>${badgeTipoAdelanto(a.tipo)}</td>
             <td class="text-end">${fmtMoney(a.monto)}</td>
             <td class="text-truncate" style="max-width:130px;" title="${a.concepto || ''}">${a.concepto || '—'}</td>
@@ -326,12 +378,12 @@ async function cargarLiquidaciones() {
     const periodo = document.getElementById('periodoLiquidacion').value;
     if (!periodo) return;
     document.getElementById('tabla-liquidaciones').innerHTML =
-        '<tr><td colspan="6" class="text-center p-3 text-muted">Cargando...</td></tr>';
+        '<tr><td colspan="7" class="text-center p-3 text-muted">Cargando...</td></tr>';
     try {
-        const r = await fetch(`/api/rrhh/liquidaciones/${periodo}`);
+        const r = await fetch(`/api/rrhh/liquidaciones/${periodo}?empresa=${encodeURIComponent(empresaOperativa())}`);
         if (r.status === 404) {
             document.getElementById('tabla-liquidaciones').innerHTML =
-                `<tr><td colspan="6" class="text-center p-3 text-muted">Sin liquidaciones para ${periodo}</td></tr>`;
+                `<tr><td colspan="7" class="text-center p-3 text-muted">Sin liquidaciones para ${periodo}</td></tr>`;
             document.getElementById('pie-liquidaciones').textContent = `Período ${periodo} — sin registros`;
             return;
         }
@@ -341,7 +393,7 @@ async function cargarLiquidaciones() {
 
         if (!items.length) {
             document.getElementById('tabla-liquidaciones').innerHTML =
-                `<tr><td colspan="6" class="text-center p-3 text-muted">Sin liquidaciones para ${periodo}</td></tr>`;
+                `<tr><td colspan="7" class="text-center p-3 text-muted">Sin liquidaciones para ${periodo}</td></tr>`;
             document.getElementById('pie-liquidaciones').textContent = `Período ${periodo} — sin registros`;
             return;
         }
@@ -357,6 +409,7 @@ async function cargarLiquidaciones() {
             const dCta = parseFloat(l.descuento_cuota_prestamo       || 0);
             return `<tr>
                 <td class="fw-semibold">${nombre}</td>
+                <td>${l.empresa_label || 'Histórico global'}</td>
                 <td class="text-end">${fmtMoney(l.sueldo_base)}</td>
                 <td class="text-end ${dEf  > 0 ? 'text-danger' : 'text-muted'}">${dEf  > 0 ? '−'+fmtMoney(dEf)  : '—'}</td>
                 <td class="text-end ${dMer > 0 ? 'text-danger' : 'text-muted'}">${dMer > 0 ? '−'+fmtMoney(dMer) : '—'}</td>
@@ -366,7 +419,7 @@ async function cargarLiquidaciones() {
         }).join('');
     } catch (e) {
         document.getElementById('tabla-liquidaciones').innerHTML =
-            '<tr><td colspan="6" class="text-center text-danger p-3">Error al cargar</td></tr>';
+            '<tr><td colspan="7" class="text-center text-danger p-3">Error al cargar</td></tr>';
         console.error('Liquidaciones error:', e);
     }
 }

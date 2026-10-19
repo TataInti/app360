@@ -104,6 +104,14 @@
                                             {{ item.location.name }}
                                         {% elif field == 'turno_id' and item.turno is defined and item.turno %}
                                             {{ item.turno.nombre }}
+                                        {% elif field == 'empresa' %}
+                                            {% if val == 'CARNES' %}
+                                            Carnes
+                                            {% elif val == 'LACTEOS' %}
+                                            Lácteos
+                                            {% else %}
+                                            <span class="text-muted">Sin asignar</span>
+                                            {% endif %}
                                         {% elif val is not none %}
                                             {{ val }}
                                         {% endif %}
@@ -254,6 +262,7 @@
 const MODULO = '{{ modulo }}';
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 const EMPLOYEE_POSITIONS = {{ employee_positions|tojson }};
+const EMPLOYEE_EMPRESAS = {{ employee_empresas|tojson }};
 const EMPLOYEE_LOCATIONS = {{ locations|tojson }};
 const EMPLOYEE_TURNOS = {{ employee_turnos|tojson }};
 const FIELD_LABELS = {{ field_labels|tojson }};
@@ -349,6 +358,23 @@ function appendField(container, entidad, field, value, required) {
                 <option value="">Seleccionar...</option>
                 ${buildSelectOptions(options, value)}
             </select>
+        `;
+        container.appendChild(div);
+        return;
+    }
+
+    if (isEmployeeEntity(entidad) && field === 'empresa') {
+        const options = EMPLOYEE_EMPRESAS.map(empresa => ({
+            value: empresa,
+            label: empresa === 'CARNES' ? 'Carnes' : 'Lácteos',
+        }));
+        div.innerHTML = `
+            <label class="form-label">${label}</label>
+            <select class="form-select" name="${field}" id="field-${field}">
+                <option value="">Sin asignar (no liquidable)</option>
+                ${buildSelectOptions(options, value)}
+            </select>
+            <div class="form-text">La empresa actual se copia a los nuevos adelantos y liquidaciones.</div>
         `;
         container.appendChild(div);
         return;

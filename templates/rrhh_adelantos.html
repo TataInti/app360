@@ -8,6 +8,9 @@
             <span>Gestiona solicitudes, aprobaciones y saldos pendientes del equipo en un solo flujo.</span>
         </div>
         <div class="action-bar">
+            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="exportarAdelantos()">
+                <i class="bi bi-download"></i> Exportar
+            </button>
             <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoAdelanto">
                 <i class="bi bi-plus-circle"></i> Nueva solicitud
             </button>
@@ -39,6 +42,14 @@
 
     <!-- Filtros -->
     <div class="period-bar dim-bar mb-3">
+        <label for="filtro-empresa">Empresa</label>
+        <select class="form-select form-select-sm" id="filtro-empresa" onchange="actualizarAlcanceAdelantos()">
+            <option value="TODAS">Todas (incluye histórico)</option>
+            {% for empresa in empresas %}
+            <option value="{{ empresa }}">{{ 'Carnes' if empresa == 'CARNES' else 'Lácteos' }}</option>
+            {% endfor %}
+        </select>
+
         <label for="filtro-tipo">Tipo</label>
         <select class="form-select form-select-sm" id="filtro-tipo" onchange="cargarAdelantos()">
                 <option value="">Todos</option>
@@ -73,6 +84,7 @@
                 <thead>
                     <tr>
                         <th>Empleado</th>
+                        <th>Empresa</th>
                         <th>Tipo</th>
                         <th>Monto</th>
                         <th>Concepto</th>
@@ -84,7 +96,7 @@
                     </tr>
                 </thead>
                 <tbody id="tabla-adelantos">
-                    <tr><td colspan="9" class="text-center"><span class="loading-text">Cargando datos…</span></td></tr>
+                    <tr><td colspan="10" class="text-center"><span class="loading-text">Cargando datos…</span></td></tr>
                 </tbody>
             </table>
         </div>
@@ -110,6 +122,7 @@
                         <select class="form-select" name="empleado_id" required id="select-empleado">
                             <option>Cargando...</option>
                         </select>
+                        <div class="form-text">Solo se pueden crear solicitudes para empleados activos con empresa asignada.</div>
                     </div>
                     
                     <div class="mb-3">
@@ -231,6 +244,9 @@
 
     function cargarAdelantos() {
         const params = new URLSearchParams();
+
+        const empresa = document.getElementById('filtro-empresa').value;
+        if (empresa) params.append('empresa', empresa);
         
         const tipo = document.getElementById('filtro-tipo').value;
         if (tipo) params.append('tipo', tipo);
@@ -255,10 +271,20 @@
             .catch(e => console.error('Error:', e));
     }
 
+    function actualizarAlcanceAdelantos() {
+        cargarAdelantos();
+        cargarEmpleados();
+    }
+
+    function exportarAdelantos() {
+        const empresa = document.getElementById('filtro-empresa').value || 'TODAS';
+        window.location.href = `/api/rrhh/exportar?tipo=adelantos&empresa=${encodeURIComponent(empresa)}`;
+    }
+
     function actualizarTabla(adelantos) {
         const tbody = document.getElementById('tabla-adelantos');
         if (!adelantos.length) {
-            tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">
+            tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state">
                 <div class="empty-icon"><i class="bi bi-inbox"></i></div>
                 <div class="empty-title">Sin solicitudes para este filtro</div>
                 <div class="empty-text">Ajustá el período o cargá una nueva solicitud para continuar.</div>
@@ -290,6 +316,7 @@
             return `
                 <tr>
                     <td>${a.empleado.nombre}</td>
+                    <td>${a.empresa_label || 'Histórico global'}</td>
                     <td><span class="badge bg-info">${tipoLabel}</span></td>
                     <td>${fmtMonto(a.monto)}</td>
                     <td>${concepto}</td>
@@ -306,17 +333,22 @@
     }
 
     function cargarEmpleados() {
-        fetch('/api/rrhh/empleados')
+        const empresa = document.getElementById('filtro-empresa').value || 'TODAS';
+        fetch(`/api/rrhh/empleados?empresa=${encodeURIComponent(empresa)}`)
             .then(r => r.json())
             .then(data => {
                 const select = document.getElementById('select-empleado');
                 const empleados = (data.employees || []).filter(e => e.is_active);
-                if (!empleados.length) {
-                    select.innerHTML = '<option value="">Sin empleados activos</option>';
+                const operables = empleados.filter(e => e.puede_operar_liquidacion);
+                if (!operables.length) {
+                    select.innerHTML = '<option value="">Sin empleados activos con empresa asignada</option>';
                     return;
                 }
                 select.innerHTML = '<option value="">Seleccionar...</option>' +
-                    empleados.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+                    empleados.map(e => e.puede_operar_liquidacion
+                        ? `<option value="${e.id}">${e.name} · ${e.empresa_label}</option>`
+                        : `<option value="" disabled>${e.name} · Sin empresa asignada</option>`
+                    ).join('');
             })
             .catch(() => {
                 const select = document.getElementById('select-empleado');
@@ -372,9 +404,12 @@
         .catch(e => console.error('Error:', e));
     });
 
-    // Inicializar
+    // Inicializar y conservar el alcance al venir desde el panel.
+    const empresaInicial = new URLSearchParams(window.location.search).get('empresa');
+    if (['TODAS', 'CARNES', 'LACTEOS'].includes(empresaInicial)) {
+        document.getElementById('filtro-empresa').value = empresaInicial;
+    }
     cargarEmpleados();
     cargarAdelantos();
 </script>
 {% endblock %}
-

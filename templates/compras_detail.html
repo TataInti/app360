@@ -35,6 +35,18 @@
                         <span>{{ order.comprobante_numero or '-' }}</span>
                     </li>
                     <li class="list-group-item d-flex justify-content-between">
+                        <span>Empresa</span>
+                        <span>
+                            {% if order.empresa == 'CARNES' %}
+                                Carnes
+                            {% elif order.empresa == 'LACTEOS' %}
+                                Lácteos
+                            {% else %}
+                                <span class="text-muted">Histórico global</span>
+                            {% endif %}
+                        </span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
                         <span>Monto</span>
                         <span>
                             {% if order.monto_total is not none %}

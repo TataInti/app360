@@ -23,6 +23,13 @@ from models.rrhh import (
     ResumenAsistenciaDiaria,
     TOLERANCIA_TARDANZA_MIN,
 )
+from models.empresa import (
+    EMPRESAS_VALIDAS,
+    EMPRESA_TODAS,
+    empresa_es_especifica,
+    etiqueta_empresa,
+    normalizar_empresa,
+)
 from security import protect_blueprint
 
 rrhh_bp = Blueprint("rrhh", __name__)
@@ -30,11 +37,39 @@ rrhh_bp = Blueprint("rrhh", __name__)
 protect_blueprint(rrhh_bp, "rrhh")
 
 
+def _empresa_filtro_rrhh():
+    """Devuelve una empresa concreta o el alcance global para listados."""
+    return normalizar_empresa(
+        request.args.get("empresa"),
+        allow_todas=True,
+        allow_none=True,
+    )
+
+
+def _empresa_requerida_rrhh(value):
+    """Valida una empresa concreta para una operación nueva de RRHH."""
+    empresa = normalizar_empresa(value, allow_todas=False, allow_none=False)
+    if not empresa_es_especifica(empresa):
+        raise ValueError("Empresa debe ser CARNES o LACTEOS.")
+    return empresa
+
+
+def _aplicar_empresa_rrhh(query, model, empresa):
+    """Los filtros específicos no absorben el histórico global (NULL)."""
+    if empresa_es_especifica(empresa):
+        return query.filter(model.empresa == empresa)
+    return query
+
+
+def _empresa_filtro_serializada(empresa):
+    return empresa if empresa_es_especifica(empresa) else EMPRESA_TODAS
+
+
 # RUTAS WEB
 @rrhh_bp.route("/rrhh", methods=["GET"])
 def rrhh_panel():
     """Panel principal de RRHH"""
-    return render_template("rrhh_panel.html")
+    return render_template("rrhh_panel.html", empresas=EMPRESAS_VALIDAS)
 
 
 @rrhh_bp.route("/rrhh/empleados", methods=["GET", "POST"])
@@ -63,7 +98,8 @@ def rrhh_empleados():
                 position=role,
                 email=data.get("email"),
                 location_id=int(data.get("location_id")) if data.get("location_id") else None,
-                is_active=data.get("active") == "on"
+                is_active=data.get("active") == "on",
+                empresa=normalizar_empresa(data.get("empresa"), allow_none=True),
             )
             db.session.add(nuevo_empleado)
             db.session.commit()
@@ -73,10 +109,22 @@ def rrhh_empleados():
             flash(f"Error al crear empleado: {str(e)}", "danger")
         return redirect(url_for("rrhh.rrhh_empleados"))
     
-    # GET: cargar empleados y ubicaciones
-    employees = Employee.query.all()
+    # GET: los filtros específicos no incluyen empleados históricos sin empresa.
+    try:
+        empresa = _empresa_filtro_rrhh()
+    except ValueError as exc:
+        flash(str(exc), "warning")
+        return redirect(url_for("rrhh.rrhh_empleados"))
+
+    employees = _aplicar_empresa_rrhh(Employee.query, Employee, empresa).all()
     locations = Location.query.all()
-    return render_template("rrhh_empleados.html", employees=employees, locations=locations)
+    return render_template(
+        "rrhh_empleados.html",
+        employees=employees,
+        locations=locations,
+        empresas=EMPRESAS_VALIDAS,
+        empresa=empresa if empresa_es_especifica(empresa) else EMPRESA_TODAS,
+    )
 
 
 @rrhh_bp.route("/rrhh/dotacion", methods=["GET"])
@@ -88,13 +136,13 @@ def rrhh_dotacion():
 @rrhh_bp.route("/rrhh/adelantos", methods=["GET"])
 def rrhh_adelantos():
     """Vista de adelantos de salario"""
-    return render_template("rrhh_adelantos.html")
+    return render_template("rrhh_adelantos.html", empresas=EMPRESAS_VALIDAS)
 
 
 @rrhh_bp.route("/rrhh/liquidaciones", methods=["GET"])
 def rrhh_liquidaciones():
     """Vista de liquidación de sueldos"""
-    return render_template("rrhh_liquidaciones.html")
+    return render_template("rrhh_liquidaciones.html", empresas=EMPRESAS_VALIDAS)
 
 
 @rrhh_bp.route("/rrhh/ausentismo", methods=["GET"])
@@ -536,26 +584,14 @@ def ausentismo_crear():
 
 # Endpoints para Adelantos
 
-@rrhh_bp.route("/api/rrhh/empleados", methods=["GET"])
-def empleados_listar():
-    """Listar empleados activos"""
-    empleados = Employee.query.filter_by(is_active=True).all()
-    
-    return jsonify({
-        "employees": [{
-            "id": e.id,
-            "name": e.name,
-            "email": e.email,
-            "position": e.position,
-            "department": e.department,
-            "is_active": e.is_active
-        } for e in empleados]
-    })
-
-
 @rrhh_bp.route("/api/rrhh/adelantos", methods=["GET"])
 def adelantos_listar():
     """Listar adelantos con filtros"""
+    try:
+        empresa = _empresa_filtro_rrhh()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
     empleado_id = request.args.get("empleado_id")
     tipo = request.args.get("tipo")
     aprobado = request.args.get("aprobado")
@@ -564,7 +600,7 @@ def adelantos_listar():
     mes_aplicacion = request.args.get("mes_aplicacion")
     limite = request.args.get("limite", 100, type=int)
 
-    query = Adelanto.query
+    query = _aplicar_empresa_rrhh(Adelanto.query, Adelanto, empresa)
 
     # Aplicar filtros
     if empleado_id:
@@ -595,6 +631,8 @@ def adelantos_listar():
         "adelantos": [{
             "id": a.id,
             "fecha_solicitud": a.fecha_solicitud.isoformat(),
+            "empresa": a.empresa,
+            "empresa_label": etiqueta_empresa(a.empresa),
             "empleado": {
                 "id": a.empleado.id,
                 "nombre": a.empleado.name
@@ -614,14 +652,15 @@ def adelantos_listar():
             "fecha_liquidacion": a.fecha_liquidacion.isoformat() if a.fecha_liquidacion else None,
             "aprobado_por": a.aprobado_por.username if a.aprobado_por else None,
             "saldo_pendiente": float(a.saldo_pendiente())
-        } for a in adelantos]
+        } for a in adelantos],
+        "empresa_filtro": _empresa_filtro_serializada(empresa),
     })
 
 
 @rrhh_bp.route("/api/rrhh/adelantos", methods=["POST"])
 def adelantos_solicitar():
     """Solicitar adelanto o préstamo"""
-    data = request.get_json()
+    data = request.get_json() or {}
 
     required_fields = ["empleado_id", "tipo", "monto", "concepto"]
     for field in required_fields:
@@ -636,6 +675,15 @@ def adelantos_solicitar():
     empleado = Employee.query.get(data["empleado_id"])
     if not empleado or not empleado.is_active:
         return jsonify({"error": "Empleado no encontrado o inactivo"}), 404
+
+    try:
+        # El snapshot nunca proviene del navegador: toma la empresa actual del
+        # empleado para que un traslado posterior no reescriba el adelanto.
+        empresa = _empresa_requerida_rrhh(empleado.empresa)
+    except ValueError:
+        return jsonify({
+            "error": "El empleado no tiene una empresa asignada. Asignala antes de crear adelantos o préstamos."
+        }), 409
 
     try:
         monto = Decimal(str(data["monto"]))
@@ -668,6 +716,7 @@ def adelantos_solicitar():
 
     adelanto = Adelanto(
         empleado_id=data["empleado_id"],
+        empresa=empresa,
         tipo=tipo,
         monto=monto,
         concepto=data["concepto"],
@@ -686,7 +735,9 @@ def adelantos_solicitar():
             "tipo": adelanto.tipo,
             "monto": float(adelanto.monto),
             "concepto": adelanto.concepto,
-            "aprobado": adelanto.aprobado
+            "aprobado": adelanto.aprobado,
+            "empresa": adelanto.empresa,
+            "empresa_label": etiqueta_empresa(adelanto.empresa),
         }
     }), 201
 
@@ -844,7 +895,12 @@ def rrhh_exportar():
         filename = "asistencia_rrhh.xlsx"
 
     elif tipo == "adelantos":
-        query = Adelanto.query
+        try:
+            empresa = _empresa_filtro_rrhh()
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        query = _aplicar_empresa_rrhh(Adelanto.query, Adelanto, empresa)
         if fecha_desde:
             fecha_desde = datetime.strptime(fecha_desde, "%Y-%m-%d").date()
             query = query.filter(Adelanto.fecha_solicitud >= fecha_desde)
@@ -858,6 +914,7 @@ def rrhh_exportar():
         for a in registros:
             data.append({
                 "Fecha Solicitud": a.fecha_solicitud,
+                "Empresa": etiqueta_empresa(a.empresa),
                 "Empleado": a.empleado.name,
                 "Tipo": a.tipo,
                 "Monto": float(a.monto),
@@ -893,70 +950,122 @@ def rrhh_exportar():
 
 # === ENDPOINTS DE LIQUIDACIONES ===
 
+
+def _componentes_liquidacion(empleado_id, periodo, empresa):
+    """Obtiene descuentos pendientes dentro del snapshot de empresa indicado."""
+    adelantos_efectivo = Adelanto.query.filter_by(
+        empleado_id=empleado_id,
+        empresa=empresa,
+        tipo="adelanto_efectivo",
+        mes_aplicacion=periodo,
+        aprobado=True,
+        liquidado=False,
+    ).all()
+    adelantos_mercaderia = Adelanto.query.filter_by(
+        empleado_id=empleado_id,
+        empresa=empresa,
+        tipo="adelanto_mercaderia",
+        mes_aplicacion=periodo,
+        aprobado=True,
+        liquidado=False,
+    ).all()
+    prestamos = Adelanto.query.filter_by(
+        empleado_id=empleado_id,
+        empresa=empresa,
+        tipo="prestamo",
+        aprobado=True,
+        liquidado=False,
+    ).all()
+    return adelantos_efectivo, adelantos_mercaderia, prestamos
+
+
+def _valores_liquidacion(empleado, periodo, empresa):
+    adelantos_efectivo, adelantos_mercaderia, prestamos = _componentes_liquidacion(
+        empleado.id,
+        periodo,
+        empresa,
+    )
+    descuento_efectivo = sum(a.monto for a in adelantos_efectivo)
+    descuento_mercaderia = sum(a.monto for a in adelantos_mercaderia)
+    descuento_cuota = sum(p.calcular_monto_cuota() for p in prestamos)
+    sueldo_base = empleado.salary or Decimal("0")
+    sueldo_neto = sueldo_base - descuento_efectivo - descuento_mercaderia - descuento_cuota
+    return {
+        "adelantos_efectivo": adelantos_efectivo,
+        "adelantos_mercaderia": adelantos_mercaderia,
+        "prestamos": prestamos,
+        "descuento_efectivo": descuento_efectivo,
+        "descuento_mercaderia": descuento_mercaderia,
+        "descuento_cuota": descuento_cuota,
+        "sueldo_base": sueldo_base,
+        "sueldo_neto": sueldo_neto,
+    }
+
+
+def _serializar_liquidacion(liquidacion):
+    return {
+        "id": liquidacion.id,
+        "empresa": liquidacion.empresa,
+        "empresa_label": etiqueta_empresa(liquidacion.empresa),
+        "empleado": {
+            "id": liquidacion.empleado.id,
+            "nombre": liquidacion.empleado.name,
+        },
+        "sueldo_base": float(liquidacion.sueldo_base),
+        "descuento_adelanto_efectivo": float(liquidacion.descuento_adelanto_efectivo),
+        "descuento_adelanto_mercaderia": float(liquidacion.descuento_adelanto_mercaderia),
+        "descuento_cuota_prestamo": float(liquidacion.descuento_cuota_prestamo),
+        "sueldo_neto": float(liquidacion.sueldo_neto),
+        "fecha_liquidacion": liquidacion.fecha_liquidacion.isoformat(),
+    }
+
 @rrhh_bp.route("/api/rrhh/liquidaciones/preview/<periodo>", methods=["GET"])
 def liquidaciones_preview(periodo):
     """Previsualizar liquidaciones para un periodo (YYYY-MM)"""
     # Validar formato de periodo
     if not periodo or len(periodo) != 7:
         return jsonify({"error": "Formato de periodo inválido (usar YYYY-MM)"}), 400
-    
-    empleados = Employee.query.filter_by(is_active=True).all()
+
+    try:
+        empresa = _empresa_requerida_rrhh(request.args.get("empresa"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    empleados = Employee.query.filter_by(is_active=True, empresa=empresa).all()
     preview = []
 
     for empleado in empleados:
-        # Obtener adelantos no liquidados del periodo
-        adelantos_efectivo = Adelanto.query.filter_by(
-            empleado_id=empleado.id,
-            tipo="adelanto_efectivo",
-            mes_aplicacion=periodo,
-            aprobado=True,
-            liquidado=False
-        ).all()
-        
-        adelantos_mercaderia = Adelanto.query.filter_by(
-            empleado_id=empleado.id,
-            tipo="adelanto_mercaderia",
-            mes_aplicacion=periodo,
-            aprobado=True,
-            liquidado=False
-        ).all()
-        
-        # Obtener préstamos activos
-        prestamos = Adelanto.query.filter_by(
-            empleado_id=empleado.id,
-            tipo="prestamo",
-            aprobado=True,
-            liquidado=False
-        ).all()
-
-        # Calcular descuentos
-        descuento_efectivo = sum(a.monto for a in adelantos_efectivo)
-        descuento_mercaderia = sum(a.monto for a in adelantos_mercaderia)
-        descuento_cuota = sum(p.calcular_monto_cuota() for p in prestamos)
-        
-        sueldo_base = empleado.salary or Decimal('0')
-        sueldo_neto = sueldo_base - descuento_efectivo - descuento_mercaderia - descuento_cuota
+        valores = _valores_liquidacion(empleado, periodo, empresa)
 
         preview.append({
             "empleado_id": empleado.id,
             "empleado_nombre": empleado.name,
-            "sueldo_base": float(sueldo_base),
-            "descuento_adelanto_efectivo": float(descuento_efectivo),
-            "descuento_adelanto_mercaderia": float(descuento_mercaderia),
-            "descuento_cuota_prestamo": float(descuento_cuota),
-            "sueldo_neto": float(sueldo_neto),
-            "adelantos_efectivo_count": len(adelantos_efectivo),
-            "adelantos_mercaderia_count": len(adelantos_mercaderia),
-            "prestamos_count": len(prestamos)
+            "empresa": empresa,
+            "empresa_label": etiqueta_empresa(empresa),
+            "sueldo_base": float(valores["sueldo_base"]),
+            "descuento_adelanto_efectivo": float(valores["descuento_efectivo"]),
+            "descuento_adelanto_mercaderia": float(valores["descuento_mercaderia"]),
+            "descuento_cuota_prestamo": float(valores["descuento_cuota"]),
+            "sueldo_neto": float(valores["sueldo_neto"]),
+            "adelantos_efectivo_count": len(valores["adelantos_efectivo"]),
+            "adelantos_mercaderia_count": len(valores["adelantos_mercaderia"]),
+            "prestamos_count": len(valores["prestamos"]),
         })
-    
-    return jsonify({"periodo": periodo, "liquidaciones": preview})
+
+    sin_empresa = Employee.query.filter_by(is_active=True, empresa=None).count()
+    return jsonify({
+        "periodo": periodo,
+        "empresa": empresa,
+        "empresa_label": etiqueta_empresa(empresa),
+        "liquidaciones": preview,
+        "cobertura": {"empleados_sin_empresa": sin_empresa},
+    })
 
 
 @rrhh_bp.route("/api/rrhh/liquidaciones", methods=["POST"])
 def liquidaciones_generar():
     """Generar liquidaciones para un periodo"""
-    data = request.get_json()
+    data = request.get_json() or {}
     
     if not data.get("periodo"):
         return jsonify({"error": "Periodo requerido"}), 400
@@ -966,110 +1075,121 @@ def liquidaciones_generar():
     # Validar formato
     if len(periodo) != 7:
         return jsonify({"error": "Formato de periodo inválido (usar YYYY-MM)"}), 400
-    
-    # Verificar si ya existe liquidación para este periodo
-    liquidacion_existente = LiquidacionSueldo.query.filter_by(periodo=periodo).first()
+
+    try:
+        empresa = _empresa_requerida_rrhh(data.get("empresa"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    # Permite liquidar el mismo período en ambas empresas, pero nunca volver a
+    # crear una corrida dentro del mismo alcance.
+    liquidacion_existente = LiquidacionSueldo.query.filter_by(
+        periodo=periodo,
+        empresa=empresa,
+    ).first()
     if liquidacion_existente:
-        return jsonify({"error": f"Ya existe liquidación para el periodo {periodo}"}), 400
-    
-    empleados = Employee.query.filter_by(is_active=True).all()
+        return jsonify({
+            "error": f"Ya existe liquidación para {etiqueta_empresa(empresa)} en el periodo {periodo}"
+        }), 400
+
+    empleados = Employee.query.filter_by(is_active=True, empresa=empresa).all()
+    if not empleados:
+        return jsonify({
+            "error": f"No hay empleados activos asignados a {etiqueta_empresa(empresa)}."
+        }), 400
+
+    # La instalación puede conservar el índice histórico único
+    # (empleado_id, periodo). Si un empleado fue trasladado después de una
+    # liquidación anterior, no intentamos recrear su mismo período con otro
+    # snapshot de empresa.
+    liquidacion_previa = LiquidacionSueldo.query.filter(
+        LiquidacionSueldo.periodo == periodo,
+        LiquidacionSueldo.empleado_id.in_([empleado.id for empleado in empleados]),
+    ).first()
+    if liquidacion_previa:
+        return jsonify({
+            "error": (
+                f"{liquidacion_previa.empleado.name} ya tiene una liquidación "
+                f"para el periodo {periodo}."
+            )
+        }), 400
+
     liquidaciones_creadas = []
-    
+
     for empleado in empleados:
-        # Obtener adelantos no liquidados
-        adelantos_efectivo = Adelanto.query.filter_by(
-            empleado_id=empleado.id,
-            tipo="adelanto_efectivo",
-            mes_aplicacion=periodo,
-            aprobado=True,
-            liquidado=False
-        ).all()
-        
-        adelantos_mercaderia = Adelanto.query.filter_by(
-            empleado_id=empleado.id,
-            tipo="adelanto_mercaderia",
-            mes_aplicacion=periodo,
-            aprobado=True,
-            liquidado=False
-        ).all()
-        
-        prestamos = Adelanto.query.filter_by(
-            empleado_id=empleado.id,
-            tipo="prestamo",
-            aprobado=True,
-            liquidado=False
-        ).all()
-        
-        # Calcular descuentos
-        descuento_efectivo = sum(a.monto for a in adelantos_efectivo)
-        descuento_mercaderia = sum(a.monto for a in adelantos_mercaderia)
-        descuento_cuota = sum(p.calcular_monto_cuota() for p in prestamos)
-        
-        sueldo_base = empleado.salary or Decimal('0')
-        sueldo_neto = sueldo_base - descuento_efectivo - descuento_mercaderia - descuento_cuota
-        
-        # Crear liquidación
+        valores = _valores_liquidacion(empleado, periodo, empresa)
+
         liquidacion = LiquidacionSueldo(
             empleado_id=empleado.id,
             periodo=periodo,
-            sueldo_base=sueldo_base,
-            descuento_adelanto_efectivo=descuento_efectivo,
-            descuento_adelanto_mercaderia=descuento_mercaderia,
-            descuento_cuota_prestamo=descuento_cuota,
-            sueldo_neto=sueldo_neto
+            empresa=empresa,
+            sueldo_base=valores["sueldo_base"],
+            descuento_adelanto_efectivo=valores["descuento_efectivo"],
+            descuento_adelanto_mercaderia=valores["descuento_mercaderia"],
+            descuento_cuota_prestamo=valores["descuento_cuota"],
+            sueldo_neto=valores["sueldo_neto"],
         )
-        
+
         db.session.add(liquidacion)
-        
-        # Marcar adelantos como liquidados
-        for adelanto in adelantos_efectivo + adelantos_mercaderia:
+
+        # Los adelantos se descuentan exclusivamente dentro de la empresa cuyo
+        # snapshot coincide con la liquidación.
+        for adelanto in valores["adelantos_efectivo"] + valores["adelantos_mercaderia"]:
             adelanto.liquidado = True
             adelanto.fecha_liquidacion = datetime.now()
-        
+
         # Incrementar cuotas pagadas en préstamos y marcar como liquidado si corresponde
-        for prestamo in prestamos:
-            prestamo.cuotas_pagadas += 1
-            if prestamo.cuotas_pagadas >= prestamo.cantidad_cuotas:
+        for prestamo in valores["prestamos"]:
+            # Los préstamos históricos pueden no tener cantidad de cuotas. En
+            # ese caso ``calcular_monto_cuota`` ya usa el monto completo, por
+            # lo que se los trata como una única cuota en vez de fallar la
+            # liquidación mensual.
+            prestamo.cuotas_pagadas = (prestamo.cuotas_pagadas or 0) + 1
+            cantidad_cuotas = prestamo.cantidad_cuotas or 1
+            if prestamo.cuotas_pagadas >= cantidad_cuotas:
                 prestamo.liquidado = True
                 prestamo.fecha_liquidacion = datetime.now()
-        
+
         liquidaciones_creadas.append({
             "empleado": empleado.name,
-            "sueldo_neto": float(sueldo_neto)
+            "empresa": empresa,
+            "empresa_label": etiqueta_empresa(empresa),
+            "sueldo_neto": float(valores["sueldo_neto"]),
         })
-    
+
     db.session.commit()
-    
+
     return jsonify({
-        "message": f"Liquidaciones generadas para {periodo}",
+        "message": f"Liquidaciones generadas para {etiqueta_empresa(empresa)} en {periodo}",
+        "empresa": empresa,
+        "empresa_label": etiqueta_empresa(empresa),
         "total": len(liquidaciones_creadas),
-        "liquidaciones": liquidaciones_creadas
+        "liquidaciones": liquidaciones_creadas,
     }), 201
 
 
 @rrhh_bp.route("/api/rrhh/liquidaciones/<periodo>", methods=["GET"])
 def liquidaciones_obtener(periodo):
     """Obtener liquidaciones de un periodo específico"""
-    liquidaciones = LiquidacionSueldo.query.filter_by(periodo=periodo).all()
-    
+    try:
+        empresa = _empresa_filtro_rrhh()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    query = _aplicar_empresa_rrhh(
+        LiquidacionSueldo.query.filter_by(periodo=periodo),
+        LiquidacionSueldo,
+        empresa,
+    )
+    liquidaciones = query.order_by(LiquidacionSueldo.fecha_liquidacion.desc()).all()
+
     if not liquidaciones:
         return jsonify({"error": f"No se encontraron liquidaciones para {periodo}"}), 404
-    
+
     return jsonify({
         "periodo": periodo,
-        "liquidaciones": [{
-            "id": l.id,
-            "empleado": {
-                "id": l.empleado.id,
-                "nombre": l.empleado.name
-            },
-            "sueldo_base": float(l.sueldo_base),
-            "descuento_adelanto_efectivo": float(l.descuento_adelanto_efectivo),
-            "descuento_adelanto_mercaderia": float(l.descuento_adelanto_mercaderia),
-            "descuento_cuota_prestamo": float(l.descuento_cuota_prestamo),
-            "sueldo_neto": float(l.sueldo_neto),
-            "fecha_liquidacion": l.fecha_liquidacion.isoformat()
-        } for l in liquidaciones]
+        "empresa_filtro": _empresa_filtro_serializada(empresa),
+        "liquidaciones": [_serializar_liquidacion(l) for l in liquidaciones],
     })
 
 

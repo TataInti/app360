@@ -1,312 +1,247 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid">
-  <div class="panel-header">
-    <div>
-      <h1>Resultado comercial</h1>
-      <span class="panel-subtitle" id="period-label">Período: –</span>
+<div class="container-fluid analytics-panel profitability-dashboard">
+  <header class="profitability-header">
+    <div class="profitability-header__copy">
+      <span class="profitability-header__eyebrow">Lectura de gestión</span>
+      <h1>Rentabilidad</h1>
+      <p id="period-label" class="profitability-header__subtitle">Preparando el período…</p>
     </div>
-  </div>
 
-  <div class="period-bar dim-bar" aria-label="Filtros de resultado comercial">
-    <div class="filter-company">
-      <label for="sel-empresa">Empresa</label>
-      <select id="sel-empresa" class="form-select form-select-sm">
-        <option value="TODAS">Todas</option>
-        <option value="CARNES">Carnes</option>
-        <option value="LACTEOS">Lácteos</option>
-      </select>
-    </div>
-    <span class="filter-sep" aria-hidden="true"></span>
-    <div class="period-pills">
-      <button class="pp" data-period="7" type="button">7d</button>
-      <button class="pp" data-period="15" type="button">15d</button>
-      <button class="pp active" data-period="30" type="button">30d</button>
-      <button class="pp" data-period="6m" type="button">6m</button>
-      <button class="pp" data-period="ytd" type="button">YTD</button>
-    </div>
-    <span class="filter-sep" aria-hidden="true"></span>
-    <div class="date-group">
-      <button class="pp pp-month" id="btn-este-mes" type="button">
-        <i class="bi bi-calendar3" aria-hidden="true"></i> Este mes
-      </button>
-      <div>
-        <label for="fecha-desde">Desde</label>
-        <input id="fecha-desde" type="date">
+    <div class="profitability-controls" aria-label="Filtros de rentabilidad">
+      <label class="profitability-control">
+        <span>Empresa</span>
+        <select id="sel-empresa" class="form-select form-select-sm">
+          <option value="TODAS">Todas las empresas</option>
+          <option value="CARNES">Carnes</option>
+          <option value="LACTEOS">Lácteos</option>
+        </select>
+      </label>
+      <label class="profitability-control">
+        <span>Período</span>
+        <select id="period-preset" class="form-select form-select-sm">
+          <option value="7">Últimos 7 días</option>
+          <option value="15">Últimos 15 días</option>
+          <option value="30" selected>Últimos 30 días</option>
+          <option value="month">Este mes</option>
+          <option value="6m">Últimos 6 meses</option>
+          <option value="ytd">Año en curso</option>
+          <option value="custom">Personalizado…</option>
+        </select>
+      </label>
+      <div id="custom-period" class="profitability-custom-period d-none">
+        <label class="profitability-control">
+          <span>Desde</span>
+          <input id="fecha-desde" class="form-control form-control-sm" type="date">
+        </label>
+        <label class="profitability-control">
+          <span>Hasta</span>
+          <input id="fecha-hasta" class="form-control form-control-sm" type="date">
+        </label>
+        <button id="btn-aplicar" class="btn btn-sm btn-primary profitability-apply" type="button">
+          Actualizar
+        </button>
       </div>
-      <div>
-        <label for="fecha-hasta">Hasta</label>
-        <input id="fecha-hasta" type="date">
-      </div>
-      <button class="pp pp-action" id="btn-aplicar" type="button">
-        <i class="bi bi-check2" aria-hidden="true"></i> Aplicar
-      </button>
     </div>
-    <div class="period-context" id="empresa-context"></div>
-  </div>
+  </header>
 
+  <div id="empresa-context" class="profitability-scope d-none" role="status"></div>
   <div id="warnings" class="alert-stack d-none" aria-live="polite"></div>
 
-  <div id="skeleton">
-    <div class="kpi-grid-hero">
+  <div id="skeleton" class="profitability-skeleton" aria-label="Cargando rentabilidad">
+    <div class="profitability-skeleton__readings">
       <div class="skeleton skeleton-kpi"></div>
       <div class="skeleton skeleton-kpi"></div>
     </div>
-    <div class="kpi-grid">
-      <div class="skeleton skeleton-kpi"></div>
-      <div class="skeleton skeleton-kpi"></div>
-      <div class="skeleton skeleton-kpi"></div>
-      <div class="skeleton skeleton-kpi"></div>
-    </div>
-    <div class="charts-grid">
-      <div class="skeleton skeleton-chart"></div>
-      <div class="skeleton skeleton-chart"></div>
-    </div>
+    <div class="skeleton profitability-skeleton__body"></div>
   </div>
 
-  <div id="content" class="d-none">
-    <div class="kpi-grid-hero">
-      <div class="kpi-hero accent-purple">
-        <span class="kpi-label">Resultado de gestión</span>
-        <span class="kpi-value" id="kpi-resultado">$0</span>
-        <span class="kpi-sub" id="kpi-resultado-pct">Resultado del período sobre la facturación</span>
-      </div>
-      <div class="kpi-hero accent-sky">
-        <span class="kpi-label">Caja neta</span>
-        <span class="kpi-value" id="kpi-caja">$0</span>
-        <span class="kpi-sub">Dinero que entró menos dinero que salió</span>
-      </div>
-    </div>
+  <main id="content" class="d-none">
+    <section class="profitability-readings" aria-label="Estado del negocio">
+      <article class="profitability-reading profitability-reading--result">
+        <span class="profitability-reading__label">Resultado del período</span>
+        <strong id="kpi-resultado" class="profitability-reading__value">$0</strong>
+        <p id="kpi-resultado-pct" class="profitability-reading__description">
+          Lo que quedó luego de compras y conceptos incluidos.
+        </p>
+      </article>
+      <article class="profitability-reading profitability-reading--cash">
+        <span class="profitability-reading__label">Flujo de caja del período</span>
+        <strong id="kpi-caja" class="profitability-reading__value">$0</strong>
+        <p id="kpi-caja-description" class="profitability-reading__description">Dinero que entró menos dinero que salió.</p>
+      </article>
+    </section>
 
-    <div class="kpi-grid-secondary">
-      <div class="kpi-card accent-green">
-        <span class="kpi-label">Facturación sin PRE</span>
-        <span class="kpi-value" id="kpi-facturacion">$0</span>
-        <span class="kpi-sub">Facturas procesadas. No incluye presupuestos PRE.</span>
+    <section class="profitability-review" aria-labelledby="review-title">
+      <div class="profitability-section-heading">
+        <div>
+          <span class="profitability-section-heading__eyebrow">Atención</span>
+          <h2 id="review-title">Qué conviene revisar</h2>
+        </div>
+        <span class="profitability-section-heading__note">Señales del período, ordenadas por prioridad.</span>
       </div>
-      <div class="kpi-card accent-red">
-        <span class="kpi-label">Compras de mercadería</span>
-        <span class="kpi-value" id="kpi-compras">$0</span>
-        <span class="kpi-sub">Compras registradas de mercadería.</span>
-      </div>
-      <div class="kpi-card accent-blue">
-        <span class="kpi-label">Diferencia facturación–compras</span>
-        <span class="kpi-value" id="kpi-diferencia">$0</span>
-        <span class="kpi-sub">Lo que queda después de compras, antes de Tesorería.</span>
-      </div>
-      <div class="kpi-card accent-green">
-        <span class="kpi-label">Conceptos que suman</span>
-        <span class="kpi-value" id="kpi-suman">$0</span>
-        <span class="kpi-sub">Ingresos configurados que mejoran el resultado.</span>
-      </div>
-      <div class="kpi-card accent-red">
-        <span class="kpi-label">Conceptos que restan</span>
-        <span class="kpi-value" id="kpi-restan">$0</span>
-        <span class="kpi-sub">Egresos configurados que reducen el resultado.</span>
-      </div>
-    </div>
+      <ul id="financial-insights" class="profitability-insights"></ul>
+    </section>
 
-    <div class="result-method">
-      <div>
-        <span class="result-method__title">Cómo se calcula</span>
-        <div class="result-method__formula">Facturación − Compras + Ingresos incluidos − Egresos incluidos</div>
-      </div>
-      <div class="result-method__note">
-        Combina facturación, compras y los conceptos de Tesorería marcados para incluir en el resultado.
-      </div>
-    </div>
-
-    <section class="salary-impact" aria-labelledby="salary-impact-title">
-      <div class="salary-impact__head">
+    <section class="profitability-composition" aria-labelledby="composition-title">
+      <div class="profitability-section-heading">
         <div>
-          <span class="salary-impact__eyebrow">Lectura de personal</span>
-          <h2 class="salary-impact__title" id="salary-impact-title">Sueldos pagados</h2>
+          <span class="profitability-section-heading__eyebrow">Resultado</span>
+          <h2 id="composition-title">Cómo se formó</h2>
         </div>
-        <p class="salary-impact__note">Egresos activos de Tesorería con categoría SUELDOS + Liquidaciones + Adelantos en RRHH.</p>
+        <span class="profitability-section-heading__note">Una lectura simple de los importes que explican el resultado.</span>
       </div>
-      <div class="salary-impact__sources">
-        <div class="salary-source">
-          <span class="salary-source__label">Tesorería · SUELDOS</span>
-          <span class="salary-source__value" id="salary-treasury">$0</span>
-          <span class="salary-source__sub" id="salary-treasury-count">0 movimientos</span>
+      <div class="profitability-ledger" role="list" aria-label="Composición del resultado">
+        <div class="profitability-ledger__row" role="listitem">
+          <span class="profitability-ledger__operator" aria-hidden="true">+</span>
+          <span class="profitability-ledger__label">Ventas facturadas</span>
+          <span class="profitability-ledger__hint">No incluye presupuestos.</span>
+          <strong id="kpi-facturacion">$0</strong>
         </div>
-        <div class="salary-source">
-          <span class="salary-source__label">Liquidaciones RRHH</span>
-          <span class="salary-source__value" id="salary-liquidations">$0</span>
-          <span class="salary-source__sub" id="salary-liquidations-count">0 liquidaciones</span>
+        <div class="profitability-ledger__row" role="listitem">
+          <span class="profitability-ledger__operator profitability-ledger__operator--subtract" aria-hidden="true">−</span>
+          <span class="profitability-ledger__label">Compras de mercadería</span>
+          <span class="profitability-ledger__hint">Registradas en el período.</span>
+          <strong id="kpi-compras">$0</strong>
         </div>
-        <div class="salary-source">
-          <span class="salary-source__label">Adelantos RRHH</span>
-          <span class="salary-source__value" id="salary-advances">$0</span>
-          <span class="salary-source__sub" id="salary-advances-count">0 adelantos pagados</span>
+        <div class="profitability-ledger__row" role="listitem">
+          <span class="profitability-ledger__operator" aria-hidden="true">+</span>
+          <span class="profitability-ledger__label">Otros ingresos incluidos</span>
+          <span class="profitability-ledger__hint">Conceptos de Tesorería configurados.</span>
+          <strong id="kpi-suman">$0</strong>
         </div>
-        <div class="salary-source salary-source--total">
-          <span class="salary-source__label">Sueldos pagados</span>
-          <span class="salary-source__value" id="salary-total">$0</span>
-          <span class="salary-source__sub">Total de las tres fuentes</span>
+        <div class="profitability-ledger__row" role="listitem">
+          <span class="profitability-ledger__operator profitability-ledger__operator--subtract" aria-hidden="true">−</span>
+          <span class="profitability-ledger__label">Otros egresos incluidos</span>
+          <span class="profitability-ledger__hint">Conceptos de Tesorería configurados.</span>
+          <strong id="kpi-restan">$0</strong>
         </div>
-      </div>
-      <div class="salary-impact__formula" aria-label="Cálculo del margen después de sueldos pagados">
-        <div>
-          <span>Margen comercial</span>
-          <strong id="salary-margin-commercial">$0</strong>
-        </div>
-        <span class="salary-impact__operator" aria-hidden="true">−</span>
-        <div>
-          <span>Sueldos pagados</span>
-          <strong id="salary-total-formula">$0</strong>
-        </div>
-        <span class="salary-impact__operator" aria-hidden="true">=</span>
-        <div class="salary-impact__result">
-          <span>Margen después de sueldos pagados</span>
-          <strong id="salary-margin-after">$0</strong>
+        <div class="profitability-ledger__row profitability-ledger__row--total" role="listitem">
+          <span class="profitability-ledger__operator" aria-hidden="true">=</span>
+          <span class="profitability-ledger__label">Resultado del período</span>
+          <span class="profitability-ledger__hint">Indicador de gestión.</span>
+          <strong id="ledger-resultado">$0</strong>
         </div>
       </div>
     </section>
 
-    <section class="financial-analysis" aria-labelledby="financial-analysis-title">
-      <div class="financial-analysis__head">
+    <section class="profitability-trend" aria-labelledby="trend-title">
+      <div class="profitability-trend__head">
         <div>
-          <span class="financial-analysis__eyebrow">Análisis financiero</span>
-          <h2 class="financial-analysis__title" id="financial-analysis-title">Resultado y caja del período</h2>
+          <span class="profitability-section-heading__eyebrow">Evolución</span>
+          <h2 id="trend-title">La tendencia del período</h2>
         </div>
-        <div class="financial-analysis__note">
-          El resultado muestra cómo cerró la gestión. La caja muestra el dinero que entró y salió. Comparalos para detectar cobros o pagos que quedaron en otro momento.
-        </div>
-      </div>
-      <div class="financial-analysis__metrics">
-        <div class="financial-metric">
-          <span class="financial-metric__label">Caja del período</span>
-          <span class="financial-metric__value" id="financial-neto">$0</span>
-          <span class="financial-metric__sub" id="financial-neto-sub">Ingresos registrados − egresos registrados</span>
-        </div>
-        <div class="financial-metric">
-          <span class="financial-metric__label">Ingresos para cubrir pagos</span>
-          <span class="financial-metric__value" id="financial-coverage">–</span>
-          <span class="financial-metric__sub">Por cada $100 que salieron, cuánto entró</span>
-        </div>
-        <div class="financial-metric">
-          <span class="financial-metric__label">Diferencia caja–resultado</span>
-          <span class="financial-metric__value" id="financial-gap">$0</span>
-          <span class="financial-metric__sub">Muestra si cobros y pagos quedaron registrados en fechas distintas</span>
-        </div>
-        <div class="financial-metric">
-          <span class="financial-metric__label">Meses con caja a favor</span>
-          <span class="financial-metric__value" id="financial-months">0 de 0</span>
-          <span class="financial-metric__sub" id="financial-months-sub">Meses con más ingresos que egresos</span>
+        <div class="profitability-chart-switch" role="group" aria-label="Indicador del gráfico">
+          <button class="is-active" type="button" data-chart-view="result" aria-pressed="true">Resultado</button>
+          <button type="button" data-chart-view="cash" aria-pressed="false">Flujo de caja</button>
         </div>
       </div>
-      <div class="financial-analysis__body">
-        <div class="financial-analysis__chart">
-          <span class="financial-analysis__section-title">Flujo de caja por mes</span>
-          <span class="financial-analysis__section-note">Barras: dinero que entró y salió. Línea: saldo de cada mes.</span>
-          <div class="financial-analysis__chart-stage"><canvas id="cashflow-analysis-chart"></canvas></div>
-        </div>
+      <p id="trend-description" class="profitability-trend__description">Resultado de gestión por mes.</p>
+      <div class="profitability-chart-stage">
+        <canvas id="trend-chart" aria-label="Evolución mensual del resultado" role="img"></canvas>
       </div>
-      <div class="financial-analysis__insights">
-        <span class="financial-analysis__section-title">Qué conviene revisar</span>
-        <span class="financial-analysis__section-note">Señales que surgen de los movimientos y la facturación del período.</span>
-        <ul class="financial-insights" id="financial-insights"></ul>
-      </div>
-      <div class="financial-analysis__footnote" id="financial-participation">
-        Los conceptos incluidos muestran qué parte de Tesorería impactó en el resultado.
-      </div>
+      <p id="trend-summary" class="visually-hidden"></p>
     </section>
 
-    <div class="charts-grid">
-      <section class="chart-card-v2" aria-labelledby="components-title">
-        <h3 id="components-title">Componentes del resultado</h3>
-        <span class="chart-description">Cada barra muestra cuánto aportó o restó al resultado final.</span>
-        <div class="chart-stage"><canvas id="components-chart"></canvas></div>
-      </section>
-    </div>
+    <section class="profitability-details" aria-label="Detalle del resultado">
+      <details class="profitability-disclosure">
+        <summary>
+          <span>
+            <strong>Pagos al personal registrados</strong>
+            <small>Ver el impacto de sueldos, liquidaciones y adelantos.</small>
+          </span>
+          <i class="bi bi-chevron-down" aria-hidden="true"></i>
+        </summary>
+        <div class="profitability-disclosure__body">
+          <p class="profitability-disclosure__intro">Esta lectura no modifica el resultado del período: ayuda a entender el dinero destinado al equipo.</p>
+          <div class="profitability-detail-grid">
+            <div><span>Tesorería · sueldos</span><strong id="salary-treasury">$0</strong><small id="salary-treasury-count">0 movimientos</small></div>
+            <div><span>Liquidaciones</span><strong id="salary-liquidations">$0</strong><small id="salary-liquidations-count">0 liquidaciones</small></div>
+            <div><span>Adelantos pagados</span><strong id="salary-advances">$0</strong><small id="salary-advances-count">0 adelantos</small></div>
+            <div class="profitability-detail-grid__total"><span>Total de pagos al personal</span><strong id="salary-total">$0</strong><small>Las tres fuentes anteriores.</small></div>
+          </div>
+          <div class="profitability-detail-result">
+            <span>Margen comercial <strong id="salary-margin-commercial">$0</strong></span>
+            <span aria-hidden="true">−</span>
+            <span>Pagos al personal <strong id="salary-total-formula">$0</strong></span>
+            <span aria-hidden="true">=</span>
+            <span>Margen después de pagos <strong id="salary-margin-after">$0</strong></span>
+          </div>
+        </div>
+      </details>
 
-    <div class="charts-grid">
-      <section class="chart-card-v2" aria-labelledby="monthly-title">
-        <h3 id="monthly-title">Evolución mensual</h3>
-        <span class="chart-description">Permite ver si el resultado mejora o empeora mes a mes.</span>
-        <div class="chart-stage"><canvas id="monthly-chart"></canvas></div>
-      </section>
-    </div>
+      <details class="profitability-disclosure">
+        <summary>
+          <span>
+            <strong>Conceptos incluidos</strong>
+            <small>Consultar los movimientos que sumaron o restaron.</small>
+          </span>
+          <i class="bi bi-chevron-down" aria-hidden="true"></i>
+        </summary>
+        <div class="profitability-disclosure__body profitability-concepts">
+          <div class="profitability-concepts__group">
+            <div class="profitability-concepts__head"><span>Otros ingresos</span><strong id="conceptos-suman-total">$0</strong></div>
+            <div id="conceptos-suman-body" class="profitability-concepts__list"></div>
+          </div>
+          <div class="profitability-concepts__group">
+            <div class="profitability-concepts__head"><span>Otros egresos</span><strong id="conceptos-restan-total">$0</strong></div>
+            <div id="conceptos-restan-body" class="profitability-concepts__list"></div>
+          </div>
+        </div>
+      </details>
 
-    <div class="table-card">
-      <div class="table-card-head">Corte de datos</div>
-      <div class="data-cut">
-        <div class="data-cut__item">Ventas<strong id="fresh-ventas">Sin datos</strong></div>
-        <div class="data-cut__item">Compras<strong id="fresh-compras">Sin datos</strong></div>
-        <div class="data-cut__item">Tesorería<strong id="fresh-tesoreria">Sin datos</strong></div>
-      </div>
-    </div>
-
-    <div class="concept-breakdown" aria-label="Conceptos de Tesorería que participan">
-      <section class="table-card" aria-labelledby="conceptos-suman-title">
-        <div class="table-card-head concept-breakdown__head">
-          <span id="conceptos-suman-title">Conceptos que suman</span>
-          <span class="concept-breakdown__total concept-breakdown__total--sum" id="conceptos-suman-total">$0</span>
+      <details class="profitability-disclosure">
+        <summary>
+          <span>
+            <strong>Datos y cómo leerlos</strong>
+            <small>Metodología, actualización y señales adicionales.</small>
+          </span>
+          <i class="bi bi-chevron-down" aria-hidden="true"></i>
+        </summary>
+        <div class="profitability-disclosure__body profitability-data-note">
+          <p><strong>Indicador de gestión:</strong> combina ventas facturadas, compras y los conceptos de Tesorería incluidos. No representa utilidad contable ni saldo disponible.</p>
+          <div class="profitability-freshness">
+            <span>Ventas: <strong id="fresh-ventas">Sin datos</strong></span>
+            <span>Compras: <strong id="fresh-compras">Sin datos</strong></span>
+            <span>Tesorería: <strong id="fresh-tesoreria">Sin datos</strong></span>
+          </div>
+          <div id="data-quality" class="profitability-quality" aria-live="polite"></div>
+          <ul id="financial-insights-all" class="profitability-insights profitability-insights--all"></ul>
         </div>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead><tr><th>Concepto</th><th class="text-end">Mov.</th><th class="text-end">Monto</th><th></th></tr></thead>
-            <tbody id="conceptos-suman-body"></tbody>
-          </table>
-        </div>
-      </section>
-      <section class="table-card" aria-labelledby="conceptos-restan-title">
-        <div class="table-card-head concept-breakdown__head">
-          <span id="conceptos-restan-title">Conceptos que restan</span>
-          <span class="concept-breakdown__total concept-breakdown__total--subtract" id="conceptos-restan-total">$0</span>
-        </div>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead><tr><th>Concepto</th><th class="text-end">Mov.</th><th class="text-end">Monto</th><th></th></tr></thead>
-            <tbody id="conceptos-restan-body"></tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  </div>
+      </details>
+    </section>
+  </main>
 </div>
 
 <script>
-  let componentsChart;
-  let monthlyChart;
-  let cashflowAnalysisChart;
+  let trendChart;
+  let currentChartView = 'result';
+  let currentData = null;
+  let currentPeriod = '30';
+
   const money = value => {
     const number = Number(value || 0);
     return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS',
-      maximumFractionDigits: 0
+      style: 'currency', currency: 'ARS', maximumFractionDigits: 0
     }).format(Number.isFinite(number) ? number : 0);
   };
   const percent = value => `${Number(value || 0).toLocaleString('es-AR', {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1
+    minimumFractionDigits: 1, maximumFractionDigits: 1
   })} %`;
-  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
-  })[character]);
   const shortMoney = value => {
     const number = Number(value || 0);
     if (Math.abs(number) >= 1000000) return `$${(number / 1000000).toFixed(1)}M`;
     if (Math.abs(number) >= 1000) return `$${Math.round(number / 1000)}K`;
     return money(number);
   };
-
-  function isoLocal(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  }
+  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+  })[character]);
 
   function argentinaTodayISO() {
     const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Argentina/Tucuman',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
+      timeZone: 'America/Argentina/Tucuman', year: 'numeric', month: '2-digit', day: '2-digit'
     }).formatToParts(new Date());
     const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
     return `${values.year}-${values.month}-${values.day}`;
@@ -317,33 +252,34 @@
     return new Date(year, month - 1, day, 12, 0, 0);
   }
 
+  function isoLocal(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+
   function periodToDates(period) {
     const hastaISO = argentinaTodayISO();
     const hasta = dateFromISO(hastaISO);
     const desde = new Date(hasta);
-    if (period === 'month') {
-      desde.setDate(1);
-    } else if (period === 'ytd') {
-      desde.setMonth(0, 1);
-    } else if (period === '6m') {
+    if (period === 'month') desde.setDate(1);
+    else if (period === 'ytd') desde.setMonth(0, 1);
+    else if (period === '6m') {
       desde.setMonth(desde.getMonth() - 6);
       desde.setDate(desde.getDate() + 1);
-    } else {
-      desde.setDate(desde.getDate() - Number(period) + 1);
-    }
+    } else desde.setDate(desde.getDate() - Number(period) + 1);
     return { desde: isoLocal(desde), hasta: hastaISO };
   }
 
-  function setActivePeriod(period) {
-    document.querySelectorAll('.period-pills .pp').forEach(button => {
-      button.classList.toggle('active', button.dataset.period === period);
-    });
-    document.getElementById('btn-este-mes').classList.toggle('active', period === 'month');
+  function formatDate(value) {
+    return value ? dateFromISO(value).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' }) : '–';
+  }
+
+  function formatMonth(value) {
+    return value ? new Date(`${value}T00:00:00`).toLocaleDateString('es-AR', { month: 'short', year: '2-digit' }) : '–';
   }
 
   function setSignedClass(element, value) {
-    element.classList.toggle('result-negative', Number(value) < 0);
-    element.classList.toggle('result-positive', Number(value) > 0);
+    element.classList.toggle('profitability-value--negative', Number(value) < 0);
+    element.classList.toggle('profitability-value--positive', Number(value) > 0);
   }
 
   function renderWarnings(items) {
@@ -354,13 +290,38 @@
       return;
     }
     container.innerHTML = items.map(item => {
-      const severity = item.severity === 'danger' ? ' alert-item--danger'
-        : item.severity === 'info' ? ' alert-item--info' : '';
-      const icon = item.severity === 'danger' ? 'bi-x-octagon'
-        : item.severity === 'info' ? 'bi-info-circle' : 'bi-exclamation-triangle';
+      const severity = item.severity === 'danger' ? ' alert-item--danger' : item.severity === 'info' ? ' alert-item--info' : '';
+      const icon = item.severity === 'danger' ? 'bi-x-octagon' : item.severity === 'info' ? 'bi-info-circle' : 'bi-exclamation-triangle';
       return `<div class="alert-item${severity}"><i class="bi ${icon}" aria-hidden="true"></i><span>${escapeHtml(item.message)}</span></div>`;
     }).join('');
     container.classList.remove('d-none');
+  }
+
+  function renderScope(meta, empresa) {
+    const container = document.getElementById('empresa-context');
+    if (empresa === 'TODAS') {
+      container.classList.add('d-none');
+      container.textContent = '';
+      return;
+    }
+    const scope = meta?.empresa_scope || {};
+    const historical = scope.historical_unassigned || {};
+    const count = Object.values(historical).reduce((total, value) => total + Number(value || 0), 0);
+    const name = empresa === 'CARNES' ? 'Carnes' : 'Lácteos';
+    const historicalLabel = count === 1 ? 'registro histórico' : 'registros históricos';
+    container.innerHTML = `<i class="bi bi-buildings" aria-hidden="true"></i><span>Mostrando datos asignados a <strong>${name}</strong>.${count ? ` Hay ${count.toLocaleString('es-AR')} ${historicalLabel} sin empresa que se consultan en “Todas”.` : ''}</span>`;
+    container.classList.remove('d-none');
+  }
+
+  function renderInsights(items) {
+    const insights = Array.isArray(items) ? items : [];
+    const render = rows => rows.length ? rows.map(item => `
+      <li class="profitability-insight profitability-insight--${escapeHtml(item.severity || 'info')}">
+        <span class="profitability-insight__title">${escapeHtml(item.title || 'Revisar')}</span>
+        <span class="profitability-insight__message">${escapeHtml(item.message || '')}</span>
+      </li>`).join('') : '<li class="profitability-insight profitability-insight--empty"><span class="profitability-insight__message">No surgieron alertas adicionales en este período.</span></li>';
+    document.getElementById('financial-insights').innerHTML = render(insights.slice(0, 2));
+    document.getElementById('financial-insights-all').innerHTML = render(insights.slice(2));
   }
 
   function movementLink(conceptoId, tipo) {
@@ -370,40 +331,29 @@
       fecha_hasta: document.getElementById('fecha-hasta').value,
       tipo
     });
+    const empresa = document.getElementById('sel-empresa').value;
+    if (empresa !== 'TODAS') params.set('empresa', empresa);
     return `/tesoreria/movimientos?${params}`;
   }
 
   function renderConceptGroup(rows, effect) {
     const body = document.getElementById(`conceptos-${effect === 'suma' ? 'suman' : 'restan'}-body`);
     if (!rows.length) {
-      body.innerHTML = `<tr><td colspan="4" class="empty-table">No hay conceptos configurados que ${effect === 'suma' ? 'sumen' : 'resten'}.</td></tr>`;
+      body.innerHTML = '<p class="profitability-concepts__empty">No hay movimientos incluidos para este grupo.</p>';
       return;
     }
-    body.innerHTML = rows.map(({ participant, values }) => {
-      const naturaleza = participant.naturaleza === 'ambos'
-        ? 'Ambos'
-        : participant.naturaleza === 'ingreso' ? 'Ingreso' : 'Egreso';
-      const estado = participant.activo ? 'Activo' : 'Inactivo';
-      return `<tr>
-        <td>
-          <div class="fw-semibold">${escapeHtml(participant.concepto)}</div>
-          <div class="concept-status">${naturaleza} · ${estado}</div>
-        </td>
-        <td class="text-end">${Number(values.cantidad || 0).toLocaleString('es-AR')}</td>
-        <td class="text-end fw-semibold">${money(values.monto)}</td>
-        <td class="text-end"><a class="concept-link" href="${movementLink(participant.concepto_id, effect === 'suma' ? 'ingreso' : 'egreso')}">Ver movimientos</a></td>
-      </tr>`;
-    }).join('');
+    body.innerHTML = rows.map(({ participant, values }) => `
+      <div class="profitability-concept-row">
+        <div><strong>${escapeHtml(participant.concepto)}</strong><small>${Number(values.cantidad || 0).toLocaleString('es-AR')} movimientos</small></div>
+        <span>${money(values.monto)}</span>
+        <a href="${movementLink(participant.concepto_id, effect === 'suma' ? 'ingreso' : 'egreso')}">Ver</a>
+      </div>`).join('');
   }
 
   function renderConcepts(participants, kpis) {
     const rows = participants || [];
-    const additions = rows
-      .filter(participant => ['ingreso', 'ambos'].includes(participant.naturaleza))
-      .map(participant => ({ participant, values: participant.suma || {} }));
-    const subtractions = rows
-      .filter(participant => ['egreso', 'ambos'].includes(participant.naturaleza))
-      .map(participant => ({ participant, values: participant.resta || {} }));
+    const additions = rows.filter(row => ['ingreso', 'ambos'].includes(row.naturaleza)).map(participant => ({ participant, values: participant.suma || {} }));
+    const subtractions = rows.filter(row => ['egreso', 'ambos'].includes(row.naturaleza)).map(participant => ({ participant, values: participant.resta || {} }));
     renderConceptGroup(additions, 'suma');
     renderConceptGroup(subtractions, 'resta');
     document.getElementById('conceptos-suman-total').textContent = money(kpis.ingresos_incluidos);
@@ -421,7 +371,6 @@
     const total = Number(salaries?.total || 0);
     const margin = Number(salaries?.margen_comercial || 0);
     const marginAfter = Number(salaries?.margen_despues_sueldos_pagados || 0);
-
     document.getElementById('salary-treasury').textContent = money(treasury.monto);
     document.getElementById('salary-liquidations').textContent = money(liquidations.monto);
     document.getElementById('salary-advances').textContent = money(advances.monto);
@@ -436,219 +385,122 @@
     setSignedClass(document.getElementById('salary-margin-after'), marginAfter);
   }
 
-  function renderComponents(kpis) {
-    const facturacion = Number(kpis.facturacion || 0);
-    const compras = Number(kpis.compras || 0);
-    const ingresos = Number(kpis.ingresos_incluidos || 0);
-    const egresos = Number(kpis.egresos_incluidos || 0);
-    const resultado = Number(kpis.resultado_gestion || 0);
-    const values = [facturacion, compras, ingresos, egresos, resultado];
-    const effects = ['Suma', 'Resta', 'Suma', 'Resta', 'Resultado'];
-    if (componentsChart) componentsChart.destroy();
-    componentsChart = new Chart(document.getElementById('components-chart'), {
-      type: 'bar',
-      plugins: [{
-        id: 'componentValueLabels',
-        afterDatasetsDraw(chart) {
-          const { ctx } = chart;
-          chart.getDatasetMeta(0).data.forEach((bar, index) => {
-            const value = values[index];
-            ctx.save();
-            ctx.fillStyle = '#334155';
-            ctx.font = '650 11px system-ui, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = value < 0 ? 'top' : 'bottom';
-            ctx.fillText(shortMoney(value), bar.x, value < 0 ? bar.y + 7 : bar.y - 7);
-            ctx.restore();
-          });
-        }
-      }],
-      data: {
-        labels: ['Facturación', 'Compras', 'Ingresos incluidos', 'Egresos incluidos', 'Resultado'],
-        datasets: [{
-          data: values,
-          backgroundColor: ['rgba(22,163,74,.22)', 'rgba(220,38,38,.22)', 'rgba(22,163,74,.22)', 'rgba(220,38,38,.22)', 'rgba(37,99,235,.25)'],
-          borderColor: ['#16a34a', '#dc2626', '#16a34a', '#dc2626', '#2563eb'],
-          borderWidth: 1.5,
-          borderRadius: 4
-        }]
-      },
-      options: {
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: context => `${effects[context.dataIndex]}: ${money(context.parsed.y)}`
-            }
-          }
-        },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: '#64748b' } },
-          y: { beginAtZero: true, ticks: { callback: shortMoney, color: '#64748b' }, grid: { color: '#eef2f7' } }
-        }
-      }
-    });
-  }
-
-  function renderMonthly(rows) {
-    if (monthlyChart) monthlyChart.destroy();
-    monthlyChart = new Chart(document.getElementById('monthly-chart'), {
-      type: 'line',
-      data: {
-        labels: (rows || []).map(row => new Date(`${row.periodo}T00:00:00`).toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })),
-        datasets: [
-          { label: 'Facturación', data: (rows || []).map(row => row.facturacion), borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,.08)', tension: .3 },
-          { label: 'Compras', data: (rows || []).map(row => row.compras), borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,.08)', tension: .3 },
-          { label: 'Resultado', data: (rows || []).map(row => row.resultado_gestion), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.08)', tension: .3, borderWidth: 2.5 }
-        ]
-      },
-      options: {
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { position: 'bottom', labels: { color: '#475569', usePointStyle: true } },
-          tooltip: { callbacks: { label: context => `${context.dataset.label}: ${money(context.parsed.y)}` } }
-        },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: '#64748b' } },
-          y: { ticks: { callback: shortMoney, color: '#64748b' }, grid: { color: '#eef2f7' } }
-        }
-      }
-    });
-  }
-
-  function renderFinancialAnalysis(analysis) {
-    const cash = analysis?.flujo_caja || {};
-    const relation = analysis?.relacion_resultado_caja || {};
-    const trend = analysis?.tendencia || {};
-    const participation = analysis?.participacion_tesoreria || {};
-    const neto = Number(cash.neto || 0);
-    const gap = Number(relation.brecha_caja_menos_resultado || 0);
-    const coverage = cash.cobertura_egresos_pct;
-    const months = Number(trend.meses || 0);
-
-    document.getElementById('financial-neto').textContent = money(neto);
-    setSignedClass(document.getElementById('financial-neto'), neto);
-    document.getElementById('financial-neto-sub').textContent = neto < 0
-      ? 'Los egresos registrados superan a los ingresos'
-      : 'Dinero que entró menos dinero que salió';
-    document.getElementById('financial-coverage').textContent = coverage == null
-      ? 'Sin base'
-      : `${Number(coverage).toLocaleString('es-AR', { maximumFractionDigits: 1 })} %`;
-    document.getElementById('financial-gap').textContent = money(gap);
-    setSignedClass(document.getElementById('financial-gap'), gap);
-    document.getElementById('financial-months').textContent = `${Number(trend.meses_flujo_positivo || 0)} de ${months}`;
-    document.getElementById('financial-months-sub').textContent = cash.meses_sin_movimiento
-      ? `Sin movimientos: ${Number(cash.meses_sin_movimiento)} meses`
-      : 'Meses con más ingresos que egresos';
-
-    const insights = Array.isArray(analysis?.insights) ? analysis.insights : [];
-    const insightsContainer = document.getElementById('financial-insights');
-    if (!insights.length) {
-      insightsContainer.innerHTML = '<li class="financial-insight"><span class="financial-insight__message">No surgieron señales adicionales para revisar en este período.</span></li>';
-    } else {
-      const allowedSeverities = new Set(['danger', 'warning', 'positive', 'info']);
-      insightsContainer.innerHTML = insights.map(item => {
-        const severity = allowedSeverities.has(item.severity) ? item.severity : 'info';
-        return `<li class="financial-insight financial-insight--${severity}">
-          <span class="financial-insight__title">${escapeHtml(item.title)}</span>
-          <span class="financial-insight__message">${escapeHtml(item.message)}</span>
-        </li>`;
-      }).join('');
-    }
-
-    const incomeShare = participation.ingresos_incluidos_sobre_caja_pct;
-    const expenseShare = participation.egresos_incluidos_sobre_caja_pct;
-    const formatShare = value => value == null
-      ? 'sin base comparable'
-      : `${Number(value).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`;
-    document.getElementById('financial-participation').textContent =
-      `Los conceptos incluidos explican ${formatShare(incomeShare)} de los ingresos y ${formatShare(expenseShare)} de los egresos registrados.`;
-
-    const rows = Array.isArray(trend.flujo_mensual) ? trend.flujo_mensual : [];
-    if (cashflowAnalysisChart) cashflowAnalysisChart.destroy();
-    const chartStage = document.querySelector('.financial-analysis__chart-stage');
-    const hasFlowData = rows.some(row => Number(row.ingresos || 0) !== 0 || Number(row.egresos || 0) !== 0);
-    if (!hasFlowData) {
-      chartStage.innerHTML = '<div class="financial-chart-empty">No hay movimientos de Tesorería registrados en este período.</div>';
-      cashflowAnalysisChart = null;
-      return;
-    }
-    chartStage.innerHTML = '<canvas id="cashflow-analysis-chart"></canvas>';
-    cashflowAnalysisChart = new Chart(document.getElementById('cashflow-analysis-chart'), {
-      type: 'bar',
-      data: {
-        labels: rows.map(row => new Date(`${row.periodo}T00:00:00`).toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })),
-        datasets: [
-          { label: 'Ingresos', data: rows.map(row => row.ingresos), backgroundColor: 'rgba(21,147,111,.28)', borderColor: '#15936f', borderWidth: 1.2, borderRadius: 4 },
-          { label: 'Egresos', data: rows.map(row => row.egresos), backgroundColor: 'rgba(220,38,38,.24)', borderColor: '#dc2626', borderWidth: 1.2, borderRadius: 4 },
-          { type: 'line', label: 'Flujo neto', data: rows.map(row => row.neto), borderColor: '#2563eb', backgroundColor: '#2563eb', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: .25, fill: false }
-        ]
-      },
-      options: {
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { position: 'bottom', labels: { color: '#475569', usePointStyle: true } },
-          tooltip: { callbacks: { label: context => `${context.dataset.label}: ${money(context.parsed.y)}` } }
-        },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: '#64748b' } },
-          y: { beginAtZero: true, ticks: { callback: shortMoney, color: '#64748b' }, grid: { color: '#e5eeee' } }
-        }
-      }
-    });
-  }
-
-  function setFreshness(meta) {
+  function renderFreshness(meta) {
     ['ventas', 'compras', 'tesoreria'].forEach(source => {
       const raw = meta?.freshness?.[source];
-      document.getElementById(`fresh-${source}`).textContent = raw
-        ? new Date(`${String(raw).slice(0, 10)}T00:00:00`).toLocaleDateString('es-AR')
-        : 'Sin datos';
+      document.getElementById(`fresh-${source}`).textContent = raw ? formatDate(String(raw).slice(0, 10)) : 'Sin datos';
     });
   }
 
-  async function load(period, desde = '', hasta = '') {
-    setActivePeriod(period);
+  function renderDataQuality(meta) {
+    const quality = meta?.data_quality || {};
+    const incompatible = Number(quality.movimientos_incompatibles || 0);
+    const pending = Number(quality.conceptos_pendientes || 0);
+    const messages = [];
+    if (incompatible) messages.push(`${pluralize(incompatible, 'movimiento')} con un concepto incompatible no se incluye en el resultado.`);
+    if (pending) messages.push(`${pluralize(pending, 'concepto')} pendiente de clasificar puede requerir revisión.`);
+    document.getElementById('data-quality').textContent = messages.length
+      ? messages.join(' ')
+      : 'Sin advertencias de clasificación en este período.';
+  }
+
+  function chartOptions() {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#4b5563', usePointStyle: true, boxWidth: 8, padding: 16 } },
+        tooltip: { callbacks: { label: context => `${context.dataset.label}: ${money(context.parsed.y)}` } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#6b7280', maxRotation: 0 } },
+        y: { ticks: { callback: shortMoney, color: '#6b7280' }, grid: { color: '#e8edf2' } }
+      }
+    };
+  }
+
+  function renderTrend() {
+    if (!currentData) return;
+    if (trendChart) trendChart.destroy();
+    const description = document.getElementById('trend-description');
+    const canvas = document.getElementById('trend-chart');
+    let labels = [];
+    let datasets = [];
+    if (currentChartView === 'cash') {
+      const rows = currentData.series?.caja_mensual || [];
+      labels = rows.map(row => formatMonth(row.periodo));
+      datasets = [
+        { type: 'bar', label: 'Ingresos', data: rows.map(row => row.ingresos), backgroundColor: 'rgba(21, 128, 61, .18)', borderColor: '#15803d', borderWidth: 1, borderRadius: 3 },
+        { type: 'bar', label: 'Egresos', data: rows.map(row => row.egresos), backgroundColor: 'rgba(185, 28, 28, .16)', borderColor: '#b91c1c', borderWidth: 1, borderRadius: 3 },
+        { type: 'line', label: 'Flujo neto', data: rows.map(row => row.neto), borderColor: '#2563eb', backgroundColor: '#2563eb', borderWidth: 2.25, pointRadius: 2.5, tension: .25 }
+      ];
+      description.textContent = 'Ingresos y egresos registrados, con su diferencia mensual.';
+      canvas.setAttribute('aria-label', 'Evolución mensual del flujo de caja');
+    } else {
+      const rows = currentData.series?.actividad_mensual || [];
+      labels = rows.map(row => formatMonth(row.periodo));
+      datasets = [{
+        label: 'Resultado del período', data: rows.map(row => row.resultado_gestion), borderColor: '#4338ca', backgroundColor: 'rgba(67, 56, 202, .08)', fill: true, borderWidth: 2.5, pointRadius: 3, tension: .25
+      }];
+      description.textContent = 'Resultado de gestión por mes, con la misma metodología del resumen.';
+      canvas.setAttribute('aria-label', 'Evolución mensual del resultado del período');
+    }
+    trendChart = new Chart(canvas, { type: 'line', data: { labels, datasets }, options: chartOptions() });
+    document.getElementById('trend-summary').textContent = `${description.textContent} Se muestran ${labels.length} meses.`;
+  }
+
+  function setChartView(view) {
+    currentChartView = view;
+    document.querySelectorAll('[data-chart-view]').forEach(button => {
+      const active = button.dataset.chartView === view;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    renderTrend();
+  }
+
+  function renderDashboard(data) {
+    currentData = data;
+    const kpis = data.kpis || {};
+    const resultado = Number(kpis.resultado_gestion || 0);
+    const caja = Number(kpis.caja_neta || 0);
+    document.getElementById('period-label').textContent = `${formatDate(data.periodo?.desde)} — ${formatDate(data.periodo?.hasta)}`;
+    document.getElementById('fecha-desde').value = data.periodo?.desde || '';
+    document.getElementById('fecha-hasta').value = data.periodo?.hasta || '';
+    [
+      ['kpi-resultado', resultado], ['kpi-caja', caja], ['kpi-facturacion', kpis.facturacion], ['kpi-compras', kpis.compras],
+      ['kpi-suman', kpis.ingresos_incluidos], ['kpi-restan', kpis.egresos_incluidos], ['ledger-resultado', resultado]
+    ].forEach(([id, value]) => { document.getElementById(id).textContent = money(value); });
+    document.getElementById('kpi-resultado-pct').textContent = `Representa ${percent(kpis.resultado_sobre_facturacion_pct)} de las ventas facturadas.`;
+    document.getElementById('kpi-caja-description').textContent = `${caja < 0 ? 'Flujo negativo' : caja > 0 ? 'Flujo positivo' : 'Flujo equilibrado'}: dinero que entró menos dinero que salió.`;
+    setSignedClass(document.getElementById('kpi-resultado'), resultado);
+    setSignedClass(document.getElementById('kpi-caja'), caja);
+    setSignedClass(document.getElementById('ledger-resultado'), resultado);
+    renderScope(data.meta, document.getElementById('sel-empresa').value);
+    renderInsights(data.analisis_financiero?.insights || []);
+    renderConcepts(data.conceptos?.participantes || data.detalles?.conceptos_participantes || [], kpis);
+    renderSalaryImpact(data.sueldos_pagados || {});
+    renderFreshness(data.meta || {});
+    renderDataQuality(data.meta || {});
+    renderTrend();
+  }
+
+  async function load(period = currentPeriod, desde = '', hasta = '') {
+    if (period === 'custom' && (!desde || !hasta)) return;
+    currentPeriod = period === 'custom' ? currentPeriod : period;
     document.getElementById('skeleton').classList.remove('d-none');
     document.getElementById('content').classList.add('d-none');
-    if (period && !desde) ({ desde, hasta } = periodToDates(period));
+    if (!desde || !hasta) ({ desde, hasta } = periodToDates(period));
     const params = new URLSearchParams({ fecha_desde: desde, fecha_hasta: hasta });
     const empresa = document.getElementById('sel-empresa').value;
     if (empresa !== 'TODAS') params.set('empresa', empresa);
     try {
       const response = await fetch(`/api/bi/dashboard?${params}`);
       const data = await response.json();
-      if (!response.ok || data.error) throw new Error(data.error || 'No se pudo cargar el resultado comercial.');
-      const kpis = data.kpis || {};
-      document.getElementById('period-label').textContent = `Período: ${data.periodo.desde} → ${data.periodo.hasta}`;
-      document.getElementById('fecha-desde').value = data.periodo.desde;
-      document.getElementById('fecha-hasta').value = data.periodo.hasta;
-      [
-        ['kpi-resultado', kpis.resultado_gestion],
-        ['kpi-caja', kpis.caja_neta],
-        ['kpi-facturacion', kpis.facturacion],
-        ['kpi-compras', kpis.compras],
-        ['kpi-diferencia', kpis.diferencia_facturacion_compras],
-        ['kpi-suman', kpis.ingresos_incluidos],
-        ['kpi-restan', kpis.egresos_incluidos]
-      ].forEach(([id, value]) => { document.getElementById(id).textContent = money(value); });
-      document.getElementById('kpi-resultado-pct').textContent = `Resultado del período: ${percent(kpis.resultado_sobre_facturacion_pct)} de la facturación`;
-      setSignedClass(document.getElementById('kpi-resultado'), kpis.resultado_gestion);
-      setSignedClass(document.getElementById('kpi-caja'), kpis.caja_neta);
-      setSignedClass(document.getElementById('kpi-diferencia'), kpis.diferencia_facturacion_compras);
+      if (!response.ok || data.error) throw new Error(data.error || 'No se pudo cargar la rentabilidad.');
       renderWarnings([]);
-      renderSalaryImpact(data.sueldos_pagados || {});
-      renderFinancialAnalysis(data.analisis_financiero || {});
-      renderConcepts(data.conceptos?.participantes || data.detalles?.conceptos_participantes || [], kpis);
-      renderComponents(kpis);
-      renderMonthly(data.series?.actividad_mensual || []);
-      setFreshness(data.meta || {});
-      document.getElementById('empresa-context').textContent = empresa === 'TODAS'
-        ? ''
-        : 'La facturación y las compras se filtran por empresa; Tesorería y sus conceptos se muestran de forma global.';
+      renderDashboard(data);
       document.getElementById('content').classList.remove('d-none');
     } catch (error) {
       console.error(error);
@@ -663,18 +515,26 @@
     const today = argentinaTodayISO();
     document.getElementById('fecha-desde').max = today;
     document.getElementById('fecha-hasta').max = today;
-    document.querySelectorAll('.period-pills .pp').forEach(button => {
-      button.addEventListener('click', () => load(button.dataset.period));
+    document.getElementById('period-preset').addEventListener('change', event => {
+      const isCustom = event.target.value === 'custom';
+      document.getElementById('custom-period').classList.toggle('d-none', !isCustom);
+      if (!isCustom) load(event.target.value);
     });
     document.getElementById('btn-aplicar').addEventListener('click', () => {
-      load('', document.getElementById('fecha-desde').value, document.getElementById('fecha-hasta').value);
-    });
-    document.getElementById('btn-este-mes').addEventListener('click', () => {
-      load('month');
+      const desde = document.getElementById('fecha-desde').value;
+      const hasta = document.getElementById('fecha-hasta').value;
+      if (!desde || !hasta) {
+        window.App360UI?.notify?.('Elegí una fecha de inicio y una fecha de fin.', 'warning');
+        return;
+      }
+      load('custom', desde, hasta);
     });
     document.getElementById('sel-empresa').addEventListener('change', () => {
-      load('', document.getElementById('fecha-desde').value, document.getElementById('fecha-hasta').value);
+      const preset = document.getElementById('period-preset').value;
+      if (preset === 'custom') load('custom', document.getElementById('fecha-desde').value, document.getElementById('fecha-hasta').value);
+      else load(preset);
     });
+    document.querySelectorAll('[data-chart-view]').forEach(button => button.addEventListener('click', () => setChartView(button.dataset.chartView)));
     load('30');
   });
 </script>

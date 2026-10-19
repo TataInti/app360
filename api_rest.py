@@ -9,6 +9,7 @@ from models import (
     PurchaseOrder, PurchaseOrderItem, PurchaseReceipt,
     Employee, Attendance, Goal, Survey, SurveyResponse, User
 )
+from models.empresa import EMPRESA_TODAS, empresa_es_especifica, etiqueta_empresa, normalizar_empresa
 from security import (
     generate_access_token, generate_refresh_token, decode_token,
     jwt_required, jwt_optional, log_login_attempt, log_security_event
@@ -87,6 +88,61 @@ def paginate_query(query):
     page, per_page = pagination
     result = query.paginate(page=page, per_page=per_page, error_out=False)
     return result, None
+
+
+def _empresa_filtro_api():
+    """Obtiene el alcance opcional de un listado operativo.
+
+    El alcance global incluye los registros históricos con ``empresa = NULL``.
+    """
+    try:
+        empresa = normalizar_empresa(
+            request.args.get("empresa"),
+            allow_todas=True,
+            allow_none=True,
+        )
+    except ValueError as exc:
+        return None, error_response(400, str(exc))
+    return empresa, None
+
+
+def _empresa_requerida_api(value):
+    empresa = normalizar_empresa(value, allow_todas=False, allow_none=False)
+    if not empresa_es_especifica(empresa):
+        raise ValueError("Empresa debe ser CARNES o LACTEOS")
+    return empresa
+
+
+def _aplicar_empresa_compras(query, empresa):
+    if empresa_es_especifica(empresa):
+        return query.filter(PurchaseOrder.empresa == empresa)
+    return query
+
+
+def _aplicar_empresa_empleados(query, empresa):
+    if empresa_es_especifica(empresa):
+        return query.filter(Employee.empresa == empresa)
+    return query
+
+
+def _serializar_empleado_api(employee):
+    return {
+        'id': employee.id,
+        'name': employee.name,
+        'first_name': employee.first_name,
+        'last_name': employee.last_name,
+        'email': employee.email,
+        'phone': employee.phone,
+        'position': employee.position,
+        'department': employee.department,
+        'hire_date': employee.hire_date.isoformat() if employee.hire_date else None,
+        'salary': float(employee.salary) if employee.salary else None,
+        'location_id': employee.location_id,
+        'is_active': employee.is_active,
+        'empresa': employee.empresa,
+        'empresa_label': etiqueta_empresa(employee.empresa),
+        'puede_operar_liquidacion': empresa_es_especifica(employee.empresa),
+    }
 
 # -----------------------------------------------------------------------------
 # AUTH ENDPOINTS
@@ -611,7 +667,10 @@ def delete_stock(stock_id):
 def get_compras():
     """Get all purchase orders."""
     try:
-        query = PurchaseOrder.query
+        empresa, error = _empresa_filtro_api()
+        if error:
+            return error
+        query = _aplicar_empresa_compras(PurchaseOrder.query, empresa)
         result, error = paginate_query(query)
         if error:
             return error
@@ -620,6 +679,8 @@ def get_compras():
         for o in result.items:
             items.append({
                 'id': o.id,
+                'empresa': getattr(o, 'empresa', None),
+                'empresa_label': etiqueta_empresa(getattr(o, 'empresa', None)),
                 'supplier': getattr(o, 'supplier', None),
                 'supplier_id': getattr(o, 'supplier_id', None),
                 'product_id': getattr(o, 'product_id', None),
@@ -644,6 +705,7 @@ def get_compras():
             'per_page': result.per_page,
             'total': result.total,
             'pages': result.pages,
+            'empresa_filtro': empresa if empresa_es_especifica(empresa) else EMPRESA_TODAS,
         })
     except Exception:
         current_app.logger.exception('Failed to list purchase orders')
@@ -654,6 +716,9 @@ def get_compras():
 def compras_overview():
     """KPIs simples para panel de compras (similar a paneles estratégicos)."""
     try:
+        empresa, error = _empresa_filtro_api()
+        if error:
+            return error
         # Período default: últimos 30 días (en base a order_date o created_at)
         period_raw = request.args.get('period', '30')
         try:
@@ -664,7 +729,7 @@ def compras_overview():
         today = datetime.utcnow().date()
         desde = date(today.year, 1, 1) if str(period_raw).lower() == 'ytd' else (today - timedelta(days=period_days - 1))
 
-        q_period = PurchaseOrder.query.filter(
+        q_period = _aplicar_empresa_compras(PurchaseOrder.query, empresa).filter(
             PurchaseOrder.order_date >= desde,
             PurchaseOrder.order_date <= today,
         )
@@ -680,6 +745,7 @@ def compras_overview():
 
         return jsonify({
             'period': str(period_raw),
+            'empresa_filtro': empresa if empresa_es_especifica(empresa) else EMPRESA_TODAS,
             'desde': desde.isoformat(),
             'hasta': today.isoformat(),
             'kpis': {
@@ -703,9 +769,10 @@ def create_compra():
         data = get_json_payload()
         if not data:
             return error_response(400, "Invalid request body")
-        missing = require_fields(data, ["product_id", "quantity", "unit_price", "total_amount", "order_date"])
+        missing = require_fields(data, ["product_id", "quantity", "unit_price", "total_amount", "order_date", "empresa"])
         if missing:
             return missing
+        empresa = _empresa_requerida_api(data.get('empresa'))
         order_date = parse_iso_date(data.get('order_date'), 'order_date')
         expected_delivery_date = parse_iso_date(data.get('expected_delivery_date'), 'expected_delivery_date')
 
@@ -715,6 +782,7 @@ def create_compra():
             supplier_name = f"Proveedor {supplier_id}"
 
         order = PurchaseOrder(
+            empresa=empresa,
             supplier_id=supplier_id,
             supplier=supplier_name,
             product_id=data['product_id'],
@@ -743,6 +811,8 @@ def create_compra():
         db.session.commit()
         return jsonify({
             'id': order.id,
+            'empresa': order.empresa,
+            'empresa_label': etiqueta_empresa(order.empresa),
             'supplier_id': order.supplier_id,
             'supplier': order.supplier,
             'product_id': order.product_id,
@@ -771,6 +841,8 @@ def update_compra(order_id):
         data = get_json_payload()
         if not data:
             return error_response(400, "Invalid request body")
+        if 'empresa' in data:
+            order.empresa = _empresa_requerida_api(data.get('empresa'))
         order.supplier_id = data.get('supplier_id', order.supplier_id)
         order.supplier = data.get('supplier', order.supplier)
         order.product_id = data.get('product_id', order.product_id)
@@ -788,6 +860,8 @@ def update_compra(order_id):
         db.session.commit()
         return jsonify({
             'id': order.id,
+            'empresa': order.empresa,
+            'empresa_label': etiqueta_empresa(order.empresa),
             'supplier_id': order.supplier_id,
             'supplier': order.supplier,
             'product_id': order.product_id,
@@ -859,9 +933,14 @@ def get_rrhh():
 
 @api_rest.route('/rrhh/dotacion', methods=['GET'])
 def get_rrhh_dotacion():
-    """Get employee staffing data"""
+    """Get employee staffing data, optionally filtered by current company."""
+    empresa, error = _empresa_filtro_api()
+    if error:
+        return error
+
     try:
-        result, error = paginate_query(Employee.query)
+        query = _aplicar_empresa_empleados(Employee.query, empresa)
+        result, error = paginate_query(query)
         if error:
             return error
         items = [{
@@ -870,7 +949,9 @@ def get_rrhh_dotacion():
             'position': e.position,
             'department': e.department,
             'hire_date': e.hire_date.isoformat() if e.hire_date else None,
-            'salary': float(e.salary) if e.salary else None
+            'salary': float(e.salary) if e.salary else None,
+            'empresa': e.empresa,
+            'empresa_label': etiqueta_empresa(e.empresa),
         } for e in result.items]
         return jsonify({
             "items": items,
@@ -878,6 +959,7 @@ def get_rrhh_dotacion():
             "per_page": result.per_page,
             "total": result.total,
             "pages": result.pages,
+            "empresa_filtro": empresa if empresa_es_especifica(empresa) else EMPRESA_TODAS,
         })
     except Exception as e:
         current_app.logger.exception("Failed to list staffing data")
@@ -885,25 +967,17 @@ def get_rrhh_dotacion():
 
 @api_rest.route('/rrhh/empleados', methods=['GET'])
 def get_employees():
-    """Get all employees"""
+    """Get all employees, optionally filtered by current company."""
+    empresa, error = _empresa_filtro_api()
+    if error:
+        return error
+
     try:
-        result, error = paginate_query(Employee.query)
+        query = _aplicar_empresa_empleados(Employee.query, empresa)
+        result, error = paginate_query(query)
         if error:
             return error
-        items = [{
-            'id': e.id,
-            'name': e.name,
-            'first_name': e.first_name,
-            'last_name': e.last_name,
-            'email': e.email,
-            'phone': e.phone,
-            'position': e.position,
-            'department': e.department,
-            'hire_date': e.hire_date.isoformat() if e.hire_date else None,
-            'salary': float(e.salary) if e.salary else None,
-            'location_id': e.location_id,
-            'is_active': e.is_active
-        } for e in result.items]
+        items = [_serializar_empleado_api(e) for e in result.items]
         # Compat: algunos templates esperan `employees` en lugar de `items`.
         return jsonify({
             "items": items,
@@ -912,6 +986,7 @@ def get_employees():
             "per_page": result.per_page,
             "total": result.total,
             "pages": result.pages,
+            "empresa_filtro": empresa if empresa_es_especifica(empresa) else EMPRESA_TODAS,
         })
     except Exception as e:
         current_app.logger.exception("Failed to list employees")
@@ -929,6 +1004,7 @@ def create_employee():
         if missing:
             return missing
         hire_date = parse_iso_date(data.get('hire_date'), 'hire_date')
+        empresa = normalizar_empresa(data.get('empresa'), allow_none=True)
 
         employee = Employee(
             first_name=data['first_name'],
@@ -940,25 +1016,14 @@ def create_employee():
             hire_date=hire_date,
             salary=data.get('salary'),
             location_id=data.get('location_id'),
-            is_active=data.get('is_active', True)
+            is_active=data.get('is_active', True),
+            empresa=empresa,
         )
 
         db.session.add(employee)
         db.session.commit()
 
-        return jsonify({
-            'id': employee.id,
-            'first_name': employee.first_name,
-            'last_name': employee.last_name,
-            'email': employee.email,
-            'phone': employee.phone,
-            'position': employee.position,
-            'department': employee.department,
-            'hire_date': employee.hire_date.isoformat() if employee.hire_date else None,
-            'salary': float(employee.salary) if employee.salary else None,
-            'location_id': employee.location_id,
-            'is_active': employee.is_active
-        }), 201
+        return jsonify(_serializar_empleado_api(employee)), 201
     except ValueError as e:
         return error_response(400, str(e))
     except Exception as e:
@@ -987,22 +1052,12 @@ def update_employee(id):
         employee.salary = data.get('salary', employee.salary)
         employee.location_id = data.get('location_id', employee.location_id)
         employee.is_active = data.get('is_active', employee.is_active)
+        if 'empresa' in data:
+            employee.empresa = normalizar_empresa(data.get('empresa'), allow_none=True)
 
         db.session.commit()
 
-        return jsonify({
-            'id': employee.id,
-            'first_name': employee.first_name,
-            'last_name': employee.last_name,
-            'email': employee.email,
-            'phone': employee.phone,
-            'position': employee.position,
-            'department': employee.department,
-            'hire_date': employee.hire_date.isoformat() if employee.hire_date else None,
-            'salary': float(employee.salary) if employee.salary else None,
-            'location_id': employee.location_id,
-            'is_active': employee.is_active
-        })
+        return jsonify(_serializar_empleado_api(employee))
     except ValueError as e:
         return error_response(400, str(e))
     except Exception as e:

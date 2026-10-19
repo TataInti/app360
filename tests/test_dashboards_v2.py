@@ -153,6 +153,50 @@ def test_dashboard_comercial_v2_ok(client, seed_minimal):
     assert "pre_por_producto" in data["series"]
 
 
+def test_dashboard_comercial_v2_filtra_por_cliente(client, app, seed_minimal):
+    with app.app_context():
+        db.session.add_all(
+            [
+                StgSabiogoVentas(
+                    fecha=date.today() - timedelta(days=5),
+                    origen="CARNES",
+                    codigo="PRE-A",
+                    producto="Prod A",
+                    comprobante="PRE",
+                    cliente="Cliente Filtro",
+                    vendedor="Vendedor A",
+                    subtot=250.0,
+                    estado="procesado",
+                ),
+                StgSabiogoVentas(
+                    fecha=date.today() - timedelta(days=5),
+                    origen="CARNES",
+                    codigo="PRE-B",
+                    producto="Prod B",
+                    comprobante="PRE",
+                    cliente="Cliente Otro",
+                    vendedor="Vendedor B",
+                    subtot=999.0,
+                    estado="procesado",
+                ),
+            ]
+        )
+        db.session.commit()
+
+    resp = client.get("/api/dashboard-comercial-v2?period=30&cliente=Cliente%20Filtro")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["kpis"]["ventas_pre_periodo_count"] == 1
+    assert data["kpis"]["ventas_pre_periodo_total"] == 250.0
+    assert data["series"]["pre_por_cliente"] == [["Cliente Filtro", 1, 250.0]]
+
+    filtros_resp = client.get("/api/dashboard-comercial/filtros?empresa=CARNES")
+    assert filtros_resp.status_code == 200
+    filtros = filtros_resp.get_json()
+    assert "Cliente Filtro" in filtros["clientes"]
+    assert "Cliente Otro" in filtros["clientes"]
+
+
 def test_panel_ejecutivo_v2_ok(client, seed_minimal):
     resp = client.get("/api/panel-ejecutivo-v2?period=ytd")
     assert resp.status_code == 200

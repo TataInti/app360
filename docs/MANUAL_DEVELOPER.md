@@ -243,6 +243,7 @@ bash scripts/fix_local_db_privileges.sh
 
 - `20260729_conceptos_movimientos_resultado.py`: descendiente directo de `20260713_sabiogo_sync_runs`; agrega naturaleza, participación y auditoría sin introducir geofencing.
 - `20260729_ensure_efectivo_iva.py`: conciliación idempotente de `EFECTIVO IVA`.
+- `20260730_add_empresa_attribution.py`: agrega atribución nullable a registros operativos; conserva los históricos sin asignarlos. Validar con `scripts/sql/validate_20260730_empresa_attribution.sql`.
 
 ---
 
@@ -260,10 +261,17 @@ Fuente operativa: `docs/DEPLOY_VPS.md`
 
 ### 8.2 Update estándar
 
+El checkout del VPS productivo está administrado por `root`. Verificar siempre
+el propietario antes de operar; no ejecutar `git` como `www-data` sobre este
+checkout porque Git lo rechaza como `dubious ownership`.
+
 ```bash
 cd /var/www/app360
-sudo -u www-data git pull
-sudo -u www-data bash scripts/deploy.sh
+git status --short
+git fetch origin main
+git diff --name-status HEAD..origin/main -- migrations
+git pull --ff-only origin main
+RUN_MIGRATIONS=false bash scripts/deploy.sh
 # aplicar scripts/apply_db_migrations_to_vps.sh desde la máquina operadora
 sudo systemctl restart app360
 curl -fsS http://127.0.0.1:5000/api/health
@@ -497,6 +505,9 @@ ssh <user>@<host> "sudo systemctl status app360 --no-pager && curl -fsS http://1
 
 ## 16) Historial de actualizaciones del manual
 
+- 2026-07-30: procedimiento de update del VPS alineado con el checkout
+  administrado por `root`; deploy de `25c0b7c` completado sin migraciones,
+  con servicio activo y health check exitoso.
 - 2026-07-29: documentación de conceptos de Tesorería, resultado comercial compartido, migraciones geofence/sync/conceptos, rebaseline SabioGo 2026 y tests focalizados.
 - 2026-03-04: creación inicial del manual exhaustivo.
 

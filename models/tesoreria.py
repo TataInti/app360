@@ -86,6 +86,10 @@ class MovimientoCaja(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     fecha_hora = db.Column(db.DateTime, nullable=False, default=now_local)
 
+    # ``NULL`` conserva los movimientos históricos globales. Las nuevas altas
+    # se validan en los módulos operativos con los códigos de models.empresa.
+    empresa = db.Column(db.String(10), nullable=True)
+
     tipo = db.Column(db.String(10), nullable=False)  # 'ingreso' o 'egreso'
     monto = db.Column(db.Numeric(12, 2), nullable=False)
     descripcion = db.Column(db.String(200), nullable=False)
@@ -120,7 +124,12 @@ class MovimientoCaja(db.Model):
 
     # Índices
     __table_args__ = (
+        db.CheckConstraint(
+            "empresa IS NULL OR empresa IN ('CARNES', 'LACTEOS')",
+            name="chk_movimientos_caja_empresa",
+        ),
         db.Index('idx_movimiento_fecha', 'fecha_hora'),
+        db.Index('idx_movimiento_empresa_fecha', 'empresa', 'fecha_hora'),
         db.Index('idx_movimiento_tipo', 'tipo'),
         db.Index('idx_movimiento_instrumento', 'instrumento_id'),
         db.Index('idx_movimiento_estado', 'estado'),

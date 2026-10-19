@@ -19,11 +19,37 @@ from models import (
 )
 from models.gastos import CategoriaMovimientoAudit
 from models.tesoreria import PortadorInstrumento
+from models.empresa import EMPRESA_TODAS, empresa_es_especifica, etiqueta_empresa, normalizar_empresa
 from security import protect_blueprint
 
 gastos_bp = Blueprint("gastos", __name__)
 
 protect_blueprint(gastos_bp, "gastos")
+
+
+def _empresa_label(empresa):
+    return etiqueta_empresa(empresa)
+
+
+def _empresa_filtro():
+    return normalizar_empresa(
+        request.args.get("empresa"),
+        allow_todas=True,
+        allow_none=True,
+    )
+
+
+def _empresa_requerida(value):
+    empresa = normalizar_empresa(value, allow_todas=False, allow_none=False)
+    if not empresa_es_especifica(empresa):
+        raise ValueError("Empresa debe ser CARNES o LACTEOS")
+    return empresa
+
+
+def _aplicar_empresa(query, empresa):
+    if empresa_es_especifica(empresa):
+        return query.filter(MovimientoCaja.empresa == empresa)
+    return query
 
 
 def _gastos_query():
@@ -211,8 +237,13 @@ def gastos_listar():
     proveedor_id = request.args.get("proveedor_id")
     instrumento_id = request.args.get("instrumento_id")
     limite = request.args.get("limite", 200, type=int)
+    try:
+        empresa = _empresa_filtro()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     query = _gastos_query()
+    query = _aplicar_empresa(query, empresa)
 
     if fecha_desde:
         query = query.filter(MovimientoCaja.fecha_hora >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
@@ -234,6 +265,8 @@ def gastos_listar():
             "id": m.id,
             "fecha": m.fecha_hora.strftime("%Y-%m-%d"),
             "fecha_hora": m.fecha_hora.isoformat(),
+            "empresa": m.empresa,
+            "empresa_label": _empresa_label(m.empresa),
             "descripcion": m.descripcion,
             "monto": float(m.monto),
             "tipo": m.tipo,
@@ -246,19 +279,25 @@ def gastos_listar():
             "referencia": m.referencia,
             "estado": m.estado,
             "usuario": m.usuario.username if m.usuario else None
-        } for m in movimientos]
+        } for m in movimientos],
+        "empresa_filtro": empresa if empresa_es_especifica(empresa) else EMPRESA_TODAS,
     })
 
 
 @gastos_bp.route("/api/gastos/registrar", methods=["POST"])
 def gastos_registrar():
     """Registrar nuevo gasto = MovimientoCaja tipo egreso con categoria_gasto obligatoria"""
-    data = request.get_json()
+    data = request.get_json() or {}
 
-    required = ["descripcion", "monto", "categoria_gasto_id", "proveedor_id", "instrumento_id"]
+    required = ["descripcion", "monto", "categoria_gasto_id", "proveedor_id", "instrumento_id", "empresa"]
     for field in required:
         if not data.get(field):
             return jsonify({"error": f"Campo requerido: {field}"}), 400
+
+    try:
+        empresa = _empresa_requerida(data.get("empresa"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     try:
         monto = Decimal(str(data["monto"]))
@@ -309,6 +348,7 @@ def gastos_registrar():
         return jsonify({"error": "Usuario no encontrado"}), 401
 
     movimiento = MovimientoCaja(
+        empresa=empresa,
         tipo="egreso",
         monto=monto,
         descripcion=data["descripcion"].strip(),
@@ -327,6 +367,8 @@ def gastos_registrar():
         "message": "Gasto registrado",
         "movimiento": {
             "id": movimiento.id,
+            "empresa": movimiento.empresa,
+            "empresa_label": _empresa_label(movimiento.empresa),
             "monto": float(movimiento.monto),
             "descripcion": movimiento.descripcion,
             "instrumento": movimiento.instrumento.nombre
@@ -339,6 +381,10 @@ def gastos_resumen():
     """Resumen y KPIs de gastos del período"""
     fecha_desde = request.args.get("fecha_desde")
     fecha_hasta = request.args.get("fecha_hasta")
+    try:
+        empresa = _empresa_filtro()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     if not fecha_desde or not fecha_hasta:
         hoy = datetime.now().date()
@@ -348,7 +394,7 @@ def gastos_resumen():
     dt_desde = datetime.strptime(fecha_desde, "%Y-%m-%d")
     dt_hasta = datetime.strptime(fecha_hasta + " 23:59:59", "%Y-%m-%d %H:%M:%S")
 
-    gastos = _gastos_query().filter(
+    gastos = _aplicar_empresa(_gastos_query(), empresa).filter(
         MovimientoCaja.fecha_hora >= dt_desde,
         MovimientoCaja.fecha_hora <= dt_hasta,
     ).all()
@@ -384,6 +430,7 @@ def gastos_resumen():
         "por_proveedor": por_proveedor,
         "por_instrumento": por_instrumento,
         "evolucion_diaria": evo,
+        "empresa_filtro": empresa if empresa_es_especifica(empresa) else EMPRESA_TODAS,
     })
 
 
@@ -399,8 +446,12 @@ def gastos_exportar():
     fecha_hasta = request.args.get("fecha_hasta")
     categoria_id = request.args.get("categoria_id")
     proveedor_id = request.args.get("proveedor_id")
+    try:
+        empresa = _empresa_filtro()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
-    query = _gastos_query()
+    query = _aplicar_empresa(_gastos_query(), empresa)
     if fecha_desde:
         query = query.filter(MovimientoCaja.fecha_hora >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
     if fecha_hasta:
@@ -418,6 +469,7 @@ def gastos_exportar():
     for m in movimientos:
         rows.append({
             "Fecha/Hora": m.fecha_hora,
+            "Empresa": _empresa_label(m.empresa),
             "Monto": float(m.monto),
             "Categoría": m.categoria_gasto.nombre if m.categoria_gasto else "",
             "Proveedor": m.proveedor.nombre if m.proveedor else "",

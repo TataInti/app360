@@ -21,6 +21,7 @@ from models import (
     StgSabiogoVentas,
     db,
 )
+from models.empresa import EMPRESA_TODAS, empresa_es_especifica, normalizar_empresa
 
 
 def _float(value) -> float:
@@ -59,12 +60,54 @@ class ResultadoComercialService:
         return filters
 
     @staticmethod
-    def _movimientos_filters(desde: date, hasta: date):
-        return [
+    def _movimientos_filters(
+        desde: date,
+        hasta: date,
+        empresa: str = EMPRESA_TODAS,
+    ):
+        filters = [
             MovimientoCaja.fecha_hora >= datetime.combine(desde, time.min),
             MovimientoCaja.fecha_hora <= datetime.combine(hasta, time.max),
             MovimientoCaja.estado != "anulado",
         ]
+        if empresa_es_especifica(empresa):
+            # El NULL histórico queda exclusivamente dentro de TODAS.
+            # Los checks y la normalización de altas garantizan los códigos
+            # canónicos; la igualdad directa permite aprovechar el índice
+            # compuesto (empresa, fecha_hora).
+            filters.append(MovimientoCaja.empresa == empresa)
+        return filters
+
+    @staticmethod
+    def _liquidaciones_filters(
+        desde: date,
+        hasta: date,
+        empresa: str = EMPRESA_TODAS,
+    ):
+        filters = [
+            LiquidacionSueldo.fecha_liquidacion >= datetime.combine(desde, time.min),
+            LiquidacionSueldo.fecha_liquidacion <= datetime.combine(hasta, time.max),
+        ]
+        if empresa_es_especifica(empresa):
+            filters.append(LiquidacionSueldo.empresa == empresa)
+        return filters
+
+    @staticmethod
+    def _adelantos_pagados_filters(
+        desde: date,
+        hasta: date,
+        empresa: str = EMPRESA_TODAS,
+    ):
+        filters = [
+            Adelanto.aprobado.is_(True),
+            Adelanto.pagado.is_(True),
+            Adelanto.tipo.in_(("adelanto_efectivo", "adelanto_mercaderia")),
+            Adelanto.fecha_pago >= datetime.combine(desde, time.min),
+            Adelanto.fecha_pago <= datetime.combine(hasta, time.max),
+        ]
+        if empresa_es_especifica(empresa):
+            filters.append(Adelanto.empresa == empresa)
+        return filters
 
     @staticmethod
     def _compatible_expr():
@@ -82,10 +125,14 @@ class ResultadoComercialService:
             desde = desde.date()
         if isinstance(hasta, datetime):
             hasta = hasta.date()
-        empresa = (empresa or "TODAS").upper().strip()
+        empresa = normalizar_empresa(
+            empresa,
+            allow_todas=True,
+            allow_none=True,
+        ) or EMPRESA_TODAS
         ventas_filters = self._ventas_filters(desde, hasta, empresa)
         compras_filters = self._compras_filters(desde, hasta, empresa)
-        movimientos_filters = self._movimientos_filters(desde, hasta)
+        movimientos_filters = self._movimientos_filters(desde, hasta, empresa)
 
         facturacion = _float(
             db.session.query(func.sum(StgSabiogoVentas.subtot))
@@ -218,15 +265,25 @@ class ResultadoComercialService:
         diferencia = facturacion - compras
         resultado = diferencia + ingresos_incluidos - egresos_incluidos
         resultado_pct = (resultado / facturacion * 100) if facturacion else 0.0
-        sueldos_pagados = self._sueldos_pagados(desde, hasta, diferencia)
+        sueldos_pagados = self._sueldos_pagados(
+            desde,
+            hasta,
+            diferencia,
+            empresa,
+        )
 
         actividad_mensual = self._actividad_mensual(
             desde,
             hasta,
             empresa,
         )
-        caja_mensual = self._caja_mensual(desde, hasta)
-        self._aplicar_conceptos_mensuales(actividad_mensual, desde, hasta)
+        caja_mensual = self._caja_mensual(desde, hasta, empresa)
+        self._aplicar_conceptos_mensuales(
+            actividad_mensual,
+            desde,
+            hasta,
+            empresa,
+        )
 
         top_clientes = self._top_clientes(ventas_filters, facturacion)
         analisis_financiero = self._analisis_financiero(
@@ -247,7 +304,8 @@ class ResultadoComercialService:
             participantes=participantes,
             clientes=top_clientes,
         )
-        freshness = self._freshness()
+        freshness = self._freshness(empresa)
+        empresa_scope = self._empresa_scope(desde, hasta, empresa)
 
         return {
             "periodo": {"desde": desde.isoformat(), "hasta": hasta.isoformat()},
@@ -282,7 +340,14 @@ class ResultadoComercialService:
                 "method": self.METODO,
                 "method_label": "Facturación − Compras + Ingresos incluidos − Egresos incluidos",
                 "accounting_profit": False,
-                "treasury_scope": "global",
+                # Se conserva la clave previa, pero ahora expresa si Tesorería
+                # comparte el alcance de empresa del resto del indicador.
+                "treasury_scope": (
+                    "company_filtered"
+                    if empresa_es_especifica(empresa)
+                    else "global"
+                ),
+                "empresa_scope": empresa_scope,
                 "freshness": freshness,
                 "data_quality": {
                     "movimientos_incompatibles": conflictos,
@@ -294,7 +359,13 @@ class ResultadoComercialService:
             },
         }
 
-    def _sueldos_pagados(self, desde: date, hasta: date, margen_comercial: float) -> dict:
+    def _sueldos_pagados(
+        self,
+        desde: date,
+        hasta: date,
+        margen_comercial: float,
+        empresa: str = EMPRESA_TODAS,
+    ) -> dict:
         """Resume los pagos de personal sin alterar el resultado de gestión.
 
         Tesorería se toma por su categoría SUELDOS y los movimientos anulados
@@ -302,9 +373,6 @@ class ResultadoComercialService:
         adelantos de sueldo efectivamente entregados; los préstamos no son una
         remuneración y por eso no integran esta lectura.
         """
-        desde_dt = datetime.combine(desde, time.min)
-        hasta_dt = datetime.combine(hasta, time.max)
-
         tesoreria = (
             db.session.query(
                 func.sum(MovimientoCaja.monto).label("monto"),
@@ -312,7 +380,7 @@ class ResultadoComercialService:
             )
             .join(CategoriaGasto, CategoriaGasto.id == MovimientoCaja.categoria_gasto_id)
             .filter(
-                *self._movimientos_filters(desde, hasta),
+                *self._movimientos_filters(desde, hasta, empresa),
                 MovimientoCaja.tipo == "egreso",
                 func.upper(func.trim(CategoriaGasto.nombre)) == "SUELDOS",
             )
@@ -323,10 +391,7 @@ class ResultadoComercialService:
                 func.sum(LiquidacionSueldo.sueldo_neto).label("monto"),
                 func.count(LiquidacionSueldo.id).label("cantidad"),
             )
-            .filter(
-                LiquidacionSueldo.fecha_liquidacion >= desde_dt,
-                LiquidacionSueldo.fecha_liquidacion <= hasta_dt,
-            )
+            .filter(*self._liquidaciones_filters(desde, hasta, empresa))
             .first()
         )
         adelantos = (
@@ -334,13 +399,7 @@ class ResultadoComercialService:
                 func.sum(Adelanto.monto).label("monto"),
                 func.count(Adelanto.id).label("cantidad"),
             )
-            .filter(
-                Adelanto.aprobado.is_(True),
-                Adelanto.pagado.is_(True),
-                Adelanto.tipo.in_(("adelanto_efectivo", "adelanto_mercaderia")),
-                Adelanto.fecha_pago >= desde_dt,
-                Adelanto.fecha_pago <= hasta_dt,
-            )
+            .filter(*self._adelantos_pagados_filters(desde, hasta, empresa))
             .first()
         )
 
@@ -408,7 +467,7 @@ class ResultadoComercialService:
             result[key]["compras"] = _float(total)
         return dict(sorted(result.items()))
 
-    def _aplicar_conceptos_mensuales(self, actividad, desde, hasta):
+    def _aplicar_conceptos_mensuales(self, actividad, desde, hasta, empresa):
         rows = (
             db.session.query(
                 extract("year", MovimientoCaja.fecha_hora).label("y"),
@@ -418,7 +477,7 @@ class ResultadoComercialService:
             )
             .join(CategoriaGasto, CategoriaGasto.id == MovimientoCaja.categoria_gasto_id)
             .filter(
-                *self._movimientos_filters(desde, hasta),
+                *self._movimientos_filters(desde, hasta, empresa),
                 CategoriaGasto.incluye_resultado.is_(True),
                 CategoriaGasto.naturaleza.isnot(None),
                 self._compatible_expr(),
@@ -452,7 +511,7 @@ class ResultadoComercialService:
         actividad.clear()
         actividad.update(ordered)
 
-    def _caja_mensual(self, desde, hasta):
+    def _caja_mensual(self, desde, hasta, empresa):
         result = defaultdict(
             lambda: {
                 "periodo": None,
@@ -468,7 +527,7 @@ class ResultadoComercialService:
                 MovimientoCaja.tipo,
                 func.sum(MovimientoCaja.monto),
             )
-            .filter(*self._movimientos_filters(desde, hasta))
+            .filter(*self._movimientos_filters(desde, hasta, empresa))
             .group_by("y", "m", MovimientoCaja.tipo)
             .all()
         )
@@ -746,17 +805,78 @@ class ResultadoComercialService:
             "top_5_pct": sum(item["participacion_pct"] for item in clientes),
         }
 
-    @staticmethod
-    def _freshness():
+    def _empresa_scope(self, desde: date, hasta: date, empresa: str) -> dict:
+        """Describe el alcance aplicado y el histórico no atribuible.
+
+        Los conteos se limitan al período y a los mismos hechos de personal que
+        componen ``sueldos_pagados``. Nunca se suman al filtro de una empresa:
+        sirven para que la interfaz explique la cobertura de ese corte.
+        """
+        historical_unassigned = {
+            "movimientos": int(
+                db.session.query(func.count(MovimientoCaja.id))
+                .filter(
+                    *self._movimientos_filters(desde, hasta, EMPRESA_TODAS),
+                    MovimientoCaja.empresa.is_(None),
+                )
+                .scalar()
+                or 0
+            ),
+            "adelantos": int(
+                db.session.query(func.count(Adelanto.id))
+                .filter(
+                    *self._adelantos_pagados_filters(
+                        desde,
+                        hasta,
+                        EMPRESA_TODAS,
+                    ),
+                    Adelanto.empresa.is_(None),
+                )
+                .scalar()
+                or 0
+            ),
+            "liquidaciones": int(
+                db.session.query(func.count(LiquidacionSueldo.id))
+                .filter(
+                    *self._liquidaciones_filters(
+                        desde,
+                        hasta,
+                        EMPRESA_TODAS,
+                    ),
+                    LiquidacionSueldo.empresa.is_(None),
+                )
+                .scalar()
+                or 0
+            ),
+        }
+        return {
+            "selected": empresa,
+            "is_specific": empresa_es_especifica(empresa),
+            "historical_unassigned": historical_unassigned,
+        }
+
+    def _freshness(self, empresa: str = EMPRESA_TODAS):
         def iso(value):
             return value.isoformat() if value else None
 
+        ventas = db.session.query(func.max(StgSabiogoVentas.fecha))
+        compras = db.session.query(func.max(StgSabiogoCompras.fecha))
+        tesoreria = db.session.query(func.max(MovimientoCaja.fecha_hora)).filter(
+            MovimientoCaja.estado != "anulado"
+        )
+        if empresa_es_especifica(empresa):
+            ventas = ventas.filter(
+                func.upper(func.trim(StgSabiogoVentas.origen)) == empresa
+            )
+            compras = compras.filter(
+                func.upper(func.trim(StgSabiogoCompras.origen)) == empresa
+            )
+            tesoreria = tesoreria.filter(
+                MovimientoCaja.empresa == empresa
+            )
+
         return {
-            "ventas": iso(db.session.query(func.max(StgSabiogoVentas.fecha)).scalar()),
-            "compras": iso(db.session.query(func.max(StgSabiogoCompras.fecha)).scalar()),
-            "tesoreria": iso(
-                db.session.query(func.max(MovimientoCaja.fecha_hora))
-                .filter(MovimientoCaja.estado != "anulado")
-                .scalar()
-            ),
+            "ventas": iso(ventas.scalar()),
+            "compras": iso(compras.scalar()),
+            "tesoreria": iso(tesoreria.scalar()),
         }

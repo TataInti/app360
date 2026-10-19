@@ -16,6 +16,7 @@ from models.core import Location, Product, BusinessUnit
 from models.crm import LeadStage
 from models.core.user import User
 from models.core.user_permission import UserModulePermission
+from models.empresa import EMPRESAS_VALIDAS, normalizar_empresa
 from security import ACCESS_MAP, MANAGED_MODULES, get_user_module_access
 
 admin_bp = Blueprint("admin", __name__)
@@ -110,7 +111,7 @@ ADMIN_MODELS = {
         "empleados": {
             "model": Employee,
             "name": "Empleados",
-            "fields": ["first_name", "last_name", "email", "phone", "position", "department", "hire_date", "salary", "location_id", "clock_id", "turno_id", "is_active"],
+            "fields": ["first_name", "last_name", "email", "phone", "position", "department", "empresa", "hire_date", "salary", "location_id", "clock_id", "turno_id", "is_active"],
             "required": ["first_name", "last_name"],
         },
         "turnos": {
@@ -169,6 +170,7 @@ EMPLOYEE_FIELD_LABELS = {
     "phone": "Telefono",
     "position": "Posicion",
     "department": "Departamento",
+    "empresa": "Empresa actual",
     "hire_date": "Fecha ingreso",
     "salary": "Salario",
     "location_id": "Ubicacion",
@@ -303,12 +305,14 @@ def admin_modulo(modulo):
     employee_positions = []
     field_labels = ADMIN_FIELD_LABELS
     employee_turnos = []
+    employee_empresas = []
     if modulo == "rrhh":
         locations = [
             {"id": loc.id, "name": loc.name}
             for loc in Location.query.order_by(Location.name).all()
         ]
         employee_positions = EMPLOYEE_POSITION_OPTIONS
+        employee_empresas = EMPRESAS_VALIDAS
         field_labels = EMPLOYEE_FIELD_LABELS
         employee_turnos = [
             {"id": t.id, "nombre": t.nombre}
@@ -324,6 +328,7 @@ def admin_modulo(modulo):
         employee_positions=employee_positions,
         field_labels=field_labels,
         employee_turnos=employee_turnos,
+        employee_empresas=employee_empresas,
         concepto_stats=_concepto_stats() if modulo == "movimientos" else {},
     )
 
@@ -333,6 +338,9 @@ def coerce_field_value(field, val):
         return None
     if isinstance(val, str) and val.strip() == "":
         return None
+
+    if field == "empresa":
+        return normalizar_empresa(val, allow_none=True)
 
     if field == "clock_id":
         try:

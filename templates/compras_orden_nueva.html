@@ -12,6 +12,17 @@
     </div>
 
     <div class="mb-3">
+        <label>Empresa *</label>
+        <select name="empresa" class="form-control" required>
+            <option value="">Seleccionar empresa</option>
+            {% for codigo in empresas %}
+            <option value="{{ codigo }}">{{ 'Carnes' if codigo == 'CARNES' else 'Lácteos' }}</option>
+            {% endfor %}
+        </select>
+        <div class="form-text">La orden y cualquier egreso automático quedarán atribuidos a esta empresa.</div>
+    </div>
+
+    <div class="mb-3">
         <label>Número de comprobante</label>
         <input type="text" name="comprobante_numero" class="form-control">
     </div>

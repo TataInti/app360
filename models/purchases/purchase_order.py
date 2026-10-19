@@ -7,6 +7,8 @@ class PurchaseOrder(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     supplier = db.Column(db.String(200), nullable=True)  # Nombre del proveedor
     supplier_id = db.Column(db.Integer, nullable=True)  # ID opcional para proveedor existente
+    # ``NULL`` identifica órdenes históricas aún no atribuidas.
+    empresa = db.Column(db.String(10), nullable=True)
 
     # Campos principales (compat con esquema actual en DB)
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False, index=True)
@@ -34,3 +36,15 @@ class PurchaseOrder(db.Model):
     tesoreria_movimiento = db.relationship("MovimientoCaja")
     items = db.relationship("PurchaseOrderItem", backref="order", cascade="all, delete-orphan")
     receipts = db.relationship("PurchaseReceipt", backref="order", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        db.CheckConstraint(
+            "empresa IS NULL OR empresa IN ('CARNES', 'LACTEOS')",
+            name="chk_purchase_orders_empresa",
+        ),
+        db.Index(
+            "idx_purchase_orders_empresa_order_date",
+            "empresa",
+            "order_date",
+        ),
+    )

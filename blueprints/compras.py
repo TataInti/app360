@@ -18,6 +18,7 @@ from models import (
     db,
 )
 from models.time_utils import today_local_date
+from models.empresa import EMPRESAS_VALIDAS, empresa_es_especifica, etiqueta_empresa, normalizar_empresa
 from security import protect_blueprint
 
 compras_bp = Blueprint("compras", __name__)
@@ -25,6 +26,30 @@ compras_bp = Blueprint("compras", __name__)
 protect_blueprint(compras_bp, "compras")
 
 ORDER_STATUSES = ["borrador", "enviada", "recibida", "cerrada"]
+
+def _empresa_label(empresa):
+    return etiqueta_empresa(empresa)
+
+
+def _empresa_filtro():
+    return normalizar_empresa(
+        request.args.get("empresa"),
+        allow_todas=True,
+        allow_none=True,
+    )
+
+
+def _empresa_requerida(value):
+    empresa = normalizar_empresa(value, allow_todas=False, allow_none=False)
+    if not empresa_es_especifica(empresa):
+        raise ValueError("Empresa debe ser CARNES o LACTEOS")
+    return empresa
+
+
+def _aplicar_empresa(query, empresa):
+    if empresa_es_especifica(empresa):
+        return query.filter(PurchaseOrder.empresa == empresa)
+    return query
 
 
 @compras_bp.route("/compras")
@@ -36,10 +61,23 @@ def compras_home():
 def compras_listado():
     # Listado simple de órdenes de compra
     try:
-        orders = PurchaseOrder.query.order_by(PurchaseOrder.created_at.desc()).all()
+        empresa = _empresa_filtro()
+    except ValueError as exc:
+        flash(str(exc), "warning")
+        return redirect(url_for("compras.compras_listado"))
+
+    query = _aplicar_empresa(PurchaseOrder.query, empresa)
+    try:
+        orders = query.order_by(PurchaseOrder.created_at.desc()).all()
     except Exception:
-        orders = PurchaseOrder.query.order_by(PurchaseOrder.id.desc()).all()
-    return render_template("compras_panel.html", orders=orders, statuses=ORDER_STATUSES)
+        orders = query.order_by(PurchaseOrder.id.desc()).all()
+    return render_template(
+        "compras_panel.html",
+        orders=orders,
+        statuses=ORDER_STATUSES,
+        empresas=EMPRESAS_VALIDAS,
+        empresa=empresa if empresa_es_especifica(empresa) else "",
+    )
 
 
 @compras_bp.route("/compras/orden-nueva", methods=["GET", "POST"])
@@ -51,6 +89,20 @@ def compras_nueva():
     default_date = today_local_date().strftime("%Y-%m-%d")
 
     if request.method == "POST":
+        try:
+            empresa = _empresa_requerida(request.form.get("empresa"))
+        except ValueError as exc:
+            flash(str(exc), "warning")
+            return render_template(
+                "compras_orden_nueva.html",
+                products=products,
+                locations=locations,
+                proveedores=proveedores,
+                instrumentos=instrumentos,
+                empresas=EMPRESAS_VALIDAS,
+                default_date=default_date,
+            )
+
         supplier_id = request.form.get("supplier_id")
         supplier_text = request.form.get("supplier_text")
         location_id = int(request.form["location_id"])
@@ -74,6 +126,7 @@ def compras_nueva():
                     locations=locations,
                     proveedores=proveedores,
                     instrumentos=instrumentos,
+                    empresas=EMPRESAS_VALIDAS,
                     default_date=default_date,
                 )
             supplier = proveedor.nombre
@@ -96,6 +149,7 @@ def compras_nueva():
                     locations=locations,
                     proveedores=proveedores,
                     instrumentos=instrumentos,
+                    empresas=EMPRESAS_VALIDAS,
                     default_date=default_date,
                 )
 
@@ -109,6 +163,7 @@ def compras_nueva():
                 locations=locations,
                 proveedores=proveedores,
                 instrumentos=instrumentos,
+                empresas=EMPRESAS_VALIDAS,
                 default_date=default_date,
             )
 
@@ -122,6 +177,7 @@ def compras_nueva():
                 unit_price = Decimal("0")
 
         po = PurchaseOrder(
+            empresa=empresa,
             supplier=supplier,
             supplier_id=supplier_id,
             location_id=location_id,
@@ -154,6 +210,7 @@ def compras_nueva():
                 flash("No se pudo identificar el usuario para registrar el egreso.", "warning")
             else:
                 movimiento = MovimientoCaja(
+                    empresa=empresa,
                     tipo="egreso",
                     monto=monto_total,
                     descripcion=f"Registro de compras #{po.id}",
@@ -176,6 +233,7 @@ def compras_nueva():
         locations=locations,
         proveedores=proveedores,
         instrumentos=instrumentos,
+        empresas=EMPRESAS_VALIDAS,
         default_date=default_date,
     )
 
@@ -247,7 +305,13 @@ def compras_exportar():
         flash("Pandas no instalado para exportar.", "warning")
         return redirect(url_for("compras.compras_home"))
 
-    orders = PurchaseOrder.query.order_by(PurchaseOrder.created_at.desc()).all()
+    try:
+        empresa = _empresa_filtro()
+    except ValueError as exc:
+        flash(str(exc), "warning")
+        return redirect(url_for("compras.compras_home"))
+
+    orders = _aplicar_empresa(PurchaseOrder.query, empresa).order_by(PurchaseOrder.created_at.desc()).all()
 
     data = []
     for o in orders:
@@ -255,6 +319,7 @@ def compras_exportar():
         data.append({
             "ID": o.id,
             "Fecha": fecha.isoformat() if fecha else "",
+            "Empresa": _empresa_label(o.empresa),
             "Proveedor": o.supplier or "",
             "Comprobante": o.comprobante_numero or "",
             "Monto": float(o.monto_total) if o.monto_total is not None else "",
