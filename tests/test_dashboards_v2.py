@@ -186,6 +186,20 @@ def test_dashboard_comercial_v2_pre_analytics(client, app):
                     subtot=300.0,
                     estado="procesado",
                 ),
+                StgSabiogoVentas(
+                    fecha=date(2024, 1, 12),
+                    origen="CARNES",
+                    codigo="PRE-003",
+                    producto="Producto Otro",
+                    cliente="Cliente Otro",
+                    vendedor="Otro Vendedor",
+                    comprobante="PRE",
+                    nro_comprob="PRE-1003",
+                    cajas=1.0,
+                    kilos=10.0,
+                    subtot=600.0,
+                    estado="procesado",
+                ),
             ]
         )
         db.session.commit()
@@ -211,6 +225,21 @@ def test_dashboard_comercial_v2_pre_analytics(client, app):
     analisis = data["cliente_analisis"]
     assert analisis["compras"] == 2
     assert analisis["frecuencia_dias"] is not None
+
+    all_vendors = client.get(f"/api/dashboard-comercial-v2?{fechas}").get_json()
+    share_company = next(
+        row["pct"] for row in all_vendors["series"]["pre_por_producto"]
+        if row["nombre"] == "Producto PRE"
+    )
+    selected_vendor = client.get(
+        f"/api/dashboard-comercial-v2?{fechas}&vendedor=Vendedor%20PRE"
+    ).get_json()
+    share_vendor = next(
+        row["pct"] for row in selected_vendor["series"]["pre_por_producto"]
+        if row["nombre"] == "Producto PRE"
+    )
+    assert share_company == 40.0
+    assert share_vendor == 100.0
 
 
 def test_dashboard_comercial_analysis_mix_only_pedidos_pre(client, app):
@@ -243,6 +272,22 @@ def test_dashboard_comercial_analysis_mix_only_pedidos_pre(client, app):
                 ),
             ]
         )
+        for indice in range(1, 12):
+            db.session.add(
+                StgSabiogoVentas(
+                    fecha=date(2000, 2, 16),
+                    origen="CARNES",
+                    codigo=f"CORTE-EXTRA-{indice}",
+                    producto=f"Producto extra {indice}",
+                    cliente="Cliente corte",
+                    vendedor="Vendedor corte",
+                    cajas=1.0,
+                    subtot=10.0,
+                    comprobante="PRE",
+                    nro_comprob=f"CORTE-EXTRA-{indice}",
+                    estado="procesado",
+                )
+            )
         db.session.commit()
 
         # La consulta de producción usa PostgreSQL date_trunc; se registra para
@@ -265,9 +310,15 @@ def test_dashboard_comercial_analysis_mix_only_pedidos_pre(client, app):
 
     resp = client.get(f"/api/dashboard-comercial/mix?{fechas}")
     assert resp.status_code == 200
-    mix_productos = {row["producto"] for row in resp.get_json()["mix_global"]}
+    mix_global = resp.get_json()["mix_global"]
+    mix_productos = {row["producto"] for row in mix_global}
     assert "Producto corte PRE" in mix_productos
     assert "Producto corte FAC" not in mix_productos
+    producto_pre = next(row for row in mix_global if row["producto"] == "Producto corte PRE")
+    otros = next(row for row in mix_global if row["producto"] == "Otros")
+    assert producto_pre["pct"] == 21.4
+    assert otros["cajas"] == 2.0
+    assert otros["pct"] == 14.3
 
 
 def test_dashboard_comercial_seguimiento_clientes_pre(client, app):
@@ -340,6 +391,94 @@ def test_dashboard_comercial_seguimiento_clientes_pre(client, app):
     cliente_viejo = next(item for item in vendedor["ultimas"] if item["nombre"] == "Cliente Viejo")
     assert cliente_viejo["fecha"] is not None
     assert cliente_viejo["fecha"] == (hoy - timedelta(days=10)).isoformat()
+    vendedor_b = next(item for item in data["vendedores"] if item["nombre"] == "Vendedor B")
+    assert vendedor_b["activos"] == 1
+    assert vendedor_b["canasta_flaca"] == []
+
+
+def test_dashboard_comercial_seguimiento_oportunidades(client, app):
+    hoy = datetime.now(ZoneInfo("America/Argentina/Tucuman")).date()
+
+    with app.app_context():
+        def agregar_venta(fecha, cliente, producto, subtot, nro_comprob, codigo, comprobante="PRE"):
+            db.session.add(
+                StgSabiogoVentas(
+                    fecha=fecha,
+                    origen="CARNES",
+                    codigo=codigo,
+                    producto=producto,
+                    cliente=cliente,
+                    vendedor="Vendedor Oportunidades",
+                    subtot=subtot,
+                    comprobante=comprobante,
+                    nro_comprob=nro_comprob,
+                    estado="procesado",
+                )
+            )
+
+        anterior = hoy - timedelta(days=40)
+        reciente = hoy - timedelta(days=10)
+        agregar_venta(anterior, "Cliente Caído", "Producto Caído", 240.0, "CAIDO-1", "CAIDO-1")
+        agregar_venta(anterior, "Cliente En Baja", "Producto Antiguo", 200.0, "BAJA-ANT", "BAJA-ANT")
+        agregar_venta(reciente, "Cliente En Baja", "Producto A", 100.0, "BAJA-ACT-1", "BAJA-ACT-1")
+        agregar_venta(reciente, "Cliente En Baja", "Producto B", 50.0, "BAJA-ACT-2", "BAJA-ACT-2")
+        agregar_venta(hoy - timedelta(days=1), "Cliente Canasta", "Producto Único", 50.0, "CANASTA-1", "CANASTA-1")
+        for indice in range(1, 5):
+            agregar_venta(
+                hoy - timedelta(days=1),
+                "Cliente Promedio",
+                f"Producto {indice}",
+                20.0,
+                "PROMEDIO-1",
+                f"PROMEDIO-{indice}",
+            )
+        agregar_venta(
+            hoy - timedelta(days=1),
+            "Cliente Caído",
+            "Producto FAC",
+            5000.0,
+            "FAC-CAIDO-1",
+            "FAC-CAIDO-1",
+            comprobante="FAC",
+        )
+        agregar_venta(
+            hoy - timedelta(days=1),
+            "Cliente Solo FAC",
+            "Producto FAC",
+            7000.0,
+            "FAC-SOLO-1",
+            "FAC-SOLO-1",
+            comprobante="FAC",
+        )
+        db.session.commit()
+
+    resp = client.get("/api/dashboard-comercial/seguimiento")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    vendedor = next(
+        item for item in data["vendedores"] if item["nombre"] == "Vendedor Oportunidades"
+    )
+
+    assert len(vendedor["caidos"]) == 1
+    assert vendedor["caidos"][0] == {
+        "nombre": "Cliente Caído",
+        "dias": 40,
+        "plata_anterior": 240.0,
+    }
+    assert len(vendedor["baja"]) == 1
+    assert vendedor["baja"][0] == {
+        "nombre": "Cliente En Baja",
+        "plata_actual": 150.0,
+        "plata_anterior": 200.0,
+        "variacion_pct": -25.0,
+    }
+    assert len(vendedor["canasta_flaca"]) == 1
+    assert vendedor["canasta_flaca"][0] == {
+        "nombre": "Cliente Canasta",
+        "productos": 1,
+        "promedio": 2.3,
+    }
+    assert "Cliente Solo FAC" not in {item["nombre"] for item in vendedor["lista"]}
 
 
 def test_panel_ejecutivo_v2_ok(client, seed_minimal):

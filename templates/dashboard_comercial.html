@@ -272,7 +272,7 @@
 <script>
   let vendedorChart, clienteChart, productoChart, evolucionChart;
   let _seguimientoCharts = [];
-  let _preMeasure = 'plata', _lastDashboardPayload = null;
+  let _preMeasure = 'plata', _lastDashboardPayload = null, _selectedPreProduct = '';
   const GRAPH_INK = '#3d5a73';
   const GRAPH_FILL = 'rgba(61,90,115,0.16)';
   const GRAPH_TEXT = '#475569';
@@ -527,6 +527,9 @@
       dimension:'Cliente',filterId:'sel-cliente',ignoredLabel:'Sin cliente',includeProducts:true,
       backgroundColor:GRAPH_FILL,borderColor:GRAPH_INK
     },series.pre_por_cliente||[]);
+    if(_selectedPreProduct){
+      document.getElementById('cliente-chart-title').textContent += ` · Producto: ${_selectedPreProduct}`;
+    }
     productoChart=drawPreBar({
       canvasId:'productoChart',emptyId:'productoChart-empty',titleId:'producto-chart-title',
       dimension:'Producto',filterId:'sel-producto',ignoredLabel:'Sin producto',
@@ -568,6 +571,7 @@
     const vendedor = (_tsInstances['sel-vendedor'] ? _tsInstances['sel-vendedor'].getValue() : document.getElementById('sel-vendedor').value) || '';
     const cliente  = (_tsInstances['sel-cliente']  ? _tsInstances['sel-cliente'].getValue()  : document.getElementById('sel-cliente').value)  || '';
     const producto = (_tsInstances['sel-producto'] ? _tsInstances['sel-producto'].getValue() : document.getElementById('sel-producto').value) || '';
+    _selectedPreProduct = producto;
     const p = new URLSearchParams();
     if(period)  p.set('period', period);
     if(desde)   p.set('fecha_desde', desde);
@@ -823,6 +827,24 @@
     return section;
   }
 
+  function crearListaOportunidad(parent,titulo,casos,formatear){
+    const section=crearSeccionSeguimiento(parent,titulo);
+    if(!casos.length){
+      const vacio=document.createElement('p');
+      vacio.textContent='Sin casos en esta ventana.';
+      section.appendChild(vacio);
+      return;
+    }
+    const lista=document.createElement('ul');
+    lista.className='seguimiento-compras-lista';
+    casos.slice(0,8).forEach(caso=>{
+      const item=document.createElement('li');
+      item.textContent=formatear(caso);
+      lista.appendChild(item);
+    });
+    section.appendChild(lista);
+  }
+
   function renderSeguimiento(data){
     const loading=document.getElementById('seguimiento-cargando');
     const host=document.getElementById('seguimiento-vendedores');
@@ -935,6 +957,24 @@
         ultimasLista.appendChild(item);
       });
       ultimasSection.appendChild(ultimasLista);
+      crearListaOportunidad(
+        card,
+        'Caídos',
+        vendedor.caidos||[],
+        caso=>`${caso.nombre} — ${caso.dias} días sin comprar — ${money(caso.plata_anterior)} en ventana anterior`
+      );
+      crearListaOportunidad(
+        card,
+        'Compra en baja',
+        vendedor.baja||[],
+        caso=>`${caso.nombre} — actual ${money(caso.plata_actual)} — anterior ${money(caso.plata_anterior)} — ${Number(caso.variacion_pct).toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`
+      );
+      crearListaOportunidad(
+        card,
+        'Canasta flaca',
+        vendedor.canasta_flaca||[],
+        caso=>`${caso.nombre} — ${caso.productos} productos vs promedio ${formatNumber(caso.promedio)}`
+      );
       host.appendChild(card);
     });
   }

@@ -888,25 +888,40 @@ def api_dashboard_comercial_v2():
         if cliente_filter:
             analisis = (
                 pre_base_q.with_entities(
-                    func.count(func.distinct(StgSabiogoVentas.nro_comprob)).label("compras"),
                     func.count(func.distinct(StgSabiogoVentas.producto)).label("productos"),
-                    func.max(StgSabiogoVentas.fecha).label("ultima_compra"),
-                    func.min(StgSabiogoVentas.fecha).label("primera_compra"),
-                    func.count(func.distinct(StgSabiogoVentas.fecha)).label("fechas_distintas"),
                     func.sum(StgSabiogoVentas.subtot).label("plata"),
                     func.sum(StgSabiogoVentas.cajas).label("cajas"),
                     func.sum(StgSabiogoVentas.kilos).label("kilos"),
                 )
                 .first()
             )
+            compras = (
+                pre_base_q.filter(
+                    StgSabiogoVentas.nro_comprob.isnot(None),
+                    func.trim(StgSabiogoVentas.nro_comprob) != "",
+                )
+                .with_entities(
+                    func.count(func.distinct(StgSabiogoVentas.nro_comprob)).label("cantidad"),
+                    func.min(StgSabiogoVentas.fecha).label("primera_compra"),
+                    func.max(StgSabiogoVentas.fecha).label("ultima_compra"),
+                )
+                .first()
+            )
+            compras_analisis = int(compras.cantidad or 0)
+            frecuencia_analisis = (
+                float(
+                    (compras.ultima_compra - compras.primera_compra).days
+                    / (compras_analisis - 1)
+                )
+                if compras_analisis > 1 and compras.primera_compra and compras.ultima_compra
+                else None
+            )
             payload["cliente_analisis"] = {
                 "cliente": cliente_filter,
-                "compras": int(analisis.compras or 0),
+                "compras": compras_analisis,
                 "productos": int(analisis.productos or 0),
-                "frecuencia_dias": frecuencia_dias(
-                    analisis.primera_compra, analisis.ultima_compra, analisis.fechas_distintas
-                ),
-                "ultima_compra": analisis.ultima_compra.isoformat() if analisis.ultima_compra else None,
+                "frecuencia_dias": frecuencia_analisis,
+                "ultima_compra": compras.ultima_compra.isoformat() if compras.ultima_compra else None,
                 "plata": float(_to_float(analisis.plata)),
                 "cajas": float(_to_float(analisis.cajas)),
                 "kilos": float(_to_float(analisis.kilos)),
@@ -1264,16 +1279,17 @@ def api_dashboard_comercial_mix():
         return f
 
     # ── 1. Mix global: top 10 productos + "Otros" ──
+    producto_mix_expr = func.coalesce(
+        func.nullif(func.trim(StgSabiogoVentas.producto), ""), "Sin producto"
+    )
     mg_rows = (
         db.session.query(
-            StgSabiogoVentas.producto.label("producto"),
+            producto_mix_expr.label("producto"),
             func.sum(StgSabiogoVentas.cajas).label("cajas"),
         )
         .filter(*base_f(fecha_desde, fecha_hasta))
-        .filter(StgSabiogoVentas.producto.isnot(None))
-        .group_by(StgSabiogoVentas.producto)
+        .group_by(producto_mix_expr)
         .order_by(func.sum(StgSabiogoVentas.cajas).desc())
-        .limit(11)
         .all()
     )
     total_cajas = sum(float(r.cajas or 0) for r in mg_rows)
@@ -1283,13 +1299,13 @@ def api_dashboard_comercial_mix():
         c = float(r.cajas or 0)
         if i < 10:
             mix_global.append({
-                "producto": r.producto or "–",
+                "producto": r.producto,
                 "cajas": c,
                 "pct": round(c / total_cajas * 100, 1) if total_cajas else 0,
             })
         else:
             otros += c
-    if otros > 0:
+    if len(mg_rows) > 10:
         mix_global.append({"producto": "Otros", "cajas": otros,
                             "pct": round(otros / total_cajas * 100, 1) if total_cajas else 0})
 
@@ -1490,6 +1506,67 @@ def api_dashboard_comercial_seguimiento():
     for vendedor, cliente in activos_rows:
         activos_por_vendedor.setdefault(vendedor, set()).add(cliente)
 
+    desde_anterior = desde - timedelta(days=30)
+    hasta_anterior = desde - timedelta(days=1)
+
+    def agrupar_ventas_por_cliente(inicio, fin):
+        return (
+            db.session.query(
+                vendedor_expr.label("vendedor"),
+                cliente_expr.label("cliente"),
+                func.sum(StgSabiogoVentas.subtot).label("plata"),
+            )
+            .filter(*filtros_documento)
+            .filter(StgSabiogoVentas.fecha.between(inicio, fin))
+            .group_by(vendedor_expr, cliente_expr)
+            .all()
+        )
+
+    def mapear_ventas(rows):
+        resultado: dict[str, dict[str, float]] = {}
+        for row in rows:
+            resultado.setdefault(row.vendedor, {})[row.cliente] = float(
+                _to_float(row.plata)
+            )
+        return resultado
+
+    plata_actual_por_cliente = mapear_ventas(agrupar_ventas_por_cliente(desde, hoy))
+    plata_anterior_por_cliente = mapear_ventas(
+        agrupar_ventas_por_cliente(desde_anterior, hasta_anterior)
+    )
+    compras_previas_rows = (
+        db.session.query(
+            documentos.c.vendedor,
+            documentos.c.cliente,
+            func.max(documentos.c.fecha).label("ultima_compra"),
+        )
+        .filter(documentos.c.fecha.between(desde_anterior, hasta_anterior))
+        .group_by(documentos.c.vendedor, documentos.c.cliente)
+        .all()
+    )
+    ultima_compra_anterior: dict[str, dict[str, date]] = {}
+    for row in compras_previas_rows:
+        ultima_compra_anterior.setdefault(row.vendedor, {})[row.cliente] = row.ultima_compra
+
+    productos_activos_rows = (
+        db.session.query(
+            vendedor_expr.label("vendedor"),
+            cliente_expr.label("cliente"),
+            func.count(
+                func.distinct(func.nullif(func.trim(StgSabiogoVentas.producto), ""))
+            ).label("productos"),
+        )
+        .filter(*filtros_documento)
+        .filter(StgSabiogoVentas.fecha.between(desde, hoy))
+        .group_by(vendedor_expr, cliente_expr)
+        .all()
+    )
+    productos_por_cliente: dict[str, dict[str, int]] = {}
+    for row in productos_activos_rows:
+        productos_por_cliente.setdefault(row.vendedor, {})[row.cliente] = int(
+            row.productos or 0
+        )
+
     producto_expr = func.coalesce(
         func.nullif(func.trim(StgSabiogoVentas.producto), ""), "Sin producto"
     )
@@ -1561,11 +1638,63 @@ def api_dashboard_comercial_seguimiento():
         ]
         ultimas.sort(key=lambda item: (-item["dias"], item["nombre"].casefold()))
 
+        activos = activos_por_vendedor.get(vendedor, set())
+        ventas_actuales = plata_actual_por_cliente.get(vendedor, {})
+        ventas_anteriores = plata_anterior_por_cliente.get(vendedor, {})
+        ultima_anterior = ultima_compra_anterior.get(vendedor, {})
+
+        caidos = [
+            {
+                "nombre": nombre,
+                "dias": (hoy - fecha).days,
+                "plata_anterior": float(ventas_anteriores.get(nombre, 0.0)),
+            }
+            for nombre, fecha in ultima_anterior.items()
+            if nombre not in activos
+        ]
+        caidos.sort(key=lambda item: (-item["dias"], item["nombre"].casefold()))
+
+        baja = []
+        for nombre in sorted(activos & set(ultima_anterior), key=str.casefold):
+            anterior = float(ventas_anteriores.get(nombre, 0.0))
+            actual = float(ventas_actuales.get(nombre, 0.0))
+            if anterior <= 0 or actual > anterior * 0.8:
+                continue
+            baja.append(
+                {
+                    "nombre": nombre,
+                    "plata_actual": actual,
+                    "plata_anterior": anterior,
+                    "variacion_pct": round((actual - anterior) / anterior * 100, 1),
+                }
+            )
+        baja.sort(key=lambda item: (item["variacion_pct"], item["nombre"].casefold()))
+
+        productos_activos = productos_por_cliente.get(vendedor, {})
+        promedio_productos = (
+            sum(productos_activos.get(nombre, 0) for nombre in activos) / len(activos)
+            if len(activos) > 1
+            else None
+        )
+        canasta_flaca = []
+        if promedio_productos is not None:
+            for nombre in sorted(activos, key=str.casefold):
+                cantidad_productos = productos_activos.get(nombre, 0)
+                if cantidad_productos < promedio_productos / 2:
+                    canasta_flaca.append(
+                        {
+                            "nombre": nombre,
+                            "productos": cantidad_productos,
+                            "promedio": round(promedio_productos, 1),
+                        }
+                    )
+        canasta_flaca.sort(key=lambda item: (item["productos"], item["nombre"].casefold()))
+
         vendedores.append(
             {
                 "nombre": vendedor,
                 "total": len(nombres),
-                "activos": len(activos_por_vendedor.get(vendedor, set())),
+                "activos": len(activos),
                 "nuevos": [{"nombre": nombre} for nombre in nuevos_nombres],
                 "lista": [{"nombre": nombre} for nombre in nombres],
                 "productos": productos,
@@ -1573,6 +1702,9 @@ def api_dashboard_comercial_seguimiento():
                     {**item, "fecha": item["fecha"].isoformat()}
                     for item in ultimas[:12]
                 ],
+                "caidos": caidos[:8],
+                "baja": baja[:8],
+                "canasta_flaca": canasta_flaca[:8],
             }
         )
 
