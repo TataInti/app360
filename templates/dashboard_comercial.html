@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container-fluid" id="panel-ventas">
 <style>
-  #panel-ventas { color:#1f2937; }
+  #panel-ventas { color:#1f2937; overflow-anchor:none; }
   #panel-ventas .panel-header h1 { letter-spacing:-0.02em; }
   #panel-ventas .period-bar,
   #panel-ventas .dim-bar {
@@ -25,7 +25,10 @@
   #panel-ventas .chart-card-v2 { background:#fff; color:#1f2937; border-color:#e4e9f0; box-shadow:none; }
   #panel-ventas .chart-card-v2 h6 { color:#1f2937; font-size:0.84rem; display:flex; flex-wrap:wrap; gap:0.35rem; align-items:baseline; }
   #panel-ventas .chart-card-v2 .chart-tag { color:#64748b; font-weight:500; }
-  #panel-ventas .chart-card-v2 canvas { max-height:280px; }
+  #panel-ventas .chart-card-v2 canvas { max-height:320px; }
+  #panel-ventas .mix-plot { position:relative; height:320px; }
+  #panel-ventas .mix-plot--stacked { height:360px; }
+  #panel-ventas .chart-card-v2 .mix-plot canvas { width:100%!important; height:100%!important; max-height:none; }
   #panel-ventas .table-card, #panel-ventas .table-card-head { background:#fff; color:#1f2937; }
   #panel-ventas .seguimiento-vendedor { background:#fff; border:1px solid #e4e9f0; border-radius:0.75rem; padding:1rem 1rem 0.4rem; margin-bottom:1rem; }
   #panel-ventas .seguimiento-vendedor h3 { font-size:1rem; margin:0 0 0.7rem; }
@@ -36,17 +39,32 @@
   #panel-ventas .seguimiento-dato h4 { font-size:0.78rem; margin-bottom:0.3rem; }
   #panel-ventas .seguimiento-clientes-lista { columns:2; padding-left:1.1rem; margin:0; }
   #panel-ventas .seguimiento-compras-lista { padding-left:1.1rem; margin:0 0 0.6rem; }
-  #panel-ventas .seg-layout { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(280px,0.85fr); gap:0.8rem; margin-bottom:0.9rem; }
+  #panel-ventas .seg-layout { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(280px,0.85fr); gap:0.8rem; margin-bottom:0.9rem; align-items:stretch; }
   #panel-ventas .seg-block h4 { font-size:0.8rem; margin:0 0 0.4rem; color:#1f2937; }
   #panel-ventas .seg-note { font-size:0.72rem; color:#64748b; margin:0 0 0.7rem; }
-  #panel-ventas .seg-table { width:100%; border-collapse:collapse; font-size:0.78rem; }
-  #panel-ventas .seg-table th { text-align:left; font-size:0.66rem; letter-spacing:0.03em; text-transform:uppercase; color:#64748b; font-weight:600; padding:0.35rem 0.4rem; border-bottom:1px solid #e4e9f0; }
-  #panel-ventas .seg-table td { padding:0.42rem 0.4rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+  #panel-ventas .seg-table-wrap { max-height:360px; overflow:auto; border:1px solid #e4e9f0; border-radius:0.65rem; }
+  #panel-ventas .seg-table { width:100%; min-width:0; table-layout:auto; border-collapse:separate; border-spacing:0; font-size:0.78rem; }
+  #panel-ventas .seg-table th { position:sticky; top:0; z-index:2; text-align:left; white-space:nowrap; font-size:0.66rem; letter-spacing:0.04em; text-transform:uppercase; color:#526174; background:#f6f8fb; font-weight:700; padding:0.62rem 0.7rem; border-bottom:1px solid #dce4ed; }
+  #panel-ventas .seg-table td { padding:0.55rem 0.6rem; border-bottom:1px solid #edf1f5; vertical-align:middle; color:#344256; }
+  #panel-ventas .seg-table tbody tr:nth-child(even) td { background:#fbfcfe; }
   #panel-ventas .seg-table .num { text-align:right; font-variant-numeric:tabular-nums; }
   #panel-ventas .seg-table tbody tr.is-click { cursor:pointer; }
-  #panel-ventas .seg-table tbody tr.is-click:hover td { background:#f8fafc; }
-  #panel-ventas .seg-table tbody tr.is-active td { background:#eef4f8; }
-  #panel-ventas .seg-chart { height:220px; }
+  #panel-ventas .seg-table tbody tr.is-click:hover td { background:#f1f6fb; }
+  #panel-ventas .seg-table tbody tr.is-active td { background:#eaf2fa; }
+  #panel-ventas .seg-table .seg-client { color:#172b43; font-weight:650; }
+  #panel-ventas .seg-table .seg-detail { min-width:150px; color:#58677a; line-height:1.4; }
+  #panel-ventas .seg-pill { display:inline-flex; align-items:center; gap:0.32rem; padding:0.2rem 0.55rem; border-radius:999px; font-size:0.68rem; font-weight:700; white-space:nowrap; background:#eef2f7; color:#526174; }
+  #panel-ventas .seg-pill--nuevo { background:#eaf5ef; color:#226644; }
+  #panel-ventas .seg-pill--caido { background:#fff0ed; color:#a53d2d; }
+  #panel-ventas .seg-pill--baja { background:#fff5df; color:#875b10; }
+  #panel-ventas .seg-pill--canasta { background:#eef3fb; color:#315b8b; }
+  #panel-ventas .seg-date { white-space:nowrap; font-variant-numeric:tabular-nums; }
+  #panel-ventas .seg-days { display:inline-block; min-width:3.4rem; text-align:right; font-variant-numeric:tabular-nums; color:#40516a; }
+  #panel-ventas .seg-block { min-width:0; height:380px; display:flex; flex-direction:column; }
+  #panel-ventas .seg-block > h4 { display:flex; align-items:center; gap:0.45rem; font-size:0.84rem; margin:0 0 0.6rem; color:#1f2937; }
+  #panel-ventas .seg-chart { position:relative; flex:0 0 360px; min-height:360px; height:360px; }
+  #panel-ventas .seg-block > .seg-table-wrap { flex:0 0 360px; min-height:360px; height:360px; }
+  #panel-ventas .seg-chart canvas { position:absolute; inset:0; width:100%!important; height:100%!important; max-height:none; }
   @media (max-width: 900px) {
     #panel-ventas .seg-layout, #panel-ventas .seg-metrics { grid-template-columns:1fr; }
   }
@@ -267,25 +285,25 @@
         <div class="charts-grid mb-3">
           <div class="chart-card-v2">
             <h6>Distribución del Mix <span class="chart-tag">cajas por producto · top 10</span></h6>
-            <canvas id="mixDoughnutChart" style="max-height:300px"></canvas>
+            <div class="mix-plot"><canvas id="mixDoughnutChart"></canvas></div>
             <div id="mixDoughnutChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
           </div>
           <div class="chart-card-v2">
             <h6>Variedad por Cliente <span class="chart-tag">N° productos distintos comprados</span></h6>
-            <canvas id="mixDiversidadChart" style="max-height:300px"></canvas>
+            <div class="mix-plot"><canvas id="mixDiversidadChart"></canvas></div>
             <div id="mixDiversidadChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
           </div>
         </div>
         <div class="charts-grid mb-2">
           <div class="chart-card-v2">
-            <h6>Participación Producto por Cliente <span class="chart-tag">top 8 clientes × top 5 productos · cajas</span></h6>
-            <canvas id="mixStackedChart" style="max-height:320px"></canvas>
+            <h6>Participación Producto por Cliente <span class="chart-tag">top 8 clientes, top 5 productos · cajas · al pasar por la fila ves todos los valores</span></h6>
+            <div class="mix-plot mix-plot--stacked"><canvas id="mixStackedChart"></canvas></div>
             <div id="mixStackedChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
           </div>
           <div class="chart-card-v2">
             <h6>Evolución del Mix <span class="chart-tag">últimos 6 meses · top 3 productos</span></h6>
-            <canvas id="mixEvoChart" style="max-height:320px"></canvas>
-            <div id="mixEvoChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
+            <div class="mix-plot"><canvas id="mixEvoChart"></canvas></div>
+            <div id="mixEvoChart-empty" hidden>Sin ventas PRE en los últimos 6 meses para estos filtros.</div>
           </div>
         </div>
 
@@ -334,15 +352,15 @@
 <script>
   let vendedorChart, clienteChart, productoChart, evolucionChart;
   let _seguimientoCharts = [];
+  let _viewportRefreshId = 0;
   let _preMeasure = 'plata', _lastDashboardPayload = null, _selectedPreProduct = '';
-  let _sharedFilters = {empresa:'TODAS',vendedor:'',cliente:'',producto:'',period:'30',desde:'',hasta:''};
-  const FILTER_SELECTS = {
-    empresa:['sel-empresa','a-empresa','m-empresa','s-empresa'],
-    vendedor:['sel-vendedor','a-vendedor','m-vendedor','s-vendedor'],
-    cliente:['sel-cliente','m-cliente','s-cliente'],
-    producto:['sel-producto','a-producto','m-producto','s-producto']
+  const FILTER_SECTIONS = {
+    principal:{empresa:'sel-empresa',vendedor:'sel-vendedor',cliente:'sel-cliente',producto:'sel-producto',dates:['fecha-desde','fecha-hasta'],periods:'.period-pills [data-period]'},
+    analisis:{empresa:'a-empresa',vendedor:'a-vendedor',producto:'a-producto',dates:['a-desde','a-hasta'],periods:'[data-section-periods="analisis"] [data-section-period]'},
+    mix:{empresa:'m-empresa',vendedor:'m-vendedor',cliente:'m-cliente',producto:'m-producto',dates:['m-desde','m-hasta'],periods:'[data-section-periods="mix"] [data-section-period]'},
+    seguimiento:{empresa:'s-empresa',vendedor:'s-vendedor',cliente:'s-cliente',producto:'s-producto',dates:['s-desde','s-hasta'],periods:'[data-section-periods="seguimiento"] [data-section-period]'}
   };
-  const FILTER_DATES = [['fecha-desde','fecha-hasta'],['a-desde','a-hasta'],['m-desde','m-hasta'],['s-desde','s-hasta']];
+  const _sectionPeriods = {principal:'30',analisis:'30',mix:'30',seguimiento:'30'};
   const GRAPH_PALETTE = ['#2F5D8C','#2F7D62','#C47B2D','#6A5A8A'];
   const GRAPH_INK = '#1f2937';
   const GRAPH_TEXT = '#334155';
@@ -415,72 +433,81 @@
     }
   }
 
-  /* ── Cargar y replicar listas de filtros para todas las secciones ── */
-  async function _cargarFiltros(empresa=_sharedFilters.empresa){
+  function readSectionFilters(section){
+    const config=FILTER_SECTIONS[section];
+    const selectValue=id=>id?(_tsInstances[id]?_tsInstances[id].getValue():document.getElementById(id)?.value||''):'';
+    return {
+      empresa:selectValue(config.empresa)||'TODAS',
+      vendedor:selectValue(config.vendedor),
+      cliente:selectValue(config.cliente),
+      producto:selectValue(config.producto),
+      period:_sectionPeriods[section]||'',
+      desde:document.getElementById(config.dates[0]).value,
+      hasta:document.getElementById(config.dates[1]).value
+    };
+  }
+
+  /* ── Cada sección conserva sus propias selecciones ── */
+  async function cargarFiltrosSeccion(section){
+    const config=FILTER_SECTIONS[section];
     try{
-      const r = await fetch('/api/dashboard-comercial/filtros?empresa='+encodeURIComponent(empresa||'TODAS'));
+      const empresa=readSectionFilters(section).empresa;
+      const r = await fetch('/api/dashboard-comercial/filtros?empresa='+encodeURIComponent(empresa));
       const d = await r.json();
       const opciones={vendedor:d.vendedores||[],cliente:d.clientes||[],producto:d.productos||[]};
-      FILTER_SELECTS.vendedor.forEach(id=>_poblarSelect(id,opciones.vendedor));
-      FILTER_SELECTS.cliente.forEach(id=>_poblarSelect(id,opciones.cliente));
-      FILTER_SELECTS.producto.forEach(id=>_poblarSelect(id,opciones.producto));
       ['vendedor','cliente','producto'].forEach(dimension=>{
-        if(_sharedFilters[dimension] && !opciones[dimension].includes(_sharedFilters[dimension])) _sharedFilters[dimension]='';
+        const id=config[dimension];
+        if(id) _poblarSelect(id,opciones[dimension]);
       });
-      syncFilterControls();
     }catch(e){ console.error('Error cargando filtros:', e); }
   }
 
-  function syncFilterControls(){
-    Object.entries(FILTER_SELECTS).forEach(([dimension,ids])=>ids.forEach(id=>{
-      if(dimension==='empresa'){
-        const select=document.getElementById(id); if(select) select.value=_sharedFilters.empresa;
-      }else setFilterSilently(id,_sharedFilters[dimension]||'');
-    }));
-    FILTER_DATES.forEach(([desde,hasta])=>{
-      document.getElementById(desde).value=_sharedFilters.desde||'';
-      document.getElementById(hasta).value=_sharedFilters.hasta||'';
+  async function refreshWithoutJump(refresh){
+    const refreshId=++_viewportRefreshId;
+    const scrollX=window.scrollX, scrollY=window.scrollY;
+    try{
+      await refresh();
+      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    }finally{
+      if(refreshId===_viewportRefreshId){
+        window.scrollTo({left:scrollX,top:scrollY,behavior:'instant'});
+      }
+    }
+  }
+
+  function refreshSection(section){
+    const reload={principal:()=>load(),analisis:()=>loadAnalisis(_analisisTipo),mix:loadMix,seguimiento:loadSeguimiento}[section];
+    return refreshWithoutJump(reload);
+  }
+
+  async function updateSectionFilter(section,dimension,value){
+    const config=FILTER_SECTIONS[section];
+    const id=config[dimension];
+    if(!id) return;
+    if(dimension==='empresa') document.getElementById(id).value=value||'TODAS';
+    else setFilterSilently(id,value||'');
+    if(dimension==='empresa') await cargarFiltrosSeccion(section);
+    return refreshSection(section);
+  }
+
+  function updateSectionDates(section,desde,hasta,period=''){
+    const config=FILTER_SECTIONS[section];
+    document.getElementById(config.dates[0]).value=desde||'';
+    document.getElementById(config.dates[1]).value=hasta||'';
+    _sectionPeriods[section]=period;
+    document.querySelectorAll(config.periods).forEach(button=>button.classList.toggle('active',
+      (button.dataset.period||button.dataset.sectionPeriod)===period));
+    return refreshSection(section);
+  }
+
+  async function clearSectionDimensions(section){
+    const config=FILTER_SECTIONS[section];
+    if(config.empresa) document.getElementById(config.empresa).value='TODAS';
+    ['vendedor','cliente','producto'].forEach(dimension=>{
+      if(config[dimension]) setFilterSilently(config[dimension],'');
     });
-    document.querySelectorAll('.period-pills .pp[data-period]').forEach(button=>button.classList.toggle('active',button.dataset.period===_sharedFilters.period));
-    document.querySelectorAll('[data-section-period]').forEach(button=>button.classList.toggle('active',button.dataset.sectionPeriod===_sharedFilters.period));
-  }
-
-  function reloadAllFilters(){
-    const {period,desde,hasta}=_sharedFilters;
-    return Promise.all([
-      load(period,desde,hasta),
-      loadAnalisis(_analisisTipo),
-      loadMix(),
-      loadSeguimiento()
-    ]);
-  }
-
-  async function updateSharedFilter(dimension,value){
-    _sharedFilters[dimension]=dimension==='empresa'?(value||'TODAS'):value;
-    if(dimension==='empresa') await _cargarFiltros(_sharedFilters.empresa);
-    else syncFilterControls();
-    return reloadAllFilters();
-  }
-
-  function updateSharedDates(desde,hasta,period=''){
-    _sharedFilters.desde=desde||'';
-    _sharedFilters.hasta=hasta||'';
-    _sharedFilters.period=period;
-    syncFilterControls();
-    return reloadAllFilters();
-  }
-
-  function clearSharedDimensions(){
-    _sharedFilters.empresa='TODAS';
-    _sharedFilters.vendedor='';
-    _sharedFilters.cliente='';
-    _sharedFilters.producto='';
-    return _cargarFiltros('TODAS').then(()=>reloadAllFilters());
-  }
-
-  function setActive(period){
-    _sharedFilters.period=period||'';
-    syncFilterControls();
+    await cargarFiltrosSeccion(section);
+    return refreshSection(section);
   }
 
   function isDarkChartColor(color){
@@ -520,8 +547,6 @@
             : cur
               ? (Math.abs(v)>=1e6?'$'+(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?'$'+Math.round(v/1e3)+'K':'$'+Math.round(v).toLocaleString('es-AR'))
               : (Math.abs(v)>=1e6?(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?Math.round(v/1e3)+'K':v.toLocaleString('es-AR',{maximumFractionDigits:1}));
-          const altura=Number(bar.height||0);
-          if(altura<15) return;
           const ancho=ctx.measureText(lbl).width;
           const derecha=bar.x, izquierda=bar.base??area.left;
           const largo=Math.abs(derecha-izquierda);
@@ -548,33 +573,46 @@
     afterDatasetsDraw(chart){
       const area=chart.chartArea;
       const points=chart.getDatasetMeta(0).data||[];
-      if(!area || !points.length || points.length>12)return;
+      if(!area || !points.length)return;
       const cur = chart.options?.plugins?.datalabarsLine?.currency !== false;
       const {ctx}=chart, ocupados=[];
       ctx.save();
       ctx.font='600 11px system-ui,sans-serif';
-      ctx.textBaseline='bottom';
+      ctx.textBaseline='middle';
       chart.data.datasets.forEach((ds,di)=>{
         const meta=chart.getDatasetMeta(di); if(meta.hidden)return;
         if(ds.yAxisID==='y1') return;
         const dsCur = ds.currency !== false && cur;
         ctx.fillStyle=ds.borderColor||GRAPH_INK;
-        meta.data.forEach((pt,i)=>{
+        const values=ds.data.map(value=>Number(value));
+        const visibleIndexes=values.length<=12
+          ? values.map((_,i)=>i)
+          : [...new Set([values.indexOf(Math.max(...values)), values.length-1])];
+        visibleIndexes.forEach(i=>{
+          const pt=meta.data[i];
+          if(!pt)return;
           const v=ds.data[i]; if(v==null)return;
           const lbl = dsCur
             ? (Math.abs(v)>=1e6?'$'+(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?'$'+Math.round(v/1e3)+'K':String(v))
             : (Math.abs(v)>=1e6?(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?Math.round(v/1e3)+'K':Number(v).toLocaleString('es-AR',{maximumFractionDigits:0}));
           const ancho=ctx.measureText(lbl).width, alto=12;
-          const ultimo=i===meta.data.length-1;
-          let x=pt.x, align='center';
-          if(ultimo || pt.x+ancho/2>area.right-8){ align='right'; x=pt.x-8; }
-          else if(pt.x-ancho/2<area.left+2){ align='left'; x=area.left+2; }
-          const y=Math.max(area.top+alto, pt.y-8);
-          const caja={left:align==='right'?x-ancho:align==='left'?x:x-ancho/2, right:0, top:y-alto, bottom:y+2};
+          const offsets=chart.data.datasets.length>1
+            ? [{x:-13,y:-15},{x:0,y:0},{x:13,y:15}][di%3]
+            : {x:0,y:-8};
+          let x=Math.max(area.left+ancho/2,Math.min(area.right-ancho/2,pt.x+offsets.x));
+          let align='center';
+          if(x-ancho/2<area.left+2){ align='left'; x=area.left+2; }
+          else if(x+ancho/2>area.right-2){ align='right'; x=area.right-2; }
+          const y=Math.max(area.top+alto/2,Math.min(area.bottom-alto/2,pt.y+offsets.y));
+          const caja={left:align==='right'?x-ancho:align==='left'?x:x-ancho/2, right:0, top:y-alto/2, bottom:y+alto/2};
           caja.right=caja.left+ancho;
           if(ocupados.some(otra=>caja.left<otra.right && caja.right>otra.left && caja.top<otra.bottom && caja.bottom>otra.top))return;
           ocupados.push(caja);
           ctx.textAlign=align;
+          ctx.lineWidth=4;
+          ctx.strokeStyle='#fff';
+          ctx.lineJoin='round';
+          ctx.strokeText(lbl,x,y);
           ctx.fillText(lbl,x,y);
         });
       });
@@ -632,28 +670,16 @@
     select.value = value||'';
   }
 
-  function reloadCurrent(){
-    const selected=id=>_tsInstances[id]?_tsInstances[id].getValue():document.getElementById(id).value;
-    _sharedFilters.empresa=selected('sel-empresa')||'TODAS';
-    _sharedFilters.vendedor=selected('sel-vendedor')||'';
-    _sharedFilters.cliente=selected('sel-cliente')||'';
-    _sharedFilters.producto=selected('sel-producto')||'';
-    _sharedFilters.desde=document.getElementById('fecha-desde').value;
-    _sharedFilters.hasta=document.getElementById('fecha-hasta').value;
-    syncFilterControls();
-    return reloadAllFilters();
-  }
-
   function hBarOpts(measure, rows, filterId, ignoredLabel, includeProducts=false){
     return {
-      indexAxis:'y',responsive:true,animation:false,layout:{padding:{right:8,left:4}},
+      indexAxis:'y',responsive:true,animation:false,layout:{padding:{right:58,left:4}},
       plugins:{
         legend:{display:false},
         datalabarsH:{currency:measure==='plata',percentage:measure==='pct'},
         tooltip:{callbacks:{label:ctx=>preBarTooltip(rows[ctx.dataIndex]||{},includeProducts)}}
       },
       scales:{
-        x:{beginAtZero:true,ticks:{color:GRAPH_TEXT,maxRotation:0,autoSkip:true,maxTicksLimit:4,callback:v=>{
+        x:{beginAtZero:true,grace:'16%',ticks:{color:GRAPH_TEXT,maxRotation:0,autoSkip:true,maxTicksLimit:4,callback:v=>{
           const n=Number(v||0);
           if(measure==='plata') return Math.abs(n)>=1e6?'$'+(n/1e6).toFixed(1)+'M':Math.abs(n)>=1e3?'$'+Math.round(n/1e3)+'K':'$'+Math.round(n);
           if(measure==='pct') return Math.round(n)+'%';
@@ -662,13 +688,13 @@
         y:{ticks:{color:GRAPH_TEXT,font:{size:11}},grid:{display:false}}
       },
       onHover:(event,elements,chart)=>{ chart.canvas.style.cursor=elements.length?'pointer':'default'; },
-      onClick:(event,elements)=>{
+      onClick:(event,elements,chart)=>{
         const index=elements?.[0]?.index;
         if(index===undefined) return;
         const value=rows[index]?.nombre;
         if(!value || value===ignoredLabel) return;
         setFilterSilently(filterId,value);
-        reloadCurrent();
+        refreshSection('principal');
       }
     };
   }
@@ -752,14 +778,13 @@
     vendedorChart=clienteChart=productoChart=evolucionChart=null;
   }
 
-  async function load(period=_sharedFilters.period, desde=_sharedFilters.desde, hasta=_sharedFilters.hasta){
-    setActive(period||'');
-    document.getElementById('skeleton').style.display='';
-    document.getElementById('content').style.display='none';
-    const empresa  = _sharedFilters.empresa;
-    const vendedor = _sharedFilters.vendedor;
-    const cliente  = _sharedFilters.cliente;
-    const producto = _sharedFilters.producto;
+  async function load(){
+    const {empresa,vendedor,cliente,producto,period,desde,hasta}=readSectionFilters('principal');
+    const isInitialLoad=!_lastDashboardPayload;
+    if(isInitialLoad){
+      document.getElementById('skeleton').style.display='';
+      document.getElementById('content').style.display='none';
+    }
     _selectedPreProduct = producto;
     const p = new URLSearchParams();
     if(period)  p.set('period', period);
@@ -791,7 +816,7 @@
 
     }catch(e){ console.error(e);
     }finally{
-      document.getElementById('skeleton').style.display='none';
+      if(isInitialLoad) document.getElementById('skeleton').style.display='none';
       document.getElementById('content').style.display='';
     }
   }
@@ -815,8 +840,7 @@
     document.getElementById('analisis-subtitle').textContent = subs[_analisisTipo]||'';
     document.getElementById('analisis-bar-titulo').textContent = titulosBar[_analisisTipo]||'Top 15';
 
-    /* Los filtros compartidos se leen de una única selección sincronizada. */
-    const {empresa,vendedor,cliente,producto,desde,hasta}=_sharedFilters;
+    const {empresa,vendedor,cliente,producto,desde,hasta}=readSectionFilters('analisis');
 
     const p = new URLSearchParams();
     p.set('tipo', _analisisTipo);
@@ -877,7 +901,7 @@
   const MIX_COLORS = GRAPH_BLUE_TONES;
 
   async function loadMix(){
-    const {empresa,vendedor,cliente,producto,desde,hasta}=_sharedFilters;
+    const {empresa,vendedor,cliente,producto,desde,hasta}=readSectionFilters('mix');
 
     const p = new URLSearchParams();
     p.set('empresa', empresa);
@@ -912,7 +936,7 @@
               borderWidth:2
             }]
           },
-          options:{responsive:true, cutout:'62%', plugins:{legend:{position:'right',labels:{color:GRAPH_TEXT,font:{size:12},boxWidth:12,generateLabels(chart){
+          options:{responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{legend:{position:'right',labels:{color:GRAPH_TEXT,font:{size:12},boxWidth:12,generateLabels(chart){
             const ds=chart.data.datasets[0], total=ds.data.reduce((s,v)=>s+Number(v||0),0)||1;
             return chart.data.labels.map((label,i)=>({text:`${label}  ${Math.round(Number(ds.data[i])/total*100)}%`, fillStyle:ds.backgroundColor[i], strokeStyle:ds.backgroundColor[i], lineWidth:0, hidden:false, index:i}));
           }}},
@@ -930,11 +954,11 @@
             labels: dc.map(x=>x.cliente),
             datasets:[{label:'Productos distintos', data:dc.map(x=>x.n_productos), ...barLook(GRAPH_PALETTE[1])}]
           },
-          options:{indexAxis:'y', responsive:true, layout:{padding:{right:56}},
+            options:{indexAxis:'y', responsive:true, maintainAspectRatio:false, layout:{padding:{top:2,right:56,bottom:0}},
             plugins:{legend:{display:false}, datalabarsH:{currency:false},
               tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x} productos · ${Number(dc[ctx.dataIndex]?.cajas||0).toLocaleString('es-AR',{maximumFractionDigits:0})} cajas`}}},
             scales:{x:{ticks:{color:GRAPH_TEXT,font:{size:11},precision:0,callback:v=>Number.isInteger(v)?String(v):''},grid:{color:'#eef2f6'}},
-                    y:{ticks:{color:GRAPH_TEXT,font:{size:10}},grid:{display:false}}}
+                    y:{offset:false,ticks:{color:GRAPH_TEXT,font:{size:10}},grid:{display:false}}}
           }
         });
       }
@@ -955,10 +979,11 @@
         mixStackedChart = new Chart(document.getElementById('mixStackedChart'),{
           type:'bar', plugins:[datalabarsH],
           data:{ labels:mpc.map(x=>x.cliente), datasets:stackData },
-          options:{indexAxis:'y', responsive:true,
+          options:{indexAxis:'y', responsive:true, maintainAspectRatio:false,
+            interaction:{mode:'index', intersect:false, axis:'y'},
             plugins:{legend:{position:'bottom',labels:{color:GRAPH_TEXT,font:{size:10},boxWidth:10}},
               datalabarsH:{currency:false},
-              tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.x||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
+              tooltip:{mode:'index',intersect:false,callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.x||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
             scales:{x:{stacked:true, ticks:{color:GRAPH_TEXT,font:{size:11},callback:v=>Number(v).toLocaleString('es-AR',{maximumFractionDigits:0})},grid:{color:'#e2e8f0'}},
                     y:{stacked:true, ticks:{color:GRAPH_TEXT,font:{size:10}},grid:{display:false}}}
           }
@@ -982,7 +1007,7 @@
         mixEvoChart = new Chart(document.getElementById('mixEvoChart'),{
           type:'line', plugins:[datalabarsLine],
           data:{ labels:evoLabels, datasets:evoDatasets },
-          options:{responsive:true, layout:{padding:{top:18,right:18}},
+          options:{responsive:true, maintainAspectRatio:false, layout:{padding:{top:22,right:22,bottom:10}},
             plugins:{legend:{position:'bottom',labels:{color:GRAPH_TEXT,font:{size:10},boxWidth:10}},
               datalabarsLine:{currency:false},
               tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.y||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
@@ -1010,6 +1035,8 @@
   }
 
   function crearTabla(columnas, filas, alClick){
+    const wrap=document.createElement('div');
+    wrap.className='seg-table-wrap';
     const table=document.createElement('table');
     table.className='seg-table';
     const head=document.createElement('thead');
@@ -1017,6 +1044,7 @@
     columnas.forEach(columna=>{
       const cell=document.createElement('th');
       cell.textContent=columna.label;
+      cell.scope='col';
       if(columna.num) cell.className='num';
       headRow.appendChild(cell);
     });
@@ -1027,15 +1055,37 @@
       if(alClick){ row.classList.add('is-click'); if(fila.activo) row.classList.add('is-active'); }
       columnas.forEach(columna=>{
         const cell=document.createElement('td');
-        cell.textContent=fila[columna.key];
-        if(columna.num) cell.className='num';
+        const value=fila[columna.key] ?? '';
+        if(columna.key==='senal' || columna.key==='estado'){
+          const pill=document.createElement('span');
+          pill.className='seg-pill';
+          if(value==='Nuevo') pill.classList.add('seg-pill--nuevo');
+          if(value==='Caído') pill.classList.add('seg-pill--caido');
+          if(value==='Baja') pill.classList.add('seg-pill--baja');
+          if(value==='Canasta') pill.classList.add('seg-pill--canasta');
+          pill.textContent=value;
+          cell.appendChild(pill);
+        }else{
+          cell.textContent=value;
+        }
+        if(columna.key==='nombre' || columna.key==='cliente') cell.classList.add('seg-client');
+        if(columna.key==='detalle') cell.classList.add('seg-detail');
+        if(columna.key==='fecha') cell.classList.add('seg-date');
+        if(columna.key==='dias'){
+          const days=document.createElement('span');
+          days.className='seg-days';
+          days.textContent=value;
+          cell.replaceChildren(days);
+        }
+        if(columna.num) cell.classList.add('num');
         row.appendChild(cell);
       });
       if(alClick) row.addEventListener('click',()=>alClick(fila));
       body.appendChild(row);
     });
     table.append(head, body);
-    return table;
+    wrap.appendChild(table);
+    return wrap;
   }
 
   function bloque(titulo){
@@ -1111,7 +1161,7 @@
         activos:Number(vendedor.activos||0),
         nuevos:(vendedor.nuevos||[]).length,
         caidos:(vendedor.caidos||[]).length,
-        activo:_sharedFilters.vendedor===vendedor.nombre
+        activo:readSectionFilters('seguimiento').vendedor===vendedor.nombre
       }))
       .sort((a,b)=>b.plata-a.plata || a.nombre.localeCompare(b.nombre,'es'));
 
@@ -1133,7 +1183,7 @@
     tablaComp.appendChild(crearTabla(
       [{key:'nombre',label:'Vendedor'},{key:'plataTxt',label:'Plata',num:true},{key:'part',label:'Part.',num:true},{key:'activos',label:'Activos',num:true},{key:'nuevos',label:'Nuevos',num:true},{key:'caidos',label:'Caídos',num:true}],
       comparacion.map(fila=>({...fila, plataTxt:money(fila.plata), part:`${(fila.plata/plataTotal*100).toLocaleString('es-AR',{maximumFractionDigits:1})}%`, activos:String(fila.activos), nuevos:String(fila.nuevos), caidos:String(fila.caidos)})),
-      fila=>updateSharedFilter('vendedor', fila.activo?'':fila.nombre)
+      fila=>updateSectionFilter('seguimiento','vendedor', fila.activo?'':fila.nombre)
     ));
     comparacionLayout.appendChild(tablaComp);
     host.appendChild(comparacionLayout);
@@ -1143,14 +1193,14 @@
       options:{indexAxis:'y', responsive:true, maintainAspectRatio:false, animation:false,
         plugins:{legend:{display:false}, datalabarsH:{currency:true}},
         scales:{x:{beginAtZero:true, ticks:{color:GRAPH_TEXT, maxTicksLimit:4, callback:v=>Math.abs(v)>=1e3?'$'+Math.round(v/1e3)+'K':'$'+Math.round(v)}, grid:{color:'#eef2f6'}}, y:{ticks:{color:GRAPH_TEXT}, grid:{display:false}}},
-        onClick:(event,elements)=>{
+        onClick:(event,elements,chart)=>{
           const fila=comparacion[elements?.[0]?.index];
-          if(fila) updateSharedFilter('vendedor', fila.activo?'':fila.nombre);
+          if(fila) updateSectionFilter('seguimiento','vendedor', fila.activo?'':fila.nombre);
         }
       }
     }));
 
-    const elegido=_sharedFilters.vendedor;
+    const elegido=readSectionFilters('seguimiento').vendedor;
     const alcance=elegido?todos.filter(vendedor=>vendedor.nombre===elegido):todos;
     const cartera=unificarCartera(alcance.length?alcance:todos);
     const titulo=document.createElement('h3');
@@ -1235,7 +1285,7 @@
     const loading=document.getElementById('seguimiento-cargando');
     loading.hidden=false;
     loading.textContent='Cargando seguimiento PRE…';
-    const {empresa,vendedor,cliente,producto,desde,hasta}=_sharedFilters;
+    const {empresa,cliente,producto,desde,hasta}=readSectionFilters('seguimiento');
     const params=new URLSearchParams({fecha_desde:desde,fecha_hasta:hasta,empresa});
     if(cliente) params.set('cliente',cliente);
     if(producto) params.set('producto',producto);
@@ -1256,53 +1306,42 @@
 
   document.addEventListener('DOMContentLoaded', async ()=>{
     const initialRange=periodToDates('30');
-    _sharedFilters.period='30';
-    _sharedFilters.desde=initialRange.desde;
-    _sharedFilters.hasta=initialRange.hasta;
-    syncFilterControls();
+    Object.entries(FILTER_SECTIONS).forEach(([section,config])=>{
+      const [desdeId,hastaId]=config.dates;
+      document.getElementById(desdeId).value=initialRange.desde;
+      document.getElementById(hastaId).value=initialRange.hasta;
+      document.querySelectorAll(config.periods).forEach(button=>button.classList.toggle('active',
+        (button.dataset.period||button.dataset.sectionPeriod)==='30'));
+      Object.entries(config).forEach(([dimension,id])=>{
+        if(!['empresa','vendedor','cliente','producto'].includes(dimension) || !id) return;
+        document.getElementById(id).addEventListener('change',event=>updateSectionFilter(section,dimension,event.currentTarget.value));
+      });
+      document.querySelectorAll(config.periods).forEach(button=>button.addEventListener('click',()=>{
+        const period=button.dataset.period||button.dataset.sectionPeriod;
+        const range=periodToDates(period);
+        updateSectionDates(section,range.desde,range.hasta,period);
+      }));
+      [desdeId,hastaId].forEach(id=>document.getElementById(id).addEventListener('change',()=>
+        updateSectionDates(section,document.getElementById(desdeId).value,document.getElementById(hastaId).value,'')));
+      const prefix={principal:'btn',analisis:'a',mix:'m',seguimiento:'s'}[section];
+      document.getElementById(`${prefix}-aplicar`).addEventListener('click',()=>
+        updateSectionDates(section,document.getElementById(desdeId).value,document.getElementById(hastaId).value,''));
+      document.getElementById(`${prefix}-este-mes`).addEventListener('click',()=>{
+        const range=esEsteMes();
+        updateSectionDates(section,range.desde,range.hasta,'');
+      });
+    });
 
-    Object.entries(FILTER_SELECTS).forEach(([dimension,ids])=>ids.forEach(id=>{
-      document.getElementById(id).addEventListener('change',event=>updateSharedFilter(dimension,event.currentTarget.value));
-    }));
-    document.querySelectorAll('.period-pills .pp[data-period]').forEach(button=>button.addEventListener('click',()=>{
-      const range=periodToDates(button.dataset.period);
-      updateSharedDates(range.desde,range.hasta,button.dataset.period);
-    }));
-    document.querySelectorAll('[data-section-period]').forEach(button=>button.addEventListener('click',()=>{
-      const range=periodToDates(button.dataset.sectionPeriod);
-      updateSharedDates(range.desde,range.hasta,button.dataset.sectionPeriod);
-    }));
-
-    FILTER_DATES.forEach(([desdeId,hastaId])=>[desdeId,hastaId].forEach(id=>{
-      document.getElementById(id).addEventListener('change',()=>updateSharedDates(
-        document.getElementById(desdeId).value,
-        document.getElementById(hastaId).value,
-        ''
-      ));
-    }));
-    const aplicarFechas=([desdeId,hastaId])=>updateSharedDates(
-      document.getElementById(desdeId).value,
-      document.getElementById(hastaId).value,
-      ''
-    );
-    [
-      ['btn-aplicar',FILTER_DATES[0]],['a-aplicar',FILTER_DATES[1]],
-      ['m-aplicar',FILTER_DATES[2]],['s-aplicar',FILTER_DATES[3]]
-    ].forEach(([button,dates])=>document.getElementById(button).addEventListener('click',()=>aplicarFechas(dates)));
-    [
-      ['btn-este-mes',FILTER_DATES[0]],['a-este-mes',FILTER_DATES[1]],
-      ['m-este-mes',FILTER_DATES[2]],['s-este-mes',FILTER_DATES[3]]
-    ].forEach(([button])=>document.getElementById(button).addEventListener('click',()=>{
-      const range=esEsteMes();
-      updateSharedDates(range.desde,range.hasta,'');
-    }));
-
-    document.querySelectorAll('[data-measure]').forEach(button=>button.addEventListener('click',()=>setPreMeasure(button.dataset.measure)));
     document.getElementById('btn-limpiar-filtros').addEventListener('click',()=>{
       setPreMeasure('plata',false);
-      clearSharedDimensions();
+      clearSectionDimensions('principal');
     });
-    ['a-limpiar','m-limpiar','s-limpiar'].forEach(id=>document.getElementById(id).addEventListener('click',clearSharedDimensions));
+    ['analisis','mix','seguimiento'].forEach(section=>{
+      const id={analisis:'a-limpiar',mix:'m-limpiar',seguimiento:'s-limpiar'}[section];
+      document.getElementById(id).addEventListener('click',()=>clearSectionDimensions(section));
+    });
+
+    document.querySelectorAll('[data-measure]').forEach(button=>button.addEventListener('click',()=>setPreMeasure(button.dataset.measure)));
 
     document.getElementById('analisis-toggle').addEventListener('click',()=>{
       const body=document.getElementById('analisis-body');
@@ -1320,8 +1359,8 @@
       if(!open) loadMix();
     });
 
-    await _cargarFiltros('TODAS');
-    await reloadAllFilters();
+    await Promise.all(Object.keys(FILTER_SECTIONS).map(cargarFiltrosSeccion));
+    await Promise.all([load(),loadAnalisis(_analisisTipo),loadMix(),loadSeguimiento()]);
   });
 </script>
 {% endblock %}
