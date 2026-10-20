@@ -153,6 +153,122 @@ def test_dashboard_comercial_v2_ok(client, seed_minimal):
     assert "pre_por_producto" in data["series"]
 
 
+def test_dashboard_comercial_v2_pre_analytics(client, app):
+    with app.app_context():
+        db.session.add_all(
+            [
+                StgSabiogoVentas(
+                    fecha=date(2024, 1, 1),
+                    origen="CARNES",
+                    codigo="PRE-001",
+                    producto="Producto PRE",
+                    cliente="Cliente PRE",
+                    vendedor="Vendedor PRE",
+                    comprobante="PRE",
+                    nro_comprob="PRE-1001",
+                    cajas=2.5,
+                    kilos=25.0,
+                    subtot=100.0,
+                    estado="procesado",
+                ),
+                StgSabiogoVentas(
+                    fecha=date(2024, 1, 11),
+                    origen="CARNES",
+                    codigo="PRE-002",
+                    producto="Producto PRE",
+                    cliente="Cliente PRE",
+                    vendedor="Vendedor PRE",
+                    comprobante="PRE",
+                    nro_comprob="PRE-1002",
+                    cajas=3.5,
+                    kilos=35.0,
+                    subtot=300.0,
+                    estado="procesado",
+                ),
+            ]
+        )
+        db.session.commit()
+
+    fechas = "fecha_desde=2024-01-01&fecha_hasta=2024-01-31"
+    resp = client.get(f"/api/dashboard-comercial-v2?{fechas}&producto=Producto%20PRE")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    cliente = data["series"]["pre_por_cliente"][0]
+    assert isinstance(cliente, dict)
+    assert cliente["nombre"] == "Cliente PRE"
+    assert cliente["plata"] == 400.0
+    assert cliente["cajas"] == 6.0
+    assert cliente["kilos"] == 60.0
+    assert cliente["compras"] == 2
+    assert cliente["pct"] == 100.0
+
+    resp = client.get(
+        f"/api/dashboard-comercial-v2?{fechas}&producto=Producto%20PRE&cliente=Cliente%20PRE"
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    analisis = data["cliente_analisis"]
+    assert analisis["compras"] == 2
+    assert analisis["frecuencia_dias"] is not None
+
+
+def test_dashboard_comercial_analysis_mix_only_pedidos_pre(client, app):
+    with app.app_context():
+        db.session.add_all(
+            [
+                StgSabiogoVentas(
+                    fecha=date(2000, 2, 15),
+                    origen="CARNES",
+                    codigo="CORTE-PRE",
+                    producto="Producto corte PRE",
+                    cliente="Cliente corte",
+                    cajas=3.0,
+                    subtot=150.0,
+                    comprobante="PRE",
+                    nro_comprob="CORTE-1001",
+                    estado="procesado",
+                ),
+                StgSabiogoVentas(
+                    fecha=date(2000, 2, 15),
+                    origen="CARNES",
+                    codigo="CORTE-FAC",
+                    producto="Producto corte FAC",
+                    cliente="Cliente corte",
+                    cajas=7.0,
+                    subtot=350.0,
+                    comprobante="FAC",
+                    nro_comprob="CORTE-1002",
+                    estado="procesado",
+                ),
+            ]
+        )
+        db.session.commit()
+
+        # La consulta de producción usa PostgreSQL date_trunc; se registra para
+        # este rango histórico de SQLite, sin filas en la serie semestral.
+        def sqlite_date_trunc(unit, value):
+            if unit == "month" and value:
+                return f"{str(value)[:7]}-01 00:00:00"
+            return None
+
+        connection = db.engine.raw_connection()
+        connection.create_function("date_trunc", 2, sqlite_date_trunc)
+        connection.close()
+
+    fechas = "fecha_desde=2000-02-01&fecha_hasta=2000-02-29"
+    resp = client.get(f"/api/dashboard-comercial/analisis?tipo=producto&{fechas}")
+    assert resp.status_code == 200
+    analisis_productos = {row["nombre"] for row in resp.get_json()["top15"]}
+    assert "Producto corte PRE" in analisis_productos
+    assert "Producto corte FAC" not in analisis_productos
+
+    resp = client.get(f"/api/dashboard-comercial/mix?{fechas}")
+    assert resp.status_code == 200
+    mix_productos = {row["producto"] for row in resp.get_json()["mix_global"]}
+    assert "Producto corte PRE" in mix_productos
+    assert "Producto corte FAC" not in mix_productos
+
+
 def test_panel_ejecutivo_v2_ok(client, seed_minimal):
     resp = client.get("/api/panel-ejecutivo-v2?period=ytd")
     assert resp.status_code == 200
