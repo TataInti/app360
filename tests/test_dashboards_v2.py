@@ -1,6 +1,7 @@
 import pytest
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 from app import create_app
 from config import Config
@@ -267,6 +268,78 @@ def test_dashboard_comercial_analysis_mix_only_pedidos_pre(client, app):
     mix_productos = {row["producto"] for row in resp.get_json()["mix_global"]}
     assert "Producto corte PRE" in mix_productos
     assert "Producto corte FAC" not in mix_productos
+
+
+def test_dashboard_comercial_seguimiento_clientes_pre(client, app):
+    hoy = datetime.now(ZoneInfo("America/Argentina/Tucuman")).date()
+
+    with app.app_context():
+        def agregar_venta(
+            fecha, vendedor, cliente, producto, subtot, comprobante, nro_comprob, codigo
+        ):
+            db.session.add(
+                StgSabiogoVentas(
+                    fecha=fecha,
+                    origen="CARNES",
+                    codigo=codigo,
+                    producto=producto,
+                    cliente=cliente,
+                    vendedor=vendedor,
+                    subtot=subtot,
+                    comprobante=comprobante,
+                    nro_comprob=nro_comprob,
+                    estado="procesado",
+                )
+            )
+
+        agregar_venta(
+            hoy - timedelta(days=2), "Vendedor A", "Cliente Nuevo", "Producto A", 100.0,
+            "PRE", "A-NEW-1", "A-NEW-1A"
+        )
+        agregar_venta(
+            hoy - timedelta(days=2), "Vendedor A", "Cliente Nuevo", "Producto A", 50.0,
+            "PRE", "A-NEW-1", "A-NEW-1B"
+        )
+        agregar_venta(
+            hoy - timedelta(days=90), "Vendedor A", "Cliente Viejo", "Producto histórico", 75.0,
+            "PRE", "A-OLD-1", "A-OLD-1"
+        )
+        agregar_venta(
+            hoy - timedelta(days=10), "Vendedor A", "Cliente Viejo", "Producto B", 150.0,
+            "PRE", "A-OLD-2", "A-OLD-2"
+        )
+        agregar_venta(
+            hoy - timedelta(days=40), "Vendedor A", "Cliente Inactivo", "Producto C", 500.0,
+            "PRE", "A-INACTIVE-1", "A-INACTIVE-1"
+        )
+        agregar_venta(
+            hoy - timedelta(days=2), "Vendedor A", "Cliente Solo FAC", "Producto FAC", 9999.0,
+            "FAC", "A-FAC-1", "A-FAC-1"
+        )
+        agregar_venta(
+            hoy - timedelta(days=1), "Vendedor B", "Cliente Vendedor B", "Producto B2", 60.0,
+            "PRE", "B-PRE-1", "B-PRE-1"
+        )
+        db.session.commit()
+
+    resp = client.get("/api/dashboard-comercial/seguimiento")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["desde"] == (hoy - timedelta(days=29)).isoformat()
+    assert data["hasta"] == hoy.isoformat()
+    assert len(data["vendedores"]) == 2
+
+    vendedor = next(item for item in data["vendedores"] if item["nombre"] == "Vendedor A")
+    assert vendedor["activos"] == 2
+    assert vendedor["total"] == 3
+    assert [item["nombre"] for item in vendedor["nuevos"]] == ["Cliente Nuevo"]
+    assert "Cliente Solo FAC" not in {item["nombre"] for item in vendedor["lista"]}
+    assert "Producto FAC" not in {item["nombre"] for item in vendedor["productos"]}
+    producto = next(item for item in vendedor["productos"] if item["nombre"] == "Producto A")
+    assert producto["pct"] == 50.0
+    cliente_viejo = next(item for item in vendedor["ultimas"] if item["nombre"] == "Cliente Viejo")
+    assert cliente_viejo["fecha"] is not None
+    assert cliente_viejo["fecha"] == (hoy - timedelta(days=10)).isoformat()
 
 
 def test_panel_ejecutivo_v2_ok(client, seed_minimal):
