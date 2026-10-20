@@ -103,3 +103,54 @@ class ComisionDetalle(db.Model):
         db.Index('idx_detalle_comision', 'comision_id'),
         db.Index('idx_detalle_venta', 'venta_id'),
     )
+
+
+class ComercialVendedor(db.Model):
+    """Identidad comercial independiente del legajo de RRHH."""
+
+    __tablename__ = "comercial_vendedores"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nombre_visible = db.Column(db.String(200), nullable=False)
+    activo = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+
+    aliases = db.relationship(
+        "ComercialVendedorAlias",
+        back_populates="vendedor",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "nombre_visible",
+            name="uq_comercial_vendedores_nombre_visible",
+        ),
+    )
+
+
+class ComercialVendedorAlias(db.Model):
+    """Nombre de origen exacto más su clave para comparación normalizada."""
+
+    __tablename__ = "comercial_vendedor_aliases"
+
+    id = db.Column(db.Integer, primary_key=True)
+    vendedor_id = db.Column(
+        db.Integer,
+        db.ForeignKey("comercial_vendedores.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    nombre_origen = db.Column(db.String(200), nullable=False)
+    nombre_normalizado = db.Column(db.String(200), nullable=False)
+
+    vendedor = db.relationship("ComercialVendedor", back_populates="aliases")
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "nombre_origen",
+            name="uq_comercial_vendedor_aliases_nombre_origen",
+        ),
+        db.UniqueConstraint(
+            "nombre_normalizado",
+            name="uq_comercial_vendedor_aliases_nombre_normalizado",
+        ),
+    )
