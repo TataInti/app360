@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from flask import Blueprint, jsonify, request
-from sqlalchemy import func
+from sqlalchemy import String, case, cast, func
 
 import models as m
 from models import db
@@ -1135,6 +1134,7 @@ def api_dashboard_comercial_analisis():
 
     empresa = (request.args.get("empresa") or "TODAS").upper().strip()
     vendedor_filter = (request.args.get("vendedor") or "").strip()
+    cliente_filter = (request.args.get("cliente") or "").strip()
     producto_filter = (request.args.get("producto") or "").strip()
 
     hoy = date.today()
@@ -1174,6 +1174,8 @@ def api_dashboard_comercial_analisis():
             f.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
         if vendedor_filter and tipo != "vendedor":
             f.append(StgSabiogoVentas.vendedor == vendedor_filter)
+        if cliente_filter and tipo != "cliente":
+            f.append(StgSabiogoVentas.cliente == cliente_filter)
         if producto_filter and tipo != "producto":
             f.append(StgSabiogoVentas.producto == producto_filter)
         return f
@@ -1450,11 +1452,40 @@ def api_dashboard_comercial_seguimiento():
     """Seguimiento por vendedor de los clientes con pedidos PRE procesados."""
     from models.sabiogo.staging import StgSabiogoVentas
 
-    hoy = datetime.now(ZoneInfo("America/Argentina/Tucuman")).date()
-    desde = hoy - timedelta(days=29)
+    hoy = today_local_date()
+    fecha_desde_raw = request.args.get("fecha_desde")
+    fecha_hasta_raw = request.args.get("fecha_hasta")
+    fecha_desde = _parse_iso_date(fecha_desde_raw)
+    fecha_hasta = _parse_iso_date(fecha_hasta_raw)
+    if fecha_desde_raw and not fecha_desde:
+        return jsonify({"error": "fecha_desde tiene un formato inválido"}), 400
+    if fecha_hasta_raw and not fecha_hasta:
+        return jsonify({"error": "fecha_hasta tiene un formato inválido"}), 400
+    if fecha_desde and fecha_hasta and fecha_desde > fecha_hasta:
+        return jsonify({"error": "fecha_desde no puede ser mayor a fecha_hasta"}), 400
+    if fecha_desde and not fecha_hasta:
+        desde, hasta = fecha_desde, hoy
+    elif fecha_hasta and not fecha_desde:
+        desde, hasta = fecha_hasta - timedelta(days=29), fecha_hasta
+    elif fecha_desde and fecha_hasta:
+        desde, hasta = fecha_desde, fecha_hasta
+    else:
+        desde, hasta = hoy - timedelta(days=29), hoy
+
+    empresa = (request.args.get("empresa") or "TODAS").upper().strip()
+    vendedor_filter = (request.args.get("vendedor") or "").strip()
+    cliente_filter = (request.args.get("cliente") or "").strip()
+    producto_filter = (request.args.get("producto") or "").strip()
     vendedor_expr = func.trim(StgSabiogoVentas.vendedor)
     cliente_expr = func.trim(StgSabiogoVentas.cliente)
+    producto_expr = func.coalesce(
+        func.nullif(func.trim(StgSabiogoVentas.producto), ""), "Sin producto"
+    )
     comprobante_expr = func.trim(StgSabiogoVentas.nro_comprob)
+    documento_expr = case(
+        (func.nullif(comprobante_expr, "").isnot(None), comprobante_expr),
+        else_="linea:" + cast(StgSabiogoVentas.id, String),
+    )
     filtros_documento = [
         StgSabiogoVentas.estado == "procesado",
         func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
@@ -1462,20 +1493,32 @@ def api_dashboard_comercial_seguimiento():
         vendedor_expr != "",
         cliente_expr.isnot(None),
         cliente_expr != "",
-        comprobante_expr.isnot(None),
-        comprobante_expr != "",
     ]
+    if empresa not in ("", "TODAS"):
+        filtros_documento.append(
+            func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa
+        )
+    if vendedor_filter:
+        filtros_documento.append(vendedor_expr == vendedor_filter)
+    if cliente_filter:
+        filtros_documento.append(cliente_expr == cliente_filter)
+    if producto_filter:
+        filtros_documento.append(producto_expr == producto_filter)
+
+    dias_ventana = (hasta - desde).days + 1
+    desde_anterior = desde - timedelta(days=dias_ventana)
+    hasta_anterior = desde - timedelta(days=1)
 
     # Una fila lógica por comprobante, aunque tenga varias líneas de productos.
     documentos = (
         db.session.query(
             vendedor_expr.label("vendedor"),
             cliente_expr.label("cliente"),
-            comprobante_expr.label("nro_comprob"),
+            documento_expr.label("nro_comprob"),
             func.min(StgSabiogoVentas.fecha).label("fecha"),
         )
         .filter(*filtros_documento)
-        .group_by(vendedor_expr, cliente_expr, comprobante_expr)
+        .group_by(vendedor_expr, cliente_expr, documento_expr)
         .subquery("pre_documentos_seguimiento")
     )
 
@@ -1489,25 +1532,25 @@ def api_dashboard_comercial_seguimiento():
         .group_by(documentos.c.vendedor, documentos.c.cliente)
         .all()
     )
+    def como_date(value):
+        return value.date() if isinstance(value, datetime) else value
+
     clientes_por_vendedor: dict[str, dict[str, dict]] = {}
     for row in clientes_rows:
         clientes_por_vendedor.setdefault(row.vendedor, {})[row.cliente] = {
-            "primera_compra": row.primera_compra,
-            "ultima_compra": row.ultima_compra,
+            "primera_compra": como_date(row.primera_compra),
+            "ultima_compra": como_date(row.ultima_compra),
         }
 
     activos_rows = (
         db.session.query(documentos.c.vendedor, documentos.c.cliente)
-        .filter(documentos.c.fecha.between(desde, hoy))
+        .filter(documentos.c.fecha.between(desde, hasta))
         .distinct()
         .all()
     )
     activos_por_vendedor: dict[str, set[str]] = {}
     for vendedor, cliente in activos_rows:
         activos_por_vendedor.setdefault(vendedor, set()).add(cliente)
-
-    desde_anterior = desde - timedelta(days=30)
-    hasta_anterior = desde - timedelta(days=1)
 
     def agrupar_ventas_por_cliente(inicio, fin):
         return (
@@ -1530,7 +1573,7 @@ def api_dashboard_comercial_seguimiento():
             )
         return resultado
 
-    plata_actual_por_cliente = mapear_ventas(agrupar_ventas_por_cliente(desde, hoy))
+    plata_actual_por_cliente = mapear_ventas(agrupar_ventas_por_cliente(desde, hasta))
     plata_anterior_por_cliente = mapear_ventas(
         agrupar_ventas_por_cliente(desde_anterior, hasta_anterior)
     )
@@ -1546,7 +1589,9 @@ def api_dashboard_comercial_seguimiento():
     )
     ultima_compra_anterior: dict[str, dict[str, date]] = {}
     for row in compras_previas_rows:
-        ultima_compra_anterior.setdefault(row.vendedor, {})[row.cliente] = row.ultima_compra
+        ultima_compra_anterior.setdefault(row.vendedor, {})[row.cliente] = como_date(
+            row.ultima_compra
+        )
 
     productos_activos_rows = (
         db.session.query(
@@ -1557,7 +1602,7 @@ def api_dashboard_comercial_seguimiento():
             ).label("productos"),
         )
         .filter(*filtros_documento)
-        .filter(StgSabiogoVentas.fecha.between(desde, hoy))
+        .filter(StgSabiogoVentas.fecha.between(desde, hasta))
         .group_by(vendedor_expr, cliente_expr)
         .all()
     )
@@ -1567,23 +1612,14 @@ def api_dashboard_comercial_seguimiento():
             row.productos or 0
         )
 
-    producto_expr = func.coalesce(
-        func.nullif(func.trim(StgSabiogoVentas.producto), ""), "Sin producto"
-    )
-    filtros_productos = [
-        StgSabiogoVentas.estado == "procesado",
-        func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
-        vendedor_expr.isnot(None),
-        vendedor_expr != "",
-        StgSabiogoVentas.fecha.between(desde, hoy),
-    ]
     productos_rows = (
         db.session.query(
             vendedor_expr.label("vendedor"),
             producto_expr.label("producto"),
             func.sum(StgSabiogoVentas.subtot).label("plata"),
         )
-        .filter(*filtros_productos)
+        .filter(*filtros_documento)
+        .filter(StgSabiogoVentas.fecha.between(desde, hasta))
         .group_by(vendedor_expr, producto_expr)
         .all()
     )
@@ -1600,7 +1636,7 @@ def api_dashboard_comercial_seguimiento():
         nuevos_nombres = [
             nombre
             for nombre in nombres
-            if desde <= clientes[nombre]["primera_compra"] <= hoy
+            if desde <= clientes[nombre]["primera_compra"] <= hasta
         ]
 
         importes = plata_por_producto.get(vendedor, {})
@@ -1632,7 +1668,7 @@ def api_dashboard_comercial_seguimiento():
             {
                 "nombre": nombre,
                 "fecha": clientes[nombre]["ultima_compra"],
-                "dias": (hoy - clientes[nombre]["ultima_compra"]).days,
+                "dias": (hasta - clientes[nombre]["ultima_compra"]).days,
             }
             for nombre in nombres
         ]
@@ -1646,7 +1682,7 @@ def api_dashboard_comercial_seguimiento():
         caidos = [
             {
                 "nombre": nombre,
-                "dias": (hoy - fecha).days,
+                "dias": (hasta - fecha).days,
                 "plata_anterior": float(ventas_anteriores.get(nombre, 0.0)),
             }
             for nombre, fecha in ultima_anterior.items()
@@ -1711,7 +1747,7 @@ def api_dashboard_comercial_seguimiento():
     return jsonify(
         {
             "desde": desde.isoformat(),
-            "hasta": hoy.isoformat(),
+            "hasta": hasta.isoformat(),
             "vendedores": vendedores,
         }
     )
