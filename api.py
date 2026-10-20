@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from flask import Blueprint, jsonify, request
 from sqlalchemy import func
@@ -1426,3 +1427,159 @@ def api_dashboard_comercial_mix():
         "top_productos_evo":   top3_prods,
         "clientes_disponibles": [r.cliente for r in clientes_rows],
     })
+
+
+@api.get("/dashboard-comercial/seguimiento")
+def api_dashboard_comercial_seguimiento():
+    """Seguimiento por vendedor de los clientes con pedidos PRE procesados."""
+    from models.sabiogo.staging import StgSabiogoVentas
+
+    hoy = datetime.now(ZoneInfo("America/Argentina/Tucuman")).date()
+    desde = hoy - timedelta(days=29)
+    vendedor_expr = func.trim(StgSabiogoVentas.vendedor)
+    cliente_expr = func.trim(StgSabiogoVentas.cliente)
+    comprobante_expr = func.trim(StgSabiogoVentas.nro_comprob)
+    filtros_documento = [
+        StgSabiogoVentas.estado == "procesado",
+        func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
+        vendedor_expr.isnot(None),
+        vendedor_expr != "",
+        cliente_expr.isnot(None),
+        cliente_expr != "",
+        comprobante_expr.isnot(None),
+        comprobante_expr != "",
+    ]
+
+    # Una fila lógica por comprobante, aunque tenga varias líneas de productos.
+    documentos = (
+        db.session.query(
+            vendedor_expr.label("vendedor"),
+            cliente_expr.label("cliente"),
+            comprobante_expr.label("nro_comprob"),
+            func.min(StgSabiogoVentas.fecha).label("fecha"),
+        )
+        .filter(*filtros_documento)
+        .group_by(vendedor_expr, cliente_expr, comprobante_expr)
+        .subquery("pre_documentos_seguimiento")
+    )
+
+    clientes_rows = (
+        db.session.query(
+            documentos.c.vendedor,
+            documentos.c.cliente,
+            func.min(documentos.c.fecha).label("primera_compra"),
+            func.max(documentos.c.fecha).label("ultima_compra"),
+        )
+        .group_by(documentos.c.vendedor, documentos.c.cliente)
+        .all()
+    )
+    clientes_por_vendedor: dict[str, dict[str, dict]] = {}
+    for row in clientes_rows:
+        clientes_por_vendedor.setdefault(row.vendedor, {})[row.cliente] = {
+            "primera_compra": row.primera_compra,
+            "ultima_compra": row.ultima_compra,
+        }
+
+    activos_rows = (
+        db.session.query(documentos.c.vendedor, documentos.c.cliente)
+        .filter(documentos.c.fecha.between(desde, hoy))
+        .distinct()
+        .all()
+    )
+    activos_por_vendedor: dict[str, set[str]] = {}
+    for vendedor, cliente in activos_rows:
+        activos_por_vendedor.setdefault(vendedor, set()).add(cliente)
+
+    producto_expr = func.coalesce(
+        func.nullif(func.trim(StgSabiogoVentas.producto), ""), "Sin producto"
+    )
+    filtros_productos = [
+        StgSabiogoVentas.estado == "procesado",
+        func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
+        vendedor_expr.isnot(None),
+        vendedor_expr != "",
+        StgSabiogoVentas.fecha.between(desde, hoy),
+    ]
+    productos_rows = (
+        db.session.query(
+            vendedor_expr.label("vendedor"),
+            producto_expr.label("producto"),
+            func.sum(StgSabiogoVentas.subtot).label("plata"),
+        )
+        .filter(*filtros_productos)
+        .group_by(vendedor_expr, producto_expr)
+        .all()
+    )
+    plata_por_producto: dict[str, dict[str, float]] = {}
+    for row in productos_rows:
+        plata_por_producto.setdefault(row.vendedor, {})[row.producto] = float(
+            _to_float(row.plata)
+        )
+
+    vendedores = []
+    for vendedor in sorted(clientes_por_vendedor, key=str.casefold):
+        clientes = clientes_por_vendedor[vendedor]
+        nombres = sorted(clientes, key=str.casefold)
+        nuevos_nombres = [
+            nombre
+            for nombre in nombres
+            if desde <= clientes[nombre]["primera_compra"] <= hoy
+        ]
+
+        importes = plata_por_producto.get(vendedor, {})
+        total_plata = sum(importes.values())
+        top_productos = sorted(
+            importes.items(), key=lambda item: (-item[1], item[0].casefold())
+        )
+        productos = [
+            {
+                "nombre": nombre,
+                "pct": round(plata / total_plata * 100, 1) if total_plata else 0.0,
+                "plata": plata,
+            }
+            for nombre, plata in top_productos[:8]
+        ]
+        resto = top_productos[8:]
+        if resto:
+            plata_otros = sum(plata for _, plata in resto)
+            productos.append(
+                {
+                    "nombre": "Otros",
+                    "pct": round(plata_otros / total_plata * 100, 1) if total_plata else 0.0,
+                    "plata": float(plata_otros),
+                }
+            )
+            productos.sort(key=lambda item: (-item["plata"], item["nombre"].casefold()))
+
+        ultimas = [
+            {
+                "nombre": nombre,
+                "fecha": clientes[nombre]["ultima_compra"],
+                "dias": (hoy - clientes[nombre]["ultima_compra"]).days,
+            }
+            for nombre in nombres
+        ]
+        ultimas.sort(key=lambda item: (-item["dias"], item["nombre"].casefold()))
+
+        vendedores.append(
+            {
+                "nombre": vendedor,
+                "total": len(nombres),
+                "activos": len(activos_por_vendedor.get(vendedor, set())),
+                "nuevos": [{"nombre": nombre} for nombre in nuevos_nombres],
+                "lista": [{"nombre": nombre} for nombre in nombres],
+                "productos": productos,
+                "ultimas": [
+                    {**item, "fecha": item["fecha"].isoformat()}
+                    for item in ultimas[:12]
+                ],
+            }
+        )
+
+    return jsonify(
+        {
+            "desde": desde.isoformat(),
+            "hasta": hoy.isoformat(),
+            "vendedores": vendedores,
+        }
+    )
