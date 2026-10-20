@@ -481,6 +481,66 @@ def test_dashboard_comercial_seguimiento_oportunidades(client, app):
     assert "Cliente Solo FAC" not in {item["nombre"] for item in vendedor["lista"]}
 
 
+def test_dashboard_comercial_seguimiento_sin_nro_comprob_y_fechas(client, app):
+    with app.app_context():
+        ventas = [
+            (date(2024, 1, 5), "Cliente Existente", "A-1", 10.0),
+            (date(2024, 1, 15), "Cliente Existente", "A-2", 20.0),
+            (date(2024, 1, 4), "Cliente Antiguo", "B-1", 30.0),
+            (date(2023, 12, 15), "Cliente Fuera Ventana", "D-1", 15.0),
+            (date(2024, 1, 19), "Cliente Nuevo", "C-1", 40.0),
+        ]
+        for fecha, cliente, codigo, subtot in ventas:
+            db.session.add(
+                StgSabiogoVentas(
+                    fecha=fecha,
+                    origen="CARNES",
+                    codigo=codigo,
+                    producto="Producto demo",
+                    cliente=cliente,
+                    vendedor="Vendedor demo",
+                    subtot=subtot,
+                    comprobante="PRE",
+                    nro_comprob=None,
+                    estado="procesado",
+                )
+            )
+        db.session.commit()
+
+    resp = client.get(
+        "/api/dashboard-comercial/seguimiento?fecha_desde=2024-01-10"
+        "&fecha_hasta=2024-01-20&empresa=CARNES&vendedor=Vendedor%20demo"
+        "&producto=Producto%20demo"
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["desde"] == "2024-01-10"
+    assert data["hasta"] == "2024-01-20"
+    assert len(data["vendedores"]) == 1
+    vendedor = data["vendedores"][0]
+    assert vendedor["total"] == 4
+    assert vendedor["activos"] == 2
+    assert [cliente["nombre"] for cliente in vendedor["nuevos"]] == ["Cliente Nuevo"]
+    assert vendedor["caidos"] == [
+        {"nombre": "Cliente Antiguo", "dias": 16, "plata_anterior": 30.0}
+    ]
+
+    filtrado_cliente = client.get(
+        "/api/dashboard-comercial/seguimiento?fecha_desde=2024-01-10"
+        "&fecha_hasta=2024-01-20&empresa=CARNES&vendedor=Vendedor%20demo"
+        "&cliente=Cliente%20Nuevo&producto=Producto%20demo"
+    ).get_json()["vendedores"]
+    assert len(filtrado_cliente) == 1
+    assert filtrado_cliente[0]["lista"] == [{"nombre": "Cliente Nuevo"}]
+
+
+def test_dashboard_comercial_seguimiento_sin_clientes_es_vacio(client):
+    resp = client.get("/api/dashboard-comercial/seguimiento")
+
+    assert resp.status_code == 200
+    assert resp.get_json()["vendedores"] == []
+
+
 def test_panel_ejecutivo_v2_ok(client, seed_minimal):
     resp = client.get("/api/panel-ejecutivo-v2?period=ytd")
     assert resp.status_code == 200
