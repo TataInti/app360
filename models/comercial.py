@@ -154,3 +154,69 @@ class ComercialVendedorAlias(db.Model):
             name="uq_comercial_vendedor_aliases_nombre_normalizado",
         ),
     )
+
+
+class ComercialObjetivo(db.Model):
+    """Meta comercial mensual, independiente de los objetivos de RRHH."""
+
+    __tablename__ = "comercial_objetivos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    vendedor_id = db.Column(
+        db.Integer,
+        db.ForeignKey("comercial_vendedores.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    empresa = db.Column(db.String(10), nullable=False)
+    mes = db.Column(db.String(7), nullable=False)
+    medida = db.Column(db.String(10), nullable=False)
+    meta = db.Column(db.Numeric(18, 4), nullable=False)
+    descripcion = db.Column(db.Text, nullable=True)
+    creado_en = db.Column(db.DateTime, nullable=False, default=now_local)
+    actualizado_en = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=now_local,
+        onupdate=now_local,
+    )
+    creado_por_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    actualizado_por_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    vendedor = db.relationship("ComercialVendedor")
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "vendedor_id",
+            "empresa",
+            "mes",
+            "medida",
+            name="uq_comercial_objetivo_vendedor_empresa_mes_medida",
+        ),
+        db.CheckConstraint(
+            "empresa IN ('CARNES', 'LACTEOS')",
+            name="ck_comercial_objetivo_empresa",
+        ),
+        db.CheckConstraint(
+            "medida IN ('importe', 'cajas', 'kilos')",
+            name="ck_comercial_objetivo_medida",
+        ),
+        db.CheckConstraint("meta > 0", name="ck_comercial_objetivo_meta_positiva"),
+        db.CheckConstraint(
+            "length(mes) = 7 AND substr(mes, 5, 1) = '-'",
+            name="ck_comercial_objetivo_mes_formato",
+        ),
+        db.Index(
+            "ix_comercial_objetivos_mes_empresa_medida",
+            "mes",
+            "empresa",
+            "medida",
+        ),
+    )
