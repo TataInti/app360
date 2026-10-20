@@ -116,6 +116,35 @@
             </div>
         </div>
     </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-1"><i class="bi bi-link-45deg"></i> Objetivos anteriores sin vincular</h5>
+                    <p class="text-muted small mb-0">Los objetivos originales se conservan. Seleccioná explícitamente vendedor comercial, empresa y medida; no se deducen del texto.</p>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Empleado</th>
+                                    <th>Periodo</th>
+                                    <th>Descripción</th>
+                                    <th>Meta</th>
+                                    <th>Vinculación comercial</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaObjetivosPendientes">
+                                <tr><td colspan="5" class="text-center text-muted">Cargando...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Modal Nuevo Objetivo -->
@@ -283,6 +312,11 @@ function alert(message) {
     notify(content, variant, { title });
 }
 
+function escapeHtml(value) {
+    const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return String(value ?? '').replace(/[&<>"']/g, character => entities[character]);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const hoy = new Date();
     const periodo = hoy.toISOString().slice(0, 7);
@@ -291,6 +325,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     cargarVendedores();
     cargarDatos();
+    cargarObjetivosSinVincular();
 });
 
 async function cargarVendedores() {
@@ -303,6 +338,160 @@ async function cargarVendedores() {
         });
     } catch(e) {
         console.error('Error cargando vendedores:', e);
+    }
+}
+
+async function cargarObjetivosSinVincular() {
+    const tbody = document.getElementById('tablaObjetivosPendientes');
+    if (!tbody) return;
+
+    try {
+        const response = await fetch('/api/objetivos-comerciales/pendientes');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'No se pudieron cargar los objetivos pendientes');
+
+        const pendientes = data.pendientes || [];
+        const vendedores = data.vendedores_comerciales || [];
+        if (!pendientes.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay objetivos anteriores sin vincular.</td></tr>';
+            return;
+        }
+
+        const opcionesVendedores = vendedores.map(v =>
+            `<option value="${escapeHtml(v.id)}">${escapeHtml(v.nombre_visible)}</option>`
+        ).join('');
+
+        tbody.innerHTML = pendientes.map(goal => {
+            const goalId = escapeHtml(goal.goal_id);
+            const mesSugerido = goal.mes_sugerido || '';
+            const mesControl = mesSugerido
+                ? `<div class="small text-muted">Mes del periodo: <strong>${escapeHtml(mesSugerido)}</strong></div>`
+                : `<label class="form-label small mb-1">Mes *</label><input type="month" class="form-control form-control-sm" data-mes required aria-label="Mes comercial para ${escapeHtml(goal.empleado)}">`;
+            const meta = Number(goal.meta);
+            const metaTexto = Number.isFinite(meta) ? meta.toLocaleString('es-AR') : escapeHtml(goal.meta);
+
+            return `
+                <tr data-goal-id="${goalId}" data-mes-sugerido="${escapeHtml(mesSugerido)}">
+                    <td>${escapeHtml(goal.empleado || 'Sin empleado')}</td>
+                    <td>${escapeHtml(goal.periodo || 'Sin periodo')}</td>
+                    <td>${escapeHtml(goal.descripcion || '')}</td>
+                    <td>${metaTexto}</td>
+                    <td>
+                        <form data-conversion-form>
+                        <div class="row g-2">
+                            <div class="col-lg-4">
+                                <label class="form-label small mb-1">Vendedor comercial *</label>
+                                <select class="form-select form-select-sm" data-vendedor required aria-label="Vendedor comercial para ${escapeHtml(goal.empleado)}">
+                                    <option value="">Seleccionar...</option>${opcionesVendedores}
+                                </select>
+                            </div>
+                            <div class="col-lg-3">
+                                <label class="form-label small mb-1">Empresa *</label>
+                                <select class="form-select form-select-sm" data-empresa required aria-label="Empresa para ${escapeHtml(goal.empleado)}">
+                                    <option value="">Seleccionar...</option>
+                                    <option value="CARNES">Carnes</option>
+                                    <option value="LACTEOS">Lácteos</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-2">
+                                <label class="form-label small mb-1">Medida *</label>
+                                <select class="form-select form-select-sm" data-medida required aria-label="Medida para ${escapeHtml(goal.empleado)}">
+                                    <option value="">Seleccionar...</option>
+                                    <option value="importe">Importe</option>
+                                    <option value="cajas">Cajas</option>
+                                    <option value="kilos">Kilos</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-3">
+                                ${mesControl}
+                                <button type="submit" class="btn btn-sm btn-primary mt-2" data-convertir-goal="${goalId}">
+                                    <i class="bi bi-link-45deg"></i> Convertir
+                                </button>
+                            </div>
+                        </div>
+                        </form>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Error cargando objetivos anteriores pendientes:', error);
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">No se pudieron cargar los objetivos pendientes. Recargá para reintentar.</td></tr>';
+    }
+}
+
+document.getElementById('tablaObjetivosPendientes')?.addEventListener('submit', function(event) {
+    const form = event.target.closest?.('[data-conversion-form]');
+    if (!form) return;
+    event.preventDefault();
+    convertirObjetivoAnterior(form);
+});
+
+async function convertirObjetivoAnterior(form) {
+    const row = form.closest('tr');
+    const button = form.querySelector('[data-convertir-goal]');
+    if (!row || !button) return;
+    const vendedor = row.querySelector('[data-vendedor]');
+    const empresa = row.querySelector('[data-empresa]');
+    const medida = row.querySelector('[data-medida]');
+    const mesControl = row.querySelector('[data-mes]');
+
+    for (const control of [vendedor, empresa, medida]) {
+        if (!control || !control.value) {
+            control?.reportValidity();
+            notify('Elegí vendedor comercial, empresa y medida antes de convertir.', 'warning');
+            return;
+        }
+    }
+
+    const mesSugerido = row.dataset.mesSugerido || '';
+    if (!mesSugerido && (!mesControl || !mesControl.value)) {
+        mesControl?.reportValidity();
+        notify('Este periodo no es YYYY-MM. Indicá el mes antes de convertir.', 'warning');
+        return;
+    }
+
+    const payload = {
+        goal_id: Number(row.dataset.goalId),
+        vendedor_id: Number(vendedor.value),
+        empresa: empresa.value,
+        medida: medida.value,
+    };
+    if (!mesSugerido) payload.mes = mesControl.value;
+
+    const textoOriginal = button.innerHTML;
+    button.disabled = true;
+    button.textContent = 'Convirtiendo...';
+    try {
+        const response = await fetch('/api/objetivos-comerciales/convertir', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken || '',
+            },
+            body: JSON.stringify(payload),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 409) {
+            notify(data.error || 'Ya existe una conversión o una meta para esa combinación.', 'warning', { title: 'No se pudo convertir' });
+            await cargarObjetivosSinVincular();
+            return;
+        }
+        if (!response.ok) {
+            notify(data.error || 'No se pudo convertir el objetivo anterior.', 'danger', { title: 'No se pudo convertir' });
+            return;
+        }
+
+        notify('Objetivo anterior vinculado correctamente.', 'success', { title: 'Objetivo convertido' });
+        await cargarObjetivosSinVincular();
+    } catch (error) {
+        console.error('Error convirtiendo objetivo anterior:', error);
+        notify('No se pudo conectar para convertir el objetivo.', 'danger', { title: 'Error de conexión' });
+    } finally {
+        if (button.isConnected) {
+            button.disabled = false;
+            button.innerHTML = textoOriginal;
+        }
     }
 }
 

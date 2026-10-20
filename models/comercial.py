@@ -220,3 +220,30 @@ class ComercialObjetivo(db.Model):
             "medida",
         ),
     )
+
+
+class ComercialObjetivoVinculo(db.Model):
+    """Vínculo explícito entre un Goal histórico y su objetivo comercial."""
+
+    __tablename__ = "comercial_objetivo_vinculos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(
+        db.Integer,
+        db.ForeignKey("goals.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    comercial_objetivo_id = db.Column(
+        db.Integer,
+        db.ForeignKey("comercial_objetivos.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    creado_en = db.Column(db.DateTime, nullable=False, default=now_local)
+
+    __table_args__ = (
+        db.UniqueConstraint("goal_id", name="uq_comercial_objetivo_vinculo_goal"),
+        db.UniqueConstraint(
+            "comercial_objetivo_id",
+            name="uq_comercial_objetivo_vinculo_objetivo",
+        ),
+    )

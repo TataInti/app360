@@ -10,8 +10,14 @@ from sqlalchemy import create_engine, inspect
 from app import create_app
 from config import Config
 from models import db
-from models.comercial import ComercialObjetivo, ComercialVendedor
+from models.comercial import (
+    ComercialObjetivo,
+    ComercialObjetivoVinculo,
+    ComercialVendedor,
+)
 from models.core.user import User
+from models.hr.employee import Employee
+from models.hr.goal import Goal
 from models.sabiogo.staging import StgSabiogoVentas
 from models.time_utils import today_local_date
 from services.vendedores_comerciales import seed_vendedores_comerciales
@@ -61,6 +67,24 @@ def _post_meta(client, vendedor_id, empresa, mes, medida, meta, **extra):
     }
     data.update(extra)
     return client.post("/api/objetivos-comerciales", json=data)
+
+
+def _crear_goal(app, periodo="2025-06", meta=250.0, descripcion="Meta histórica"):
+    with app.app_context():
+        empleado = Employee(first_name="Ana", last_name="Legacy")
+        db.session.add(empleado)
+        db.session.flush()
+        goal = Goal(
+            employee_id=empleado.id,
+            description=descripcion,
+            period=periodo,
+            target_value=meta,
+            current_value=37.5,
+            status="en progreso",
+        )
+        db.session.add(goal)
+        db.session.commit()
+        return goal.id, empleado.full_name
 
 
 def _get_objetivo(client, mes, empresa, medida, vendedor_id, **extra):
@@ -316,3 +340,179 @@ def test_migracion_objetivos_crea_solo_esquema_en_sqlite_desechable():
             ).scalar_one() == 0
     finally:
         engine.dispose()
+
+
+def test_goal_se_convierte_solo_con_vendedor_empresa_y_medida_y_no_cambia(app, client):
+    goal_id, nombre_empleado = _crear_goal(
+        app,
+        periodo="2025-06",
+        meta=250,
+        descripcion="Meta anterior premium",
+    )
+    vendedor_id = _vendedor_id(app, "Benjamín Kalja")
+    completo = {
+        "goal_id": goal_id,
+        "vendedor_id": vendedor_id,
+        "empresa": "CARNES",
+        "medida": "importe",
+    }
+    pendiente_data = client.get("/api/objetivos-comerciales/pendientes").get_json()
+    pendiente = next(
+        item for item in pendiente_data["pendientes"] if item["goal_id"] == goal_id
+    )
+    assert pendiente["empleado"] == nombre_empleado
+    assert pendiente["periodo"] == "2025-06"
+    assert pendiente["mes_sugerido"] == "2025-06"
+    assert pendiente["descripcion"] == "Meta anterior premium"
+    assert pendiente["meta"] == 250.0
+
+    for campo in ("vendedor_id", "empresa", "medida"):
+        incompleto = {key: value for key, value in completo.items() if key != campo}
+        assert client.post(
+            "/api/objetivos-comerciales/convertir",
+            json=incompleto,
+        ).status_code == 400
+
+    with app.app_context():
+        assert ComercialObjetivo.query.count() == 0
+        assert ComercialObjetivoVinculo.query.count() == 0
+
+    respuesta = client.post("/api/objetivos-comerciales/convertir", json=completo)
+    assert respuesta.status_code == 201
+    datos = respuesta.get_json()
+    assert datos["vinculo"]["goal_id"] == goal_id
+    assert datos["objetivo"]["vendedor"] == "Benjamín Kalja"
+    assert datos["objetivo"]["empresa"] == "CARNES"
+    assert datos["objetivo"]["mes"] == "2025-06"
+    assert datos["objetivo"]["medida"] == "importe"
+    assert datos["objetivo"]["meta"] == 250.0
+    assert datos["objetivo"]["descripcion"] == "Meta anterior premium"
+
+    with app.app_context():
+        original = db.session.get(Goal, goal_id)
+        assert original.employee.full_name == nombre_empleado
+        assert original.period == "2025-06"
+        assert original.description == "Meta anterior premium"
+        assert original.target_value == 250
+        assert original.current_value == 37.5
+        assert original.status == "en progreso"
+        assert ComercialObjetivoVinculo.query.filter_by(goal_id=goal_id).count() == 1
+
+    pendientes = client.get("/api/objetivos-comerciales/pendientes").get_json()
+    assert goal_id not in {item["goal_id"] for item in pendientes["pendientes"]}
+    assert {item["nombre_visible"] for item in pendientes["vendedores_comerciales"]} >= {
+        "Benjamín Kalja",
+        "Walter Medina",
+    }
+
+
+def test_convertir_el_mismo_goal_dos_veces_responde_409(app, client):
+    goal_id, _ = _crear_goal(app, periodo="2025-07")
+    payload = {
+        "goal_id": goal_id,
+        "vendedor_id": _vendedor_id(app, "Walter Medina"),
+        "empresa": "LACTEOS",
+        "medida": "kilos",
+    }
+
+    assert client.post("/api/objetivos-comerciales/convertir", json=payload).status_code == 201
+    segunda = client.post("/api/objetivos-comerciales/convertir", json=payload)
+    assert segunda.status_code == 409
+    assert "convertido" in segunda.get_json()["error"].lower()
+    with app.app_context():
+        assert ComercialObjetivoVinculo.query.filter_by(goal_id=goal_id).count() == 1
+        assert ComercialObjetivo.query.count() == 1
+
+
+def test_meta_existente_no_se_duplica_y_goal_sigue_pendiente(app, client):
+    vendedor_id = _vendedor_id(app, "Benjamín Kalja")
+    assert _post_meta(client, vendedor_id, "CARNES", "2025-08", "cajas", 80).status_code == 201
+    goal_id, _ = _crear_goal(app, periodo="2025-08", meta=80, descripcion="Meta original")
+    payload = {
+        "goal_id": goal_id,
+        "vendedor_id": vendedor_id,
+        "empresa": "CARNES",
+        "medida": "cajas",
+    }
+
+    respuesta = client.post("/api/objetivos-comerciales/convertir", json=payload)
+    assert respuesta.status_code == 409
+    assert "meta" in respuesta.get_json()["error"].lower()
+    assert "combinación" in respuesta.get_json()["error"].lower()
+
+    with app.app_context():
+        assert ComercialObjetivo.query.filter_by(
+            vendedor_id=vendedor_id,
+            empresa="CARNES",
+            mes="2025-08",
+            medida="cajas",
+        ).count() == 1
+        assert ComercialObjetivoVinculo.query.filter_by(goal_id=goal_id).count() == 0
+        original = db.session.get(Goal, goal_id)
+        assert original.current_value == 37.5
+        assert original.status == "en progreso"
+    pendientes = client.get("/api/objetivos-comerciales/pendientes").get_json()["pendientes"]
+    assert goal_id in {item["goal_id"] for item in pendientes}
+
+
+def test_periodo_legacy_no_yyyymm_requiere_mes_explicito(app, client):
+    goal_id, _ = _crear_goal(app, periodo="2025-Q4")
+    payload = {
+        "goal_id": goal_id,
+        "vendedor_id": _vendedor_id(app, "Benjamín Kalja"),
+        "empresa": "LACTEOS",
+        "medida": "importe",
+    }
+    assert client.post("/api/objetivos-comerciales/convertir", json=payload).status_code == 400
+    assert ComercialObjetivoVinculo.query.filter_by(goal_id=goal_id).count() == 0
+
+    respuesta = client.post(
+        "/api/objetivos-comerciales/convertir",
+        json={**payload, "mes": "2025-11"},
+    )
+    assert respuesta.status_code == 201
+    assert respuesta.get_json()["objetivo"]["mes"] == "2025-11"
+
+
+def test_migracion_vinculos_crea_esquema_vacio_en_sqlite_desechable():
+    migration_path = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "versions"
+        / "20261020_objetivo_vinculos.py"
+    )
+    spec = importlib.util.spec_from_file_location("objetivo_vinculos_migration", migration_path)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+
+    engine = create_engine("sqlite:///:memory:")
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("CREATE TABLE goals (id INTEGER PRIMARY KEY)")
+            connection.exec_driver_sql(
+                "CREATE TABLE comercial_objetivos (id INTEGER PRIMARY KEY)"
+            )
+            context = MigrationContext.configure(connection)
+            with Operations.context(context):
+                migration.upgrade()
+
+            constraints = inspect(connection).get_unique_constraints(
+                "comercial_objetivo_vinculos"
+            )
+            assert {constraint["name"] for constraint in constraints} == {
+                "uq_comercial_objetivo_vinculo_goal",
+                "uq_comercial_objetivo_vinculo_objetivo",
+            }
+            assert connection.exec_driver_sql(
+                "SELECT COUNT(*) FROM comercial_objetivo_vinculos"
+            ).scalar_one() == 0
+    finally:
+        engine.dispose()
+
+
+def test_pagina_objetivos_muestra_seccion_de_vinculacion(client, app):
+    app.jinja_env.globals["csrf_token"] = lambda: "test-csrf"
+    response = client.get("/comercial/objetivos")
+    assert response.status_code == 200
+    assert "Objetivos anteriores sin vincular" in response.get_data(as_text=True)

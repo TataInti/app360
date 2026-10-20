@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from models import (
     Client,
     ComercialObjetivo,
+    ComercialObjetivoVinculo,
     ComercialVendedor,
     Comision,
     ComisionDetalle,
@@ -823,3 +824,199 @@ def objetivos_comerciales_editar(objetivo_id):
 
     item = _objetivo_comercial_por_id(objetivo.id, today_local_date())
     return jsonify({"objetivo": item})
+
+
+def _mes_periodo_goal(periodo, validar_mes):
+    try:
+        validar_mes(periodo)
+    except ValueError:
+        return None
+    return periodo
+
+
+@comercial_bp.route("/api/objetivos-comerciales/pendientes", methods=["GET"])
+def objetivos_comerciales_pendientes():
+    from services.objetivos_comerciales import validar_mes
+
+    pendientes = (
+        db.session.query(Goal)
+        .outerjoin(
+            ComercialObjetivoVinculo,
+            ComercialObjetivoVinculo.goal_id == Goal.id,
+        )
+        .filter(ComercialObjetivoVinculo.id.is_(None))
+        .order_by(Goal.period.desc(), Goal.id.asc())
+        .all()
+    )
+    vendedores = ComercialVendedor.query.order_by(
+        ComercialVendedor.nombre_visible.asc()
+    ).all()
+    return jsonify(
+        {
+            "pendientes": [
+                {
+                    "goal_id": objetivo.id,
+                    "empleado": (
+                        objetivo.employee.full_name if objetivo.employee else "Sin empleado"
+                    ),
+                    "periodo": objetivo.period,
+                    "mes_sugerido": _mes_periodo_goal(objetivo.period, validar_mes),
+                    "descripcion": objetivo.description,
+                    "meta": float(objetivo.target_value),
+                }
+                for objetivo in pendientes
+            ],
+            "vendedores_comerciales": [
+                {"id": vendedor.id, "nombre_visible": vendedor.nombre_visible}
+                for vendedor in vendedores
+            ],
+        }
+    )
+
+
+@comercial_bp.route("/api/objetivos-comerciales/convertir", methods=["POST"])
+def objetivos_comerciales_convertir():
+    from models.time_utils import now_local, today_local_date
+    from services.objetivos_comerciales import decimal_positivo, validar_mes
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Se esperaba un objeto JSON"}), 400
+    permitidos = {"goal_id", "vendedor_id", "empresa", "medida", "mes"}
+    if set(data) - permitidos:
+        return jsonify({"error": "Solo se aceptan goal_id, vendedor_id, empresa, medida y mes"}), 400
+    requeridos = {"goal_id", "vendedor_id", "empresa", "medida"}
+    faltantes = requeridos - set(data)
+    if faltantes:
+        return jsonify({"error": f"Campos requeridos para convertir: {', '.join(sorted(faltantes))}"}), 400
+
+    def entero_id(valor):
+        if isinstance(valor, bool):
+            return None
+        if isinstance(valor, int):
+            return valor if valor > 0 else None
+        if isinstance(valor, str) and valor.isdigit():
+            convertido = int(valor)
+            return convertido if convertido > 0 else None
+        return None
+
+    goal_id = entero_id(data["goal_id"])
+    vendedor_id = entero_id(data["vendedor_id"])
+    if goal_id is None or vendedor_id is None:
+        return jsonify({"error": "goal_id y vendedor_id deben ser enteros positivos"}), 400
+
+    goal = db.session.get(Goal, goal_id)
+    if goal is None:
+        return jsonify({"error": "Objetivo anterior no encontrado"}), 404
+    if ComercialObjetivoVinculo.query.filter_by(goal_id=goal_id).first() is not None:
+        return jsonify({"error": "Este objetivo anterior ya fue convertido"}), 409
+
+    empresa_raw = data["empresa"]
+    medida_raw = data["medida"]
+    if not isinstance(empresa_raw, str) or not isinstance(medida_raw, str):
+        return jsonify({"error": "empresa y medida son obligatorias"}), 400
+    empresa = empresa_raw.strip().upper()
+    medida = medida_raw.strip().lower()
+    if empresa not in ("CARNES", "LACTEOS"):
+        return jsonify({"error": "empresa debe ser CARNES o LACTEOS"}), 400
+    if medida not in ("importe", "cajas", "kilos"):
+        return jsonify({"error": "medida debe ser importe, cajas o kilos"}), 400
+
+    mes_periodo = _mes_periodo_goal(goal.period, validar_mes)
+    if mes_periodo is not None:
+        mes = mes_periodo
+        if "mes" in data:
+            try:
+                validar_mes(data["mes"])
+            except ValueError as exc:
+                return jsonify({"error": str(exc)}), 400
+            if data["mes"] != mes:
+                return jsonify({"error": "El mes debe coincidir con el período YYYY-MM del objetivo"}), 400
+    else:
+        if "mes" not in data:
+            return jsonify({"error": "mes es requerido porque el período del objetivo no es YYYY-MM"}), 400
+        mes = data["mes"]
+        try:
+            validar_mes(mes)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+    vendedor = db.session.get(ComercialVendedor, vendedor_id)
+    if vendedor is None:
+        return jsonify({"error": "Vendedor comercial no encontrado"}), 404
+    usuario_id = _usuario_comercial_actual_id()
+    if usuario_id is None:
+        return jsonify({"error": "Sesión de usuario inválida"}), 401
+    try:
+        meta = decimal_positivo(goal.target_value)
+    except ValueError as exc:
+        return jsonify({"error": f"La meta del objetivo anterior no es válida: {exc}"}), 400
+
+    duplicada = ComercialObjetivo.query.filter_by(
+        vendedor_id=vendedor_id,
+        empresa=empresa,
+        mes=mes,
+        medida=medida,
+    ).first()
+    if duplicada is not None:
+        return jsonify(
+            {
+                "error": (
+                    "Ya hay una meta para esa combinación de vendedor, empresa, mes y medida."
+                )
+            }
+        ), 409
+
+    ahora = now_local()
+    comercial_objetivo = ComercialObjetivo(
+        vendedor_id=vendedor_id,
+        empresa=empresa,
+        mes=mes,
+        medida=medida,
+        meta=meta,
+        descripcion=goal.description,
+        creado_en=ahora,
+        actualizado_en=ahora,
+        creado_por_id=usuario_id,
+        actualizado_por_id=usuario_id,
+    )
+    db.session.add(comercial_objetivo)
+    try:
+        db.session.flush()
+        vinculo = ComercialObjetivoVinculo(
+            goal_id=goal_id,
+            comercial_objetivo_id=comercial_objetivo.id,
+            creado_en=ahora,
+        )
+        db.session.add(vinculo)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        if ComercialObjetivoVinculo.query.filter_by(goal_id=goal_id).first() is not None:
+            return jsonify({"error": "Este objetivo anterior ya fue convertido"}), 409
+        if ComercialObjetivo.query.filter_by(
+            vendedor_id=vendedor_id,
+            empresa=empresa,
+            mes=mes,
+            medida=medida,
+        ).first() is not None:
+            return jsonify(
+                {
+                    "error": (
+                        "Ya hay una meta para esa combinación de vendedor, empresa, mes y medida."
+                    )
+                }
+            ), 409
+        return jsonify({"error": "No se pudo registrar el vínculo del objetivo"}), 409
+
+    item = _objetivo_comercial_por_id(comercial_objetivo.id, today_local_date())
+    return jsonify(
+        {
+            "mensaje": "Objetivo anterior convertido correctamente",
+            "vinculo": {
+                "goal_id": goal_id,
+                "comercial_objetivo_id": comercial_objetivo.id,
+            },
+            "objetivo": item,
+        }
+    ), 201
