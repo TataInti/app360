@@ -3,19 +3,56 @@
 {% block content %}
 <div class="container-fluid" id="panel-ventas">
 <style>
-  #panel-ventas .chart-card-v2 { background:#fff; color:#334155; }
-  #panel-ventas .chart-card-v2 h6 { color:#334155; }
-  #panel-ventas .chart-card-v2 .chart-tag { color:#334155; }
-  #panel-ventas .table-card { background:#fff; }
-  #panel-ventas .table-card-head { background:#fff; color:#334155; }
-  #panel-ventas .seguimiento-vendedor { background:#fff; border:1px solid #dbe3ea; border-radius:0.75rem; padding:1rem; margin-bottom:1rem; color:#334155; }
-  #panel-ventas .seguimiento-vendedor h3 { color:#334155; font-size:1rem; margin-bottom:0.75rem; }
-  #panel-ventas .seguimiento-dato { margin-bottom:0.9rem; }
-  #panel-ventas .seguimiento-dato h4 { color:#334155; font-size:0.82rem; font-weight:700; margin-bottom:0.35rem; }
-  #panel-ventas .seguimiento-clientes-lista { columns:2; padding-left:1.2rem; margin-bottom:0.25rem; }
-  #panel-ventas .seguimiento-compras-lista { padding-left:1.2rem; margin-bottom:0; }
-  #panel-ventas .seguimiento-productos-chart { height:270px; }
-  @media (max-width: 767px) { #panel-ventas .seguimiento-clientes-lista { columns:1; } }
+  #panel-ventas { color:#1f2937; }
+  #panel-ventas .panel-header h1 { letter-spacing:-0.02em; }
+  #panel-ventas .period-bar,
+  #panel-ventas .dim-bar {
+    background:#f6f8fb;
+    border:1px solid #e4e9f0;
+    border-radius:0.7rem;
+    padding:0.45rem 0.55rem;
+    gap:0.4rem;
+    align-items:center;
+  }
+  #panel-ventas .period-pills { background:#fff; border:1px solid #e4e9f0; border-radius:999px; padding:2px; }
+  #panel-ventas .pp { height:28px; border-radius:999px; }
+  #panel-ventas .pp.active, #panel-ventas .pp-action { background:#234e70; color:#fff; border-color:#234e70; }
+  #panel-ventas .kpi-card { border:1px solid #e4e9f0; border-left-width:3px; box-shadow:none; }
+  #panel-ventas .kpi-card.accent-green { border-left-color:#2F7D62; }
+  #panel-ventas .kpi-card.accent-blue { border-left-color:#2F5D8C; }
+  #panel-ventas .kpi-card.accent-amber { border-left-color:#C47B2D; }
+  #panel-ventas .kpi-card.accent-purple { border-left-color:#6A5A8A; }
+  #panel-ventas .chart-card-v2 { background:#fff; color:#1f2937; border-color:#e4e9f0; box-shadow:none; }
+  #panel-ventas .chart-card-v2 h6 { color:#1f2937; font-size:0.84rem; display:flex; flex-wrap:wrap; gap:0.35rem; align-items:baseline; }
+  #panel-ventas .chart-card-v2 .chart-tag { color:#64748b; font-weight:500; }
+  #panel-ventas .chart-card-v2 canvas { max-height:280px; }
+  #panel-ventas .table-card, #panel-ventas .table-card-head { background:#fff; color:#1f2937; }
+  #panel-ventas .seguimiento-vendedor { background:#fff; border:1px solid #e4e9f0; border-radius:0.75rem; padding:1rem 1rem 0.4rem; margin-bottom:1rem; }
+  #panel-ventas .seguimiento-vendedor h3 { font-size:1rem; margin:0 0 0.7rem; }
+  #panel-ventas .seg-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.5rem; margin-bottom:0.9rem; }
+  #panel-ventas .seg-metrics div { background:#f6f8fb; border-radius:0.55rem; padding:0.45rem 0.6rem; }
+  #panel-ventas .seg-metrics span { display:block; font-size:0.68rem; color:#64748b; text-transform:uppercase; letter-spacing:0.03em; }
+  #panel-ventas .seg-metrics strong { font-size:1.05rem; }
+  #panel-ventas .seguimiento-dato h4 { font-size:0.78rem; margin-bottom:0.3rem; }
+  #panel-ventas .seguimiento-clientes-lista { columns:2; padding-left:1.1rem; margin:0; }
+  #panel-ventas .seguimiento-compras-lista { padding-left:1.1rem; margin:0 0 0.6rem; }
+  #panel-ventas .seg-layout { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(280px,0.85fr); gap:0.8rem; margin-bottom:0.9rem; }
+  #panel-ventas .seg-block h4 { font-size:0.8rem; margin:0 0 0.4rem; color:#1f2937; }
+  #panel-ventas .seg-note { font-size:0.72rem; color:#64748b; margin:0 0 0.7rem; }
+  #panel-ventas .seg-table { width:100%; border-collapse:collapse; font-size:0.78rem; }
+  #panel-ventas .seg-table th { text-align:left; font-size:0.66rem; letter-spacing:0.03em; text-transform:uppercase; color:#64748b; font-weight:600; padding:0.35rem 0.4rem; border-bottom:1px solid #e4e9f0; }
+  #panel-ventas .seg-table td { padding:0.42rem 0.4rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+  #panel-ventas .seg-table .num { text-align:right; font-variant-numeric:tabular-nums; }
+  #panel-ventas .seg-table tbody tr.is-click { cursor:pointer; }
+  #panel-ventas .seg-table tbody tr.is-click:hover td { background:#f8fafc; }
+  #panel-ventas .seg-table tbody tr.is-active td { background:#eef4f8; }
+  #panel-ventas .seg-chart { height:220px; }
+  @media (max-width: 900px) {
+    #panel-ventas .seg-layout, #panel-ventas .seg-metrics { grid-template-columns:1fr; }
+  }
+  @media (max-width: 767px) {
+    #panel-ventas .seguimiento-clientes-lista, #panel-ventas .seg-metrics { columns:1; grid-template-columns:1fr 1fr; }
+  }
 </style>
 
   <!-- Header -->
@@ -58,7 +95,7 @@
     </div>
     <span class="filter-sep"></span>
     <div class="date-group">
-      <button class="pp pp-month" id="btn-este-mes" title="Desde el 1° del mes actual hasta hoy">&#x1F4C5; Este mes</button>
+      <button class="pp pp-month" id="btn-este-mes" title="Desde el 1° del mes actual hasta hoy">Este mes</button>
       <div>
         <label for="fecha-desde">Desde</label>
         <input id="fecha-desde" type="date" />
@@ -150,7 +187,7 @@
             <label style="font-size:0.68rem;color:#334155;margin:0">Hasta</label>
             <input id="a-hasta" type="date" style="font-size:0.74rem;padding:0.15rem 0.3rem;border:1px solid #e2e8f0;border-radius:0.45rem;height:26px" />
           </div>
-          <button class="pp pp-month" id="a-este-mes" title="Desde el 1° del mes actual hasta hoy">&#x1F4C5; Este mes</button>
+          <button class="pp pp-month" id="a-este-mes" title="Desde el 1° del mes actual hasta hoy">Este mes</button>
           <button class="pp pp-action" id="a-aplicar">&#x2713; Aplicar</button>
           <button class="pp" id="a-limpiar" type="button">Limpiar</button>
         </div>
@@ -218,7 +255,7 @@
           </div>
           <span class="filter-sep"></span>
           <div class="date-group">
-            <button class="pp pp-month" id="m-este-mes">&#x1F4C5; Este mes</button>
+            <button class="pp pp-month" id="m-este-mes">Este mes</button>
             <div><label for="m-desde">Desde</label><input id="m-desde" type="date" /></div>
             <div><label for="m-hasta">Hasta</label><input id="m-hasta" type="date" /></div>
             <button class="pp pp-action" id="m-aplicar">&#x2713; Aplicar</button>
@@ -279,7 +316,7 @@
         </div>
         <span class="filter-sep"></span>
         <div class="date-group">
-          <button class="pp pp-month" id="s-este-mes">&#x1F4C5; Este mes</button>
+          <button class="pp pp-month" id="s-este-mes">Este mes</button>
           <div><label for="s-desde">Desde</label><input id="s-desde" type="date" /></div>
           <div><label for="s-hasta">Hasta</label><input id="s-hasta" type="date" /></div>
           <button class="pp pp-action" id="s-aplicar">&#x2713; Aplicar</button>
@@ -306,11 +343,12 @@
     producto:['sel-producto','a-producto','m-producto','s-producto']
   };
   const FILTER_DATES = [['fecha-desde','fecha-hasta'],['a-desde','a-hasta'],['m-desde','m-hasta'],['s-desde','s-hasta']];
-  const GRAPH_PALETTE = ['#5b7c99','#6a8f71','#c4a574','#7d8e9a'];
-  const GRAPH_INK = GRAPH_PALETTE[0];
+  const GRAPH_PALETTE = ['#2F5D8C','#2F7D62','#C47B2D','#6A5A8A'];
+  const GRAPH_INK = '#1f2937';
   const GRAPH_TEXT = '#334155';
   const GRAPH_BLUE_TONES = GRAPH_PALETTE;
-  const graphFill = color => { const hex=color.replace('#',''); const rgb=[0,2,4].map(i=>parseInt(hex.slice(i,i+2),16)); return `rgba(${rgb.join(',')},0.22)`; };
+  const graphFill = color => color;
+  const barLook = color => ({backgroundColor:color, borderColor:color, borderWidth:0, borderRadius:3, barPercentage:0.72, categoryPercentage:0.78});
   const money = v => { const n=Number(v||0); return '$'+(Number.isFinite(n)?n:0).toLocaleString('es-AR',{maximumFractionDigits:0}); };
   const formatNumber = v => Number(v||0).toLocaleString('es-AR',{maximumFractionDigits:1});
   const MEASURE_LABELS = {plata:'Plata', cajas:'Cajas', pct:'%'};
@@ -465,73 +503,104 @@
   const datalabarsH = {
     id:'datalabarsH',
     afterDatasetsDraw(chart){
-      const chartArea=chart.chartArea; if(!chartArea)return;
+      const area=chart.chartArea; if(!area)return;
       const cur = chart.options?.plugins?.datalabarsH?.currency !== false;
       const percentage = chart.options?.plugins?.datalabarsH?.percentage === true;
+      const stacked = chart.options?.scales?.x?.stacked === true;
       const {ctx}=chart;
+      ctx.save();
+      ctx.font='600 11px system-ui,sans-serif';
+      ctx.textBaseline='middle';
       chart.data.datasets.forEach((ds,di)=>{
         const meta=chart.getDatasetMeta(di); if(meta.hidden)return;
-        ctx.save();
-        ctx.font='bold 10px system-ui,sans-serif';
-        ctx.textBaseline='middle';
         meta.data.forEach((bar,i)=>{
-          const v=ds.data[i]; if(v==null || !Number.isFinite(Number(v)))return;
+          const v=Number(ds.data[i]); if(!Number.isFinite(v) || v===0)return;
           const lbl = percentage
-            ? `${Number(v).toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`
+            ? `${v.toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`
             : cur
               ? (Math.abs(v)>=1e6?'$'+(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?'$'+Math.round(v/1e3)+'K':'$'+Math.round(v).toLocaleString('es-AR'))
-              : (Math.abs(v)>=1e6?(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?Math.round(v/1e3)+'K':Number(v).toLocaleString('es-AR',{maximumFractionDigits:1}));
-          const altura=Number(bar.height ?? bar.getProps?.(['height'],true)?.height ?? 0);
-          if(altura<16) return;
+              : (Math.abs(v)>=1e6?(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?Math.round(v/1e3)+'K':v.toLocaleString('es-AR',{maximumFractionDigits:1}));
+          const altura=Number(bar.height||0);
+          if(altura<15) return;
           const ancho=ctx.measureText(lbl).width;
-          const afueraX=bar.x+4;
-          if(afueraX+ancho<=chartArea.right-2){
-            ctx.textAlign='left';
-            ctx.fillStyle=ds.borderColor||GRAPH_INK;
-            ctx.fillText(lbl,afueraX,bar.y);
-          }else{
-            const barColor=bar.options?.backgroundColor ?? (Array.isArray(ds.backgroundColor)?ds.backgroundColor[i]:ds.backgroundColor);
-            ctx.textAlign='right';
-            ctx.fillStyle=isDarkChartColor(barColor)?'#f8fafc':GRAPH_TEXT;
-            ctx.fillText(lbl,Math.max(chartArea.left+ancho+2,bar.x-4),bar.y);
+          const derecha=bar.x, izquierda=bar.base??area.left;
+          const largo=Math.abs(derecha-izquierda);
+          if(!stacked && largo>=ancho+16){
+            ctx.textAlign='right'; ctx.fillStyle='#fff';
+            ctx.fillText(lbl, derecha-7, bar.y);
+          }else if(!stacked && derecha+ancho+8<=area.right){
+            ctx.textAlign='left'; ctx.fillStyle=GRAPH_INK;
+            ctx.fillText(lbl, derecha+6, bar.y);
+          }else if(!stacked){
+            ctx.textAlign='right'; ctx.fillStyle='#fff';
+            ctx.fillText(lbl, Math.min(derecha-6, area.right-4), bar.y);
+          }else if(largo>=ancho+12){
+            ctx.textAlign='center'; ctx.fillStyle='#fff';
+            ctx.fillText(lbl, (izquierda+derecha)/2, bar.y);
           }
         });
-        ctx.restore();
       });
+      ctx.restore();
     }
   };
   const datalabarsLine = {
     id:'datalabarsLine',
     afterDatasetsDraw(chart){
-      const chartArea=chart.chartArea;
+      const area=chart.chartArea;
       const points=chart.getDatasetMeta(0).data||[];
-      if(!chartArea || !points.length || points.length>12)return;
+      if(!area || !points.length || points.length>12)return;
       const cur = chart.options?.plugins?.datalabarsLine?.currency !== false;
       const {ctx}=chart, ocupados=[];
+      ctx.save();
+      ctx.font='600 11px system-ui,sans-serif';
+      ctx.textBaseline='bottom';
       chart.data.datasets.forEach((ds,di)=>{
         const meta=chart.getDatasetMeta(di); if(meta.hidden)return;
+        if(ds.yAxisID==='y1') return;
         const dsCur = ds.currency !== false && cur;
-        ctx.save();
-        ctx.font='bold 9px system-ui,sans-serif';
         ctx.fillStyle=ds.borderColor||GRAPH_INK;
-        ctx.textAlign='center';
-        ctx.textBaseline='bottom';
         meta.data.forEach((pt,i)=>{
           const v=ds.data[i]; if(v==null)return;
           const lbl = dsCur
             ? (Math.abs(v)>=1e6?'$'+(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?'$'+Math.round(v/1e3)+'K':String(v))
-            : (Math.abs(v)>=1e6?(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?Math.round(v/1e3)+'K':Number(v).toLocaleString('es-AR',{maximumFractionDigits:1}));
-          const ancho=ctx.measureText(lbl).width, alto=ctx.measureText(lbl).actualBoundingBoxAscent||8;
-          if(ancho>chartArea.right-chartArea.left)return;
-          const x=Math.max(chartArea.left+ancho/2,Math.min(chartArea.right-ancho/2,pt.x));
-          const y=Math.max(chartArea.top+alto+1,Math.min(chartArea.bottom,pt.y-7));
-          const caja={left:x-ancho/2,right:x+ancho/2,top:y-alto,bottom:y};
+            : (Math.abs(v)>=1e6?(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?Math.round(v/1e3)+'K':Number(v).toLocaleString('es-AR',{maximumFractionDigits:0}));
+          const ancho=ctx.measureText(lbl).width, alto=12;
+          const ultimo=i===meta.data.length-1;
+          let x=pt.x, align='center';
+          if(ultimo || pt.x+ancho/2>area.right-8){ align='right'; x=pt.x-8; }
+          else if(pt.x-ancho/2<area.left+2){ align='left'; x=area.left+2; }
+          const y=Math.max(area.top+alto, pt.y-8);
+          const caja={left:align==='right'?x-ancho:align==='left'?x:x-ancho/2, right:0, top:y-alto, bottom:y+2};
+          caja.right=caja.left+ancho;
           if(ocupados.some(otra=>caja.left<otra.right && caja.right>otra.left && caja.top<otra.bottom && caja.bottom>otra.top))return;
           ocupados.push(caja);
+          ctx.textAlign=align;
           ctx.fillText(lbl,x,y);
         });
-        ctx.restore();
       });
+      ctx.restore();
+    }
+  };
+  const donutLabels = {
+    id:'donutLabels',
+    afterDatasetsDraw(chart){
+      const meta=chart.getDatasetMeta(0); if(!meta || meta.hidden)return;
+      const ds=chart.data.datasets[0]; if(!ds)return;
+      const total=ds.data.reduce((sum,value)=>sum+Number(value||0),0); if(!total)return;
+      const {ctx}=chart;
+      ctx.save();
+      ctx.font='600 12px system-ui,sans-serif';
+      ctx.fillStyle='#fff';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      meta.data.forEach((arc,i)=>{
+        const value=Number(ds.data[i]||0);
+        const pct=value/total*100;
+        if(pct<9) return;
+        const pos=arc.tooltipPosition();
+        ctx.fillText(`${Math.round(pct)}%`, pos.x, pos.y);
+      });
+      ctx.restore();
     }
   };
 
@@ -577,14 +646,19 @@
 
   function hBarOpts(measure, rows, filterId, ignoredLabel, includeProducts=false){
     return {
-      indexAxis:'y',responsive:true,layout:{padding:{right:56}},
+      indexAxis:'y',responsive:true,animation:false,layout:{padding:{right:8,left:4}},
       plugins:{
         legend:{display:false},
         datalabarsH:{currency:measure==='plata',percentage:measure==='pct'},
         tooltip:{callbacks:{label:ctx=>preBarTooltip(rows[ctx.dataIndex]||{},includeProducts)}}
       },
       scales:{
-        x:{beginAtZero:true,ticks:{color:GRAPH_TEXT,callback:v=>formatMeasure(v,measure),font:{size:11}},grid:{color:'#e2e8f0'}},
+        x:{beginAtZero:true,ticks:{color:GRAPH_TEXT,maxRotation:0,autoSkip:true,maxTicksLimit:4,callback:v=>{
+          const n=Number(v||0);
+          if(measure==='plata') return Math.abs(n)>=1e6?'$'+(n/1e6).toFixed(1)+'M':Math.abs(n)>=1e3?'$'+Math.round(n/1e3)+'K':'$'+Math.round(n);
+          if(measure==='pct') return Math.round(n)+'%';
+          return Number.isInteger(n)?String(n):'';
+        },font:{size:11}},grid:{color:'#eef2f6'}},
         y:{ticks:{color:GRAPH_TEXT,font:{size:11}},grid:{display:false}}
       },
       onHover:(event,elements,chart)=>{ chart.canvas.style.cursor=elements.length?'pointer':'default'; },
@@ -618,9 +692,7 @@
         datasets:[{
           label:MEASURE_LABELS[_preMeasure],
           data:rows.map(row=>Number(row[_preMeasure]||0)),
-          backgroundColor:config.backgroundColor,
-          borderColor:config.borderColor,
-          borderWidth:1
+          ...barLook(config.borderColor)
         }]
       },
       options:hBarOpts(_preMeasure,rows,config.filterId,config.ignoredLabel,config.includeProducts)
@@ -713,9 +785,9 @@
 
       const evo=s.pre_evolucion_diaria||[], eL=evo.map(x=>fmtFecha(x.fecha)), eM=evo.map(x=>x.monto||0), eQ=evo.map(x=>x.cantidad||0);
       evolucionChart=new Chart(document.getElementById('evolucionChart'),{type:'line',plugins:[datalabarsLine],data:{labels:eL,datasets:[
-        {label:'Monto',   data:eM,borderColor:GRAPH_PALETTE[0],backgroundColor:graphFill(GRAPH_PALETTE[0]),tension:0.35,pointRadius:2,yAxisID:'y',  currency:true},
-        {label:'Cantidad',data:eQ,borderColor:GRAPH_PALETTE[1],backgroundColor:graphFill(GRAPH_PALETTE[1]),tension:0.35,pointRadius:2,yAxisID:'y1',currency:false}
-      ]},options:{responsive:true,plugins:{legend:{display:true,position:'bottom'},datalabarsLine:{currency:true},tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='Monto'?`Monto: ${money(ctx.parsed.y)}`:`Cant: ${ctx.parsed.y}`}}},scales:{x:{ticks:{color:GRAPH_TEXT,font:{size:10},maxRotation:45},grid:{display:false}},y:{position:'left',ticks:{color:GRAPH_PALETTE[0],callback:v=>money(v),font:{size:10}},grid:{color:'#e2e8f0'}},y1:{position:'right',ticks:{color:GRAPH_PALETTE[1],font:{size:10}},grid:{display:false}}}}});
+        {label:'Monto', data:eM, borderColor:GRAPH_PALETTE[0], backgroundColor:'rgba(47,93,140,0.12)', borderWidth:2, tension:0.3, pointRadius:3, fill:true, yAxisID:'y', currency:true},
+        {label:'Cantidad', data:eQ, borderColor:GRAPH_PALETTE[1], backgroundColor:'transparent', borderWidth:2, tension:0.3, pointRadius:3, yAxisID:'y1', currency:false}
+      ]},options:{responsive:true, layout:{padding:{top:18,right:12}}, plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,color:GRAPH_TEXT}}, datalabarsLine:{currency:true}, tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='Monto'?`Monto: ${money(ctx.parsed.y)}`:`Cant: ${ctx.parsed.y}`}}}, scales:{x:{ticks:{color:GRAPH_TEXT,font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:6},grid:{display:false}}, y:{position:'left',ticks:{color:GRAPH_TEXT,callback:v=>money(v),font:{size:10}},grid:{color:'#eef2f6'}}, y1:{position:'right',ticks:{color:GRAPH_TEXT,precision:0,font:{size:10}},grid:{display:false}}}}});
 
     }catch(e){ console.error(e);
     }finally{
@@ -768,7 +840,7 @@
       if(top.length){
         analisisBarChart = new Chart(document.getElementById('analisisBarChart'),{
           type:'bar', plugins:[datalabarsH],
-          data:{ labels:top.map(x=>x.nombre), datasets:[{label:'Cajas', data:top.map(x=>x.cajas), backgroundColor:graphFill(GRAPH_PALETTE[3]), borderColor:GRAPH_PALETTE[3], borderWidth:1}] },
+          data:{ labels:top.map(x=>x.nombre), datasets:[{label:'Cajas', data:top.map(x=>x.cajas), ...barLook(GRAPH_PALETTE[0])}] },
           options:{ indexAxis:'y', responsive:true, layout:{padding:{right:56}},
             plugins:{
               legend:{display:false},
@@ -786,8 +858,8 @@
       if(tieneDatosEvo){
         analisisLineChart = new Chart(document.getElementById('analisisLineChart'),{
           type:'line', plugins:[datalabarsLine],
-          data:{ labels:evoLabels, datasets:[{label:'Cajas', data:evo.map(x=>x.cajas), borderColor:GRAPH_PALETTE[3], backgroundColor:graphFill(GRAPH_PALETTE[3]), tension:0.35, pointRadius:4, pointHoverRadius:6, fill:true, currency:false}] },
-          options:{ responsive:true,
+          data:{ labels:evoLabels, datasets:[{label:'Cajas', data:evo.map(x=>x.cajas), borderColor:GRAPH_PALETTE[0], backgroundColor:'rgba(47,93,140,0.12)', borderWidth:2, tension:0.25, pointRadius:4, fill:true, currency:false}] },
+          options:{ responsive:true, layout:{padding:{top:18,right:16}},
             plugins:{
               legend:{display:false},
               datalabarsLine:{currency:false},
@@ -830,17 +902,20 @@
       setChartVisibility('mixDoughnutChart','mixDoughnutChart-empty',mg.length>0);
       if(mg.length){
         mixDoughnutChart = new Chart(document.getElementById('mixDoughnutChart'),{
-          type:'doughnut',
+          type:'doughnut', plugins:[donutLabels],
           data:{
             labels: mg.map(x=>x.producto),
             datasets:[{
               data:mg.map(x=>x.cajas),
-              backgroundColor:mg.map((_,i)=>graphFill(MIX_COLORS[i%MIX_COLORS.length])),
-              borderColor:mg.map((_,i)=>MIX_COLORS[i%MIX_COLORS.length]),
+              backgroundColor:mg.map((_,i)=>GRAPH_PALETTE[i%GRAPH_PALETTE.length]),
+              borderColor:'#fff',
               borderWidth:2
             }]
           },
-          options:{responsive:true, plugins:{legend:{position:'right',labels:{color:GRAPH_TEXT,font:{size:11},boxWidth:12}},
+          options:{responsive:true, cutout:'62%', plugins:{legend:{position:'right',labels:{color:GRAPH_TEXT,font:{size:12},boxWidth:12,generateLabels(chart){
+            const ds=chart.data.datasets[0], total=ds.data.reduce((s,v)=>s+Number(v||0),0)||1;
+            return chart.data.labels.map((label,i)=>({text:`${label}  ${Math.round(Number(ds.data[i])/total*100)}%`, fillStyle:ds.backgroundColor[i], strokeStyle:ds.backgroundColor[i], lineWidth:0, hidden:false, index:i}));
+          }}},
             tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${Number(ctx.parsed).toLocaleString('es-AR',{maximumFractionDigits:1})} caj (${mg[ctx.dataIndex]?.pct||0}%)`}}}}
         });
       }
@@ -853,13 +928,12 @@
           type:'bar', plugins:[datalabarsH],
           data:{
             labels: dc.map(x=>x.cliente),
-            datasets:[{label:'Productos distintos', data:dc.map(x=>x.n_productos),
-              backgroundColor:graphFill(GRAPH_PALETTE[1]), borderColor:GRAPH_PALETTE[1], borderWidth:1}]
+            datasets:[{label:'Productos distintos', data:dc.map(x=>x.n_productos), ...barLook(GRAPH_PALETTE[1])}]
           },
           options:{indexAxis:'y', responsive:true, layout:{padding:{right:56}},
             plugins:{legend:{display:false}, datalabarsH:{currency:false},
               tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x} productos · ${Number(dc[ctx.dataIndex]?.cajas||0).toLocaleString('es-AR',{maximumFractionDigits:0})} cajas`}}},
-            scales:{x:{ticks:{color:GRAPH_TEXT,font:{size:11},callback:v=>Number(v).toFixed(0)},grid:{color:'#e2e8f0'}},
+            scales:{x:{ticks:{color:GRAPH_TEXT,font:{size:11},precision:0,callback:v=>Number.isInteger(v)?String(v):''},grid:{color:'#eef2f6'}},
                     y:{ticks:{color:GRAPH_TEXT,font:{size:10}},grid:{display:false}}}
           }
         });
@@ -871,18 +945,19 @@
       const stackData = topProds.map((prod,pi)=>({
         label: prod,
         data: mpc.map(c=>(c.productos&&c.productos[prod])||0),
-        backgroundColor:graphFill(MIX_COLORS[pi%MIX_COLORS.length]),
-        borderColor:MIX_COLORS[pi%MIX_COLORS.length],
-        borderWidth: 1
+        backgroundColor:GRAPH_PALETTE[pi%GRAPH_PALETTE.length],
+        borderColor:'#fff',
+        borderWidth:1
       }));
       const tieneDatosApilados = mpc.length>0 && stackData.length>0;
       setChartVisibility('mixStackedChart','mixStackedChart-empty',tieneDatosApilados);
       if(tieneDatosApilados){
         mixStackedChart = new Chart(document.getElementById('mixStackedChart'),{
-          type:'bar',
+          type:'bar', plugins:[datalabarsH],
           data:{ labels:mpc.map(x=>x.cliente), datasets:stackData },
           options:{indexAxis:'y', responsive:true,
             plugins:{legend:{position:'bottom',labels:{color:GRAPH_TEXT,font:{size:10},boxWidth:10}},
+              datalabarsH:{currency:false},
               tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.x||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
             scales:{x:{stacked:true, ticks:{color:GRAPH_TEXT,font:{size:11},callback:v=>Number(v).toLocaleString('es-AR',{maximumFractionDigits:0})},grid:{color:'#e2e8f0'}},
                     y:{stacked:true, ticks:{color:GRAPH_TEXT,font:{size:10}},grid:{display:false}}}
@@ -897,9 +972,9 @@
       const evoDatasets = evoProds.map((prod,pi)=>({
         label: prod,
         data: evo.map(x=>(x.productos&&x.productos[prod])||0),
-        borderColor: MIX_COLORS[pi%MIX_COLORS.length],
-        backgroundColor: graphFill(MIX_COLORS[pi%MIX_COLORS.length]),
-        tension:0.35, pointRadius:4, fill:true, currency:false
+        borderColor: GRAPH_PALETTE[pi%GRAPH_PALETTE.length],
+        backgroundColor: 'transparent',
+        borderWidth:2, tension:0.25, pointRadius:4, fill:false, currency:false
       }));
       const tieneDatosEvoMix = evo.length>0 && evoDatasets.length>0;
       setChartVisibility('mixEvoChart','mixEvoChart-empty',tieneDatosEvoMix);
@@ -907,7 +982,7 @@
         mixEvoChart = new Chart(document.getElementById('mixEvoChart'),{
           type:'line', plugins:[datalabarsLine],
           data:{ labels:evoLabels, datasets:evoDatasets },
-          options:{responsive:true,
+          options:{responsive:true, layout:{padding:{top:18,right:18}},
             plugins:{legend:{position:'bottom',labels:{color:GRAPH_TEXT,font:{size:10},boxWidth:10}},
               datalabarsLine:{currency:false},
               tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.y||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
@@ -930,22 +1005,84 @@
     return section;
   }
 
-  function crearListaOportunidad(parent,titulo,casos,formatear){
-    const section=crearSeccionSeguimiento(parent,titulo);
-    if(!casos.length){
-      const vacio=document.createElement('p');
-      vacio.textContent='Sin casos en esta ventana.';
-      section.appendChild(vacio);
-      return;
-    }
-    const lista=document.createElement('ul');
-    lista.className='seguimiento-compras-lista';
-    casos.slice(0,8).forEach(caso=>{
-      const item=document.createElement('li');
-      item.textContent=formatear(caso);
-      lista.appendChild(item);
+  function plataDe(vendedor){
+    return (vendedor.productos||[]).reduce((suma,item)=>suma+Number(item.plata||0),0);
+  }
+
+  function crearTabla(columnas, filas, alClick){
+    const table=document.createElement('table');
+    table.className='seg-table';
+    const head=document.createElement('thead');
+    const headRow=document.createElement('tr');
+    columnas.forEach(columna=>{
+      const cell=document.createElement('th');
+      cell.textContent=columna.label;
+      if(columna.num) cell.className='num';
+      headRow.appendChild(cell);
     });
-    section.appendChild(lista);
+    head.appendChild(headRow);
+    const body=document.createElement('tbody');
+    filas.forEach(fila=>{
+      const row=document.createElement('tr');
+      if(alClick){ row.classList.add('is-click'); if(fila.activo) row.classList.add('is-active'); }
+      columnas.forEach(columna=>{
+        const cell=document.createElement('td');
+        cell.textContent=fila[columna.key];
+        if(columna.num) cell.className='num';
+        row.appendChild(cell);
+      });
+      if(alClick) row.addEventListener('click',()=>alClick(fila));
+      body.appendChild(row);
+    });
+    table.append(head, body);
+    return table;
+  }
+
+  function bloque(titulo){
+    const section=document.createElement('section');
+    section.className='seg-block';
+    const heading=document.createElement('h4');
+    heading.textContent=titulo;
+    section.appendChild(heading);
+    return section;
+  }
+
+  function unificarCartera(vendedores){
+    if(vendedores.length===1) return vendedores[0];
+    const productos={};
+    const ultimas=new Map();
+    const nuevos=new Set();
+    let activos=0, total=0;
+    const caidos=[], baja=[], canasta=[];
+    const clientes=new Set();
+    vendedores.forEach(vendedor=>{
+      (vendedor.lista||[]).forEach(item=>clientes.add(item.nombre));
+      (vendedor.nuevos||[]).forEach(item=>nuevos.add(item.nombre));
+      (vendedor.productos||[]).forEach(item=>{
+        productos[item.nombre]=(productos[item.nombre]||0)+Number(item.plata||0);
+      });
+      (vendedor.ultimas||[]).forEach(item=>{
+        const previa=ultimas.get(item.nombre);
+        if(!previa || String(item.fecha)>String(previa.fecha)) ultimas.set(item.nombre, item);
+      });
+      (vendedor.caidos||[]).forEach(item=>caidos.push(item));
+      (vendedor.baja||[]).forEach(item=>baja.push(item));
+      (vendedor.canasta_flaca||[]).forEach(item=>canasta.push(item));
+    });
+    const totalPlata=Object.values(productos).reduce((suma,valor)=>suma+valor,0);
+    return {
+      nombre:'Toda la cartera',
+      activos:clientes.size,
+      total:clientes.size,
+      nuevos:[...nuevos].map(nombre=>({nombre})),
+      productos:Object.entries(productos)
+        .map(([nombre,plata])=>({nombre, plata, pct:totalPlata?Math.round(plata/totalPlata*1000)/10:0}))
+        .sort((a,b)=>b.plata-a.plata || a.nombre.localeCompare(b.nombre,'es'))
+        .slice(0,8),
+      ultimas:[...ultimas.values()].sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))).slice(0,12),
+      caidos, baja, canasta_flaca:canasta,
+      plata:totalPlata
+    };
   }
 
   function renderSeguimiento(data){
@@ -956,130 +1093,142 @@
     host.replaceChildren();
     _seguimientoCharts.forEach(chart=>chart.destroy());
     _seguimientoCharts=[];
-    period.textContent=`${data.desde} → ${data.hasta} · America/Argentina/Tucuman`;
+    period.textContent=`${data.desde} → ${data.hasta}`;
 
-    const vendedores=data.vendedores||[];
-    if(!vendedores.length){
+    const todos=(data.vendedores||[]).filter(vendedor=>(vendedor.lista||[]).length || (vendedor.productos||[]).length);
+    if(!todos.length){
       const empty=document.createElement('p');
       empty.textContent='No hay clientes con pedidos PRE para esos filtros.';
       host.appendChild(empty);
       return;
     }
 
-    vendedores.forEach((vendedor,index)=>{
-      if(!(vendedor.lista||[]).length) return;
-      const card=document.createElement('article');
-      card.className='seguimiento-vendedor';
-      const title=document.createElement('h3');
-      title.textContent=vendedor.nombre;
-      card.appendChild(title);
+    const plataTotal=todos.reduce((suma,vendedor)=>suma+plataDe(vendedor),0) || 1;
+    const comparacion=todos
+      .map(vendedor=>({
+        nombre:vendedor.nombre,
+        plata:plataDe(vendedor),
+        activos:Number(vendedor.activos||0),
+        nuevos:(vendedor.nuevos||[]).length,
+        caidos:(vendedor.caidos||[]).length,
+        activo:_sharedFilters.vendedor===vendedor.nombre
+      }))
+      .sort((a,b)=>b.plata-a.plata || a.nombre.localeCompare(b.nombre,'es'));
 
-      const listaSection=crearSeccionSeguimiento(card,'Lista de clientes');
-      const lista=document.createElement('ul');
-      lista.className='seguimiento-clientes-lista';
-      (vendedor.lista||[]).slice(0,12).forEach(cliente=>{
-        const item=document.createElement('li');
-        item.textContent=cliente.nombre;
-        lista.appendChild(item);
-      });
-      listaSection.appendChild(lista);
-      const restantes=(vendedor.lista||[]).length-12;
-      if(restantes>0){
-        const mas=document.createElement('p');
-        mas.textContent=`y ${restantes} más`;
-        listaSection.appendChild(mas);
+    const nota=document.createElement('p');
+    nota.className='seg-note';
+    nota.textContent='La comparación muestra a todos los vendedores. La cartera y la última compra siguen el filtro de vendedor.';
+    host.appendChild(nota);
+
+    const comparacionLayout=document.createElement('div');
+    comparacionLayout.className='seg-layout';
+    const grafico=bloque('Performance');
+    const lienzoWrap=document.createElement('div');
+    lienzoWrap.className='seg-chart';
+    const lienzo=document.createElement('canvas');
+    lienzoWrap.appendChild(lienzo);
+    grafico.appendChild(lienzoWrap);
+    comparacionLayout.appendChild(grafico);
+    const tablaComp=bloque('Entre vendedores');
+    tablaComp.appendChild(crearTabla(
+      [{key:'nombre',label:'Vendedor'},{key:'plataTxt',label:'Plata',num:true},{key:'part',label:'Part.',num:true},{key:'activos',label:'Activos',num:true},{key:'nuevos',label:'Nuevos',num:true},{key:'caidos',label:'Caídos',num:true}],
+      comparacion.map(fila=>({...fila, plataTxt:money(fila.plata), part:`${(fila.plata/plataTotal*100).toLocaleString('es-AR',{maximumFractionDigits:1})}%`, activos:String(fila.activos), nuevos:String(fila.nuevos), caidos:String(fila.caidos)})),
+      fila=>updateSharedFilter('vendedor', fila.activo?'':fila.nombre)
+    ));
+    comparacionLayout.appendChild(tablaComp);
+    host.appendChild(comparacionLayout);
+    _seguimientoCharts.push(new Chart(lienzo,{
+      type:'bar', plugins:[datalabarsH],
+      data:{labels:comparacion.map(fila=>fila.nombre), datasets:[{label:'Plata', data:comparacion.map(fila=>fila.plata), ...barLook(GRAPH_PALETTE[0])}]},
+      options:{indexAxis:'y', responsive:true, maintainAspectRatio:false, animation:false,
+        plugins:{legend:{display:false}, datalabarsH:{currency:true}},
+        scales:{x:{beginAtZero:true, ticks:{color:GRAPH_TEXT, maxTicksLimit:4, callback:v=>Math.abs(v)>=1e3?'$'+Math.round(v/1e3)+'K':'$'+Math.round(v)}, grid:{color:'#eef2f6'}}, y:{ticks:{color:GRAPH_TEXT}, grid:{display:false}}},
+        onClick:(event,elements)=>{
+          const fila=comparacion[elements?.[0]?.index];
+          if(fila) updateSharedFilter('vendedor', fila.activo?'':fila.nombre);
+        }
       }
+    }));
 
-      const nuevos=(vendedor.nuevos||[]).map(cliente=>cliente.nombre);
-      const nuevosSection=crearSeccionSeguimiento(card,`Nuevos (${nuevos.length})`);
-      const nuevosTexto=document.createElement('p');
-      nuevosTexto.textContent=nuevos.length?nuevos.join(', '):'Ninguno';
-      nuevosSection.appendChild(nuevosTexto);
+    const elegido=_sharedFilters.vendedor;
+    const alcance=elegido?todos.filter(vendedor=>vendedor.nombre===elegido):todos;
+    const cartera=unificarCartera(alcance.length?alcance:todos);
+    const titulo=document.createElement('h3');
+    titulo.textContent=elegido?`Cartera de ${elegido}`:'Cartera unificada';
+    host.appendChild(titulo);
 
-      const activosSection=crearSeccionSeguimiento(card,'Activos');
-      const activosTexto=document.createElement('p');
-      activosTexto.textContent=String(vendedor.activos||0);
-      activosSection.appendChild(activosTexto);
-
-      const totalSection=crearSeccionSeguimiento(card,'Total de clientes');
-      const totalTexto=document.createElement('p');
-      totalTexto.textContent=String(vendedor.total||0);
-      totalSection.appendChild(totalTexto);
-
-      const productos=vendedor.productos||[];
-      const productosSection=crearSeccionSeguimiento(card,'% de venta de cada producto');
-      if(productos.length){
-        const wrapper=document.createElement('div');
-        wrapper.className='seguimiento-productos-chart';
-        const canvas=document.createElement('canvas');
-        canvas.id=`seguimiento-productos-${index}`;
-        wrapper.appendChild(canvas);
-        productosSection.appendChild(wrapper);
-        const chart=new Chart(canvas,{
-          type:'bar',plugins:[datalabarsH],
-          data:{
-            labels:productos.map(producto=>producto.nombre),
-            datasets:[{
-              label:'Participación',
-              data:productos.map(producto=>Number(producto.pct||0)),
-              backgroundColor:graphFill(GRAPH_PALETTE[2]),
-              borderColor:GRAPH_PALETTE[2],
-              borderWidth:1
-            }]
-          },
-          options:{
-            indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:56}},
-            plugins:{
-              legend:{display:false},
-              datalabarsH:{currency:false,percentage:true},
-              tooltip:{callbacks:{label:ctx=>{
-                const producto=productos[ctx.dataIndex]||{};
-                const pct=Number(producto.pct||0).toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1});
-                return `${pct}% · ${money(producto.plata)}`;
-              }}}
-            },
-            scales:{
-              x:{min:0,max:100,ticks:{color:GRAPH_TEXT,callback:v=>`${Number(v).toLocaleString('es-AR',{maximumFractionDigits:0})}%`},grid:{color:'#e2e8f0'}},
-              y:{ticks:{color:GRAPH_TEXT},grid:{display:false}}
-            }
-          }
-        });
-        _seguimientoCharts.push(chart);
-      }else{
-        const sinProductos=document.createElement('p');
-        sinProductos.textContent='Sin productos PRE para esos filtros.';
-        productosSection.appendChild(sinProductos);
-      }
-
-      const ultimasSection=crearSeccionSeguimiento(card,'Última compra');
-      const ultimasLista=document.createElement('ul');
-      ultimasLista.className='seguimiento-compras-lista';
-      (vendedor.ultimas||[]).forEach(compra=>{
-        const item=document.createElement('li');
-        item.textContent=`${compra.nombre} — ${compra.fecha} — ${compra.dias} días sin comprar`;
-        ultimasLista.appendChild(item);
-      });
-      ultimasSection.appendChild(ultimasLista);
-      crearListaOportunidad(
-        card,
-        'Caídos',
-        vendedor.caidos||[],
-        caso=>`${caso.nombre} — ${caso.dias} días sin comprar — ${money(caso.plata_anterior)} en ventana anterior`
-      );
-      crearListaOportunidad(
-        card,
-        'Compra en baja',
-        vendedor.baja||[],
-        caso=>`${caso.nombre} — actual ${money(caso.plata_actual)} — anterior ${money(caso.plata_anterior)} — ${Number(caso.variacion_pct).toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`
-      );
-      crearListaOportunidad(
-        card,
-        'Canasta flaca',
-        vendedor.canasta_flaca||[],
-        caso=>`${caso.nombre} — ${caso.productos} productos vs promedio ${formatNumber(caso.promedio)}`
-      );
-      host.appendChild(card);
+    const metrics=document.createElement('div');
+    metrics.className='seg-metrics';
+    const unificado=cartera.nombre==='Toda la cartera';
+    const celdas=unificado
+      ? [['Plata', money(cartera.plata||0)], ['Clientes', String(cartera.total||0)], ['Nuevos', String((cartera.nuevos||[]).length)], ['Vendedores', String(alcance.length)]]
+      : [['Plata', money(cartera.plata!=null?cartera.plata:plataDe(cartera))], ['Activos', String(cartera.activos||0)], ['Nuevos', String((cartera.nuevos||[]).length)], ['Total', String(cartera.total||0)]];
+    celdas.forEach(([label,value])=>{
+      const cell=document.createElement('div');
+      const name=document.createElement('span');
+      name.textContent=label;
+      const strong=document.createElement('strong');
+      strong.textContent=value;
+      cell.append(name, strong);
+      metrics.appendChild(cell);
     });
+    host.appendChild(metrics);
+
+    const detalle=document.createElement('div');
+    detalle.className='seg-layout';
+    const mix=bloque('% de venta por producto');
+    const productos=cartera.productos||[];
+    if(productos.length){
+      const wrap=document.createElement('div');
+      wrap.className='seg-chart';
+      const canvas=document.createElement('canvas');
+      wrap.appendChild(canvas);
+      mix.appendChild(wrap);
+      _seguimientoCharts.push(new Chart(canvas,{
+        type:'bar', plugins:[datalabarsH],
+        data:{labels:productos.map(item=>item.nombre), datasets:[{data:productos.map(item=>Number(item.pct||0)), ...barLook(GRAPH_PALETTE[2])}]},
+        options:{indexAxis:'y', responsive:true, maintainAspectRatio:false, animation:false,
+          plugins:{legend:{display:false}, datalabarsH:{currency:false, percentage:true}},
+          scales:{x:{min:0, max:100, ticks:{color:GRAPH_TEXT, callback:v=>`${v}%`}, grid:{color:'#eef2f6'}}, y:{ticks:{color:GRAPH_TEXT}, grid:{display:false}}}
+        }
+      }));
+    }else{
+      const vacio=document.createElement('p');
+      vacio.textContent='Sin productos PRE para esos filtros.';
+      mix.appendChild(vacio);
+    }
+    detalle.appendChild(mix);
+
+    const ultimas=bloque('Última compra');
+    const filasUltimas=(cartera.ultimas||[]).slice().sort((a,b)=>String(b.fecha).localeCompare(String(a.fecha))).slice(0,12);
+    const nuevos=new Set((cartera.nuevos||[]).map(item=>item.nombre));
+    if(filasUltimas.length){
+      ultimas.appendChild(crearTabla(
+        [{key:'nombre',label:'Cliente'},{key:'fecha',label:'Fecha'},{key:'dias',label:'Días',num:true},{key:'estado',label:'Estado'}],
+        filasUltimas.map(item=>({nombre:item.nombre, fecha:fmtFecha(item.fecha), dias:String(item.dias), estado:nuevos.has(item.nombre)?'Nuevo':'Cartera'}))
+      ));
+    }else{
+      const vacio=document.createElement('p');
+      vacio.textContent='Sin compras en esta ventana.';
+      ultimas.appendChild(vacio);
+    }
+    detalle.appendChild(ultimas);
+    host.appendChild(detalle);
+
+    const llamadas=bloque('Para llamar');
+    const casos=[
+      ...(cartera.caidos||[]).map(caso=>({senal:'Caído', cliente:caso.nombre, detalle:`${caso.dias} días · ${money(caso.plata_anterior)} en la ventana anterior`})),
+      ...(cartera.baja||[]).map(caso=>({senal:'Baja', cliente:caso.nombre, detalle:`${money(caso.plata_actual)} vs ${money(caso.plata_anterior)} · ${Number(caso.variacion_pct).toLocaleString('es-AR',{maximumFractionDigits:1})}%`})),
+      ...(cartera.canasta_flaca||[]).map(caso=>({senal:'Canasta', cliente:caso.nombre, detalle:`${caso.productos} productos vs promedio ${formatNumber(caso.promedio)}`}))
+    ].slice(0,12);
+    if(casos.length) llamadas.appendChild(crearTabla([{key:'senal',label:'Señal'},{key:'cliente',label:'Cliente'},{key:'detalle',label:'Detalle'}], casos));
+    else{
+      const vacio=document.createElement('p');
+      vacio.className='seg-note';
+      vacio.textContent='Sin casos en esta ventana.';
+      llamadas.appendChild(vacio);
+    }
+    host.appendChild(llamadas);
   }
 
   async function loadSeguimiento(){
@@ -1088,7 +1237,6 @@
     loading.textContent='Cargando seguimiento PRE…';
     const {empresa,vendedor,cliente,producto,desde,hasta}=_sharedFilters;
     const params=new URLSearchParams({fecha_desde:desde,fecha_hasta:hasta,empresa});
-    if(vendedor) params.set('vendedor',vendedor);
     if(cliente) params.set('cliente',cliente);
     if(producto) params.set('producto',producto);
     try{
