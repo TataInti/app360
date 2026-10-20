@@ -99,7 +99,7 @@
     <!-- ===== SECCIÓN: ANÁLISIS DE CANTIDADES ===== -->
     <div class="table-card mb-3" style="padding:0">
       <div class="table-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;cursor:pointer" id="analisis-toggle">
-        <span><i class="bi bi-bar-chart-line me-2"></i>Análisis de Cantidades Vendidas</span>
+        <span><i class="bi bi-bar-chart-line me-2"></i>Análisis de Cantidades PRE</span>
         <i class="bi bi-chevron-down" id="analisis-chevron" style="transition:transform .25s"></i>
       </div>
 
@@ -137,6 +137,7 @@
           </div>
           <button class="pp pp-month" id="a-este-mes" title="Desde el 1° del mes actual hasta hoy">&#x1F4C5; Este mes</button>
           <button class="pp pp-action" id="a-aplicar">&#x2713; Aplicar</button>
+          <button class="pp" id="a-limpiar" type="button">Limpiar</button>
         </div>
 
         <!-- Sub-filtros de tipo (Ver por) -->
@@ -155,10 +156,12 @@
           <div class="chart-card-v2">
             <h6 id="analisis-bar-titulo">Top 15 por cajas</h6>
             <canvas id="analisisBarChart" style="max-height:340px"></canvas>
+            <div id="analisisBarChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
           </div>
           <div class="chart-card-v2">
             <h6>Evolución mensual · últimos 6 meses</h6>
             <canvas id="analisisLineChart" style="max-height:340px"></canvas>
+            <div id="analisisLineChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
           </div>
         </div>
 
@@ -168,7 +171,7 @@
     <!-- ===== SECCIÓN: MIX DE VENTAS ===== -->
     <div class="table-card mb-3" style="padding:0">
       <div class="table-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;cursor:pointer" id="mix-toggle">
-        <span><i class="bi bi-pie-chart-fill me-2" style="color:#7c3aed"></i>Mix de Ventas <span style="font-size:0.72rem;color:#9ca3af;font-weight:400">· relación cliente–producto</span></span>
+        <span><i class="bi bi-pie-chart-fill me-2" style="color:#7c3aed"></i>Mix de Ventas <span style="font-size:0.72rem;color:#9ca3af;font-weight:400">· relación cliente–producto · pedidos PRE</span></span>
         <i class="bi bi-chevron-down" id="mix-chevron" style="transition:transform .25s"></i>
       </div>
 
@@ -204,6 +207,7 @@
             <div><label for="m-desde">Desde</label><input id="m-desde" type="date" /></div>
             <div><label for="m-hasta">Hasta</label><input id="m-hasta" type="date" /></div>
             <button class="pp pp-action" id="m-aplicar">&#x2713; Aplicar</button>
+            <button class="pp" id="m-limpiar" type="button">Limpiar</button>
           </div>
         </div>
 
@@ -212,20 +216,24 @@
           <div class="chart-card-v2">
             <h6>Distribución del Mix <span class="chart-tag">cajas por producto · top 10</span></h6>
             <canvas id="mixDoughnutChart" style="max-height:300px"></canvas>
+            <div id="mixDoughnutChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
           </div>
           <div class="chart-card-v2">
             <h6>Variedad por Cliente <span class="chart-tag">N° productos distintos comprados</span></h6>
             <canvas id="mixDiversidadChart" style="max-height:300px"></canvas>
+            <div id="mixDiversidadChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
           </div>
         </div>
         <div class="charts-grid mb-2">
           <div class="chart-card-v2">
             <h6>Participación Producto por Cliente <span class="chart-tag">top 8 clientes × top 5 productos · cajas</span></h6>
             <canvas id="mixStackedChart" style="max-height:320px"></canvas>
+            <div id="mixStackedChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
           </div>
           <div class="chart-card-v2">
             <h6>Evolución del Mix <span class="chart-tag">últimos 6 meses · top 3 productos</span></h6>
             <canvas id="mixEvoChart" style="max-height:320px"></canvas>
+            <div id="mixEvoChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
           </div>
         </div>
 
@@ -592,6 +600,11 @@
   let _analisisTipo = 'producto';
   const MESES_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   function fmtMesAnalisis(s){ if(!s)return s; const p=String(s).split('-'); if(p.length>=2){const mi=parseInt(p[1],10)-1; return MESES_SHORT[mi]+' '+p[0].slice(2);} return s; }
+  function setChartVisibility(canvasId,emptyId,hasData){
+    const canvas=document.getElementById(canvasId), empty=document.getElementById(emptyId);
+    if(canvas) canvas.hidden=!hasData;
+    if(empty) empty.hidden=hasData;
+  }
 
   async function loadAnalisis(tipo){
     _analisisTipo = tipo || _analisisTipo;
@@ -623,34 +636,42 @@
 
       if(analisisBarChart) analisisBarChart.destroy();
       if(analisisLineChart) analisisLineChart.destroy();
+      analisisBarChart=analisisLineChart=null;
 
       const bgColors = top.map((_,i)=>`rgba(99,102,241,${Math.max(0.12, 0.7 - i*0.04)})`);
-      analisisBarChart = new Chart(document.getElementById('analisisBarChart'),{
-        type:'bar', plugins:[datalabarsH],
-        data:{ labels:top.map(x=>x.nombre), datasets:[{label:'Cajas', data:top.map(x=>x.cajas), backgroundColor:bgColors, borderColor:'#6366f1', borderWidth:1}] },
-        options:{ indexAxis:'y', responsive:true,
-          plugins:{
-            legend:{display:false},
-            datalabarsH:{currency:false},
-            tooltip:{callbacks:{label:ctx=>`Cajas: ${Number(ctx.parsed.x).toLocaleString('es-AR',{maximumFractionDigits:1})} · $${Number(top[ctx.dataIndex]?.monto||0).toLocaleString('es-AR',{maximumFractionDigits:0})}`}}
-          },
-          scales:{ x:{ticks:{color:'#6b7280',font:{size:11},callback:v=>Number(v).toLocaleString('es-AR',{maximumFractionDigits:0})},grid:{color:'#f1f5f9'}}, y:{ticks:{color:'#374151',font:{size:10}},grid:{display:false}} }
-        }
-      });
+      setChartVisibility('analisisBarChart','analisisBarChart-empty',top.length>0);
+      if(top.length){
+        analisisBarChart = new Chart(document.getElementById('analisisBarChart'),{
+          type:'bar', plugins:[datalabarsH],
+          data:{ labels:top.map(x=>x.nombre), datasets:[{label:'Cajas', data:top.map(x=>x.cajas), backgroundColor:bgColors, borderColor:'#6366f1', borderWidth:1}] },
+          options:{ indexAxis:'y', responsive:true,
+            plugins:{
+              legend:{display:false},
+              datalabarsH:{currency:false},
+              tooltip:{callbacks:{label:ctx=>`Cajas: ${Number(ctx.parsed.x).toLocaleString('es-AR',{maximumFractionDigits:1})} · $${Number(top[ctx.dataIndex]?.monto||0).toLocaleString('es-AR',{maximumFractionDigits:0})}`}}
+            },
+            scales:{ x:{ticks:{color:'#6b7280',font:{size:11},callback:v=>Number(v).toLocaleString('es-AR',{maximumFractionDigits:0})},grid:{color:'#f1f5f9'}}, y:{ticks:{color:'#374151',font:{size:10}},grid:{display:false}} }
+          }
+        });
+      }
 
       const evoLabels = evo.map(x=>fmtMesAnalisis(x.periodo));
-      analisisLineChart = new Chart(document.getElementById('analisisLineChart'),{
-        type:'line', plugins:[datalabarsLine],
-        data:{ labels:evoLabels, datasets:[{label:'Cajas', data:evo.map(x=>x.cajas), borderColor:'#6366f1', backgroundColor:'rgba(99,102,241,0.08)', tension:0.35, pointRadius:4, pointHoverRadius:6, fill:true, currency:false}] },
-        options:{ responsive:true,
-          plugins:{
-            legend:{display:false},
-            datalabarsLine:{currency:false},
-            tooltip:{callbacks:{label:ctx=>`Cajas: ${Number(ctx.parsed.y).toLocaleString('es-AR',{maximumFractionDigits:1})}`}}
-          },
-          scales:{ x:{ticks:{color:'#6b7280',font:{size:11},maxRotation:30},grid:{display:false}}, y:{beginAtZero:true, ticks:{color:'#6b7280',font:{size:11},callback:v=>Number(v).toLocaleString('es-AR',{maximumFractionDigits:0})},grid:{color:'#f1f5f9'}} }
-        }
-      });
+      const tieneDatosEvo = evo.length>0 && evo.some(x=>Number(x.cajas||0)!==0);
+      setChartVisibility('analisisLineChart','analisisLineChart-empty',tieneDatosEvo);
+      if(tieneDatosEvo){
+        analisisLineChart = new Chart(document.getElementById('analisisLineChart'),{
+          type:'line', plugins:[datalabarsLine],
+          data:{ labels:evoLabels, datasets:[{label:'Cajas', data:evo.map(x=>x.cajas), borderColor:'#6366f1', backgroundColor:'rgba(99,102,241,0.08)', tension:0.35, pointRadius:4, pointHoverRadius:6, fill:true, currency:false}] },
+          options:{ responsive:true,
+            plugins:{
+              legend:{display:false},
+              datalabarsLine:{currency:false},
+              tooltip:{callbacks:{label:ctx=>`Cajas: ${Number(ctx.parsed.y).toLocaleString('es-AR',{maximumFractionDigits:1})}`}}
+            },
+            scales:{ x:{ticks:{color:'#6b7280',font:{size:11},maxRotation:30},grid:{display:false}}, y:{beginAtZero:true, ticks:{color:'#6b7280',font:{size:11},callback:v=>Number(v).toLocaleString('es-AR',{maximumFractionDigits:0})},grid:{color:'#f1f5f9'}} }
+          }
+        });
+      }
     }catch(e){ console.error('Error en análisis:', e); }
   }
 
@@ -686,35 +707,42 @@
       if(mixDiversidadChart) mixDiversidadChart.destroy();
       if(mixStackedChart)    mixStackedChart.destroy();
       if(mixEvoChart)        mixEvoChart.destroy();
+      mixDoughnutChart=mixDiversidadChart=mixStackedChart=mixEvoChart=null;
 
       /* 1. Doughnut: mix global */
       const mg = d.mix_global||[];
-      mixDoughnutChart = new Chart(document.getElementById('mixDoughnutChart'),{
-        type:'doughnut',
-        data:{
-          labels: mg.map(x=>x.producto),
-          datasets:[{ data:mg.map(x=>x.cajas), backgroundColor:MIX_COLORS.slice(0,mg.length), borderColor:'#fff', borderWidth:2 }]
-        },
-        options:{responsive:true, plugins:{legend:{position:'right',labels:{color:'#374151',font:{size:11},boxWidth:12}},
-          tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${Number(ctx.parsed).toLocaleString('es-AR',{maximumFractionDigits:1})} caj (${mg[ctx.dataIndex]?.pct||0}%)`}}}}
-      });
+      setChartVisibility('mixDoughnutChart','mixDoughnutChart-empty',mg.length>0);
+      if(mg.length){
+        mixDoughnutChart = new Chart(document.getElementById('mixDoughnutChart'),{
+          type:'doughnut',
+          data:{
+            labels: mg.map(x=>x.producto),
+            datasets:[{ data:mg.map(x=>x.cajas), backgroundColor:MIX_COLORS.slice(0,mg.length), borderColor:'#fff', borderWidth:2 }]
+          },
+          options:{responsive:true, plugins:{legend:{position:'right',labels:{color:'#374151',font:{size:11},boxWidth:12}},
+            tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${Number(ctx.parsed).toLocaleString('es-AR',{maximumFractionDigits:1})} caj (${mg[ctx.dataIndex]?.pct||0}%)`}}}}
+        });
+      }
 
       /* 2. H-Bar: diversidad de clientes */
       const dc = d.diversidad_clientes||[];
-      mixDiversidadChart = new Chart(document.getElementById('mixDiversidadChart'),{
-        type:'bar', plugins:[datalabarsH],
-        data:{
-          labels: dc.map(x=>x.cliente),
-          datasets:[{label:'Productos distintos', data:dc.map(x=>x.n_productos),
-            backgroundColor:'rgba(124,58,237,0.2)', borderColor:'#7c3aed', borderWidth:1}]
-        },
-        options:{indexAxis:'y', responsive:true,
-          plugins:{legend:{display:false}, datalabarsH:{currency:false},
-            tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x} productos · ${Number(dc[ctx.dataIndex]?.cajas||0).toLocaleString('es-AR',{maximumFractionDigits:0})} cajas`}}},
-          scales:{x:{ticks:{color:'#6b7280',font:{size:11},callback:v=>Number(v).toFixed(0)},grid:{color:'#f1f5f9'}},
-                  y:{ticks:{color:'#374151',font:{size:10}},grid:{display:false}}}
-        }
-      });
+      setChartVisibility('mixDiversidadChart','mixDiversidadChart-empty',dc.length>0);
+      if(dc.length){
+        mixDiversidadChart = new Chart(document.getElementById('mixDiversidadChart'),{
+          type:'bar', plugins:[datalabarsH],
+          data:{
+            labels: dc.map(x=>x.cliente),
+            datasets:[{label:'Productos distintos', data:dc.map(x=>x.n_productos),
+              backgroundColor:'rgba(124,58,237,0.2)', borderColor:'#7c3aed', borderWidth:1}]
+          },
+          options:{indexAxis:'y', responsive:true,
+            plugins:{legend:{display:false}, datalabarsH:{currency:false},
+              tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x} productos · ${Number(dc[ctx.dataIndex]?.cajas||0).toLocaleString('es-AR',{maximumFractionDigits:0})} cajas`}}},
+            scales:{x:{ticks:{color:'#6b7280',font:{size:11},callback:v=>Number(v).toFixed(0)},grid:{color:'#f1f5f9'}},
+                    y:{ticks:{color:'#374151',font:{size:10}},grid:{display:false}}}
+          }
+        });
+      }
 
       /* 3. Stacked H-Bar: top 8 clientes × top 5 productos */
       const mpc = d.mix_por_cliente||[];
@@ -726,16 +754,20 @@
         borderColor:     MIX_COLORS[pi%MIX_COLORS.length],
         borderWidth: 1
       }));
-      mixStackedChart = new Chart(document.getElementById('mixStackedChart'),{
-        type:'bar',
-        data:{ labels:mpc.map(x=>x.cliente), datasets:stackData },
-        options:{indexAxis:'y', responsive:true,
-          plugins:{legend:{position:'bottom',labels:{color:'#374151',font:{size:10},boxWidth:10}},
-            tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.x||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
-          scales:{x:{stacked:true, ticks:{color:'#6b7280',font:{size:11},callback:v=>Number(v).toLocaleString('es-AR',{maximumFractionDigits:0})},grid:{color:'#f1f5f9'}},
-                  y:{stacked:true, ticks:{color:'#374151',font:{size:10}},grid:{display:false}}}
-        }
-      });
+      const tieneDatosApilados = mpc.length>0 && stackData.length>0;
+      setChartVisibility('mixStackedChart','mixStackedChart-empty',tieneDatosApilados);
+      if(tieneDatosApilados){
+        mixStackedChart = new Chart(document.getElementById('mixStackedChart'),{
+          type:'bar',
+          data:{ labels:mpc.map(x=>x.cliente), datasets:stackData },
+          options:{indexAxis:'y', responsive:true,
+            plugins:{legend:{position:'bottom',labels:{color:'#374151',font:{size:10},boxWidth:10}},
+              tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.x||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
+            scales:{x:{stacked:true, ticks:{color:'#6b7280',font:{size:11},callback:v=>Number(v).toLocaleString('es-AR',{maximumFractionDigits:0})},grid:{color:'#f1f5f9'}},
+                    y:{stacked:true, ticks:{color:'#374151',font:{size:10}},grid:{display:false}}}
+          }
+        });
+      }
 
       /* 4. Line: evolución del mix (últimos 6M, top 3 productos) */
       const evo = d.evo_mix||[];
@@ -748,17 +780,21 @@
         backgroundColor: MIX_COLORS[pi%MIX_COLORS.length]+'18',
         tension:0.35, pointRadius:4, fill:true, currency:false
       }));
-      mixEvoChart = new Chart(document.getElementById('mixEvoChart'),{
-        type:'line', plugins:[datalabarsLine],
-        data:{ labels:evoLabels, datasets:evoDatasets },
-        options:{responsive:true,
-          plugins:{legend:{position:'bottom',labels:{color:'#374151',font:{size:10},boxWidth:10}},
-            datalabarsLine:{currency:false},
-            tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.y||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
-          scales:{x:{ticks:{color:'#6b7280',font:{size:11},maxRotation:30},grid:{display:false}},
-                  y:{beginAtZero:true, ticks:{color:'#6b7280',font:{size:11},callback:v=>Number(v).toLocaleString('es-AR',{maximumFractionDigits:0})},grid:{color:'#f1f5f9'}}}
-        }
-      });
+      const tieneDatosEvoMix = evo.length>0 && evoDatasets.length>0;
+      setChartVisibility('mixEvoChart','mixEvoChart-empty',tieneDatosEvoMix);
+      if(tieneDatosEvoMix){
+        mixEvoChart = new Chart(document.getElementById('mixEvoChart'),{
+          type:'line', plugins:[datalabarsLine],
+          data:{ labels:evoLabels, datasets:evoDatasets },
+          options:{responsive:true,
+            plugins:{legend:{position:'bottom',labels:{color:'#374151',font:{size:10},boxWidth:10}},
+              datalabarsLine:{currency:false},
+              tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.y||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
+            scales:{x:{ticks:{color:'#6b7280',font:{size:11},maxRotation:30},grid:{display:false}},
+                    y:{beginAtZero:true, ticks:{color:'#6b7280',font:{size:11},callback:v=>Number(v).toLocaleString('es-AR',{maximumFractionDigits:0})},grid:{color:'#f1f5f9'}}}
+          }
+        });
+      }
 
     }catch(e){ console.error('Error en mix:', e); }
   }
@@ -827,6 +863,10 @@
     document.getElementById('a-vendedor').addEventListener('change', ()=>loadAnalisis(_analisisTipo));
     document.getElementById('a-producto').addEventListener('change', ()=>loadAnalisis(_analisisTipo));
     document.getElementById('a-aplicar').addEventListener('click',   ()=>{ setSectionPeriod('analisis',''); loadAnalisis(_analisisTipo); });
+    document.getElementById('a-limpiar').addEventListener('click',   ()=>{
+      ['a-vendedor','a-producto'].forEach(id=>setFilterSilently(id,''));
+      loadAnalisis(_analisisTipo);
+    });
     document.querySelectorAll('[data-section-periods="analisis"] [data-section-period]').forEach(button=>button.addEventListener('click',()=>applySectionPeriod('analisis',button.dataset.sectionPeriod)));
     document.getElementById('a-este-mes').addEventListener('click',  ()=>{
       const m=esEsteMes();
@@ -862,6 +902,10 @@
       loadMix();
     });
     document.getElementById('m-aplicar').addEventListener('click', ()=>{ setSectionPeriod('mix',''); loadMix(); });
+    document.getElementById('m-limpiar').addEventListener('click', ()=>{
+      ['m-vendedor','m-cliente','m-producto'].forEach(id=>setFilterSilently(id,''));
+      loadMix();
+    });
     document.querySelectorAll('[data-section-periods="mix"] [data-section-period]').forEach(button=>button.addEventListener('click',()=>applySectionPeriod('mix',button.dataset.sectionPeriod)));
 
     /* Carga inicial: primero listas de filtros, luego datos */

@@ -1151,7 +1151,7 @@ def api_dashboard_comercial_analisis():
     def base_filters(fd, fh):
         f = [
             StgSabiogoVentas.estado == "procesado",
-            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") != "PRE",
+            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
             StgSabiogoVentas.fecha.between(fd, fh),
         ]
         if empresa not in ("", "TODAS"):
@@ -1249,7 +1249,7 @@ def api_dashboard_comercial_mix():
     def base_f(fd, fh):
         f = [
             StgSabiogoVentas.estado == "procesado",
-            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") != "PRE",
+            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
             StgSabiogoVentas.fecha.between(fd, fh),
         ]
         if empresa not in ("", "TODAS"):
