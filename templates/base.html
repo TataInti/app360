@@ -1823,6 +1823,11 @@
             <span class="nav-icon"><i class="bi bi-graph-up"></i></span>
             <span class="link-text">Ventas</span>
         </a>
+        <a href="/ventas/criterio-clientes"
+           class="{% if current == '/ventas/criterio-clientes' %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-people"></i></span>
+            <span class="link-text">Criterio de clientes</span>
+        </a>
         {% endif %}
         {% if can_access('panel') %}
         <a href="/panel-ejecutivo"
@@ -1954,13 +1959,6 @@
            class="{% if current.startswith('/ventas') and current != '/ventas/criterio-clientes' %}active-link{% endif %}">
             <span class="nav-icon"><i class="bi bi-receipt"></i></span>
             <span class="link-text">Ventas</span>
-        </a>
-        {% endif %}
-        {% if can_access('dashboard_comercial') %}
-        <a href="/ventas/criterio-clientes"
-           class="{% if current == '/ventas/criterio-clientes' %}active-link{% endif %}">
-            <span class="nav-icon"><i class="bi bi-people"></i></span>
-            <span class="link-text">Criterio de clientes</span>
         </a>
         {% endif %}
         {% if can_access('crm') %}
