@@ -39,7 +39,7 @@
   #panel-ventas .seguimiento-dato h4 { font-size:0.78rem; margin-bottom:0.3rem; }
   #panel-ventas .seguimiento-clientes-lista { columns:2; padding-left:1.1rem; margin:0; }
   #panel-ventas .seguimiento-compras-lista { padding-left:1.1rem; margin:0 0 0.6rem; }
-  #panel-ventas .seg-layout { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(280px,0.85fr); gap:0.8rem; margin-bottom:0.9rem; align-items:stretch; }
+  #panel-ventas .seg-layout { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(280px,0.85fr); gap:0.8rem; margin-bottom:0.9rem; }
   #panel-ventas .seg-block h4 { font-size:0.8rem; margin:0 0 0.4rem; color:#1f2937; }
   #panel-ventas .seg-note { font-size:0.72rem; color:#64748b; margin:0 0 0.7rem; }
   #panel-ventas .seg-table-wrap { max-height:360px; overflow:auto; border:1px solid #e4e9f0; border-radius:0.65rem; }
@@ -49,24 +49,41 @@
   #panel-ventas .seg-table tbody tr:nth-child(even) td { background:#fbfcfe; }
   #panel-ventas .seg-table .num { text-align:right; font-variant-numeric:tabular-nums; }
   #panel-ventas .seg-table tbody tr.is-click { cursor:pointer; }
-  #panel-ventas .seg-table tbody tr.is-click:hover td { background:#f1f6fb; }
-  #panel-ventas .seg-table tbody tr.is-active td { background:#eaf2fa; }
-  #panel-ventas .seg-table .seg-client { color:#172b43; font-weight:650; }
-  #panel-ventas .seg-table .seg-detail { min-width:150px; color:#58677a; line-height:1.4; }
-  #panel-ventas .seg-pill { display:inline-flex; align-items:center; gap:0.32rem; padding:0.2rem 0.55rem; border-radius:999px; font-size:0.68rem; font-weight:700; white-space:nowrap; background:#eef2f7; color:#526174; }
-  #panel-ventas .seg-pill--nuevo { background:#eaf5ef; color:#226644; }
-  #panel-ventas .seg-pill--caido { background:#fff0ed; color:#a53d2d; }
-  #panel-ventas .seg-pill--baja { background:#fff5df; color:#875b10; }
-  #panel-ventas .seg-pill--canasta { background:#eef3fb; color:#315b8b; }
-  #panel-ventas .seg-date { white-space:nowrap; font-variant-numeric:tabular-nums; }
-  #panel-ventas .seg-days { display:inline-block; min-width:3.4rem; text-align:right; font-variant-numeric:tabular-nums; color:#40516a; }
-  #panel-ventas .seg-block { min-width:0; height:380px; display:flex; flex-direction:column; }
-  #panel-ventas .seg-block > h4 { display:flex; align-items:center; gap:0.45rem; font-size:0.84rem; margin:0 0 0.6rem; color:#1f2937; }
-  #panel-ventas .seg-chart { position:relative; flex:0 0 360px; min-height:360px; height:360px; }
-  #panel-ventas .seg-block > .seg-table-wrap { flex:0 0 360px; min-height:360px; height:360px; }
-  #panel-ventas .seg-chart canvas { position:absolute; inset:0; width:100%!important; height:100%!important; max-height:none; }
+  #panel-ventas .seg-table tbody tr.is-click:hover td { background:#f8fafc; }
+  #panel-ventas .seg-table tbody tr.is-active td { background:#eef4f8; }
+  #panel-ventas .seg-chart { height:220px; }
+  #panel-ventas .kpi-compare { display:grid; gap:0.2rem; margin-top:0.45rem; font-size:0.72rem; color:#475569; }
+  #panel-ventas .kpi-compare strong { color:#1f2937; font-variant-numeric:tabular-nums; }
+  #panel-ventas .kpi-variation { font-weight:700; }
+  #panel-ventas .team-toolbar { display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; }
+  #panel-ventas .team-table-wrap, #panel-ventas .attention-table-wrap { overflow:auto; }
+  #panel-ventas .team-table, #panel-ventas .attention-table { width:100%; border-collapse:collapse; min-width:900px; }
+  #panel-ventas .team-table th, #panel-ventas .attention-table th { position:sticky; top:0; background:#f8fafc; color:#475569; font-size:0.68rem; text-transform:uppercase; letter-spacing:.035em; text-align:left; padding:.6rem .55rem; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+  #panel-ventas .team-table td, #panel-ventas .attention-table td { padding:.62rem .55rem; border-bottom:1px solid #eef2f6; vertical-align:middle; }
+  #panel-ventas .team-table td:first-child { white-space:nowrap; }
+  #panel-ventas .team-table .num, #panel-ventas .attention-table .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  #panel-ventas .status-text { display:inline-block; font-size:.68rem; font-weight:700; border-radius:999px; padding:.18rem .48rem; white-space:nowrap; }
+  #panel-ventas .status-ok { color:#176b4d; background:#e7f5ee; }
+  #panel-ventas .status-warn { color:#925d16; background:#fff3d9; }
+  #panel-ventas .status-bad { color:#a33a32; background:#fdebe9; }
+  #panel-ventas .status-neutral { color:#475569; background:#edf1f5; }
+  #panel-ventas .deviation-cell { display:flex; flex-direction:column; align-items:flex-end; gap:.25rem; }
+  #panel-ventas .dashboard-error { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; border:1px solid #f2c4c0; background:#fff2f0; color:#7f1d1d; border-radius:.65rem; padding:.75rem 1rem; margin:.75rem 0; }
+  #panel-ventas .dashboard-note { color:#64748b; font-size:.76rem; }
+  #panel-ventas .diagnostic-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.85rem; }
+  #panel-ventas .cartera-layout { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.85rem; padding:0 1rem .9rem; }
+  #panel-ventas .cartera-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); padding:0 1rem; }
+  #panel-ventas .cartera-clientes-table { min-width:500px; }
+  #panel-ventas .cartera-clientes-table th:first-child { width:42%; }
+  #panel-ventas .cartera-clientes-table td:first-child { overflow-wrap:anywhere; }
+  #panel-ventas .cartera-filterbar { display:flex; }
+  #panel-ventas .diagnostic-list { max-height:230px; overflow:auto; padding-left:1.1rem; font-size:.8rem; }
+  #panel-ventas .concentration-chart { height:280px; }
+  #panel-ventas .attention-pagination { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; padding:.75rem 1rem; }
+  #panel-ventas .attention-signal { font-weight:650; }
   @media (max-width: 900px) {
     #panel-ventas .seg-layout, #panel-ventas .seg-metrics { grid-template-columns:1fr; }
+    #panel-ventas .cartera-layout, #panel-ventas .diagnostic-grid { grid-template-columns:1fr; }
   }
   @media (max-width: 767px) {
     #panel-ventas .seguimiento-clientes-lista, #panel-ventas .seg-metrics { columns:1; grid-template-columns:1fr 1fr; }
@@ -100,16 +117,12 @@
     <button class="pp" id="btn-limpiar-filtros" type="button">Limpiar</button>
     <span class="filter-sep"></span>
     <div class="period-pills">
-      <button class="pp active" data-period="7">7d</button>
+      <button class="pp active" data-period="mes">Mes actual</button>
+      <button class="pp" data-period="7">7d</button>
       <button class="pp" data-period="15">15d</button>
       <button class="pp" data-period="30">30d</button>
       <button class="pp" data-period="6m">6m</button>
       <button class="pp" data-period="ytd">YTD</button>
-    </div>
-    <div class="period-pills" aria-label="Medida de los gráficos PRE">
-      <button class="pp active" type="button" data-measure="plata">Plata</button>
-      <button class="pp" type="button" data-measure="cajas">Cajas</button>
-      <button class="pp" type="button" data-measure="pct">%</button>
     </div>
     <span class="filter-sep"></span>
     <div class="date-group">
@@ -129,51 +142,184 @@
   <!-- Skeleton -->
   <div id="skeleton">
     <div class="kpi-grid"><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div></div>
-    <div class="charts-grid"><div class="skeleton skeleton-chart"></div><div class="skeleton skeleton-chart"></div></div>
+    <div class="skeleton skeleton-chart" style="height:340px"></div>
+    <div class="skeleton skeleton-chart" style="height:240px"></div>
   </div>
 
   <!-- Content -->
   <div id="content" style="display:none">
 
-    <!-- KPIs PRE -->
-    <div class="kpi-grid">
-      <div class="kpi-card accent-green"><span class="kpi-label">Total PRE $</span><span class="kpi-value" id="kpi-pre-total">$0</span></div>
-      <div class="kpi-card accent-blue"><span class="kpi-label">Cantidad PRE</span><span class="kpi-value" id="kpi-pre-count">0</span></div>
-      <div class="kpi-card accent-amber"><span class="kpi-label">Ticket Promedio</span><span class="kpi-value" id="kpi-pre-ticket">$0</span></div>
-      <div class="kpi-card accent-purple"><span class="kpi-label">Top Vendedor</span><span class="kpi-value" id="kpi-pre-top-vendedor" style="font-size:1rem">–</span></div>
+    <div id="dashboard-error" class="dashboard-error" role="alert" hidden>
+      <span id="dashboard-error-message"></span>
+      <button class="pp pp-action" id="dashboard-retry" type="button">Reintentar</button>
+    </div>
+    <p id="sin-operaciones-note" class="dashboard-note" hidden>Sin operaciones PRE en este período.</p>
+    <p id="period-comparison-label" class="dashboard-note"></p>
+
+    <!-- A. Indicadores comparables -->
+    <div class="kpi-grid" id="kpi-comparables">
+      <div class="kpi-card">
+        <span class="kpi-label">Importe PRE</span>
+        <span class="kpi-value" id="kpi-importe-actual">—</span>
+        <div class="kpi-compare"><span>Anterior: <strong id="kpi-importe-anterior">—</strong></span><span>Variación: <strong class="kpi-variation" id="kpi-importe-variacion">—</strong></span></div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Cajas</span>
+        <span class="kpi-value" id="kpi-cajas-actual">—</span>
+        <div class="kpi-compare"><span>Anterior: <strong id="kpi-cajas-anterior">—</strong></span><span>Variación: <strong class="kpi-variation" id="kpi-cajas-variacion">—</strong></span></div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Kilos</span>
+        <span class="kpi-value" id="kpi-kilos-actual">—</span>
+        <div class="kpi-compare"><span>Anterior: <strong id="kpi-kilos-anterior">—</strong></span><span>Variación: <strong class="kpi-variation" id="kpi-kilos-variacion">—</strong></span></div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Clientes compradores</span>
+        <span class="kpi-value" id="kpi-clientes-actual">—</span>
+        <div class="kpi-compare"><span>Anterior: <strong id="kpi-clientes-anterior">—</strong></span><span>Variación: <strong class="kpi-variation" id="kpi-clientes-variacion">—</strong></span></div>
+      </div>
     </div>
 
-    <!-- Charts: Vendedor | Cliente -->
-    <div class="charts-grid">
-      <div class="chart-card-v2"><h6 id="vendedor-chart-title">PRE por Vendedor (Plata)</h6><canvas id="vendedorChart"></canvas><div id="vendedorChart-empty" hidden>No hay pedidos PRE para esos filtros.</div></div>
-      <div class="chart-card-v2"><h6 id="cliente-chart-title">PRE por Cliente (Plata)</h6><canvas id="clienteChart"></canvas><div id="clienteChart-empty" hidden>No hay pedidos PRE para esos filtros.</div></div>
-    </div>
+    <!-- B. Tabla principal del equipo -->
+    <section class="table-card mb-3" id="equipo-card" style="padding:0;background:#fff">
+      <div class="table-card-head team-toolbar">
+        <div><h2 style="font-size:1.08rem;margin:0">Equipo comercial</h2><p class="dashboard-note mb-0">Cumplimiento mensual hasta la fecha de corte, sin prorratear la meta por el período.</p></div>
+        <label style="display:flex;align-items:center;gap:.45rem;font-size:.76rem">Medida del objetivo
+          <select id="sel-medida-objetivo" class="form-select form-select-sm" style="width:auto">
+            <option value="importe">Importe</option><option value="cajas">Cajas</option><option value="kilos">Kilos</option>
+          </select>
+        </label>
+      </div>
+      <p id="equipo-data-note" class="dashboard-note" style="padding:0 1rem"></p>
+      <div class="team-table-wrap" style="padding:0 1rem 1rem" tabindex="0" role="region" aria-label="Tabla desplazable del equipo comercial">
+        <table class="team-table" aria-label="Seguimiento del equipo comercial">
+          <thead><tr><th>Vendedor</th><th class="num">Realizado</th><th class="num">Meta</th><th class="num">Cumplimiento</th><th class="num">Desvío</th><th>Estado</th><th class="num">Compradores</th><th class="num">Sin recompra</th><th class="num">PRE anterior</th><th></th></tr></thead>
+          <tbody id="equipo-table-body"></tbody>
+        </table>
+        <p id="equipo-empty" class="dashboard-note" hidden></p>
+      </div>
+    </section>
 
-    <!-- Charts: Producto | Evolución diaria -->
-    <div class="charts-grid">
-      <div class="chart-card-v2"><h6 id="producto-chart-title">PRE por Producto (Plata)</h6><canvas id="productoChart"></canvas><div id="productoChart-empty" hidden>No hay pedidos PRE para esos filtros.</div></div>
-      <div class="chart-card-v2"><h6>Evolución diaria PRE</h6><canvas id="evolucionChart"></canvas></div>
-    </div>
+    <!-- Cartera única con filtros compartidos -->
+    <section class="table-card mb-3" id="cartera-clientes-card" style="padding:0;background:#fff">
+      <div class="table-card-head team-toolbar">
+        <div><h2 style="font-size:1.08rem;margin:0">Cartera de clientes</h2><p id="cartera-periodo" class="dashboard-note mb-0"></p></div>
+      </div>
+      <div class="period-bar dim-bar cartera-filterbar" style="background:#f8fafc;border-color:#e2e8f0;margin:0 1rem .9rem;flex-wrap:wrap" aria-label="Filtros de cartera de clientes">
+        <select id="c-empresa" class="form-select form-select-sm" style="width:auto;min-width:90px">
+          <option value="TODAS">Empresa</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option>
+        </select>
+        <select id="c-vendedor" class="form-select form-select-sm" style="width:auto;min-width:120px"><option value="">Vendedor</option></select>
+        <select id="c-cliente" class="form-select form-select-sm" style="width:auto;min-width:130px"><option value="">Cliente</option></select>
+        <select id="c-producto" class="form-select form-select-sm" style="width:auto;min-width:130px"><option value="">Producto</option></select>
+        <button class="pp" id="c-limpiar" type="button">Limpiar</button>
+        <span class="filter-sep"></span>
+        <div class="period-pills" data-section-periods="cartera">
+          <button class="pp" type="button" data-section-period="mes">Mes actual</button>
+          <button class="pp" type="button" data-section-period="7">7d</button>
+          <button class="pp" type="button" data-section-period="15">15d</button>
+          <button class="pp" type="button" data-section-period="30">30d</button>
+          <button class="pp" type="button" data-section-period="6m">6m</button>
+          <button class="pp" type="button" data-section-period="ytd">YTD</button>
+        </div>
+        <span class="filter-sep"></span>
+        <div class="date-group">
+          <button class="pp pp-month" id="c-este-mes" type="button">Este mes</button>
+          <div><label for="c-desde">Desde</label><input id="c-desde" type="date" /></div>
+          <div><label for="c-hasta">Hasta</label><input id="c-hasta" type="date" /></div>
+          <button class="pp pp-action" id="c-aplicar" type="button">&#x2713; Aplicar</button>
+        </div>
+      </div>
+      <div class="cartera-metrics seg-metrics" aria-live="polite">
+        <div><span>Total de clientes</span><strong id="cartera-total">—</strong></div>
+        <div><span>Activos en 30 días</span><strong id="cartera-activos">—</strong></div>
+        <div><span>Nuevos en 30 días</span><strong id="cartera-nuevos">—</strong></div>
+      </div>
+      <p id="cartera-note" class="dashboard-note" style="padding:0 1rem"></p>
+      <div class="cartera-layout">
+        <div class="chart-card-v2">
+          <h6>Comparación entre vendedores · participación PRE del período</h6>
+          <div class="seg-chart"><canvas id="cartera-comparacion-chart"></canvas></div>
+          <p id="cartera-comparacion-empty" class="dashboard-note" hidden></p>
+        </div>
+        <div class="table-card" style="box-shadow:none;border:0;padding:0">
+          <div class="team-table-wrap" tabindex="0" role="region" aria-label="Comparación de vendedores">
+            <table class="seg-table" aria-label="Participación PRE por vendedor">
+              <thead><tr><th>Vendedor</th><th class="num">PRE</th><th class="num">Part.</th><th class="num">Compradores</th></tr></thead>
+              <tbody id="cartera-comparacion-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="cartera-layout cartera-detail">
+        <div class="table-card" style="box-shadow:none;border:0;padding:0">
+          <h6 id="cartera-lista-titulo" style="padding:.5rem .75rem;margin:0">Clientes</h6>
+          <div class="team-table-wrap" tabindex="0" role="region" aria-label="Cartera de clientes">
+            <table class="seg-table cartera-clientes-table" aria-label="Clientes, última compra y actividad">
+              <thead><tr><th>Cliente</th><th>Última compra</th><th class="num">Días</th><th>Estado</th></tr></thead>
+              <tbody id="cartera-clientes-body"></tbody>
+            </table>
+          </div>
+          <p id="cartera-clientes-empty" class="dashboard-note" style="padding:.25rem .75rem" hidden></p>
+        </div>
+        <div class="chart-card-v2">
+          <h6>Participación por producto · cartera del período</h6>
+          <div class="seg-chart"><canvas id="cartera-productos-chart"></canvas></div>
+          <p id="cartera-productos-empty" class="dashboard-note" hidden></p>
+        </div>
+      </div>
+    </section>
 
-    <div id="cliente-analisis-row" class="chart-card-v2" hidden style="margin-top:0.75rem;display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap">
-      <strong id="cliente-analisis-nombre" style="font-size:0.78rem;color:#334155"></strong>
-      <span>Compras: <strong id="cliente-analisis-compras">—</strong></span>
-      <span>Productos: <strong id="cliente-analisis-productos">—</strong></span>
-      <span>Frecuencia: <strong id="cliente-analisis-frecuencia">—</strong></span>
-      <span>Última compra: <strong id="cliente-analisis-ultima">—</strong></span>
-      <span>Plata: <strong id="cliente-analisis-plata">—</strong></span>
-      <span>Cajas: <strong id="cliente-analisis-cajas">—</strong></span>
-      <span>Kilos: <strong id="cliente-analisis-kilos">—</strong></span>
-    </div>
+    <!-- C. Diagnóstico único del vendedor elegido -->
+    <section class="table-card mb-3" id="diagnostico-card" hidden>
+      <div class="table-card-head team-toolbar">
+        <h2 style="font-size:1.08rem;margin:0">Diagnóstico de <span id="diagnostico-vendedor"></span></h2>
+        <button class="pp" id="cerrar-diagnostico" type="button">Quitar selección</button>
+      </div>
+      <p id="diagnostico-note" class="dashboard-note"></p>
+      <div class="diagnostic-grid">
+        <div class="chart-card-v2"><h6>Importe PRE · evolución semanal</h6><div id="weekly-amount-wrap" style="height:260px"><canvas id="weekly-amount-chart"></canvas></div><p id="weekly-amount-empty" class="dashboard-note" hidden>Sin operaciones PRE en este período.</p></div>
+        <div class="chart-card-v2"><h6>Cajas · evolución semanal</h6><div id="weekly-boxes-wrap" style="height:260px"><canvas id="weekly-boxes-chart"></canvas></div><p id="weekly-boxes-empty" class="dashboard-note" hidden>Sin operaciones PRE en este período.</p></div>
+      </div>
+      <div class="diagnostic-grid" style="margin-top:.85rem">
+        <div class="chart-card-v2"><h6>Clientes nuevos con este vendedor</h6><div id="diag-nuevos"></div></div>
+        <div class="chart-card-v2"><h6>Clientes recurrentes</h6><div id="diag-recurrentes"></div></div>
+        <div class="chart-card-v2"><h6>Clientes recuperados</h6><div id="diag-recuperados"></div></div>
+        <div class="chart-card-v2"><h6>Clientes con reducción de compra</h6><div id="diag-reduccion"></div></div>
+      </div>
+      <div class="diagnostic-grid" style="margin-top:.85rem">
+        <div class="chart-card-v2"><h6>Concentración por cliente · importe y participación</h6><div class="concentration-chart"><canvas id="concentracion-clientes-chart"></canvas></div><p id="concentracion-clientes-empty" class="dashboard-note" hidden>Sin operaciones PRE en este período.</p></div>
+        <div class="chart-card-v2"><h6>Concentración por producto · importe y participación</h6><div class="concentration-chart"><canvas id="concentracion-productos-chart"></canvas></div><p id="concentracion-productos-empty" class="dashboard-note" hidden>Sin operaciones PRE en este período.</p></div>
+      </div>
+    </section>
+
+    <!-- D. Casos de atención, paginados de a veinte -->
+    <section class="table-card mb-3" id="clientes-atencion-card" style="padding:0;background:#fff">
+      <div class="table-card-head team-toolbar">
+        <div><h2 style="font-size:1.08rem;margin:0">Clientes que requieren atención</h2><p class="dashboard-note mb-0">El importe anterior es referencia; no representa pérdida confirmada ni venta recuperable.</p></div>
+        <strong id="clientes-atencion-total" aria-live="polite">0 casos</strong>
+      </div>
+      <div class="attention-table-wrap" style="padding:0 1rem" tabindex="0" role="region" aria-label="Tabla desplazable de clientes que requieren atención">
+        <table class="attention-table" aria-label="Clientes que requieren atención">
+          <thead><tr><th>Vendedor</th><th>Cliente</th><th>Señal</th><th>Última compra</th><th class="num">Días sin comprar</th><th class="num">Importe anterior</th><th class="num">Importe actual</th><th class="num">Diferencia</th><th class="num">Variación</th></tr></thead>
+          <tbody id="clientes-atencion-body"></tbody>
+        </table>
+        <p id="clientes-atencion-empty" class="dashboard-note" hidden>Sin casos de atención en el período seleccionado.</p>
+      </div>
+      <div class="attention-pagination">
+        <span id="clientes-atencion-paginacion" class="dashboard-note"></span>
+        <div><button class="pp" id="clientes-atencion-prev" type="button">Anterior</button> <button class="pp" id="clientes-atencion-next" type="button">Siguiente</button></div>
+      </div>
+    </section>
 
     <!-- ===== SECCIÓN: ANÁLISIS DE CANTIDADES ===== -->
     <div class="table-card mb-3" style="padding:0">
-      <div class="table-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;cursor:pointer" id="analisis-toggle">
+      <button type="button" class="table-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;cursor:pointer;border:0;text-align:left;width:100%;background:transparent" id="analisis-toggle" aria-controls="analisis-body" aria-expanded="false">
         <span><i class="bi bi-bar-chart-line me-2"></i>Análisis de Cantidades PRE</span>
         <i class="bi bi-chevron-down" id="analisis-chevron" style="transition:transform .25s"></i>
-      </div>
+      </button>
 
-      <div id="analisis-body" style="padding:1rem;display:block">
+      <div id="analisis-body" style="padding:1rem;display:none">
 
         <!-- Filtros independientes del análisis -->
         <div class="dim-bar" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.6rem;padding:0.4rem 0.6rem;margin-bottom:0.9rem;display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap">
@@ -185,14 +331,18 @@
           <select id="a-vendedor" class="form-select form-select-sm" style="width:auto;min-width:120px">
               <option value="">Vendedor</option>
           </select>
+          <select id="a-cliente" class="form-select form-select-sm" style="width:auto;min-width:130px">
+              <option value="">Cliente</option>
+          </select>
           <select id="a-producto" class="form-select form-select-sm" style="width:auto;min-width:130px">
               <option value="">Producto</option>
           </select>
           <span class="filter-sep"></span>
           <div class="period-pills" data-section-periods="analisis">
+            <button class="pp active" type="button" data-section-period="mes">Mes actual</button>
             <button class="pp" type="button" data-section-period="7">7d</button>
             <button class="pp" type="button" data-section-period="15">15d</button>
-            <button class="pp active" type="button" data-section-period="30">30d</button>
+            <button class="pp" type="button" data-section-period="30">30d</button>
             <button class="pp" type="button" data-section-period="6m">6m</button>
             <button class="pp" type="button" data-section-period="ytd">YTD</button>
           </div>
@@ -226,12 +376,12 @@
           <div class="chart-card-v2">
             <h6 id="analisis-bar-titulo">Top 15 por cajas</h6>
             <canvas id="analisisBarChart" style="max-height:340px"></canvas>
-            <div id="analisisBarChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
+            <div id="analisisBarChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
           <div class="chart-card-v2">
             <h6>Evolución mensual · últimos 6 meses</h6>
             <canvas id="analisisLineChart" style="max-height:340px"></canvas>
-            <div id="analisisLineChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
+            <div id="analisisLineChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
         </div>
 
@@ -240,12 +390,12 @@
 
     <!-- ===== SECCIÓN: MIX DE VENTAS ===== -->
     <div class="table-card mb-3" style="padding:0">
-      <div class="table-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;cursor:pointer" id="mix-toggle">
-        <span><i class="bi bi-pie-chart-fill me-2" style="color:#5b7c99"></i>Mix de Ventas <span style="font-size:0.72rem;color:#334155;font-weight:400">· relación cliente–producto · pedidos PRE</span></span>
+      <button type="button" class="table-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;cursor:pointer;border:0;text-align:left;width:100%;background:transparent" id="mix-toggle" aria-controls="mix-body" aria-expanded="false">
+        <span><i class="bi bi-bar-chart-fill me-2" style="color:#2F5D8C"></i>Mix de Ventas <span style="font-size:0.72rem;color:#334155;font-weight:400">· relación cliente–producto · pedidos PRE</span></span>
         <i class="bi bi-chevron-down" id="mix-chevron" style="transition:transform .25s"></i>
-      </div>
+      </button>
 
-      <div id="mix-body" style="padding:1rem;display:block">
+      <div id="mix-body" style="padding:1rem;display:none">
 
         <!-- Filtros independientes del mix -->
         <div class="period-bar dim-bar" style="background:#f8fafc;border-color:#e2e8f0;margin-bottom:0.9rem">
@@ -265,9 +415,10 @@
           </select>
           <span class="filter-sep"></span>
           <div class="period-pills" data-section-periods="mix">
+            <button class="pp active" type="button" data-section-period="mes">Mes actual</button>
             <button class="pp" type="button" data-section-period="7">7d</button>
             <button class="pp" type="button" data-section-period="15">15d</button>
-            <button class="pp active" type="button" data-section-period="30">30d</button>
+            <button class="pp" type="button" data-section-period="30">30d</button>
             <button class="pp" type="button" data-section-period="6m">6m</button>
             <button class="pp" type="button" data-section-period="ytd">YTD</button>
           </div>
@@ -284,67 +435,33 @@
         <!-- 4 gráficos en 2×2 -->
         <div class="charts-grid mb-3">
           <div class="chart-card-v2">
-            <h6>Distribución del Mix <span class="chart-tag">cajas por producto · top 10</span></h6>
+            <h6>Participación por producto <span class="chart-tag">barras ordenadas · incluye Otros</span></h6>
             <div class="mix-plot"><canvas id="mixDoughnutChart"></canvas></div>
-            <div id="mixDoughnutChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
+            <div id="mixDoughnutChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
           <div class="chart-card-v2">
             <h6>Variedad por Cliente <span class="chart-tag">N° productos distintos comprados</span></h6>
             <div class="mix-plot"><canvas id="mixDiversidadChart"></canvas></div>
-            <div id="mixDiversidadChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
+            <div id="mixDiversidadChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
         </div>
         <div class="charts-grid mb-2">
           <div class="chart-card-v2">
-            <h6>Participación Producto por Cliente <span class="chart-tag">top 8 clientes, top 5 productos · cajas · al pasar por la fila ves todos los valores</span></h6>
+            <h6>Participación Producto por Cliente <span class="chart-tag">top 8 clientes, top 5 productos · cajas</span></h6>
             <div class="mix-plot mix-plot--stacked"><canvas id="mixStackedChart"></canvas></div>
-            <div id="mixStackedChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
+            <div id="mixStackedChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
           <div class="chart-card-v2">
             <h6>Evolución del Mix <span class="chart-tag">últimos 6 meses · top 3 productos</span></h6>
             <div class="mix-plot"><canvas id="mixEvoChart"></canvas></div>
-            <div id="mixEvoChart-empty" hidden>Sin ventas PRE en los últimos 6 meses para estos filtros.</div>
+            <div id="mixEvoChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
         </div>
 
       </div>
     </div>
 
-    <!-- Seguimiento de clientes -->
-    <section class="table-card mb-3" id="seguimiento-clientes" style="padding:0;background:#fff">
-      <div class="table-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;background:#fff;color:#334155">
-        <span><i class="bi bi-people me-2"></i>Seguimiento de clientes</span>
-        <span id="seguimiento-periodo" style="font-size:0.72rem;color:#334155"></span>
-      </div>
-      <div class="period-bar dim-bar" style="background:#f8fafc;border-color:#e2e8f0;margin:0 1rem 0.9rem;flex-wrap:wrap" aria-label="Filtros de seguimiento">
-        <select id="s-empresa" class="form-select form-select-sm" style="width:auto;min-width:90px">
-          <option value="TODAS">Empresa</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option>
-        </select>
-        <select id="s-vendedor" class="form-select form-select-sm" style="width:auto;min-width:120px"><option value="">Vendedor</option></select>
-        <select id="s-cliente" class="form-select form-select-sm" style="width:auto;min-width:130px"><option value="">Cliente</option></select>
-        <select id="s-producto" class="form-select form-select-sm" style="width:auto;min-width:130px"><option value="">Producto</option></select>
-        <button class="pp" id="s-limpiar" type="button">Limpiar</button>
-        <span class="filter-sep"></span>
-        <div class="period-pills" data-section-periods="seguimiento">
-          <button class="pp" type="button" data-section-period="7">7d</button>
-          <button class="pp" type="button" data-section-period="15">15d</button>
-          <button class="pp" type="button" data-section-period="30">30d</button>
-          <button class="pp" type="button" data-section-period="6m">6m</button>
-          <button class="pp" type="button" data-section-period="ytd">YTD</button>
-        </div>
-        <span class="filter-sep"></span>
-        <div class="date-group">
-          <button class="pp pp-month" id="s-este-mes">Este mes</button>
-          <div><label for="s-desde">Desde</label><input id="s-desde" type="date" /></div>
-          <div><label for="s-hasta">Hasta</label><input id="s-hasta" type="date" /></div>
-          <button class="pp pp-action" id="s-aplicar">&#x2713; Aplicar</button>
-        </div>
-      </div>
-      <div id="seguimiento-body" style="padding:0 1rem 1rem">
-        <p id="seguimiento-cargando" style="color:#334155">Cargando seguimiento PRE…</p>
-        <div id="seguimiento-vendedores"></div>
-      </div>
-    </section>
+
 
   </div>
 </div>
@@ -352,15 +469,16 @@
 <script>
   let vendedorChart, clienteChart, productoChart, evolucionChart;
   let _seguimientoCharts = [];
-  let _viewportRefreshId = 0;
   let _preMeasure = 'plata', _lastDashboardPayload = null, _selectedPreProduct = '';
-  const FILTER_SECTIONS = {
-    principal:{empresa:'sel-empresa',vendedor:'sel-vendedor',cliente:'sel-cliente',producto:'sel-producto',dates:['fecha-desde','fecha-hasta'],periods:'.period-pills [data-period]'},
-    analisis:{empresa:'a-empresa',vendedor:'a-vendedor',producto:'a-producto',dates:['a-desde','a-hasta'],periods:'[data-section-periods="analisis"] [data-section-period]'},
-    mix:{empresa:'m-empresa',vendedor:'m-vendedor',cliente:'m-cliente',producto:'m-producto',dates:['m-desde','m-hasta'],periods:'[data-section-periods="mix"] [data-section-period]'},
-    seguimiento:{empresa:'s-empresa',vendedor:'s-vendedor',cliente:'s-cliente',producto:'s-producto',dates:['s-desde','s-hasta'],periods:'[data-section-periods="seguimiento"] [data-section-period]'}
+  let _teamMeasure = 'importe', _attentionPage = 1, _weeklyCharts = [], _concentrationCharts = [], _carteraCharts = [];
+  let _sharedFilters = {empresa:'TODAS',vendedor:'',cliente:'',producto:'',period:'mes',desde:'',hasta:''};
+  const FILTER_SELECTS = {
+    empresa:['sel-empresa','a-empresa','m-empresa','c-empresa'],
+    vendedor:['sel-vendedor','a-vendedor','m-vendedor','c-vendedor'],
+    cliente:['sel-cliente','a-cliente','m-cliente','c-cliente'],
+    producto:['sel-producto','a-producto','m-producto','c-producto']
   };
-  const _sectionPeriods = {principal:'30',analisis:'30',mix:'30',seguimiento:'30'};
+  const FILTER_DATES = [['fecha-desde','fecha-hasta'],['a-desde','a-hasta'],['m-desde','m-hasta'],['c-desde','c-hasta']];
   const GRAPH_PALETTE = ['#2F5D8C','#2F7D62','#C47B2D','#6A5A8A'];
   const GRAPH_INK = '#1f2937';
   const GRAPH_TEXT = '#334155';
@@ -368,6 +486,12 @@
   const graphFill = color => color;
   const barLook = color => ({backgroundColor:color, borderColor:color, borderWidth:0, borderRadius:3, barPercentage:0.72, categoryPercentage:0.78});
   const money = v => { const n=Number(v||0); return '$'+(Number.isFinite(n)?n:0).toLocaleString('es-AR',{maximumFractionDigits:0}); };
+  const moneyCompact = value => {
+    const number=Number(value||0), absolute=Math.abs(number), sign=number<0?'−':'';
+    if(absolute>=1e6) return `${sign}$${(absolute/1e6).toLocaleString('es-AR',{maximumFractionDigits:1})}M`;
+    if(absolute>=1e3) return `${sign}$${Math.round(absolute/1e3).toLocaleString('es-AR')}K`;
+    return money(number);
+  };
   const formatNumber = v => Number(v||0).toLocaleString('es-AR',{maximumFractionDigits:1});
   const MEASURE_LABELS = {plata:'Plata', cajas:'Cajas', pct:'%'};
   function formatMeasure(value, measure){
@@ -390,12 +514,54 @@
   function dateFromISO(value){ const [year,month,day]=String(value).split('-').map(Number); return new Date(year,month-1,day,12,0,0); }
   function periodToDates(period){
     const hasta=argentinaTodayISO(), desde=dateFromISO(hasta);
-    if(period==='ytd') desde.setMonth(0,1);
+    if(period==='mes') desde.setDate(1);
+    else if(period==='ytd') desde.setMonth(0,1);
     else if(period==='6m'){ desde.setMonth(desde.getMonth()-6); desde.setDate(desde.getDate()+1); }
     else desde.setDate(desde.getDate()-Number(period)+1);
     return {desde:isoLocal(desde),hasta};
   }
   function esEsteMes(){ const hasta=argentinaTodayISO(), desde=dateFromISO(hasta); desde.setDate(1); return {desde:isoLocal(desde),hasta}; }
+  const PERIOD_KEYS = new Set(['mes','7','15','30','6m','ytd']);
+  function esFechaISO(value){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(value||''))) return false;
+    return isoLocal(dateFromISO(value))===value;
+  }
+  function cargarFiltrosDesdeURL(){
+    const params=new URLSearchParams(window.location.search);
+    const empresa=params.get('empresa');
+    const vendedor=params.get('vendedor')||'';
+    const cliente=params.get('cliente')||'';
+    const producto=params.get('producto')||'';
+    const period=params.get('period')||'mes';
+    const desde=params.get('fecha_desde')||'';
+    const hasta=params.get('fecha_hasta')||'';
+    _sharedFilters.empresa=['TODAS','CARNES','LACTEOS'].includes(empresa)?empresa:'TODAS';
+    _sharedFilters.vendedor=vendedor;
+    _sharedFilters.cliente=cliente;
+    _sharedFilters.producto=producto;
+    if(esFechaISO(desde) && esFechaISO(hasta) && desde<=hasta){
+      _sharedFilters.desde=desde;
+      _sharedFilters.hasta=hasta;
+      _sharedFilters.period=PERIOD_KEYS.has(period)?period:'';
+    }else{
+      const clave=PERIOD_KEYS.has(period)?period:'mes';
+      const rango=periodToDates(clave);
+      _sharedFilters.period=clave;
+      _sharedFilters.desde=rango.desde;
+      _sharedFilters.hasta=rango.hasta;
+    }
+  }
+  function syncUrlState(){
+    const url=new URL(window.location.href);
+    url.searchParams.set('empresa',_sharedFilters.empresa||'TODAS');
+    url.searchParams.set('period',_sharedFilters.period||'custom');
+    if(_sharedFilters.vendedor) url.searchParams.set('vendedor',_sharedFilters.vendedor); else url.searchParams.delete('vendedor');
+    if(_sharedFilters.cliente) url.searchParams.set('cliente',_sharedFilters.cliente); else url.searchParams.delete('cliente');
+    if(_sharedFilters.producto) url.searchParams.set('producto',_sharedFilters.producto); else url.searchParams.delete('producto');
+    if(_sharedFilters.desde) url.searchParams.set('fecha_desde',_sharedFilters.desde); else url.searchParams.delete('fecha_desde');
+    if(_sharedFilters.hasta) url.searchParams.set('fecha_hasta',_sharedFilters.hasta); else url.searchParams.delete('fecha_hasta');
+    history.replaceState({},'',url.pathname+url.search+url.hash);
+  }
 
   /* ── TomSelect: poblar select evitando recrear si no cambian los items ── */
   const _tsInstances = {};
@@ -404,13 +570,14 @@
     'sel-cliente': 'Cliente',
     'sel-producto': 'Producto',
     'a-vendedor': 'Vendedor',
+    'a-cliente': 'Cliente',
     'a-producto': 'Producto',
     'm-vendedor': 'Vendedor',
     'm-cliente': 'Cliente',
     'm-producto': 'Producto',
-    's-vendedor': 'Vendedor',
-    's-cliente': 'Cliente',
-    's-producto': 'Producto',
+    'c-vendedor': 'Vendedor',
+    'c-cliente': 'Cliente',
+    'c-producto': 'Producto',
   };
   function _poblarSelect(id, items, allLabel='Todos'){
     const sel = document.getElementById(id); if(!sel) return;
@@ -433,81 +600,78 @@
     }
   }
 
-  function readSectionFilters(section){
-    const config=FILTER_SECTIONS[section];
-    const selectValue=id=>id?(_tsInstances[id]?_tsInstances[id].getValue():document.getElementById(id)?.value||''):'';
-    return {
-      empresa:selectValue(config.empresa)||'TODAS',
-      vendedor:selectValue(config.vendedor),
-      cliente:selectValue(config.cliente),
-      producto:selectValue(config.producto),
-      period:_sectionPeriods[section]||'',
-      desde:document.getElementById(config.dates[0]).value,
-      hasta:document.getElementById(config.dates[1]).value
-    };
-  }
-
-  /* ── Cada sección conserva sus propias selecciones ── */
-  async function cargarFiltrosSeccion(section){
-    const config=FILTER_SECTIONS[section];
+  /* ── Cargar y replicar listas de filtros para todas las secciones ── */
+  async function _cargarFiltros(empresa=_sharedFilters.empresa){
     try{
-      const empresa=readSectionFilters(section).empresa;
-      const r = await fetch('/api/dashboard-comercial/filtros?empresa='+encodeURIComponent(empresa));
+      const r = await fetch('/api/dashboard-comercial/filtros?empresa='+encodeURIComponent(empresa||'TODAS'));
       const d = await r.json();
       const opciones={vendedor:d.vendedores||[],cliente:d.clientes||[],producto:d.productos||[]};
+      FILTER_SELECTS.vendedor.forEach(id=>_poblarSelect(id,opciones.vendedor));
+      FILTER_SELECTS.cliente.forEach(id=>_poblarSelect(id,opciones.cliente));
+      FILTER_SELECTS.producto.forEach(id=>_poblarSelect(id,opciones.producto));
       ['vendedor','cliente','producto'].forEach(dimension=>{
-        const id=config[dimension];
-        if(id) _poblarSelect(id,opciones[dimension]);
+        if(_sharedFilters[dimension] && !opciones[dimension].includes(_sharedFilters[dimension])) _sharedFilters[dimension]='';
       });
+      syncFilterControls();
     }catch(e){ console.error('Error cargando filtros:', e); }
   }
 
-  async function refreshWithoutJump(refresh){
-    const refreshId=++_viewportRefreshId;
-    const scrollX=window.scrollX, scrollY=window.scrollY;
-    try{
-      await refresh();
-      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-    }finally{
-      if(refreshId===_viewportRefreshId){
-        window.scrollTo({left:scrollX,top:scrollY,behavior:'instant'});
-      }
-    }
-  }
-
-  function refreshSection(section){
-    const reload={principal:()=>load(),analisis:()=>loadAnalisis(_analisisTipo),mix:loadMix,seguimiento:loadSeguimiento}[section];
-    return refreshWithoutJump(reload);
-  }
-
-  async function updateSectionFilter(section,dimension,value){
-    const config=FILTER_SECTIONS[section];
-    const id=config[dimension];
-    if(!id) return;
-    if(dimension==='empresa') document.getElementById(id).value=value||'TODAS';
-    else setFilterSilently(id,value||'');
-    if(dimension==='empresa') await cargarFiltrosSeccion(section);
-    return refreshSection(section);
-  }
-
-  function updateSectionDates(section,desde,hasta,period=''){
-    const config=FILTER_SECTIONS[section];
-    document.getElementById(config.dates[0]).value=desde||'';
-    document.getElementById(config.dates[1]).value=hasta||'';
-    _sectionPeriods[section]=period;
-    document.querySelectorAll(config.periods).forEach(button=>button.classList.toggle('active',
-      (button.dataset.period||button.dataset.sectionPeriod)===period));
-    return refreshSection(section);
-  }
-
-  async function clearSectionDimensions(section){
-    const config=FILTER_SECTIONS[section];
-    if(config.empresa) document.getElementById(config.empresa).value='TODAS';
-    ['vendedor','cliente','producto'].forEach(dimension=>{
-      if(config[dimension]) setFilterSilently(config[dimension],'');
+  function syncFilterControls(){
+    Object.entries(FILTER_SELECTS).forEach(([dimension,ids])=>ids.forEach(id=>{
+      if(dimension==='empresa'){
+        const select=document.getElementById(id); if(select) select.value=_sharedFilters.empresa;
+      }else setFilterSilently(id,_sharedFilters[dimension]||'');
+    }));
+    FILTER_DATES.forEach(([desde,hasta])=>{
+      document.getElementById(desde).value=_sharedFilters.desde||'';
+      document.getElementById(hasta).value=_sharedFilters.hasta||'';
     });
-    await cargarFiltrosSeccion(section);
-    return refreshSection(section);
+    document.querySelectorAll('.period-pills .pp[data-period]').forEach(button=>button.classList.toggle('active',button.dataset.period===_sharedFilters.period));
+    document.querySelectorAll('[data-section-period]').forEach(button=>button.classList.toggle('active',button.dataset.sectionPeriod===_sharedFilters.period));
+  }
+
+  function reloadAllFilters(){
+    const {period,desde,hasta}=_sharedFilters;
+    const jobs=[load(period,desde,hasta)];
+    if(document.getElementById('analisis-body').style.display!=='none') jobs.push(loadAnalisis(_analisisTipo));
+    if(document.getElementById('mix-body').style.display!=='none') jobs.push(loadMix());
+    return Promise.all(jobs);
+  }
+
+  async function updateSharedFilter(dimension,value){
+    _sharedFilters[dimension]=dimension==='empresa'?(value||'TODAS'):value;
+    _attentionPage=1;
+    if(dimension==='empresa') await _cargarFiltros(_sharedFilters.empresa);
+    else syncFilterControls();
+    syncUrlState();
+    return reloadAllFilters();
+  }
+
+  function updateSharedDates(desde,hasta,period=''){
+    _sharedFilters.desde=desde||'';
+    _sharedFilters.hasta=hasta||'';
+    _sharedFilters.period=period;
+    _attentionPage=1;
+    syncFilterControls();
+    syncUrlState();
+    return reloadAllFilters();
+  }
+
+  function clearSharedDimensions(){
+    _sharedFilters.empresa='TODAS';
+    _sharedFilters.vendedor='';
+    _sharedFilters.cliente='';
+    _sharedFilters.producto='';
+    _attentionPage=1;
+    return _cargarFiltros('TODAS').then(()=>{
+      syncUrlState();
+      return reloadAllFilters();
+    });
+  }
+
+  function setActive(period){
+    _sharedFilters.period=period||'';
+    syncFilterControls();
   }
 
   function isDarkChartColor(color){
@@ -547,6 +711,8 @@
             : cur
               ? (Math.abs(v)>=1e6?'$'+(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?'$'+Math.round(v/1e3)+'K':'$'+Math.round(v).toLocaleString('es-AR'))
               : (Math.abs(v)>=1e6?(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?Math.round(v/1e3)+'K':v.toLocaleString('es-AR',{maximumFractionDigits:1}));
+          const altura=Number(bar.height||0);
+          if(altura<15) return;
           const ancho=ctx.measureText(lbl).width;
           const derecha=bar.x, izquierda=bar.base??area.left;
           const largo=Math.abs(derecha-izquierda);
@@ -573,46 +739,33 @@
     afterDatasetsDraw(chart){
       const area=chart.chartArea;
       const points=chart.getDatasetMeta(0).data||[];
-      if(!area || !points.length)return;
+      if(!area || !points.length || points.length>12)return;
       const cur = chart.options?.plugins?.datalabarsLine?.currency !== false;
       const {ctx}=chart, ocupados=[];
       ctx.save();
       ctx.font='600 11px system-ui,sans-serif';
-      ctx.textBaseline='middle';
+      ctx.textBaseline='bottom';
       chart.data.datasets.forEach((ds,di)=>{
         const meta=chart.getDatasetMeta(di); if(meta.hidden)return;
         if(ds.yAxisID==='y1') return;
         const dsCur = ds.currency !== false && cur;
         ctx.fillStyle=ds.borderColor||GRAPH_INK;
-        const values=ds.data.map(value=>Number(value));
-        const visibleIndexes=values.length<=12
-          ? values.map((_,i)=>i)
-          : [...new Set([values.indexOf(Math.max(...values)), values.length-1])];
-        visibleIndexes.forEach(i=>{
-          const pt=meta.data[i];
-          if(!pt)return;
+        meta.data.forEach((pt,i)=>{
           const v=ds.data[i]; if(v==null)return;
           const lbl = dsCur
             ? (Math.abs(v)>=1e6?'$'+(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?'$'+Math.round(v/1e3)+'K':String(v))
             : (Math.abs(v)>=1e6?(v/1e6).toFixed(1)+'M':Math.abs(v)>=1e3?Math.round(v/1e3)+'K':Number(v).toLocaleString('es-AR',{maximumFractionDigits:0}));
           const ancho=ctx.measureText(lbl).width, alto=12;
-          const offsets=chart.data.datasets.length>1
-            ? [{x:-13,y:-15},{x:0,y:0},{x:13,y:15}][di%3]
-            : {x:0,y:-8};
-          let x=Math.max(area.left+ancho/2,Math.min(area.right-ancho/2,pt.x+offsets.x));
-          let align='center';
-          if(x-ancho/2<area.left+2){ align='left'; x=area.left+2; }
-          else if(x+ancho/2>area.right-2){ align='right'; x=area.right-2; }
-          const y=Math.max(area.top+alto/2,Math.min(area.bottom-alto/2,pt.y+offsets.y));
-          const caja={left:align==='right'?x-ancho:align==='left'?x:x-ancho/2, right:0, top:y-alto/2, bottom:y+alto/2};
+          const ultimo=i===meta.data.length-1;
+          let x=pt.x, align='center';
+          if(ultimo || pt.x+ancho/2>area.right-8){ align='right'; x=pt.x-8; }
+          else if(pt.x-ancho/2<area.left+2){ align='left'; x=area.left+2; }
+          const y=Math.max(area.top+alto, pt.y-8);
+          const caja={left:align==='right'?x-ancho:align==='left'?x:x-ancho/2, right:0, top:y-alto, bottom:y+2};
           caja.right=caja.left+ancho;
           if(ocupados.some(otra=>caja.left<otra.right && caja.right>otra.left && caja.top<otra.bottom && caja.bottom>otra.top))return;
           ocupados.push(caja);
           ctx.textAlign=align;
-          ctx.lineWidth=4;
-          ctx.strokeStyle='#fff';
-          ctx.lineJoin='round';
-          ctx.strokeText(lbl,x,y);
           ctx.fillText(lbl,x,y);
         });
       });
@@ -670,16 +823,28 @@
     select.value = value||'';
   }
 
+  function reloadCurrent(){
+    const selected=id=>_tsInstances[id]?_tsInstances[id].getValue():document.getElementById(id).value;
+    _sharedFilters.empresa=selected('sel-empresa')||'TODAS';
+    _sharedFilters.vendedor=selected('sel-vendedor')||'';
+    _sharedFilters.cliente=selected('sel-cliente')||'';
+    _sharedFilters.producto=selected('sel-producto')||'';
+    _sharedFilters.desde=document.getElementById('fecha-desde').value;
+    _sharedFilters.hasta=document.getElementById('fecha-hasta').value;
+    syncFilterControls();
+    return reloadAllFilters();
+  }
+
   function hBarOpts(measure, rows, filterId, ignoredLabel, includeProducts=false){
     return {
-      indexAxis:'y',responsive:true,animation:false,layout:{padding:{right:58,left:4}},
+      indexAxis:'y',responsive:true,animation:false,layout:{padding:{right:8,left:4}},
       plugins:{
         legend:{display:false},
         datalabarsH:{currency:measure==='plata',percentage:measure==='pct'},
         tooltip:{callbacks:{label:ctx=>preBarTooltip(rows[ctx.dataIndex]||{},includeProducts)}}
       },
       scales:{
-        x:{beginAtZero:true,grace:'16%',ticks:{color:GRAPH_TEXT,maxRotation:0,autoSkip:true,maxTicksLimit:4,callback:v=>{
+        x:{beginAtZero:true,ticks:{color:GRAPH_TEXT,maxRotation:0,autoSkip:true,maxTicksLimit:4,callback:v=>{
           const n=Number(v||0);
           if(measure==='plata') return Math.abs(n)>=1e6?'$'+(n/1e6).toFixed(1)+'M':Math.abs(n)>=1e3?'$'+Math.round(n/1e3)+'K':'$'+Math.round(n);
           if(measure==='pct') return Math.round(n)+'%';
@@ -688,13 +853,13 @@
         y:{ticks:{color:GRAPH_TEXT,font:{size:11}},grid:{display:false}}
       },
       onHover:(event,elements,chart)=>{ chart.canvas.style.cursor=elements.length?'pointer':'default'; },
-      onClick:(event,elements,chart)=>{
+      onClick:(event,elements)=>{
         const index=elements?.[0]?.index;
         if(index===undefined) return;
         const value=rows[index]?.nombre;
         if(!value || value===ignoredLabel) return;
         setFilterSilently(filterId,value);
-        refreshSection('principal');
+        reloadCurrent();
       }
     };
   }
@@ -778,45 +943,428 @@
     vendedorChart=clienteChart=productoChart=evolucionChart=null;
   }
 
-  async function load(){
-    const {empresa,vendedor,cliente,producto,period,desde,hasta}=readSectionFilters('principal');
-    const isInitialLoad=!_lastDashboardPayload;
-    if(isInitialLoad){
-      document.getElementById('skeleton').style.display='';
-      document.getElementById('content').style.display='none';
+  function formatoVariacion(valor, medida='importe'){
+    if(valor==null || !Number.isFinite(Number(valor))) return 'Sin base comparable';
+    const signo=Number(valor)>0?'+':'';
+    const sufijo=medida==='importe'?'':` (${medida})`;
+    return `${signo}${Number(valor).toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})}%${sufijo}`;
+  }
+  function fechaCorta(value){
+    const date=dateFromISO(value);
+    return new Intl.DateTimeFormat('es-AR',{day:'2-digit',month:'2-digit'}).format(date);
+  }
+  function rangoAnterior(desde,hasta){
+    const inicio=dateFromISO(desde), fin=dateFromISO(hasta);
+    const dias=Math.round((fin-inicio)/86400000)+1;
+    fin.setDate(inicio.getDate()-1);
+    inicio.setDate(inicio.getDate()-dias);
+    return {desde:isoLocal(inicio),hasta:isoLocal(fin)};
+  }
+  function semanasCalendario(filas,desde,hasta,campo){
+    const inicio=dateFromISO(desde), fin=dateFromISO(hasta), semanas=new Map();
+    const cursor=new Date(inicio);
+    while(cursor<=fin){
+      const lunes=new Date(cursor), dia=(lunes.getDay()+6)%7;
+      lunes.setDate(lunes.getDate()-dia);
+      const domingo=new Date(lunes); domingo.setDate(domingo.getDate()+6);
+      const clave=isoLocal(lunes);
+      if(!semanas.has(clave)){
+        const desdeSemana=lunes<inicio?inicio:lunes;
+        const hastaSemana=domingo>fin?fin:domingo;
+        semanas.set(clave,{
+          inicio:isoLocal(desdeSemana),
+          fin:isoLocal(hastaSemana),
+          parcial:lunes<inicio || domingo>fin,
+          valor:0
+        });
+      }
+      cursor.setDate(cursor.getDate()+1);
     }
-    _selectedPreProduct = producto;
-    const p = new URLSearchParams();
-    if(period)  p.set('period', period);
-    if(desde)   p.set('fecha_desde', desde);
-    if(hasta)   p.set('fecha_hasta', hasta);
-    p.set('empresa', empresa);
-    if(vendedor) p.set('vendedor', vendedor);
-    if(cliente)  p.set('cliente', cliente);
-    if(producto) p.set('producto', producto);
+    (filas||[]).forEach(fila=>{
+      const fecha=String(fila.fecha||'').slice(0,10);
+      if(!esFechaISO(fecha) || fecha<desde || fecha>hasta) return;
+      const d=dateFromISO(fecha), dia=(d.getDay()+6)%7;
+      d.setDate(d.getDate()-dia);
+      const semana=semanas.get(isoLocal(d));
+      if(semana) semana.valor+=Number(fila[campo]||0);
+    });
+    return [...semanas.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([lunes,item])=>({lunes,...item}));
+  }
+  function destruirDiagnosticoCharts(){
+    _weeklyCharts.forEach(chart=>chart.destroy());
+    _concentrationCharts.forEach(chart=>chart.destroy());
+    _weeklyCharts=[];
+    _concentrationCharts=[];
+  }
+  function dibujarSemanal(canvasId,actual,anterior,medida){
+    const campo=medida==='importe'?'monto':'cajas';
+    const weeksActual=semanasCalendario(actual.serie_actual,actual.desde,actual.hasta,campo);
+    const weeksAnterior=semanasCalendario(anterior.serie_anterior,anterior.desde,anterior.hasta,campo);
+    const maxSemanas=Math.max(weeksActual.length,weeksAnterior.length);
+    const canvas=document.getElementById(canvasId);
+    const empty=document.getElementById(canvasId==='weekly-amount-chart'?'weekly-amount-empty':'weekly-boxes-empty');
+    const tieneOperaciones=(actual.serie_actual||[]).length>0 || (anterior.serie_anterior||[]).length>0;
+    if(!tieneOperaciones){
+      canvas.hidden=true;
+      empty.hidden=false;
+      empty.textContent='Sin operaciones PRE en este período.';
+      return;
+    }
+    canvas.hidden=false;
+    empty.hidden=true;
+    const labels=Array.from({length:maxSemanas},(_,index)=>{
+      const parcial=Boolean(weeksActual[index]?.parcial||weeksAnterior[index]?.parcial);
+      return `Semana ${index+1}${parcial?' (parcial)':''}`;
+    });
+    const datos=(weeks,label)=>Array.from({length:maxSemanas},(_,index)=>index<weeks.length?weeks[index].valor:null);
+    const tooltipRango=(weeks,index)=>{
+      const week=weeks[index];
+      if(!week) return 'Sin semana en esta ventana';
+      return `${week.inicio}–${week.fin}${week.parcial?' (parcial)':''}`;
+    };
+    const currency=medida==='importe';
+    _weeklyCharts.push(new Chart(canvas,{
+      type:'line',plugins:[datalabarsLine],
+      data:{labels,datasets:[
+        {label:'Período',data:datos(weeksActual),borderColor:GRAPH_PALETTE[0],backgroundColor:GRAPH_PALETTE[0],borderWidth:2,tension:.25,pointRadius:3,fill:false,currency},
+        {label:'Ventana anterior',data:datos(weeksAnterior),borderColor:GRAPH_PALETTE[2],backgroundColor:GRAPH_PALETTE[2],borderWidth:2,tension:.25,pointRadius:3,fill:false,currency}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,layout:{padding:{top:14,right:12}},
+        plugins:{legend:{display:true,position:'bottom',labels:{color:GRAPH_TEXT,boxWidth:10}},datalabarsLine:{currency},
+          tooltip:{callbacks:{title:items=>{
+            const item=items[0];
+            return `${item.dataset.label}: ${tooltipRango(item.datasetIndex===0?weeksActual:weeksAnterior,item.dataIndex)}`;
+          },label:ctx=>currency?money(ctx.parsed.y):formatNumber(ctx.parsed.y)}
+        }},
+        scales:{x:{ticks:{color:GRAPH_TEXT,maxRotation:0,autoSkip:false},grid:{display:false}},
+          y:{beginAtZero:true,ticks:{color:GRAPH_TEXT,callback:value=>currency?money(value):formatNumber(value)},grid:{color:'#eef2f6'}}}
+      }
+    }));
+  }
+  function dibujarConcentracion(canvasId,emptyId,filas){
+    const canvas=document.getElementById(canvasId), empty=document.getElementById(emptyId);
+    const rows=filas||[];
+    canvas.hidden=!rows.length;
+    empty.hidden=Boolean(rows.length);
+    if(!rows.length) return;
+    _concentrationCharts.push(new Chart(canvas,{
+      type:'bar',plugins:[datalabarsH],
+      data:{labels:rows.map(row=>row.nombre),datasets:[{
+        label:'Participación',data:rows.map(row=>Number(row.pct||0)),
+        backgroundColor:rows.map((_,i)=>GRAPH_PALETTE[i%GRAPH_PALETTE.length]),
+        borderColor:rows.map((_,i)=>GRAPH_PALETTE[i%GRAPH_PALETTE.length]),
+        borderWidth:0,borderRadius:3,barPercentage:.72,categoryPercentage:.78
+      }]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:50}},
+        plugins:{legend:{display:false},datalabarsH:{currency:false,percentage:true},
+          tooltip:{callbacks:{label:ctx=>`${money(rows[ctx.dataIndex]?.plata)} · ${formatNumber(rows[ctx.dataIndex]?.pct)}%`}}},
+        scales:{x:{min:0,max:100,ticks:{color:GRAPH_TEXT,callback:value=>`${value}%`},grid:{color:'#eef2f6'}},
+          y:{ticks:{color:GRAPH_TEXT,font:{size:10}},grid:{display:false}}}
+      }
+    }));
+  }
+  function renderNamesList(hostId,rows,emptyText){
+    const host=document.getElementById(hostId);
+    host.replaceChildren();
+    const names=(rows||[]).map(row=>typeof row==='string'?row:row.nombre).filter(Boolean);
+    if(!names.length){
+      const note=document.createElement('p'); note.className='dashboard-note'; note.textContent=emptyText; host.appendChild(note); return;
+    }
+    const count=document.createElement('p'); count.className='dashboard-note'; count.textContent=`${names.length} cliente${names.length===1?'':'s'}`; host.appendChild(count);
+    const list=document.createElement('ul'); list.className='diagnostic-list';
+    names.forEach(name=>{const item=document.createElement('li'); item.textContent=name; list.appendChild(item);});
+    host.appendChild(list);
+  }
+  function renderReductionTable(hostId,rows,emptyText){
+    const host=document.getElementById(hostId); host.replaceChildren();
+    if(!rows?.length){const note=document.createElement('p'); note.className='dashboard-note'; note.textContent=emptyText; host.appendChild(note); return;}
+    host.appendChild(crearTabla(
+      [{key:'cliente',label:'Cliente'},{key:'medida',label:'Medida'},{key:'anterior',label:'Anterior',num:true},{key:'actual',label:'Actual',num:true},{key:'variacion',label:'Variación',num:true}],
+      rows.map(row=>({
+        cliente:row.cliente,
+        medida:row.medida==='importe'?'Importe':row.medida==='cajas'?'Cajas':row.medida==='kilos'?'Kilos':'Productos',
+        anterior:row.medida==='importe'?money(row.valor_anterior):formatNumber(row.valor_anterior),
+        actual:row.medida==='importe'?money(row.valor_actual):formatNumber(row.valor_actual),
+        variacion:row.variacion_pct==null?'Sin base':`${Number(row.variacion_pct).toLocaleString('es-AR',{maximumFractionDigits:1})}%`
+      }))
+    ));
+  }
+  function renderCartera(data){
+    if(!data) throw new Error('La respuesta de cartera no está disponible');
+    _carteraCharts.forEach(chart=>chart.destroy());
+    _carteraCharts=[];
+    const seleccionado=data.vendedor||'';
+    document.getElementById('cartera-lista-titulo').textContent=seleccionado?`Clientes de ${seleccionado}`:'Clientes de todos los vendedores';
+    document.getElementById('cartera-periodo').textContent=`Período: ${data.desde} → ${data.hasta} · fecha de corte ${data.hasta}.`;
+    document.getElementById('cartera-total').textContent=Number(data.total_clientes||0).toLocaleString('es-AR');
+    document.getElementById('cartera-activos').textContent=Number(data.clientes_activos_30d||0).toLocaleString('es-AR');
+    document.getElementById('cartera-nuevos').textContent=Number(data.clientes_nuevos_30d||0).toLocaleString('es-AR');
+    document.getElementById('cartera-note').textContent='Cliente nuevo y cliente activo se miden en los 30 días hasta la fecha de corte, no en el período elegido.';
+
+    const comparacion=data.comparacion_vendedores||[];
+    const compBody=document.getElementById('cartera-comparacion-body');
+    compBody.replaceChildren();
+    comparacion.forEach(item=>{
+      const row=document.createElement('tr');
+      [item.vendedor,money(item.importe_pre),`${formatNumber(item.participacion)}%`,Number(item.clientes_compradores||0).toLocaleString('es-AR')].forEach((value,index)=>{
+        const cell=document.createElement('td'); cell.textContent=value;
+        if(index>0) cell.className='num';
+        row.appendChild(cell);
+      });
+      compBody.appendChild(row);
+    });
+    const compareCanvas=document.getElementById('cartera-comparacion-chart');
+    const compareEmpty=document.getElementById('cartera-comparacion-empty');
+    if(!comparacion.length){
+      compareCanvas.hidden=true;
+      compareEmpty.hidden=false;
+      compareEmpty.textContent='Sin operaciones PRE en este período.';
+    }else if(comparacion.length===1){
+      compareCanvas.hidden=true;
+      compareEmpty.hidden=false;
+      compareEmpty.textContent='La tabla muestra el único vendedor con operaciones PRE.';
+    }else{
+      compareCanvas.hidden=false;
+      compareEmpty.hidden=true;
+      _carteraCharts.push(new Chart(compareCanvas,{
+        type:'bar',plugins:[datalabarsH],
+        data:{labels:comparacion.map(item=>item.vendedor),datasets:[{
+          label:'Importe PRE',data:comparacion.map(item=>Number(item.importe_pre||0)),
+          backgroundColor:comparacion.map((_,index)=>GRAPH_PALETTE[index%GRAPH_PALETTE.length]),
+          borderColor:comparacion.map((_,index)=>GRAPH_PALETTE[index%GRAPH_PALETTE.length]),
+          borderWidth:0,borderRadius:3,barPercentage:.72,categoryPercentage:.78
+        }]},
+        options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:false,layout:{padding:{left:4,right:84,top:4,bottom:4}},
+          plugins:{legend:{display:false},datalabarsH:{currency:true},tooltip:{callbacks:{label:ctx=>`${money(comparacion[ctx.dataIndex]?.importe_pre)} · ${formatNumber(comparacion[ctx.dataIndex]?.participacion)}%`}}},
+          scales:{x:{beginAtZero:true,ticks:{color:GRAPH_TEXT,minRotation:0,maxRotation:0,padding:8,callback:value=>moneyCompact(value)},grid:{color:'#eef2f6'}},y:{ticks:{color:GRAPH_TEXT,minRotation:0,maxRotation:0},grid:{display:false}}}
+        }
+      }));
+    }
+
+    const clientes=data.clientes||[];
+    const clientBody=document.getElementById('cartera-clientes-body');
+    clientBody.replaceChildren();
+    clientes.forEach(item=>{
+      const row=document.createElement('tr');
+      [item.cliente,fmtFecha(item.ultima_compra),item.dias==null?'—':Number(item.dias).toLocaleString('es-AR'),item.estado].forEach((value,index)=>{
+        const cell=document.createElement('td'); cell.textContent=value||'—';
+        if(index===2) cell.className='num';
+        row.appendChild(cell);
+      });
+      clientBody.appendChild(row);
+    });
+    const clientEmpty=document.getElementById('cartera-clientes-empty');
+    clientEmpty.hidden=clientes.length>0;
+    clientEmpty.textContent='Sin operaciones PRE en este período.';
+
+    const products=data.productos||[];
+    const productCanvas=document.getElementById('cartera-productos-chart');
+    const productEmpty=document.getElementById('cartera-productos-empty');
+    if(!products.length){
+      productCanvas.hidden=true;
+      productEmpty.hidden=false;
+      productEmpty.textContent='Sin operaciones PRE en este período.';
+    }else{
+      productCanvas.hidden=false;
+      productEmpty.hidden=true;
+      _carteraCharts.push(new Chart(productCanvas,{
+        type:'bar',plugins:[datalabarsH],
+        data:{labels:products.map(item=>item.nombre),datasets:[{
+          label:'Participación',data:products.map(item=>Number(item.pct||0)),
+          backgroundColor:products.map((_,index)=>GRAPH_PALETTE[index%GRAPH_PALETTE.length]),
+          borderColor:products.map((_,index)=>GRAPH_PALETTE[index%GRAPH_PALETTE.length]),
+          borderWidth:0,borderRadius:3,barPercentage:.72,categoryPercentage:.78
+        }]},
+        options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:false,layout:{padding:{right:48}},
+          plugins:{legend:{display:false},datalabarsH:{currency:false,percentage:true},tooltip:{callbacks:{label:ctx=>`${formatNumber(products[ctx.dataIndex]?.pct)}% · ${money(products[ctx.dataIndex]?.plata)}`}}},
+          scales:{x:{min:0,max:100,ticks:{color:GRAPH_TEXT,callback:value=>`${value}%`},grid:{color:'#eef2f6'}},y:{ticks:{color:GRAPH_TEXT},grid:{display:false}}}
+        }
+      }));
+    }
+  }
+  function renderDiagnostico(data){
+    const card=document.getElementById('diagnostico-card'), diagnostico=data.diagnostico;
+    destruirDiagnosticoCharts();
+    if(!diagnostico){card.hidden=true; return;}
+    card.hidden=false;
+    document.getElementById('diagnostico-vendedor').textContent=diagnostico.vendedor;
+    document.getElementById('diagnostico-note').textContent=diagnostico.estado_datos==='sin_operaciones'
+      ?'Sin operaciones PRE para ese vendedor en el período seleccionado.'
+      :`Nuevo = primera compra observada con este vendedor hasta ${data.hasta}; se excluyen compras posteriores al corte.`;
+    const ventanasActual={desde:data.desde,hasta:data.hasta,serie_actual:diagnostico.serie_actual};
+    const ventanasAnterior={desde:data.desde_anterior,hasta:data.hasta_anterior,serie_anterior:diagnostico.serie_anterior};
+    dibujarSemanal('weekly-amount-chart',ventanasActual,ventanasAnterior,'importe');
+    dibujarSemanal('weekly-boxes-chart',ventanasActual,ventanasAnterior,'cajas');
+    renderNamesList('diag-nuevos',diagnostico.nuevos,'Sin clientes nuevos en esta ventana.');
+    renderNamesList('diag-recurrentes',diagnostico.recurrentes,'Sin clientes recurrentes en esta ventana.');
+    renderNamesList('diag-recuperados',diagnostico.recuperados,'Sin clientes recuperados en esta ventana.');
+    renderReductionTable('diag-reduccion',diagnostico.clientes_reduccion,`Sin clientes con reducción en ${_teamMeasure}.`);
+    dibujarConcentracion('concentracion-clientes-chart','concentracion-clientes-empty',diagnostico.concentracion_clientes);
+    dibujarConcentracion('concentracion-productos-chart','concentracion-productos-empty',diagnostico.concentracion_productos);
+  }
+  function claseEstado(estado){
+    if(['Cumplido','En ritmo'].includes(estado)) return 'status-ok';
+    if(['Por debajo del ritmo esperado','No cumplido'].includes(estado)) return 'status-bad';
+    if(['Cobertura incompleta'].includes(estado)) return 'status-warn';
+    return 'status-neutral';
+  }
+  function valorMedida(value){return _teamMeasure==='importe'?money(value):formatNumber(value);}
+  function renderEquipo(rows,estadoDatos,mes,hasta){
+    const body=document.getElementById('equipo-table-body'), empty=document.getElementById('equipo-empty');
+    body.replaceChildren();
+    document.getElementById('equipo-data-note').textContent=estadoDatos==='sin_operaciones'
+      ?`Sin operaciones PRE en el período. Objetivos de ${mes} hasta ${hasta}; la tabla distingue “Sin meta” de “Sin operaciones”.`
+      :`Objetivos de ${mes}, realizados calculados hasta ${hasta}.`;
+    empty.hidden=Boolean(rows?.length);
+    empty.textContent=estadoDatos==='sin_operaciones'?'Sin operaciones PRE ni vendedores que listar.':'No hay vendedores en este alcance.';
+    (rows||[]).forEach(fila=>{
+      const row=document.createElement('tr');
+      if(_sharedFilters.vendedor && fila.vendedor===_sharedFilters.vendedor) row.classList.add('is-selected');
+      const add=(value,className='')=>{const cell=document.createElement('td'); cell.textContent=value; if(className)cell.className=className; row.appendChild(cell); return cell;};
+      add(fila.vendedor);
+      add(valorMedida(fila.realizado),'num');
+      add(fila.meta==null?'—':valorMedida(fila.meta),'num');
+      let cumplimiento='—';
+      if(fila.cumplimiento!=null) cumplimiento=`${(Number(fila.cumplimiento)*100).toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`;
+      add(cumplimiento,'num');
+      add(fila.desvio==null?'—':`${Number(fila.desvio)>=0?'+':''}${(Number(fila.desvio)*100).toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})} pp`,'num');
+      const estadoCell=add('');
+      const estado=document.createElement('span'); estado.className=`status-text ${claseEstado(fila.estado)}`; estado.textContent=fila.estado||'Datos no disponibles'; estadoCell.appendChild(estado);
+      add(Number(fila.clientes_compradores||0).toLocaleString('es-AR'),'num');
+      add(Number(fila.clientes_sin_recompra||0).toLocaleString('es-AR'),'num');
+      add(money(fila.importe_pre_sin_recompra_anterior||0),'num');
+      const action=add('');
+      const button=document.createElement('button'); button.className='pp'; button.type='button'; button.textContent='Ver detalle';
+      button.addEventListener('click',()=>{
+        setFilterSilently('sel-vendedor',fila.vendedor);
+        updateSharedFilter('vendedor',fila.vendedor);
+      });
+      action.appendChild(button);
+      body.appendChild(row);
+    });
+  }
+  function renderKpis(kpis){
+    const campos={
+      importe_pre:{actual:'kpi-importe-actual',anterior:'kpi-importe-anterior',variacion:'kpi-importe-variacion',format:money},
+      cajas:{actual:'kpi-cajas-actual',anterior:'kpi-cajas-anterior',variacion:'kpi-cajas-variacion',format:formatNumber},
+      kilos:{actual:'kpi-kilos-actual',anterior:'kpi-kilos-anterior',variacion:'kpi-kilos-variacion',format:formatNumber},
+      clientes_compradores:{actual:'kpi-clientes-actual',anterior:'kpi-clientes-anterior',variacion:'kpi-clientes-variacion',format:value=>Number(value||0).toLocaleString('es-AR')}
+    };
+    Object.entries(campos).forEach(([key,ids])=>{
+      const dato=kpis?.[key];
+      if(!dato) throw new Error(`Respuesta incompleta para ${key}`);
+      document.getElementById(ids.actual).textContent=ids.format(dato.actual);
+      document.getElementById(ids.anterior).textContent=ids.format(dato.anterior);
+      document.getElementById(ids.variacion).textContent=dato.variacion_texto||'Sin base comparable';
+    });
+  }
+  function moneyConSigno(value){
+    const numero=Number(value||0);
+    return `${numero>0?'+':numero<0?'−':''}${money(Math.abs(numero))}`;
+  }
+  function renderClientesAtencion(data){
+    const rows=data.clientes_atencion||[];
+    const total=Number(data.total_casos||0);
+    const page=Number(data.pagina||1), pages=Math.max(1,Number(data.total_paginas||1));
+    const body=document.getElementById('clientes-atencion-body');
+    body.replaceChildren();
+    document.getElementById('clientes-atencion-total').textContent=`${total.toLocaleString('es-AR')} caso${total===1?'':'s'}`;
+    const empty=document.getElementById('clientes-atencion-empty');
+    empty.hidden=total>0;
+    empty.textContent=data.estado_datos==='sin_operaciones'?'Sin operaciones PRE; no hay casos en la ventana.':'Sin casos de atención en el período seleccionado.';
+    rows.forEach(item=>{
+      const row=document.createElement('tr');
+      const cell=(value,className='')=>{const td=document.createElement('td'); td.textContent=value; if(className)td.className=className; row.appendChild(td);};
+      cell(item.vendedor||'—');
+      cell(item.cliente||'—');
+      let senal=item.senal||'—';
+      if(senal==='Compra en baja') senal+=` (${item.medida||_teamMeasure})`;
+      else if(senal==='Menor variedad') senal+=' (productos)';
+      cell(senal,'attention-signal');
+      cell(fmtFecha(item.ultima_compra));
+      cell(item.dias_sin_comprar==null?'—':Number(item.dias_sin_comprar).toLocaleString('es-AR'),'num');
+      cell(money(item.importe_anterior),'num');
+      cell(money(item.importe_actual),'num');
+      cell(moneyConSigno(item.diferencia),'num');
+      const variacion=item.variacion_pct==null?'Sin base comparable':`${Number(item.variacion_pct)>0?'+':''}${Number(item.variacion_pct).toLocaleString('es-AR',{maximumFractionDigits:1})}%${item.medida&&item.medida!=='importe'?` (${item.medida})`:''}`;
+      cell(variacion,'num');
+      body.appendChild(row);
+    });
+    const desde=total?(page-1)*20+1:0, hasta=Math.min(page*20,total);
+    document.getElementById('clientes-atencion-paginacion').textContent=total
+      ?`Mostrando ${desde}–${hasta} de ${total.toLocaleString('es-AR')} · página ${page} de ${pages}`
+      :'Página 1 de 1';
+    document.getElementById('clientes-atencion-prev').disabled=page<=1;
+    document.getElementById('clientes-atencion-next').disabled=page>=pages;
+  }
+  function limpiarDashboardPorError(mensaje){
+    document.getElementById('dashboard-error-message').textContent=mensaje;
+    document.getElementById('dashboard-error').hidden=false;
+    document.getElementById('sin-operaciones-note').hidden=true;
+    document.getElementById('period-comparison-label').textContent='';
+    ['kpi-importe-actual','kpi-importe-anterior','kpi-importe-variacion','kpi-cajas-actual','kpi-cajas-anterior','kpi-cajas-variacion','kpi-kilos-actual','kpi-kilos-anterior','kpi-kilos-variacion','kpi-clientes-actual','kpi-clientes-anterior','kpi-clientes-variacion'].forEach(id=>document.getElementById(id).textContent='—');
+    document.getElementById('equipo-table-body').replaceChildren();
+    document.getElementById('equipo-data-note').textContent='Datos no disponibles.';
+    document.getElementById('equipo-empty').hidden=false;
+    document.getElementById('equipo-empty').textContent='Datos no disponibles.';
+    document.getElementById('clientes-atencion-body').replaceChildren();
+    document.getElementById('clientes-atencion-total').textContent='Datos no disponibles';
+    document.getElementById('clientes-atencion-paginacion').textContent='';
+    document.getElementById('clientes-atencion-empty').hidden=false;
+    document.getElementById('clientes-atencion-empty').textContent='Datos no disponibles.';
+    document.getElementById('cartera-total').textContent='—';
+    document.getElementById('cartera-activos').textContent='—';
+    document.getElementById('cartera-nuevos').textContent='—';
+    document.getElementById('cartera-note').textContent='Datos no disponibles.';
+    document.getElementById('cartera-comparacion-body').replaceChildren();
+    document.getElementById('cartera-clientes-body').replaceChildren();
+    document.getElementById('cartera-comparacion-chart').hidden=true;
+    document.getElementById('cartera-productos-chart').hidden=true;
+    document.getElementById('cartera-comparacion-empty').hidden=false;
+    document.getElementById('cartera-comparacion-empty').textContent='Datos no disponibles.';
+    document.getElementById('cartera-clientes-empty').hidden=false;
+    document.getElementById('cartera-clientes-empty').textContent='Datos no disponibles.';
+    document.getElementById('cartera-productos-empty').hidden=false;
+    document.getElementById('cartera-productos-empty').textContent='Datos no disponibles.';
+    _carteraCharts.forEach(chart=>chart.destroy()); _carteraCharts=[];
+    document.getElementById('diagnostico-card').hidden=true;
+    destruirDiagnosticoCharts();
+  }
+  async function load(period=_sharedFilters.period,desde=_sharedFilters.desde,hasta=_sharedFilters.hasta){
+    setActive(period||'');
+    document.getElementById('skeleton').style.display='';
+    document.getElementById('content').style.display='none';
+    const params=new URLSearchParams({
+      fecha_desde:desde||_sharedFilters.desde,
+      fecha_hasta:hasta||_sharedFilters.hasta,
+      empresa:_sharedFilters.empresa,
+      medida:_teamMeasure,
+      pagina:String(_attentionPage)
+    });
+    if(_sharedFilters.vendedor) params.set('vendedor',_sharedFilters.vendedor);
+    if(_sharedFilters.cliente) params.set('cliente',_sharedFilters.cliente);
+    if(_sharedFilters.producto) params.set('producto',_sharedFilters.producto);
     try{
-      const r = await fetch('/api/dashboard-comercial-v2?'+p), d = await r.json(), k = d.kpis||{}, s = d.series||{};
-      document.getElementById('period-label').textContent = `Período: ${d.desde||'–'} → ${d.hasta||'–'}`;
-
-      document.getElementById('kpi-pre-total').textContent       = money(k.ventas_pre_periodo_total);
-      document.getElementById('kpi-pre-count').textContent       = String(k.ventas_pre_periodo_count||0);
-      document.getElementById('kpi-pre-ticket').textContent      = money(k.ventas_pre_ticket_promedio);
-      document.getElementById('kpi-pre-top-vendedor').textContent= k.ventas_pre_top_vendedor||'–';
-
-      destroyAll();
-      _lastDashboardPayload = d;
-      renderTopPreCharts(s);
-      renderClienteAnalisis(d.cliente_analisis,cliente);
-
-      const evo=s.pre_evolucion_diaria||[], eL=evo.map(x=>fmtFecha(x.fecha)), eM=evo.map(x=>x.monto||0), eQ=evo.map(x=>x.cantidad||0);
-      evolucionChart=new Chart(document.getElementById('evolucionChart'),{type:'line',plugins:[datalabarsLine],data:{labels:eL,datasets:[
-        {label:'Monto', data:eM, borderColor:GRAPH_PALETTE[0], backgroundColor:'rgba(47,93,140,0.12)', borderWidth:2, tension:0.3, pointRadius:3, fill:true, yAxisID:'y', currency:true},
-        {label:'Cantidad', data:eQ, borderColor:GRAPH_PALETTE[1], backgroundColor:'transparent', borderWidth:2, tension:0.3, pointRadius:3, yAxisID:'y1', currency:false}
-      ]},options:{responsive:true, layout:{padding:{top:18,right:12}}, plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,color:GRAPH_TEXT}}, datalabarsLine:{currency:true}, tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='Monto'?`Monto: ${money(ctx.parsed.y)}`:`Cant: ${ctx.parsed.y}`}}}, scales:{x:{ticks:{color:GRAPH_TEXT,font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:6},grid:{display:false}}, y:{position:'left',ticks:{color:GRAPH_TEXT,callback:v=>money(v),font:{size:10}},grid:{color:'#eef2f6'}}, y1:{position:'right',ticks:{color:GRAPH_TEXT,precision:0,font:{size:10}},grid:{display:false}}}}});
-
-    }catch(e){ console.error(e);
-    }finally{
-      if(isInitialLoad) document.getElementById('skeleton').style.display='none';
+      const response=await fetch('/api/dashboard-comercial/equipo?'+params);
+      const data=await response.json().catch(()=>null);
+      if(!response.ok) throw new Error(data?.error||`HTTP ${response.status}`);
+      if(!data || data.error) throw new Error(data?.error||'Respuesta inválida del equipo comercial');
+      document.getElementById('dashboard-error').hidden=true;
+      document.getElementById('period-label').textContent=`Período: ${data.desde} → ${data.hasta} · objetivos ${data.mes_objetivos}`;
+      document.getElementById('period-comparison-label').textContent=`Comparación: ${data.desde_anterior} → ${data.hasta_anterior} · misma cantidad de días.`;
+      document.getElementById('sin-operaciones-note').hidden=data.estado_datos!=='sin_operaciones';
+      renderKpis(data.kpis);
+      renderEquipo(data.equipo,data.estado_datos,data.mes_objetivos,data.hasta);
+      renderCartera(data.cartera);
+      renderDiagnostico(data);
+      renderClientesAtencion(data);
+      _lastDashboardPayload=data;
+      document.getElementById('skeleton').style.display='none';
+      document.getElementById('content').style.display='';
+    }catch(error){
+      console.error('Error cargando equipo comercial:',error);
+      limpiarDashboardPorError(`No se pudieron cargar los datos del equipo. ${error.message||''}`.trim());
+      document.getElementById('skeleton').style.display='none';
       document.getElementById('content').style.display='';
     }
   }
@@ -840,7 +1388,8 @@
     document.getElementById('analisis-subtitle').textContent = subs[_analisisTipo]||'';
     document.getElementById('analisis-bar-titulo').textContent = titulosBar[_analisisTipo]||'Top 15';
 
-    const {empresa,vendedor,cliente,producto,desde,hasta}=readSectionFilters('analisis');
+    /* Los filtros compartidos se leen de una única selección sincronizada. */
+    const {empresa,vendedor,cliente,producto,desde,hasta}=_sharedFilters;
 
     const p = new URLSearchParams();
     p.set('tipo', _analisisTipo);
@@ -882,7 +1431,7 @@
       if(tieneDatosEvo){
         analisisLineChart = new Chart(document.getElementById('analisisLineChart'),{
           type:'line', plugins:[datalabarsLine],
-          data:{ labels:evoLabels, datasets:[{label:'Cajas', data:evo.map(x=>x.cajas), borderColor:GRAPH_PALETTE[0], backgroundColor:'rgba(47,93,140,0.12)', borderWidth:2, tension:0.25, pointRadius:4, fill:true, currency:false}] },
+          data:{labels:evoLabels, datasets:[{label:'Cajas', data:evo.map(x=>x.cajas), borderColor:GRAPH_PALETTE[0], backgroundColor:GRAPH_PALETTE[0], borderWidth:2, tension:0.25, pointRadius:4, fill:false, currency:false}]},
           options:{ responsive:true, layout:{padding:{top:18,right:16}},
             plugins:{
               legend:{display:false},
@@ -901,7 +1450,7 @@
   const MIX_COLORS = GRAPH_BLUE_TONES;
 
   async function loadMix(){
-    const {empresa,vendedor,cliente,producto,desde,hasta}=readSectionFilters('mix');
+    const {empresa,vendedor,cliente,producto,desde,hasta}=_sharedFilters;
 
     const p = new URLSearchParams();
     p.set('empresa', empresa);
@@ -921,26 +1470,31 @@
       if(mixEvoChart)        mixEvoChart.destroy();
       mixDoughnutChart=mixDiversidadChart=mixStackedChart=mixEvoChart=null;
 
-      /* 1. Doughnut: mix global */
+      /* 1. Barras horizontales: participación por producto, con Otros */
       const mg = d.mix_global||[];
       setChartVisibility('mixDoughnutChart','mixDoughnutChart-empty',mg.length>0);
       if(mg.length){
         mixDoughnutChart = new Chart(document.getElementById('mixDoughnutChart'),{
-          type:'doughnut', plugins:[donutLabels],
+          type:'bar', plugins:[datalabarsH],
           data:{
-            labels: mg.map(x=>x.producto),
+            labels:mg.map(x=>x.producto),
             datasets:[{
-              data:mg.map(x=>x.cajas),
+              label:'Participación',
+              data:mg.map(x=>Number(x.pct||0)),
               backgroundColor:mg.map((_,i)=>GRAPH_PALETTE[i%GRAPH_PALETTE.length]),
-              borderColor:'#fff',
-              borderWidth:2
+              borderColor:mg.map((_,i)=>GRAPH_PALETTE[i%GRAPH_PALETTE.length]),
+              borderWidth:0,
+              borderRadius:3,
+              barPercentage:0.72,
+              categoryPercentage:0.78
             }]
           },
-          options:{responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{legend:{position:'right',labels:{color:GRAPH_TEXT,font:{size:12},boxWidth:12,generateLabels(chart){
-            const ds=chart.data.datasets[0], total=ds.data.reduce((s,v)=>s+Number(v||0),0)||1;
-            return chart.data.labels.map((label,i)=>({text:`${label}  ${Math.round(Number(ds.data[i])/total*100)}%`, fillStyle:ds.backgroundColor[i], strokeStyle:ds.backgroundColor[i], lineWidth:0, hidden:false, index:i}));
-          }}},
-            tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${Number(ctx.parsed).toLocaleString('es-AR',{maximumFractionDigits:1})} caj (${mg[ctx.dataIndex]?.pct||0}%)`}}}}
+          options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:52}},
+            plugins:{legend:{display:false},datalabarsH:{currency:false,percentage:true},
+              tooltip:{callbacks:{label:ctx=>`${Number(ctx.parsed.x||0).toLocaleString('es-AR',{maximumFractionDigits:1})}% · ${Number(mg[ctx.dataIndex]?.cajas||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
+            scales:{x:{min:0,max:100,ticks:{color:GRAPH_TEXT,callback:value=>`${value}%`},grid:{color:'#eef2f6'}},
+                    y:{ticks:{color:GRAPH_TEXT,font:{size:10}},grid:{display:false}}}
+          }
         });
       }
 
@@ -954,11 +1508,11 @@
             labels: dc.map(x=>x.cliente),
             datasets:[{label:'Productos distintos', data:dc.map(x=>x.n_productos), ...barLook(GRAPH_PALETTE[1])}]
           },
-            options:{indexAxis:'y', responsive:true, maintainAspectRatio:false, layout:{padding:{top:2,right:56,bottom:0}},
+          options:{indexAxis:'y', responsive:true, maintainAspectRatio:false, layout:{padding:{right:56}},
             plugins:{legend:{display:false}, datalabarsH:{currency:false},
               tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x} productos · ${Number(dc[ctx.dataIndex]?.cajas||0).toLocaleString('es-AR',{maximumFractionDigits:0})} cajas`}}},
             scales:{x:{ticks:{color:GRAPH_TEXT,font:{size:11},precision:0,callback:v=>Number.isInteger(v)?String(v):''},grid:{color:'#eef2f6'}},
-                    y:{offset:false,ticks:{color:GRAPH_TEXT,font:{size:10}},grid:{display:false}}}
+                    y:{ticks:{color:GRAPH_TEXT,font:{size:10}},grid:{display:false}}}
           }
         });
       }
@@ -980,10 +1534,9 @@
           type:'bar', plugins:[datalabarsH],
           data:{ labels:mpc.map(x=>x.cliente), datasets:stackData },
           options:{indexAxis:'y', responsive:true, maintainAspectRatio:false,
-            interaction:{mode:'index', intersect:false, axis:'y'},
             plugins:{legend:{position:'bottom',labels:{color:GRAPH_TEXT,font:{size:10},boxWidth:10}},
               datalabarsH:{currency:false},
-              tooltip:{mode:'index',intersect:false,callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.x||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
+              tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.x||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
             scales:{x:{stacked:true, ticks:{color:GRAPH_TEXT,font:{size:11},callback:v=>Number(v).toLocaleString('es-AR',{maximumFractionDigits:0})},grid:{color:'#e2e8f0'}},
                     y:{stacked:true, ticks:{color:GRAPH_TEXT,font:{size:10}},grid:{display:false}}}
           }
@@ -1007,7 +1560,7 @@
         mixEvoChart = new Chart(document.getElementById('mixEvoChart'),{
           type:'line', plugins:[datalabarsLine],
           data:{ labels:evoLabels, datasets:evoDatasets },
-          options:{responsive:true, maintainAspectRatio:false, layout:{padding:{top:22,right:22,bottom:10}},
+          options:{responsive:true, maintainAspectRatio:false, layout:{padding:{top:18,right:18}},
             plugins:{legend:{position:'bottom',labels:{color:GRAPH_TEXT,font:{size:10},boxWidth:10}},
               datalabarsLine:{currency:false},
               tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.y||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
@@ -1035,8 +1588,6 @@
   }
 
   function crearTabla(columnas, filas, alClick){
-    const wrap=document.createElement('div');
-    wrap.className='seg-table-wrap';
     const table=document.createElement('table');
     table.className='seg-table';
     const head=document.createElement('thead');
@@ -1044,7 +1595,6 @@
     columnas.forEach(columna=>{
       const cell=document.createElement('th');
       cell.textContent=columna.label;
-      cell.scope='col';
       if(columna.num) cell.className='num';
       headRow.appendChild(cell);
     });
@@ -1055,37 +1605,15 @@
       if(alClick){ row.classList.add('is-click'); if(fila.activo) row.classList.add('is-active'); }
       columnas.forEach(columna=>{
         const cell=document.createElement('td');
-        const value=fila[columna.key] ?? '';
-        if(columna.key==='senal' || columna.key==='estado'){
-          const pill=document.createElement('span');
-          pill.className='seg-pill';
-          if(value==='Nuevo') pill.classList.add('seg-pill--nuevo');
-          if(value==='Caído') pill.classList.add('seg-pill--caido');
-          if(value==='Baja') pill.classList.add('seg-pill--baja');
-          if(value==='Canasta') pill.classList.add('seg-pill--canasta');
-          pill.textContent=value;
-          cell.appendChild(pill);
-        }else{
-          cell.textContent=value;
-        }
-        if(columna.key==='nombre' || columna.key==='cliente') cell.classList.add('seg-client');
-        if(columna.key==='detalle') cell.classList.add('seg-detail');
-        if(columna.key==='fecha') cell.classList.add('seg-date');
-        if(columna.key==='dias'){
-          const days=document.createElement('span');
-          days.className='seg-days';
-          days.textContent=value;
-          cell.replaceChildren(days);
-        }
-        if(columna.num) cell.classList.add('num');
+        cell.textContent=fila[columna.key];
+        if(columna.num) cell.className='num';
         row.appendChild(cell);
       });
       if(alClick) row.addEventListener('click',()=>alClick(fila));
       body.appendChild(row);
     });
     table.append(head, body);
-    wrap.appendChild(table);
-    return wrap;
+    return table;
   }
 
   function bloque(titulo){
@@ -1148,7 +1676,7 @@
     const todos=(data.vendedores||[]).filter(vendedor=>(vendedor.lista||[]).length || (vendedor.productos||[]).length);
     if(!todos.length){
       const empty=document.createElement('p');
-      empty.textContent='No hay clientes con pedidos PRE para esos filtros.';
+      empty.textContent='Sin operaciones PRE en este período.';
       host.appendChild(empty);
       return;
     }
@@ -1161,7 +1689,7 @@
         activos:Number(vendedor.activos||0),
         nuevos:(vendedor.nuevos||[]).length,
         caidos:(vendedor.caidos||[]).length,
-        activo:readSectionFilters('seguimiento').vendedor===vendedor.nombre
+        activo:_sharedFilters.vendedor===vendedor.nombre
       }))
       .sort((a,b)=>b.plata-a.plata || a.nombre.localeCompare(b.nombre,'es'));
 
@@ -1183,7 +1711,7 @@
     tablaComp.appendChild(crearTabla(
       [{key:'nombre',label:'Vendedor'},{key:'plataTxt',label:'Plata',num:true},{key:'part',label:'Part.',num:true},{key:'activos',label:'Activos',num:true},{key:'nuevos',label:'Nuevos',num:true},{key:'caidos',label:'Caídos',num:true}],
       comparacion.map(fila=>({...fila, plataTxt:money(fila.plata), part:`${(fila.plata/plataTotal*100).toLocaleString('es-AR',{maximumFractionDigits:1})}%`, activos:String(fila.activos), nuevos:String(fila.nuevos), caidos:String(fila.caidos)})),
-      fila=>updateSectionFilter('seguimiento','vendedor', fila.activo?'':fila.nombre)
+      fila=>updateSharedFilter('vendedor', fila.activo?'':fila.nombre)
     ));
     comparacionLayout.appendChild(tablaComp);
     host.appendChild(comparacionLayout);
@@ -1193,14 +1721,14 @@
       options:{indexAxis:'y', responsive:true, maintainAspectRatio:false, animation:false,
         plugins:{legend:{display:false}, datalabarsH:{currency:true}},
         scales:{x:{beginAtZero:true, ticks:{color:GRAPH_TEXT, maxTicksLimit:4, callback:v=>Math.abs(v)>=1e3?'$'+Math.round(v/1e3)+'K':'$'+Math.round(v)}, grid:{color:'#eef2f6'}}, y:{ticks:{color:GRAPH_TEXT}, grid:{display:false}}},
-        onClick:(event,elements,chart)=>{
+        onClick:(event,elements)=>{
           const fila=comparacion[elements?.[0]?.index];
-          if(fila) updateSectionFilter('seguimiento','vendedor', fila.activo?'':fila.nombre);
+          if(fila) updateSharedFilter('vendedor', fila.activo?'':fila.nombre);
         }
       }
     }));
 
-    const elegido=readSectionFilters('seguimiento').vendedor;
+    const elegido=_sharedFilters.vendedor;
     const alcance=elegido?todos.filter(vendedor=>vendedor.nombre===elegido):todos;
     const cartera=unificarCartera(alcance.length?alcance:todos);
     const titulo=document.createElement('h3');
@@ -1244,7 +1772,7 @@
       }));
     }else{
       const vacio=document.createElement('p');
-      vacio.textContent='Sin productos PRE para esos filtros.';
+      vacio.textContent='Sin operaciones PRE en este período.';
       mix.appendChild(vacio);
     }
     detalle.appendChild(mix);
@@ -1259,7 +1787,7 @@
       ));
     }else{
       const vacio=document.createElement('p');
-      vacio.textContent='Sin compras en esta ventana.';
+      vacio.textContent='Sin operaciones PRE en este período.';
       ultimas.appendChild(vacio);
     }
     detalle.appendChild(ultimas);
@@ -1285,7 +1813,7 @@
     const loading=document.getElementById('seguimiento-cargando');
     loading.hidden=false;
     loading.textContent='Cargando seguimiento PRE…';
-    const {empresa,cliente,producto,desde,hasta}=readSectionFilters('seguimiento');
+    const {empresa,vendedor,cliente,producto,desde,hasta}=_sharedFilters;
     const params=new URLSearchParams({fecha_desde:desde,fecha_hasta:hasta,empresa});
     if(cliente) params.set('cliente',cliente);
     if(producto) params.set('producto',producto);
@@ -1305,62 +1833,85 @@
   }
 
   document.addEventListener('DOMContentLoaded', async ()=>{
-    const initialRange=periodToDates('30');
-    Object.entries(FILTER_SECTIONS).forEach(([section,config])=>{
-      const [desdeId,hastaId]=config.dates;
-      document.getElementById(desdeId).value=initialRange.desde;
-      document.getElementById(hastaId).value=initialRange.hasta;
-      document.querySelectorAll(config.periods).forEach(button=>button.classList.toggle('active',
-        (button.dataset.period||button.dataset.sectionPeriod)==='30'));
-      Object.entries(config).forEach(([dimension,id])=>{
-        if(!['empresa','vendedor','cliente','producto'].includes(dimension) || !id) return;
-        document.getElementById(id).addEventListener('change',event=>updateSectionFilter(section,dimension,event.currentTarget.value));
-      });
-      document.querySelectorAll(config.periods).forEach(button=>button.addEventListener('click',()=>{
-        const period=button.dataset.period||button.dataset.sectionPeriod;
-        const range=periodToDates(period);
-        updateSectionDates(section,range.desde,range.hasta,period);
-      }));
-      [desdeId,hastaId].forEach(id=>document.getElementById(id).addEventListener('change',()=>
-        updateSectionDates(section,document.getElementById(desdeId).value,document.getElementById(hastaId).value,'')));
-      const prefix={principal:'btn',analisis:'a',mix:'m',seguimiento:'s'}[section];
-      document.getElementById(`${prefix}-aplicar`).addEventListener('click',()=>
-        updateSectionDates(section,document.getElementById(desdeId).value,document.getElementById(hastaId).value,''));
-      document.getElementById(`${prefix}-este-mes`).addEventListener('click',()=>{
-        const range=esEsteMes();
-        updateSectionDates(section,range.desde,range.hasta,'');
-      });
-    });
+    cargarFiltrosDesdeURL();
+    syncFilterControls();
 
-    document.getElementById('btn-limpiar-filtros').addEventListener('click',()=>{
-      setPreMeasure('plata',false);
-      clearSectionDimensions('principal');
-    });
-    ['analisis','mix','seguimiento'].forEach(section=>{
-      const id={analisis:'a-limpiar',mix:'m-limpiar',seguimiento:'s-limpiar'}[section];
-      document.getElementById(id).addEventListener('click',()=>clearSectionDimensions(section));
-    });
+    Object.entries(FILTER_SELECTS).forEach(([dimension,ids])=>ids.forEach(id=>{
+      document.getElementById(id).addEventListener('change',event=>updateSharedFilter(dimension,event.currentTarget.value));
+    }));
+    document.querySelectorAll('.period-pills .pp[data-period]').forEach(button=>button.addEventListener('click',()=>{
+      const range=periodToDates(button.dataset.period);
+      updateSharedDates(range.desde,range.hasta,button.dataset.period);
+    }));
+    document.querySelectorAll('[data-section-period]').forEach(button=>button.addEventListener('click',()=>{
+      const range=periodToDates(button.dataset.sectionPeriod);
+      updateSharedDates(range.desde,range.hasta,button.dataset.sectionPeriod);
+    }));
 
-    document.querySelectorAll('[data-measure]').forEach(button=>button.addEventListener('click',()=>setPreMeasure(button.dataset.measure)));
+    FILTER_DATES.forEach(([desdeId,hastaId])=>[desdeId,hastaId].forEach(id=>{
+      document.getElementById(id).addEventListener('change',()=>updateSharedDates(
+        document.getElementById(desdeId).value,
+        document.getElementById(hastaId).value,
+        ''
+      ));
+    }));
+    const aplicarFechas=([desdeId,hastaId])=>updateSharedDates(
+      document.getElementById(desdeId).value,
+      document.getElementById(hastaId).value,
+      ''
+    );
+    [
+      ['btn-aplicar',FILTER_DATES[0]],['a-aplicar',FILTER_DATES[1]],['m-aplicar',FILTER_DATES[2]],['c-aplicar',FILTER_DATES[3]]
+    ].forEach(([button,dates])=>document.getElementById(button).addEventListener('click',()=>aplicarFechas(dates)));
+    [
+      ['btn-este-mes',FILTER_DATES[0]],['a-este-mes',FILTER_DATES[1]],['m-este-mes',FILTER_DATES[2]],['c-este-mes',FILTER_DATES[3]]
+    ].forEach(([button])=>document.getElementById(button).addEventListener('click',()=>{
+      const range=esEsteMes();
+      updateSharedDates(range.desde,range.hasta,'mes');
+    }));
 
-    document.getElementById('analisis-toggle').addEventListener('click',()=>{
+    document.getElementById('sel-medida-objetivo').addEventListener('change',event=>{
+      _teamMeasure=event.currentTarget.value;
+      _attentionPage=1;
+      reloadAllFilters();
+    });
+    document.getElementById('clientes-atencion-prev').addEventListener('click',()=>{
+      if(_attentionPage>1){_attentionPage-=1;reloadAllFilters();}
+    });
+    document.getElementById('clientes-atencion-next').addEventListener('click',()=>{
+      _attentionPage+=1;
+      reloadAllFilters();
+    });
+    document.getElementById('dashboard-retry').addEventListener('click',()=>reloadAllFilters());
+    document.getElementById('cerrar-diagnostico').addEventListener('click',()=>{
+      setFilterSilently('sel-vendedor','');
+      updateSharedFilter('vendedor','');
+    });
+    document.getElementById('btn-limpiar-filtros').addEventListener('click',clearSharedDimensions);
+    ['a-limpiar','m-limpiar','c-limpiar'].forEach(id=>document.getElementById(id).addEventListener('click',clearSharedDimensions));
+
+    document.getElementById('analisis-toggle').addEventListener('click',event=>{
       const body=document.getElementById('analisis-body');
       const open=body.style.display!=='none';
       body.style.display=open?'none':'';
+      event.currentTarget.setAttribute('aria-expanded',String(!open));
       document.getElementById('analisis-chevron').style.transform=open?'rotate(-90deg)':'';
       if(!open) loadAnalisis(_analisisTipo);
     });
     document.querySelectorAll('[data-tipo]').forEach(button=>button.addEventListener('click',()=>loadAnalisis(button.dataset.tipo)));
-    document.getElementById('mix-toggle').addEventListener('click',()=>{
+    document.getElementById('mix-toggle').addEventListener('click',event=>{
       const body=document.getElementById('mix-body');
       const open=body.style.display!=='none';
       body.style.display=open?'none':'';
+      event.currentTarget.setAttribute('aria-expanded',String(!open));
       document.getElementById('mix-chevron').style.transform=open?'rotate(-90deg)':'';
       if(!open) loadMix();
     });
 
-    await Promise.all(Object.keys(FILTER_SECTIONS).map(cargarFiltrosSeccion));
-    await Promise.all([load(),loadAnalisis(_analisisTipo),loadMix(),loadSeguimiento()]);
+    await _cargarFiltros(_sharedFilters.empresa);
+    syncFilterControls();
+    syncUrlState();
+    await reloadAllFilters();
   });
 </script>
 {% endblock %}

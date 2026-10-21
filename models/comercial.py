@@ -103,3 +103,170 @@ class ComisionDetalle(db.Model):
         db.Index('idx_detalle_comision', 'comision_id'),
         db.Index('idx_detalle_venta', 'venta_id'),
     )
+
+
+class ComercialVendedor(db.Model):
+    """Identidad comercial independiente del legajo de RRHH."""
+
+    __tablename__ = "comercial_vendedores"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nombre_visible = db.Column(db.String(200), nullable=False)
+    activo = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+
+    aliases = db.relationship(
+        "ComercialVendedorAlias",
+        back_populates="vendedor",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "nombre_visible",
+            name="uq_comercial_vendedores_nombre_visible",
+        ),
+    )
+
+
+class ComercialVendedorAlias(db.Model):
+    """Nombre de origen exacto más su clave para comparación normalizada."""
+
+    __tablename__ = "comercial_vendedor_aliases"
+
+    id = db.Column(db.Integer, primary_key=True)
+    vendedor_id = db.Column(
+        db.Integer,
+        db.ForeignKey("comercial_vendedores.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    nombre_origen = db.Column(db.String(200), nullable=False)
+    nombre_normalizado = db.Column(db.String(200), nullable=False)
+
+    vendedor = db.relationship("ComercialVendedor", back_populates="aliases")
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "nombre_origen",
+            name="uq_comercial_vendedor_aliases_nombre_origen",
+        ),
+        db.UniqueConstraint(
+            "nombre_normalizado",
+            name="uq_comercial_vendedor_aliases_nombre_normalizado",
+        ),
+    )
+
+
+class ComercialObjetivo(db.Model):
+    """Meta comercial mensual, independiente de los objetivos de RRHH."""
+
+    __tablename__ = "comercial_objetivos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    vendedor_id = db.Column(
+        db.Integer,
+        db.ForeignKey("comercial_vendedores.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    empresa = db.Column(db.String(10), nullable=False)
+    mes = db.Column(db.String(7), nullable=False)
+    medida = db.Column(db.String(10), nullable=False)
+    meta = db.Column(db.Numeric(18, 4), nullable=False)
+    descripcion = db.Column(db.Text, nullable=True)
+    creado_en = db.Column(db.DateTime, nullable=False, default=now_local)
+    actualizado_en = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=now_local,
+        onupdate=now_local,
+    )
+    creado_por_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    actualizado_por_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    vendedor = db.relationship("ComercialVendedor")
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "vendedor_id",
+            "empresa",
+            "mes",
+            "medida",
+            name="uq_comercial_objetivo_vendedor_empresa_mes_medida",
+        ),
+        db.CheckConstraint(
+            "empresa IN ('CARNES', 'LACTEOS')",
+            name="ck_comercial_objetivo_empresa",
+        ),
+        db.CheckConstraint(
+            "medida IN ('importe', 'cajas', 'kilos')",
+            name="ck_comercial_objetivo_medida",
+        ),
+        db.CheckConstraint("meta > 0", name="ck_comercial_objetivo_meta_positiva"),
+        db.CheckConstraint(
+            "length(mes) = 7 AND substr(mes, 5, 1) = '-'",
+            name="ck_comercial_objetivo_mes_formato",
+        ),
+        db.Index(
+            "ix_comercial_objetivos_mes_empresa_medida",
+            "mes",
+            "empresa",
+            "medida",
+        ),
+    )
+
+
+class ComercialObjetivoVinculo(db.Model):
+    """Vínculo explícito entre un Goal histórico y su objetivo comercial."""
+
+    __tablename__ = "comercial_objetivo_vinculos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    goal_id = db.Column(
+        db.Integer,
+        db.ForeignKey("goals.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    comercial_objetivo_id = db.Column(
+        db.Integer,
+        db.ForeignKey("comercial_objetivos.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    creado_en = db.Column(db.DateTime, nullable=False, default=now_local)
+
+    __table_args__ = (
+        db.UniqueConstraint("goal_id", name="uq_comercial_objetivo_vinculo_goal"),
+        db.UniqueConstraint(
+            "comercial_objetivo_id",
+            name="uq_comercial_objetivo_vinculo_objetivo",
+        ),
+    )
+
+
+class ComercialClienteCriterio(db.Model):
+    """Fuente comercial seleccionada por cliente para el Panel de Ventas."""
+
+    __tablename__ = "comercial_cliente_criterio"
+
+    id = db.Column(db.Integer, primary_key=True)
+    cliente = db.Column(db.String(255), nullable=False)
+    criterio = db.Column(
+        db.String(3),
+        nullable=False,
+        default="PRE",
+        server_default="PRE",
+    )
+    actualizado_por = db.Column(db.String(120), nullable=False)
+    actualizado_en = db.Column(db.DateTime, nullable=False, default=now_local, onupdate=now_local)
+
+    __table_args__ = (
+        db.UniqueConstraint("cliente", name="uq_comercial_cliente_criterio_cliente"),
+        db.CheckConstraint("criterio IN ('PRE', 'FAC')", name="ck_comercial_cliente_criterio_tipo"),
+        db.Index("ix_comercial_cliente_criterio_criterio", "criterio"),
+    )

@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+  .criterio-page { color:#1f2937; }
+  .criterio-card { background:#fff; border:1px solid #e4e9f0; border-radius:12px; box-shadow:0 3px 14px rgba(31,41,55,.045); }
+  .criterio-note { color:#64748b; font-size:.9rem; }
+  .criterio-pill { border:1px solid #e4e9f0; border-radius:999px; padding:.35rem .75rem; background:#fff; color:#1f2937; }
+  .criterio-btn { border:0; border-radius:8px; padding:.55rem .9rem; font-weight:600; color:#fff; background:#2F5D8C; }
+  .criterio-btn.fac { background:#2F7D62; }
+  .criterio-btn:disabled { opacity:.55; cursor:not-allowed; }
+  .criterio-table { color:#1f2937; margin:0; }
+  .criterio-table thead th { color:#64748b; font-size:.78rem; text-transform:uppercase; letter-spacing:.035em; white-space:nowrap; border-bottom:1px solid #e4e9f0; }
+  .criterio-table td { vertical-align:middle; border-color:#edf1f5; }
+  .criterio-status { display:inline-flex; border:1px solid #e4e9f0; border-radius:999px; padding:.18rem .55rem; font-size:.78rem; font-weight:700; }
+  .criterio-status.pre { color:#2F5D8C; background:#f0f5fa; }
+  .criterio-status.fac { color:#2F7D62; background:#eff8f4; }
+  @media(max-width:700px) { .criterio-actions { width:100%; } .criterio-actions button { flex:1; } }
+</style>
+<div class="container-fluid py-3 criterio-page">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+    <div>
+      <h1 class="h4 mb-1">Criterio de clientes</h1>
+      <p class="criterio-note mb-0">Elige qué comprobantes usa el Panel de Ventas para cada cliente. Sin una marca, se usa presupuesto (PRE).</p>
+    </div>
+    <a href="/dashboard-comercial" class="criterio-pill text-decoration-none">Volver al Panel de Ventas</a>
+  </div>
+  <section class="criterio-card p-3 p-lg-4">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+      <input id="criterio-buscar" class="form-control" type="search" placeholder="Buscar cliente" aria-label="Buscar cliente" style="max-width:320px">
+      <button id="criterio-seleccionar-visibles" class="criterio-pill" type="button">Seleccionar todos los visibles</button>
+      <span id="criterio-seleccionados" class="criterio-note">0 seleccionados</span>
+      <div class="criterio-actions d-flex flex-wrap gap-2 ms-lg-auto">
+        <button id="criterio-usar-pre" class="criterio-btn" type="button">Usar presupuesto</button>
+        <button id="criterio-usar-fac" class="criterio-btn fac" type="button">Usar facturación</button>
+      </div>
+    </div>
+    <div id="criterio-mensaje" class="criterio-note mb-2" role="status" aria-live="polite"></div>
+    <div class="table-responsive">
+      <table class="table criterio-table">
+        <thead><tr><th><input id="criterio-check-visible" type="checkbox" aria-label="Seleccionar o deseleccionar todos los visibles"></th><th>Cliente</th><th>Criterio</th><th>Actualizado por</th><th>Fecha</th></tr></thead>
+        <tbody id="criterio-clientes-body"><tr><td colspan="5" class="criterio-note">Cargando clientes…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+<script>
+(() => {
+  const rows = [];
+  const selected = new Set();
+  const body = document.getElementById('criterio-clientes-body');
+  const search = document.getElementById('criterio-buscar');
+  const selectVisible = document.getElementById('criterio-check-visible');
+  const selectVisibleButton = document.getElementById('criterio-seleccionar-visibles');
+  const selectedLabel = document.getElementById('criterio-seleccionados');
+  const message = document.getElementById('criterio-mensaje');
+
+  function visibleRows() {
+    const term = search.value.trim().toLocaleLowerCase('es');
+    return rows.filter(row => !term || row.cliente.toLocaleLowerCase('es').includes(term));
+  }
+  function esc(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  }
+  function refreshSelection() {
+    selectedLabel.textContent = `${selected.size} seleccionados`;
+    const visibles = visibleRows();
+    selectVisible.checked = visibles.length > 0 && visibles.every(row => selected.has(row.cliente));
+    selectVisible.indeterminate = !selectVisible.checked && visibles.some(row => selected.has(row.cliente));
+  }
+  function render() {
+    const visibles = visibleRows();
+    if (!visibles.length) {
+      body.innerHTML = '<tr><td colspan="5" class="criterio-note">No hay clientes para mostrar.</td></tr>';
+      refreshSelection();
+      return;
+    }
+    body.innerHTML = visibles.map(row => `<tr>
+      <td><input class="criterio-row-check" type="checkbox" data-cliente="${esc(row.cliente)}" ${selected.has(row.cliente)?'checked':''} aria-label="Seleccionar ${esc(row.cliente)}"></td>
+      <td>${esc(row.cliente)}</td>
+      <td><span class="criterio-status ${row.criterio==='FAC'?'fac':'pre'}">${row.criterio==='FAC'?'Facturación (FAC)':'Presupuesto (PRE)'}</span></td>
+      <td>${esc(row.actualizado_por || '—')}</td>
+      <td>${esc(row.actualizado_en ? new Date(row.actualizado_en).toLocaleString('es-AR') : '—')}</td>
+    </tr>`).join('');
+    body.querySelectorAll('.criterio-row-check').forEach(check => check.addEventListener('change', () => {
+      const cliente = check.dataset.cliente;
+      if (check.checked) selected.add(cliente); else selected.delete(cliente);
+      refreshSelection();
+    }));
+    refreshSelection();
+  }
+  async function cargar() {
+    message.textContent = 'Cargando clientes…';
+    try {
+      const response = await fetch('/ventas/criterio-clientes/datos', {headers:{'Accept':'application/json'}});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'No se pudieron cargar los clientes.');
+      rows.splice(0, rows.length, ...(data.clientes || []));
+      message.textContent = `${rows.length.toLocaleString('es-AR')} clientes procesados.`;
+      render();
+    } catch (error) {
+      message.textContent = error.message || 'No se pudieron cargar los clientes.';
+      body.innerHTML = '<tr><td colspan="5" class="criterio-note">Datos no disponibles.</td></tr>';
+    }
+  }
+  async function guardar(criterio) {
+    const clientes = Array.from(selected);
+    if (!clientes.length) { message.textContent = 'Selecciona uno o más clientes.'; return; }
+    const buttons = [document.getElementById('criterio-usar-pre'), document.getElementById('criterio-usar-fac')];
+    buttons.forEach(button => button.disabled = true);
+    message.textContent = 'Guardando…';
+    try {
+      const response = await fetch('/ventas/criterio-clientes/guardar', {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Accept':'application/json',
+          'X-CSRFToken':document.querySelector('meta[name="csrf-token"]')?.content || ''
+        },
+        body:JSON.stringify({clientes, criterio})
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'No se pudieron guardar los criterios.');
+      const porNombre = new Set(data.clientes || []);
+      rows.forEach(row => {
+        if (porNombre.has(row.cliente)) {
+          row.criterio = criterio;
+          row.actualizado_en = data.actualizado_en;
+          row.actualizado_por = data.actualizado_por;
+        }
+      });
+      selected.clear();
+      render();
+      message.textContent = `${data.guardados} clientes actualizados.`;
+    } catch (error) {
+      message.textContent = error.message || 'No se pudieron guardar los criterios.';
+    } finally {
+      buttons.forEach(button => button.disabled = false);
+    }
+  }
+  search.addEventListener('input', render);
+  selectVisible.addEventListener('change', () => {
+    visibleRows().forEach(row => selectVisible.checked ? selected.add(row.cliente) : selected.delete(row.cliente));
+    render();
+  });
+  selectVisibleButton.addEventListener('click', () => {
+    const visibles = visibleRows();
+    const seleccionar = !visibles.length || !visibles.every(row => selected.has(row.cliente));
+    visibles.forEach(row => seleccionar ? selected.add(row.cliente) : selected.delete(row.cliente));
+    render();
+  });
+  document.getElementById('criterio-usar-pre').addEventListener('click', () => guardar('PRE'));
+  document.getElementById('criterio-usar-fac').addEventListener('click', () => guardar('FAC'));
+  cargar();
+})();
+</script>
+{% endblock %}
