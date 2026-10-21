@@ -66,13 +66,19 @@
   #panel-ventas .dashboard-error { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; border:1px solid #f2c4c0; background:#fff2f0; color:#7f1d1d; border-radius:.65rem; padding:.75rem 1rem; margin:.75rem 0; }
   #panel-ventas .dashboard-note { color:#64748b; font-size:.76rem; }
   #panel-ventas .diagnostic-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.85rem; }
+  #panel-ventas .cartera-layout { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.85rem; padding:0 1rem .9rem; }
+  #panel-ventas .cartera-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); padding:0 1rem; }
+  #panel-ventas .cartera-clientes-table { min-width:500px; }
+  #panel-ventas .cartera-clientes-table th:first-child { width:42%; }
+  #panel-ventas .cartera-clientes-table td:first-child { overflow-wrap:anywhere; }
+  #panel-ventas .cartera-filterbar { display:flex; }
   #panel-ventas .diagnostic-list { max-height:230px; overflow:auto; padding-left:1.1rem; font-size:.8rem; }
   #panel-ventas .concentration-chart { height:280px; }
   #panel-ventas .attention-pagination { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; padding:.75rem 1rem; }
   #panel-ventas .attention-signal { font-weight:650; }
   @media (max-width: 900px) {
     #panel-ventas .seg-layout, #panel-ventas .seg-metrics { grid-template-columns:1fr; }
-    #panel-ventas .diagnostic-grid { grid-template-columns:1fr; }
+    #panel-ventas .cartera-layout, #panel-ventas .diagnostic-grid { grid-template-columns:1fr; }
   }
   @media (max-width: 767px) {
     #panel-ventas .seguimiento-clientes-lista, #panel-ventas .seg-metrics { columns:1; grid-template-columns:1fr 1fr; }
@@ -142,7 +148,7 @@
       <span id="dashboard-error-message"></span>
       <button class="pp pp-action" id="dashboard-retry" type="button">Reintentar</button>
     </div>
-    <p id="sin-operaciones-note" class="dashboard-note" hidden>Sin operaciones PRE en el período seleccionado.</p>
+    <p id="sin-operaciones-note" class="dashboard-note" hidden>Sin operaciones PRE en este período.</p>
     <p id="period-comparison-label" class="dashboard-note"></p>
 
     <!-- A. Indicadores comparables -->
@@ -189,6 +195,76 @@
       </div>
     </section>
 
+    <!-- Cartera única con filtros compartidos -->
+    <section class="table-card mb-3" id="cartera-clientes-card" style="padding:0;background:#fff">
+      <div class="table-card-head team-toolbar">
+        <div><h2 style="font-size:1.08rem;margin:0">Cartera de clientes</h2><p id="cartera-periodo" class="dashboard-note mb-0"></p></div>
+      </div>
+      <div class="period-bar dim-bar cartera-filterbar" style="background:#f8fafc;border-color:#e2e8f0;margin:0 1rem .9rem;flex-wrap:wrap" aria-label="Filtros de cartera de clientes">
+        <select id="c-empresa" class="form-select form-select-sm" style="width:auto;min-width:90px">
+          <option value="TODAS">Empresa</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option>
+        </select>
+        <select id="c-vendedor" class="form-select form-select-sm" style="width:auto;min-width:120px"><option value="">Vendedor</option></select>
+        <select id="c-cliente" class="form-select form-select-sm" style="width:auto;min-width:130px"><option value="">Cliente</option></select>
+        <select id="c-producto" class="form-select form-select-sm" style="width:auto;min-width:130px"><option value="">Producto</option></select>
+        <button class="pp" id="c-limpiar" type="button">Limpiar</button>
+        <span class="filter-sep"></span>
+        <div class="period-pills" data-section-periods="cartera">
+          <button class="pp" type="button" data-section-period="mes">Mes actual</button>
+          <button class="pp" type="button" data-section-period="7">7d</button>
+          <button class="pp" type="button" data-section-period="15">15d</button>
+          <button class="pp" type="button" data-section-period="30">30d</button>
+          <button class="pp" type="button" data-section-period="6m">6m</button>
+          <button class="pp" type="button" data-section-period="ytd">YTD</button>
+        </div>
+        <span class="filter-sep"></span>
+        <div class="date-group">
+          <button class="pp pp-month" id="c-este-mes" type="button">Este mes</button>
+          <div><label for="c-desde">Desde</label><input id="c-desde" type="date" /></div>
+          <div><label for="c-hasta">Hasta</label><input id="c-hasta" type="date" /></div>
+          <button class="pp pp-action" id="c-aplicar" type="button">&#x2713; Aplicar</button>
+        </div>
+      </div>
+      <div class="cartera-metrics seg-metrics" aria-live="polite">
+        <div><span>Total de clientes</span><strong id="cartera-total">—</strong></div>
+        <div><span>Activos en 30 días</span><strong id="cartera-activos">—</strong></div>
+        <div><span>Nuevos en 30 días</span><strong id="cartera-nuevos">—</strong></div>
+      </div>
+      <p id="cartera-note" class="dashboard-note" style="padding:0 1rem"></p>
+      <div class="cartera-layout">
+        <div class="chart-card-v2">
+          <h6>Comparación entre vendedores · participación PRE del período</h6>
+          <div class="seg-chart"><canvas id="cartera-comparacion-chart"></canvas></div>
+          <p id="cartera-comparacion-empty" class="dashboard-note" hidden></p>
+        </div>
+        <div class="table-card" style="box-shadow:none;border:0;padding:0">
+          <div class="team-table-wrap" tabindex="0" role="region" aria-label="Comparación de vendedores">
+            <table class="seg-table" aria-label="Participación PRE por vendedor">
+              <thead><tr><th>Vendedor</th><th class="num">PRE</th><th class="num">Part.</th><th class="num">Compradores</th></tr></thead>
+              <tbody id="cartera-comparacion-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="cartera-layout cartera-detail">
+        <div class="table-card" style="box-shadow:none;border:0;padding:0">
+          <h6 id="cartera-lista-titulo" style="padding:.5rem .75rem;margin:0">Clientes</h6>
+          <div class="team-table-wrap" tabindex="0" role="region" aria-label="Cartera de clientes">
+            <table class="seg-table cartera-clientes-table" aria-label="Clientes, última compra y actividad">
+              <thead><tr><th>Cliente</th><th>Última compra</th><th class="num">Días</th><th>Estado</th></tr></thead>
+              <tbody id="cartera-clientes-body"></tbody>
+            </table>
+          </div>
+          <p id="cartera-clientes-empty" class="dashboard-note" style="padding:.25rem .75rem" hidden></p>
+        </div>
+        <div class="chart-card-v2">
+          <h6>Participación por producto · cartera del período</h6>
+          <div class="seg-chart"><canvas id="cartera-productos-chart"></canvas></div>
+          <p id="cartera-productos-empty" class="dashboard-note" hidden></p>
+        </div>
+      </div>
+    </section>
+
     <!-- C. Diagnóstico único del vendedor elegido -->
     <section class="table-card mb-3" id="diagnostico-card" hidden>
       <div class="table-card-head team-toolbar">
@@ -197,8 +273,8 @@
       </div>
       <p id="diagnostico-note" class="dashboard-note"></p>
       <div class="diagnostic-grid">
-        <div class="chart-card-v2"><h6>Importe PRE · evolución semanal</h6><div id="weekly-amount-wrap" style="height:260px"><canvas id="weekly-amount-chart"></canvas></div><p id="weekly-amount-empty" class="dashboard-note" hidden>Sin operaciones en esas ventanas.</p></div>
-        <div class="chart-card-v2"><h6>Cajas · evolución semanal</h6><div id="weekly-boxes-wrap" style="height:260px"><canvas id="weekly-boxes-chart"></canvas></div><p id="weekly-boxes-empty" class="dashboard-note" hidden>Sin operaciones en esas ventanas.</p></div>
+        <div class="chart-card-v2"><h6>Importe PRE · evolución semanal</h6><div id="weekly-amount-wrap" style="height:260px"><canvas id="weekly-amount-chart"></canvas></div><p id="weekly-amount-empty" class="dashboard-note" hidden>Sin operaciones PRE en este período.</p></div>
+        <div class="chart-card-v2"><h6>Cajas · evolución semanal</h6><div id="weekly-boxes-wrap" style="height:260px"><canvas id="weekly-boxes-chart"></canvas></div><p id="weekly-boxes-empty" class="dashboard-note" hidden>Sin operaciones PRE en este período.</p></div>
       </div>
       <div class="diagnostic-grid" style="margin-top:.85rem">
         <div class="chart-card-v2"><h6>Clientes nuevos con este vendedor</h6><div id="diag-nuevos"></div></div>
@@ -207,8 +283,8 @@
         <div class="chart-card-v2"><h6>Clientes con reducción de compra</h6><div id="diag-reduccion"></div></div>
       </div>
       <div class="diagnostic-grid" style="margin-top:.85rem">
-        <div class="chart-card-v2"><h6>Concentración por cliente · importe y participación</h6><div class="concentration-chart"><canvas id="concentracion-clientes-chart"></canvas></div><p id="concentracion-clientes-empty" class="dashboard-note" hidden>Sin operaciones para mostrar.</p></div>
-        <div class="chart-card-v2"><h6>Concentración por producto · importe y participación</h6><div class="concentration-chart"><canvas id="concentracion-productos-chart"></canvas></div><p id="concentracion-productos-empty" class="dashboard-note" hidden>Sin operaciones para mostrar.</p></div>
+        <div class="chart-card-v2"><h6>Concentración por cliente · importe y participación</h6><div class="concentration-chart"><canvas id="concentracion-clientes-chart"></canvas></div><p id="concentracion-clientes-empty" class="dashboard-note" hidden>Sin operaciones PRE en este período.</p></div>
+        <div class="chart-card-v2"><h6>Concentración por producto · importe y participación</h6><div class="concentration-chart"><canvas id="concentracion-productos-chart"></canvas></div><p id="concentracion-productos-empty" class="dashboard-note" hidden>Sin operaciones PRE en este período.</p></div>
       </div>
     </section>
 
@@ -292,12 +368,12 @@
           <div class="chart-card-v2">
             <h6 id="analisis-bar-titulo">Top 15 por cajas</h6>
             <canvas id="analisisBarChart" style="max-height:340px"></canvas>
-            <div id="analisisBarChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
+            <div id="analisisBarChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
           <div class="chart-card-v2">
             <h6>Evolución mensual · últimos 6 meses</h6>
             <canvas id="analisisLineChart" style="max-height:340px"></canvas>
-            <div id="analisisLineChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
+            <div id="analisisLineChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
         </div>
 
@@ -353,24 +429,24 @@
           <div class="chart-card-v2">
             <h6>Participación por producto <span class="chart-tag">barras ordenadas · incluye Otros</span></h6>
             <canvas id="mixDoughnutChart" style="max-height:300px"></canvas>
-            <div id="mixDoughnutChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
+            <div id="mixDoughnutChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
           <div class="chart-card-v2">
             <h6>Variedad por Cliente <span class="chart-tag">N° productos distintos comprados</span></h6>
             <canvas id="mixDiversidadChart" style="max-height:300px"></canvas>
-            <div id="mixDiversidadChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
+            <div id="mixDiversidadChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
         </div>
         <div class="charts-grid mb-2">
           <div class="chart-card-v2">
             <h6>Participación Producto por Cliente <span class="chart-tag">top 8 clientes × top 5 productos · cajas</span></h6>
             <canvas id="mixStackedChart" style="max-height:320px"></canvas>
-            <div id="mixStackedChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
+            <div id="mixStackedChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
           <div class="chart-card-v2">
             <h6>Evolución del Mix <span class="chart-tag">últimos 6 meses · top 3 productos</span></h6>
             <canvas id="mixEvoChart" style="max-height:320px"></canvas>
-            <div id="mixEvoChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
+            <div id="mixEvoChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
         </div>
 
@@ -386,15 +462,15 @@
   let vendedorChart, clienteChart, productoChart, evolucionChart;
   let _seguimientoCharts = [];
   let _preMeasure = 'plata', _lastDashboardPayload = null, _selectedPreProduct = '';
-  let _teamMeasure = 'importe', _attentionPage = 1, _weeklyCharts = [], _concentrationCharts = [];
+  let _teamMeasure = 'importe', _attentionPage = 1, _weeklyCharts = [], _concentrationCharts = [], _carteraCharts = [];
   let _sharedFilters = {empresa:'TODAS',vendedor:'',cliente:'',producto:'',period:'mes',desde:'',hasta:''};
   const FILTER_SELECTS = {
-    empresa:['sel-empresa','a-empresa','m-empresa'],
-    vendedor:['sel-vendedor','a-vendedor','m-vendedor'],
-    cliente:['sel-cliente','m-cliente'],
-    producto:['sel-producto','a-producto','m-producto']
+    empresa:['sel-empresa','a-empresa','m-empresa','c-empresa'],
+    vendedor:['sel-vendedor','a-vendedor','m-vendedor','c-vendedor'],
+    cliente:['sel-cliente','m-cliente','c-cliente'],
+    producto:['sel-producto','a-producto','m-producto','c-producto']
   };
-  const FILTER_DATES = [['fecha-desde','fecha-hasta'],['a-desde','a-hasta'],['m-desde','m-hasta']];
+  const FILTER_DATES = [['fecha-desde','fecha-hasta'],['a-desde','a-hasta'],['m-desde','m-hasta'],['c-desde','c-hasta']];
   const GRAPH_PALETTE = ['#2F5D8C','#2F7D62','#C47B2D','#6A5A8A'];
   const GRAPH_INK = '#1f2937';
   const GRAPH_TEXT = '#334155';
@@ -484,9 +560,9 @@
     'm-vendedor': 'Vendedor',
     'm-cliente': 'Cliente',
     'm-producto': 'Producto',
-    's-vendedor': 'Vendedor',
-    's-cliente': 'Cliente',
-    's-producto': 'Producto',
+    'c-vendedor': 'Vendedor',
+    'c-cliente': 'Cliente',
+    'c-producto': 'Producto',
   };
   function _poblarSelect(id, items, allLabel='Todos'){
     const sel = document.getElementById(id); if(!sel) return;
@@ -912,6 +988,13 @@
     const maxSemanas=Math.max(weeksActual.length,weeksAnterior.length);
     const canvas=document.getElementById(canvasId);
     const empty=document.getElementById(canvasId==='weekly-amount-chart'?'weekly-amount-empty':'weekly-boxes-empty');
+    const tieneOperaciones=(actual.serie_actual||[]).length>0 || (anterior.serie_anterior||[]).length>0;
+    if(!tieneOperaciones){
+      canvas.hidden=true;
+      empty.hidden=false;
+      empty.textContent='Sin operaciones PRE en este período.';
+      return;
+    }
     canvas.hidden=false;
     empty.hidden=true;
     const labels=Array.from({length:maxSemanas},(_,index)=>{
@@ -990,6 +1073,101 @@
         variacion:row.variacion_pct==null?'Sin base':`${Number(row.variacion_pct).toLocaleString('es-AR',{maximumFractionDigits:1})}%`
       }))
     ));
+  }
+  function renderCartera(data){
+    if(!data) throw new Error('La respuesta de cartera no está disponible');
+    _carteraCharts.forEach(chart=>chart.destroy());
+    _carteraCharts=[];
+    const seleccionado=data.vendedor||'';
+    document.getElementById('cartera-lista-titulo').textContent=seleccionado?`Clientes de ${seleccionado}`:'Clientes de todos los vendedores';
+    document.getElementById('cartera-periodo').textContent=`Período de mezcla: ${data.desde} → ${data.hasta} · fecha de corte ${data.hasta}.`;
+    document.getElementById('cartera-total').textContent=Number(data.total_clientes||0).toLocaleString('es-AR');
+    document.getElementById('cartera-activos').textContent=Number(data.clientes_activos_30d||0).toLocaleString('es-AR');
+    document.getElementById('cartera-nuevos').textContent=Number(data.clientes_nuevos_30d||0).toLocaleString('es-AR');
+    document.getElementById('cartera-note').textContent=data.estado_datos==='sin_operaciones'
+      ?'Sin operaciones PRE en este período.'
+      :`Cliente nuevo = primera compra PRE observada con el vendedor en los 30 días terminados el ${data.hasta}, sin límite inferior del período seleccionado.`;
+
+    const comparacion=data.comparacion_vendedores||[];
+    const compBody=document.getElementById('cartera-comparacion-body');
+    compBody.replaceChildren();
+    comparacion.forEach(item=>{
+      const row=document.createElement('tr');
+      [item.vendedor,money(item.importe_pre),`${formatNumber(item.participacion)}%`,Number(item.clientes_compradores||0).toLocaleString('es-AR')].forEach((value,index)=>{
+        const cell=document.createElement('td'); cell.textContent=value;
+        if(index>0) cell.className='num';
+        row.appendChild(cell);
+      });
+      compBody.appendChild(row);
+    });
+    const compareCanvas=document.getElementById('cartera-comparacion-chart');
+    const compareEmpty=document.getElementById('cartera-comparacion-empty');
+    if(!comparacion.length){
+      compareCanvas.hidden=true;
+      compareEmpty.hidden=false;
+      compareEmpty.textContent='Sin operaciones PRE en este período.';
+    }else if(comparacion.length===1){
+      compareCanvas.hidden=true;
+      compareEmpty.hidden=false;
+      compareEmpty.textContent='La tabla muestra el único vendedor con operaciones PRE.';
+    }else{
+      compareCanvas.hidden=false;
+      compareEmpty.hidden=true;
+      _carteraCharts.push(new Chart(compareCanvas,{
+        type:'bar',plugins:[datalabarsH],
+        data:{labels:comparacion.map(item=>item.vendedor),datasets:[{
+          label:'Importe PRE',data:comparacion.map(item=>Number(item.importe_pre||0)),
+          backgroundColor:comparacion.map((_,index)=>GRAPH_PALETTE[index%GRAPH_PALETTE.length]),
+          borderColor:comparacion.map((_,index)=>GRAPH_PALETTE[index%GRAPH_PALETTE.length]),
+          borderWidth:0,borderRadius:3,barPercentage:.72,categoryPercentage:.78
+        }]},
+        options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:false,layout:{padding:{right:54}},
+          plugins:{legend:{display:false},datalabarsH:{currency:true},tooltip:{callbacks:{label:ctx=>`${money(comparacion[ctx.dataIndex]?.importe_pre)} · ${formatNumber(comparacion[ctx.dataIndex]?.participacion)}%`}}},
+          scales:{x:{beginAtZero:true,ticks:{color:GRAPH_TEXT,callback:value=>money(value)},grid:{color:'#eef2f6'}},y:{ticks:{color:GRAPH_TEXT},grid:{display:false}}}
+        }
+      }));
+    }
+
+    const clientes=data.clientes||[];
+    const clientBody=document.getElementById('cartera-clientes-body');
+    clientBody.replaceChildren();
+    clientes.forEach(item=>{
+      const row=document.createElement('tr');
+      [item.cliente,fmtFecha(item.ultima_compra),item.dias==null?'—':Number(item.dias).toLocaleString('es-AR'),item.estado].forEach((value,index)=>{
+        const cell=document.createElement('td'); cell.textContent=value||'—';
+        if(index===2) cell.className='num';
+        row.appendChild(cell);
+      });
+      clientBody.appendChild(row);
+    });
+    const clientEmpty=document.getElementById('cartera-clientes-empty');
+    clientEmpty.hidden=clientes.length>0;
+    clientEmpty.textContent='Sin operaciones PRE en este período.';
+
+    const products=data.productos||[];
+    const productCanvas=document.getElementById('cartera-productos-chart');
+    const productEmpty=document.getElementById('cartera-productos-empty');
+    if(!products.length){
+      productCanvas.hidden=true;
+      productEmpty.hidden=false;
+      productEmpty.textContent='Sin operaciones PRE en este período.';
+    }else{
+      productCanvas.hidden=false;
+      productEmpty.hidden=true;
+      _carteraCharts.push(new Chart(productCanvas,{
+        type:'bar',plugins:[datalabarsH],
+        data:{labels:products.map(item=>item.nombre),datasets:[{
+          label:'Participación',data:products.map(item=>Number(item.pct||0)),
+          backgroundColor:products.map((_,index)=>GRAPH_PALETTE[index%GRAPH_PALETTE.length]),
+          borderColor:products.map((_,index)=>GRAPH_PALETTE[index%GRAPH_PALETTE.length]),
+          borderWidth:0,borderRadius:3,barPercentage:.72,categoryPercentage:.78
+        }]},
+        options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,animation:false,layout:{padding:{right:48}},
+          plugins:{legend:{display:false},datalabarsH:{currency:false,percentage:true},tooltip:{callbacks:{label:ctx=>`${formatNumber(products[ctx.dataIndex]?.pct)}% · ${money(products[ctx.dataIndex]?.plata)}`}}},
+          scales:{x:{min:0,max:100,ticks:{color:GRAPH_TEXT,callback:value=>`${value}%`},grid:{color:'#eef2f6'}},y:{ticks:{color:GRAPH_TEXT},grid:{display:false}}}
+        }
+      }));
+    }
   }
   function renderDiagnostico(data){
     const card=document.getElementById('diagnostico-card'), diagnostico=data.diagnostico;
@@ -1125,6 +1303,21 @@
     document.getElementById('clientes-atencion-paginacion').textContent='';
     document.getElementById('clientes-atencion-empty').hidden=false;
     document.getElementById('clientes-atencion-empty').textContent='Datos no disponibles.';
+    document.getElementById('cartera-total').textContent='—';
+    document.getElementById('cartera-activos').textContent='—';
+    document.getElementById('cartera-nuevos').textContent='—';
+    document.getElementById('cartera-note').textContent='Datos no disponibles.';
+    document.getElementById('cartera-comparacion-body').replaceChildren();
+    document.getElementById('cartera-clientes-body').replaceChildren();
+    document.getElementById('cartera-comparacion-chart').hidden=true;
+    document.getElementById('cartera-productos-chart').hidden=true;
+    document.getElementById('cartera-comparacion-empty').hidden=false;
+    document.getElementById('cartera-comparacion-empty').textContent='Datos no disponibles.';
+    document.getElementById('cartera-clientes-empty').hidden=false;
+    document.getElementById('cartera-clientes-empty').textContent='Datos no disponibles.';
+    document.getElementById('cartera-productos-empty').hidden=false;
+    document.getElementById('cartera-productos-empty').textContent='Datos no disponibles.';
+    _carteraCharts.forEach(chart=>chart.destroy()); _carteraCharts=[];
     document.getElementById('diagnostico-card').hidden=true;
     destruirDiagnosticoCharts();
   }
@@ -1153,6 +1346,7 @@
       document.getElementById('sin-operaciones-note').hidden=data.estado_datos!=='sin_operaciones';
       renderKpis(data.kpis);
       renderEquipo(data.equipo,data.estado_datos,data.mes_objetivos,data.hasta);
+      renderCartera(data.cartera);
       renderDiagnostico(data);
       renderClientesAtencion(data);
       _lastDashboardPayload=data;
@@ -1473,7 +1667,7 @@
     const todos=(data.vendedores||[]).filter(vendedor=>(vendedor.lista||[]).length || (vendedor.productos||[]).length);
     if(!todos.length){
       const empty=document.createElement('p');
-      empty.textContent='No hay clientes con pedidos PRE para esos filtros.';
+      empty.textContent='Sin operaciones PRE en este período.';
       host.appendChild(empty);
       return;
     }
@@ -1569,7 +1763,7 @@
       }));
     }else{
       const vacio=document.createElement('p');
-      vacio.textContent='Sin productos PRE para esos filtros.';
+      vacio.textContent='Sin operaciones PRE en este período.';
       mix.appendChild(vacio);
     }
     detalle.appendChild(mix);
@@ -1584,7 +1778,7 @@
       ));
     }else{
       const vacio=document.createElement('p');
-      vacio.textContent='Sin compras en esta ventana.';
+      vacio.textContent='Sin operaciones PRE en este período.';
       ultimas.appendChild(vacio);
     }
     detalle.appendChild(ultimas);
@@ -1658,10 +1852,10 @@
       ''
     );
     [
-      ['btn-aplicar',FILTER_DATES[0]],['a-aplicar',FILTER_DATES[1]],['m-aplicar',FILTER_DATES[2]]
+      ['btn-aplicar',FILTER_DATES[0]],['a-aplicar',FILTER_DATES[1]],['m-aplicar',FILTER_DATES[2]],['c-aplicar',FILTER_DATES[3]]
     ].forEach(([button,dates])=>document.getElementById(button).addEventListener('click',()=>aplicarFechas(dates)));
     [
-      ['btn-este-mes',FILTER_DATES[0]],['a-este-mes',FILTER_DATES[1]],['m-este-mes',FILTER_DATES[2]]
+      ['btn-este-mes',FILTER_DATES[0]],['a-este-mes',FILTER_DATES[1]],['m-este-mes',FILTER_DATES[2]],['c-este-mes',FILTER_DATES[3]]
     ].forEach(([button])=>document.getElementById(button).addEventListener('click',()=>{
       const range=esEsteMes();
       updateSharedDates(range.desde,range.hasta,'mes');
@@ -1685,7 +1879,7 @@
       updateSharedFilter('vendedor','');
     });
     document.getElementById('btn-limpiar-filtros').addEventListener('click',clearSharedDimensions);
-    ['a-limpiar','m-limpiar'].forEach(id=>document.getElementById(id).addEventListener('click',clearSharedDimensions));
+    ['a-limpiar','m-limpiar','c-limpiar'].forEach(id=>document.getElementById(id).addEventListener('click',clearSharedDimensions));
 
     document.getElementById('analisis-toggle').addEventListener('click',event=>{
       const body=document.getElementById('analisis-body');

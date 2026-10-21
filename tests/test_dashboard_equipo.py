@@ -140,6 +140,50 @@ def test_compra_posterior_al_corte_no_aparece_como_cliente_nuevo(client, app):
     assert data["estado_datos"] == "sin_operaciones"
 
 
+def test_cartera_30_dias_nuevo_por_vendedor_y_comparacion_no_filtrada(client, app):
+    with app.app_context():
+        agregar_pre(date(2024, 6, 18), "Ana Ruiz", "Cliente 40 días", importe=10, numero="C-40")
+        agregar_pre(date(2024, 6, 18), "Otro vendedor", "Cliente nuevo para Ana", importe=10, numero="C-EMPRESA")
+        agregar_pre(date(2024, 7, 18), "Ana Ruiz", "Cliente nuevo para Ana", importe=10, numero="C-ANA")
+        agregar_pre(date(2024, 7, 18), "Ana Ruiz", "Cliente 10 días", importe=10, numero="C-10")
+        agregar_pre(date(2024, 7, 23), "Ana Ruiz", "Cliente cartera", importe=90, producto="Producto A", numero="C-A")
+        agregar_pre(date(2024, 7, 24), "Ana Ruiz", "Cliente compartido", importe=30, producto="Producto A", numero="C-SHARED-A")
+        agregar_pre(date(2024, 7, 24), "WALTER", "Cliente Walter", importe=10, producto="Producto B", numero="C-W")
+        agregar_pre(date(2024, 7, 25), "MEDINA WALTER", "Cliente compartido", importe=20, producto="Producto B", numero="C-SHARED-W")
+        agregar_pre(date(2024, 7, 25), "Ana Ruiz", "Cliente cartera", importe=9999, producto="Producto LACTEOS", numero="L-1")
+        db.session.query(StgSabiogoVentas).filter_by(codigo="L-1").update({StgSabiogoVentas.origen: "LACTEOS"})
+        db.session.commit()
+
+    base = "fecha_desde=2024-07-22&fecha_hasta=2024-07-28"
+    todos = client.get(f"/api/dashboard-comercial/equipo?{base}&empresa=CARNES").get_json()["cartera"]
+    assert todos["total_clientes"] == 6
+    assert todos["clientes_nuevos_30d"] == 5
+
+    ana = client.get(
+        f"/api/dashboard-comercial/equipo?{base}&empresa=CARNES&vendedor=Ana%20Ruiz"
+    )
+    assert ana.status_code == 200
+    cartera = ana.get_json()["cartera"]
+    assert cartera["total_clientes"] == 5
+    assert cartera["clientes_activos_30d"] == 4
+    assert cartera["clientes_nuevos_30d"] == 4
+    assert {row["cliente"] for row in cartera["clientes"]} == {
+        "Cliente 40 días",
+        "Cliente nuevo para Ana",
+        "Cliente 10 días",
+        "Cliente cartera",
+        "Cliente compartido",
+    }
+    assert {row["vendedor"] for row in cartera["comparacion_vendedores"]} == {
+        "Ana Ruiz",
+        "Walter Medina",
+    }
+    participacion = {row["vendedor"]: row["participacion"] for row in cartera["comparacion_vendedores"]}
+    assert participacion["Ana Ruiz"] == 80.0
+    assert participacion["Walter Medina"] == 20.0
+    assert cartera["productos"] == [{"nombre": "Producto A", "plata": 120.0, "pct": 100.0}]
+
+
 def test_diagnostico_clasifica_clientes_y_compra_en_baja_indica_medida(client, app):
     with app.app_context():
         agregar_pre(date(2024, 6, 10), "KALJA BENJAMIN", "Cliente nuevo", numero="N-1")
@@ -194,7 +238,11 @@ def test_dashboard_renderiza_secciones_en_orden_y_mix_plegado(client):
     assert "Equipo comercial" in html
     assert "Diagnóstico de" in html
     assert "Clientes que requieren atención" in html
+    assert "Cartera de clientes" in html
+    assert 'id="c-limpiar"' in html
+    assert "<th>Cliente</th><th>Última compra</th><th class=\"num\">Días</th><th>Estado</th>" in html
     assert 'data-period="mes"' in html
+    assert "Sin operaciones PRE en este período." in html
     assert 'id="analisis-body" style="padding:1rem;display:none"' in html
     assert 'id="mix-body" style="padding:1rem;display:none"' in html
     assert 'id="kpi-pre-top-vendedor"' not in html

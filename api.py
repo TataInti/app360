@@ -1883,6 +1883,7 @@ def api_dashboard_comercial_seguimiento():
 def api_dashboard_comercial_equipo():
     """Resumen de equipo, cumplimiento mensual y diagnóstico PRE."""
     from services.comercial_pre import calcular_resumen_pre
+    from services.comercial_cartera import calcular_cartera_comercial
     from services.objetivos_comerciales import obtener_objetivos_comerciales
     from services.vendedores_comerciales import resolver_nombre_vendedor
 
@@ -2137,6 +2138,14 @@ def api_dashboard_comercial_equipo():
                 ),
             }
 
+        cartera = calcular_cartera_comercial(
+            desde,
+            hasta,
+            empresa=empresa,
+            vendedor=vendedor_filter or None,
+            cliente=cliente_filter,
+            producto=producto_filter,
+        )
         return jsonify(
             {
                 "desde": desde.isoformat(),
@@ -2151,6 +2160,7 @@ def api_dashboard_comercial_equipo():
                 ),
                 "kpis": kpis,
                 "equipo": equipo,
+                "cartera": cartera,
                 "total_casos": seguimiento.get("total_casos", 0),
                 "pagina": seguimiento.get("pagina", 1),
                 "por_pagina": seguimiento.get("por_pagina", 20),
