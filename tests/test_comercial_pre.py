@@ -5,6 +5,7 @@ import pytest
 from app import create_app
 from config import Config
 from models import db
+from models.comercial import ComercialClienteCriterio
 from models.sabiogo.staging import StgSabiogoVentas
 from services.comercial_pre import calcular_resumen_pre
 from services.vendedores_comerciales import seed_vendedores_comerciales
@@ -294,3 +295,123 @@ def test_ticket_es_nulo_si_no_hay_pedidos_identificados(app):
         assert resumen["pedidos_identificados"] == 0
         assert resumen["lineas_sin_numero"] == 1
         assert resumen["ticket_promedio"] is None
+
+
+def test_criterio_fac_sustituye_pre_solo_para_cliente_marcado(client, app, pre_aliases):
+    with app.app_context():
+        db.session.add_all(
+            [
+                StgSabiogoVentas(
+                    fecha=date(2024, 1, 15), origen="CARNES", sucursal="Central", tipo="A",
+                    codigo="PRE-NO-MARCADO", producto="Producto C", cliente="Cliente sin marca",
+                    vendedor="KALJA BENJAMIN", comprobante="PRE", nro_comprob="201",
+                    cajas=1, kilos=10, subtot=7, estado="procesado",
+                ),
+                StgSabiogoVentas(
+                    fecha=date(2024, 1, 15), origen="CARNES", sucursal="Central", tipo="A",
+                    codigo="FAC-NO-MARCADO", producto="Producto C", cliente="Cliente sin marca",
+                    vendedor="KALJA BENJAMIN", comprobante="FAC", nro_comprob="202",
+                    cajas=1, kilos=10, subtot=1000, estado="procesado",
+                ),
+                ComercialClienteCriterio(
+                    cliente="Cliente compartido", criterio="FAC", actualizado_por="admin"
+                ),
+            ]
+        )
+        db.session.commit()
+
+        default = calcular_resumen_pre(date(2024, 1, 1), date(2024, 1, 31))
+        panel = calcular_resumen_pre(
+            date(2024, 1, 1), date(2024, 1, 31), criterio_clientes=True
+        )
+
+        assert default["importe_pre"] == 237.0
+        assert panel["importe_pre"] == 1006.0
+        por_cliente = {row["nombre"]: row["plata"] for row in panel["por_cliente"]}
+        assert por_cliente["Cliente compartido"] == 999.0
+        assert por_cliente["Cliente sin marca"] == 7.0
+
+    equipo = client.get(
+        "/api/dashboard-comercial/equipo?fecha_desde=2024-01-01"
+        "&fecha_hasta=2024-01-31&empresa=CARNES"
+    )
+    assert equipo.status_code == 200
+    assert equipo.get_json()["kpis"]["importe_pre"]["actual"] == 1006.0
+    assert equipo.get_json()["cartera"]["importe_pre"] == 1006.0
+    objetivo = next(
+        row for row in equipo.get_json()["equipo"] if row["vendedor"] == "Benjamín Kalja"
+    )
+    assert objetivo["realizado"] == 1006.0
+
+
+def test_pantalla_criterios_guardado_selectivo_y_auditoria(client, app, pre_aliases):
+    with app.app_context():
+        db.session.add_all(
+            [
+                StgSabiogoVentas(
+                    fecha=date(2024, 1, 15), origen="CARNES", sucursal="Central", tipo="A",
+                    codigo=f"CRIT-{cliente}", producto="Producto C", cliente=cliente,
+                    vendedor="KALJA BENJAMIN", comprobante="PRE", nro_comprob=cliente,
+                    cajas=1, kilos=10, subtot=7, estado="procesado",
+                )
+                for cliente in ("Cliente A", "Cliente B", "Cliente C")
+            ]
+        )
+        db.session.add(
+            StgSabiogoVentas(
+                fecha=date(2024, 1, 15), origen="CARNES", sucursal="Central", tipo="A",
+                codigo="PENDIENTE-CRITERIO", producto="Producto C", cliente="Cliente pendiente",
+                vendedor="KALJA BENJAMIN", comprobante="PRE", nro_comprob="pendiente",
+                cajas=1, kilos=10, subtot=7, estado="pendiente",
+            )
+        )
+        db.session.add_all(
+            [
+                ComercialClienteCriterio(cliente="Cliente A", criterio="FAC", actualizado_por="antes"),
+                ComercialClienteCriterio(cliente="Cliente C", criterio="FAC", actualizado_por="antes"),
+            ]
+        )
+        db.session.commit()
+
+    with client.session_transaction() as sess:
+        sess["user"] = "Ciro"
+        sess["user_id"] = 1
+        sess["role"] = "sales"
+    app.jinja_env.globals["csrf_token"] = lambda: "test-csrf"
+
+    page = client.get("/ventas/criterio-clientes")
+    assert page.status_code == 200
+    assert "Usar presupuesto" in page.get_data(as_text=True)
+    assert "Usar facturación" in page.get_data(as_text=True)
+
+    listado = client.get("/ventas/criterio-clientes/datos").get_json()["clientes"]
+    por_nombre = {row["cliente"]: row for row in listado}
+    nombres = set(por_nombre)
+    assert {"Cliente A", "Cliente B", "Cliente C"} <= nombres
+    assert "Cliente pendiente" not in nombres
+    assert por_nombre["Cliente B"]["criterio"] == "PRE"
+    assert por_nombre["Cliente B"]["actualizado_por"] is None
+
+    guardado = client.post(
+        "/ventas/criterio-clientes/guardar",
+        json={"clientes": ["Cliente A", "Cliente B"], "criterio": "PRE"},
+    )
+    assert guardado.status_code == 200
+    guardado_uno = client.post(
+        "/ventas/criterio-clientes/guardar",
+        json={"clientes": ["Cliente B"], "criterio": "FAC"},
+    )
+    assert guardado_uno.status_code == 200
+
+    with app.app_context():
+        criterios = {
+            fila.cliente: fila
+            for fila in ComercialClienteCriterio.query.filter(
+                ComercialClienteCriterio.cliente.in_(["Cliente A", "Cliente B", "Cliente C"])
+            ).all()
+        }
+        assert criterios["Cliente A"].criterio == "PRE"
+        assert criterios["Cliente B"].criterio == "FAC"
+        assert criterios["Cliente C"].criterio == "FAC"
+        assert criterios["Cliente B"].actualizado_por == "Ciro"
+        assert criterios["Cliente B"].actualizado_en is not None

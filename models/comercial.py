@@ -247,3 +247,26 @@ class ComercialObjetivoVinculo(db.Model):
             name="uq_comercial_objetivo_vinculo_objetivo",
         ),
     )
+
+
+class ComercialClienteCriterio(db.Model):
+    """Fuente comercial seleccionada por cliente para el Panel de Ventas."""
+
+    __tablename__ = "comercial_cliente_criterio"
+
+    id = db.Column(db.Integer, primary_key=True)
+    cliente = db.Column(db.String(255), nullable=False)
+    criterio = db.Column(
+        db.String(3),
+        nullable=False,
+        default="PRE",
+        server_default="PRE",
+    )
+    actualizado_por = db.Column(db.String(120), nullable=False)
+    actualizado_en = db.Column(db.DateTime, nullable=False, default=now_local, onupdate=now_local)
+
+    __table_args__ = (
+        db.UniqueConstraint("cliente", name="uq_comercial_cliente_criterio_cliente"),
+        db.CheckConstraint("criterio IN ('PRE', 'FAC')", name="ck_comercial_cliente_criterio_tipo"),
+        db.Index("ix_comercial_cliente_criterio_criterio", "criterio"),
+    )

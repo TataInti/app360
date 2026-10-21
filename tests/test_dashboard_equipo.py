@@ -239,7 +239,9 @@ def test_dashboard_renderiza_secciones_en_orden_y_mix_plegado(client):
     assert "Diagnóstico de" in html
     assert "Clientes que requieren atención" in html
     assert "Cartera de clientes" in html
-    assert 'id="c-limpiar"' in html
+    assert 'id="a-cliente"' in html
+    for clear_button in ("btn-limpiar-filtros", "a-limpiar", "m-limpiar", "c-limpiar"):
+        assert f'id="{clear_button}"' in html
     assert "<th>Cliente</th><th>Última compra</th><th class=\"num\">Días</th><th>Estado</th>" in html
     assert 'data-period="mes"' in html
     assert "Sin operaciones PRE en este período." in html

@@ -153,15 +153,23 @@ def calcular_resumen_pre(
     *,
     session=None,
     limite: int = 10,
+    criterio_clientes: bool = False,
 ) -> dict:
-    """Calcula métricas PRE completas; los límites solo afectan las series."""
+    """Calcula métricas completas; permite criterios mixtos solo al solicitarlo."""
     session = session or db.session
     filtros = [
         StgSabiogoVentas.estado == "procesado",
-        func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
         StgSabiogoVentas.fecha >= desde,
         StgSabiogoVentas.fecha <= hasta,
     ]
+    if criterio_clientes:
+        from services.comercial_criterios import filtro_comprobante_panel_ventas
+
+        filtros.append(filtro_comprobante_panel_ventas(session=session))
+    else:
+        filtros.append(
+            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE"
+        )
     empresa_normalizada = (empresa or "").strip().upper()
     if empresa_normalizada and empresa_normalizada != "TODAS":
         filtros.append(

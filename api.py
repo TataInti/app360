@@ -1030,12 +1030,13 @@ def api_dashboard_comercial_filtros():
     """Devuelve listas completas de vendedores, clientes y productos para poblar filtros."""
     from models.sabiogo.staging import StgSabiogoVentas
     from models.comercial import ComercialVendedor
+    from services.comercial_criterios import filtro_comprobante_panel_ventas
     from services.vendedores_comerciales import resolver_nombre_vendedor
 
     empresa = (request.args.get("empresa") or "TODAS").upper().strip()
     f = [
         StgSabiogoVentas.estado == "procesado",
-        func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
+        filtro_comprobante_panel_ventas(),
     ]
     if empresa not in ("", "TODAS"):
         f.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
@@ -1084,6 +1085,7 @@ def api_dashboard_comercial_filtros():
 def api_dashboard_comercial_analisis():
     """Top 15 + evolución 6M para producto / cliente / vendedor."""
     from models.sabiogo.staging import StgSabiogoVentas
+    from services.comercial_criterios import filtro_comprobante_panel_ventas
     from services.comercial_pre import expresion_vendedor_resuelta
     from services.vendedores_comerciales import resolver_nombre_vendedor
 
@@ -1126,8 +1128,8 @@ def api_dashboard_comercial_analisis():
     def base_filters(fd, fh):
         f = [
             StgSabiogoVentas.estado == "procesado",
-            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
             StgSabiogoVentas.fecha.between(fd, fh),
+            filtro_comprobante_panel_ventas(),
         ]
         if empresa not in ("", "TODAS"):
             f.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
@@ -1202,6 +1204,7 @@ def api_dashboard_comercial_mix():
     """Mix de ventas: distribución, diversidad por cliente, participación cliente×producto,
     evolución mensual del mix (últimos 6 meses)."""
     from models.sabiogo.staging import StgSabiogoVentas
+    from services.comercial_criterios import filtro_comprobante_panel_ventas
     from services.comercial_pre import expresion_vendedor_resuelta
     from services.vendedores_comerciales import resolver_nombre_vendedor
 
@@ -1232,8 +1235,8 @@ def api_dashboard_comercial_mix():
     def base_f(fd, fh):
         f = [
             StgSabiogoVentas.estado == "procesado",
-            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
             StgSabiogoVentas.fecha.between(fd, fh),
+            filtro_comprobante_panel_ventas(),
         ]
         if empresa not in ("", "TODAS"):
             f.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
@@ -1416,6 +1419,7 @@ def api_dashboard_comercial_mix():
 def api_dashboard_comercial_seguimiento():
     """Seguimiento por vendedor de los clientes con pedidos PRE procesados."""
     from models.sabiogo.staging import StgSabiogoVentas
+    from services.comercial_criterios import filtro_comprobante_panel_ventas
     from services.comercial_pre import expresion_vendedor_resuelta
     from services.vendedores_comerciales import resolver_nombre_vendedor
 
@@ -1461,7 +1465,7 @@ def api_dashboard_comercial_seguimiento():
     )
     filtros_documento = [
         StgSabiogoVentas.estado == "procesado",
-        func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
+        filtro_comprobante_panel_ventas(),
         StgSabiogoVentas.fecha <= hasta,
         StgSabiogoVentas.vendedor.isnot(None),
         func.trim(StgSabiogoVentas.vendedor) != "",
@@ -1931,24 +1935,28 @@ def api_dashboard_comercial_equipo():
             hasta,
             empresa=empresa,
             vendedor=vendedor_filter or None,
+            criterio_clientes=True,
         )
         resumen_anterior = calcular_resumen_pre(
             anterior_desde,
             anterior_hasta,
             empresa=empresa,
             vendedor=vendedor_filter or None,
+            criterio_clientes=True,
         )
         resumen_mes = calcular_resumen_pre(
             primer_dia_mes,
             hasta,
             empresa=empresa,
             limite=100000,
+            criterio_clientes=True,
         )
         objetivos = obtener_objetivos_comerciales(
             mes=mes_objetivos,
             empresa=empresa,
             medida=medida,
             corte=hasta,
+            criterio_clientes=True,
         )
 
         seguimiento_query = {key: value for key, value in request.args.items()}
@@ -2082,6 +2090,7 @@ def api_dashboard_comercial_equipo():
                 cliente=cliente_filter,
                 producto=producto_filter,
                 limite=100000,
+                criterio_clientes=True,
             )
             resumen_detalle_anterior = calcular_resumen_pre(
                 anterior_desde,
@@ -2091,6 +2100,7 @@ def api_dashboard_comercial_equipo():
                 cliente=cliente_filter,
                 producto=producto_filter,
                 limite=100000,
+                criterio_clientes=True,
             )
             fila_seguimiento = seguimiento_por_vendedor.get(vendedor_visible, {})
 
@@ -2145,6 +2155,7 @@ def api_dashboard_comercial_equipo():
             vendedor=vendedor_filter or None,
             cliente=cliente_filter,
             producto=producto_filter,
+            criterio_clientes=True,
         )
         return jsonify(
             {

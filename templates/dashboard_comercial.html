@@ -326,6 +326,9 @@
           <select id="a-vendedor" class="form-select form-select-sm" style="width:auto;min-width:120px">
               <option value="">Vendedor</option>
           </select>
+          <select id="a-cliente" class="form-select form-select-sm" style="width:auto;min-width:130px">
+              <option value="">Cliente</option>
+          </select>
           <select id="a-producto" class="form-select form-select-sm" style="width:auto;min-width:130px">
               <option value="">Producto</option>
           </select>
@@ -383,7 +386,7 @@
     <!-- ===== SECCIÓN: MIX DE VENTAS ===== -->
     <div class="table-card mb-3" style="padding:0">
       <button type="button" class="table-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;cursor:pointer;border:0;text-align:left;width:100%;background:transparent" id="mix-toggle" aria-controls="mix-body" aria-expanded="false">
-        <span><i class="bi bi-bar-chart-fill me-2" style="color:#5b7c99"></i>Mix de Ventas <span style="font-size:0.72rem;color:#334155;font-weight:400">· relación cliente–producto · pedidos PRE</span></span>
+        <span><i class="bi bi-bar-chart-fill me-2" style="color:#2F5D8C"></i>Mix de Ventas <span style="font-size:0.72rem;color:#334155;font-weight:400">· relación cliente–producto · pedidos PRE</span></span>
         <i class="bi bi-chevron-down" id="mix-chevron" style="transition:transform .25s"></i>
       </button>
 
@@ -467,7 +470,7 @@
   const FILTER_SELECTS = {
     empresa:['sel-empresa','a-empresa','m-empresa','c-empresa'],
     vendedor:['sel-vendedor','a-vendedor','m-vendedor','c-vendedor'],
-    cliente:['sel-cliente','m-cliente','c-cliente'],
+    cliente:['sel-cliente','a-cliente','m-cliente','c-cliente'],
     producto:['sel-producto','a-producto','m-producto','c-producto']
   };
   const FILTER_DATES = [['fecha-desde','fecha-hasta'],['a-desde','a-hasta'],['m-desde','m-hasta'],['c-desde','c-hasta']];
@@ -556,6 +559,7 @@
     'sel-cliente': 'Cliente',
     'sel-producto': 'Producto',
     'a-vendedor': 'Vendedor',
+    'a-cliente': 'Cliente',
     'a-producto': 'Producto',
     'm-vendedor': 'Vendedor',
     'm-cliente': 'Cliente',
@@ -1011,8 +1015,8 @@
     _weeklyCharts.push(new Chart(canvas,{
       type:'line',plugins:[datalabarsLine],
       data:{labels,datasets:[
-        {label:'Período',data:datos(weeksActual),borderColor:GRAPH_PALETTE[0],backgroundColor:'rgba(47,93,140,0.12)',borderWidth:2,tension:.25,pointRadius:3,fill:true,currency},
-        {label:'Ventana anterior',data:datos(weeksAnterior),borderColor:GRAPH_PALETTE[2],backgroundColor:'rgba(196,123,45,0.08)',borderWidth:2,tension:.25,pointRadius:3,fill:false,currency}
+        {label:'Período',data:datos(weeksActual),borderColor:GRAPH_PALETTE[0],backgroundColor:GRAPH_PALETTE[0],borderWidth:2,tension:.25,pointRadius:3,fill:false,currency},
+        {label:'Ventana anterior',data:datos(weeksAnterior),borderColor:GRAPH_PALETTE[2],backgroundColor:GRAPH_PALETTE[2],borderWidth:2,tension:.25,pointRadius:3,fill:false,currency}
       ]},
       options:{responsive:true,maintainAspectRatio:false,animation:false,layout:{padding:{top:14,right:12}},
         plugins:{legend:{display:true,position:'bottom',labels:{color:GRAPH_TEXT,boxWidth:10}},datalabarsLine:{currency},
@@ -1422,7 +1426,7 @@
       if(tieneDatosEvo){
         analisisLineChart = new Chart(document.getElementById('analisisLineChart'),{
           type:'line', plugins:[datalabarsLine],
-          data:{ labels:evoLabels, datasets:[{label:'Cajas', data:evo.map(x=>x.cajas), borderColor:GRAPH_PALETTE[0], backgroundColor:'rgba(47,93,140,0.12)', borderWidth:2, tension:0.25, pointRadius:4, fill:true, currency:false}] },
+          data:{labels:evoLabels, datasets:[{label:'Cajas', data:evo.map(x=>x.cajas), borderColor:GRAPH_PALETTE[0], backgroundColor:GRAPH_PALETTE[0], borderWidth:2, tension:0.25, pointRadius:4, fill:false, currency:false}]},
           options:{ responsive:true, layout:{padding:{top:18,right:16}},
             plugins:{
               legend:{display:false},

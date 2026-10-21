@@ -84,7 +84,7 @@ def _evaluar_estado(desde, hasta, corte, realizado, meta, avance_esperado):
     return cumplimiento, faltante, cumplimiento - Decimal(str(avance_esperado)), estado
 
 
-def _obtener_realizado(desde, hasta, empresa, vendedor, medida, corte):
+def _obtener_realizado(desde, hasta, empresa, vendedor, medida, corte, criterio_clientes=False):
     if corte < desde:
         return Decimal("0")
     fecha_hasta = min(corte, hasta)
@@ -94,6 +94,7 @@ def _obtener_realizado(desde, hasta, empresa, vendedor, medida, corte):
         empresa=empresa,
         vendedor=vendedor,
         limite=1,
+        criterio_clientes=criterio_clientes,
     )
     return _decimal(resumen[MEDIDAS_COMERCIALES[medida]])
 
@@ -229,6 +230,7 @@ def obtener_objetivos_comerciales(
     empresa: str = "TODAS",
     medida: str = "importe",
     corte: date | None = None,
+    criterio_clientes: bool = False,
 ) -> list[dict]:
     """Lista objetivos y vendedores sin meta; calcula realizados desde staging."""
     desde, hasta = _periodo(mes)
@@ -267,6 +269,7 @@ def obtener_objetivos_comerciales(
                 vendedor.nombre_visible,
                 medida,
                 corte,
+                criterio_clientes,
             )
             for empresa_actual in empresas_a_calcular
         }

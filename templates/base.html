@@ -1946,15 +1946,24 @@
         {% endif %}
 
         <!-- ═══ Operaciones ═══ -->
-        {% if can_access('crm') or can_access('products') or can_access('locations') or can_access('stock') %}
+        {% if can_access('crm') or can_access('dashboard_comercial') or can_access('products') or can_access('locations') or can_access('stock') %}
         <hr class="sidebar-sep">
         <div class="sidebar-section-title">Operaciones</div>
         {% if can_access('crm') %}
         <a href="/ventas"
-           class="{% if current.startswith('/ventas') %}active-link{% endif %}">
+           class="{% if current.startswith('/ventas') and current != '/ventas/criterio-clientes' %}active-link{% endif %}">
             <span class="nav-icon"><i class="bi bi-receipt"></i></span>
             <span class="link-text">Ventas</span>
         </a>
+        {% endif %}
+        {% if can_access('dashboard_comercial') %}
+        <a href="/ventas/criterio-clientes"
+           class="{% if current == '/ventas/criterio-clientes' %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-people"></i></span>
+            <span class="link-text">Criterio de clientes</span>
+        </a>
+        {% endif %}
+        {% if can_access('crm') %}
         <a href="/ventas/nuevo"
            class="{% if current == '/ventas/nuevo' %}active-link{% endif %}">
             <span class="nav-icon"><i class="bi bi-pencil"></i></span>

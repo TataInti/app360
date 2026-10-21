@@ -7,6 +7,7 @@ from sqlalchemy import func
 from models import db
 from models.sabiogo.staging import StgSabiogoVentas
 from services.comercial_pre import calcular_resumen_pre, expresion_vendedor_resuelta
+from services.comercial_criterios import filtro_comprobante_panel_ventas
 from services.vendedores_comerciales import resolver_nombre_vendedor
 
 
@@ -14,16 +15,21 @@ def _as_date(value):
     return value.date() if isinstance(value, datetime) else value
 
 
-def _historial_filters(corte, empresa, vendedor, cliente, producto, vendedor_expr, cliente_expr, producto_expr):
+def _historial_filters(corte, empresa, vendedor, cliente, producto, vendedor_expr, cliente_expr, producto_expr, session, criterio_clientes):
     filtros = [
         StgSabiogoVentas.estado == "procesado",
-        func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
         StgSabiogoVentas.fecha <= corte,
         StgSabiogoVentas.vendedor.isnot(None),
         func.trim(StgSabiogoVentas.vendedor) != "",
         cliente_expr.isnot(None),
         cliente_expr != "",
     ]
+    if criterio_clientes:
+        filtros.append(filtro_comprobante_panel_ventas(session=session))
+    else:
+        filtros.append(
+            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE"
+        )
     empresa_normalizada = (empresa or "TODAS").strip().upper()
     if empresa_normalizada not in ("", "TODAS"):
         filtros.append(
@@ -70,6 +76,7 @@ def calcular_cartera_comercial(
     producto: str | None = None,
     *,
     session=None,
+    criterio_clientes: bool = False,
 ) -> dict:
     """Devuelve cartera deduplicada, nuevos de 30 días y comparación de vendedores."""
     session = session or db.session
@@ -89,6 +96,7 @@ def calcular_cartera_comercial(
         producto=producto,
         session=session,
         limite=100000,
+        criterio_clientes=criterio_clientes,
     )
     resumen_serie = calcular_resumen_pre(
         desde,
@@ -99,6 +107,7 @@ def calcular_cartera_comercial(
         producto=producto,
         session=session,
         limite=100000,
+        criterio_clientes=criterio_clientes,
     )
 
     comparacion = []
@@ -121,6 +130,8 @@ def calcular_cartera_comercial(
         vendedor_expr,
         cliente_expr,
         producto_expr,
+        session,
+        criterio_clientes,
     )
     historial_rows = (
         session.query(
@@ -145,23 +156,29 @@ def calcular_cartera_comercial(
             }
         )
 
-    # "Nuevo" usa la primera PRE observada con cada vendedor en todos los
-    # orígenes y productos; no depende del período elegido ni de la empresa.
+    # La compra inicial usa el criterio actual de cada cliente y nunca fechas
+    # posteriores al corte; no depende del período elegido ni de la empresa.
+    filtros_primeras = [
+        StgSabiogoVentas.estado == "procesado",
+        StgSabiogoVentas.fecha <= hasta,
+        StgSabiogoVentas.vendedor.isnot(None),
+        func.trim(StgSabiogoVentas.vendedor) != "",
+        cliente_expr.isnot(None),
+        cliente_expr != "",
+    ]
+    if criterio_clientes:
+        filtros_primeras.append(filtro_comprobante_panel_ventas(session=session))
+    else:
+        filtros_primeras.append(
+            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE"
+        )
     primeras_rows = (
         session.query(
             vendedor_expr.label("vendedor"),
             cliente_expr.label("cliente"),
             func.min(StgSabiogoVentas.fecha).label("primera_compra"),
         )
-        .filter(
-            StgSabiogoVentas.estado == "procesado",
-            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
-            StgSabiogoVentas.fecha <= hasta,
-            StgSabiogoVentas.vendedor.isnot(None),
-            func.trim(StgSabiogoVentas.vendedor) != "",
-            cliente_expr.isnot(None),
-            cliente_expr != "",
-        )
+        .filter(*filtros_primeras)
         .group_by(vendedor_expr, cliente_expr)
         .all()
     )
