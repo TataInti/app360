@@ -253,6 +253,8 @@ def calcular_resumen_pre(
             "fecha": fecha.isoformat(),
             "cantidad": acumulador["lineas"],
             "monto": _presentacion(acumulador["plata"]),
+            "cajas": _presentacion(acumulador["cajas"]),
+            "kilos": _presentacion(acumulador["kilos"]),
         }
         for fecha, acumulador in sorted(por_fecha.items())
     ]

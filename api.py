@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import String, case, cast, func
 
 import models as m
@@ -1029,9 +1029,14 @@ def api_panel_ejecutivo_v2():
 def api_dashboard_comercial_filtros():
     """Devuelve listas completas de vendedores, clientes y productos para poblar filtros."""
     from models.sabiogo.staging import StgSabiogoVentas
+    from models.comercial import ComercialVendedor
+    from services.vendedores_comerciales import resolver_nombre_vendedor
 
     empresa = (request.args.get("empresa") or "TODAS").upper().strip()
-    f = [StgSabiogoVentas.estado == "procesado"]
+    f = [
+        StgSabiogoVentas.estado == "procesado",
+        func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
+    ]
     if empresa not in ("", "TODAS"):
         f.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
 
@@ -1059,8 +1064,17 @@ def api_dashboard_comercial_filtros():
         .order_by(StgSabiogoVentas.cliente)
         .all()
     )
+    vendedores_nombres = {
+        resolver_nombre_vendedor(row.vendedor) for row in vend if row.vendedor
+    }
+    vendedores_nombres.update(
+        row.nombre_visible
+        for row in db.session.query(ComercialVendedor.nombre_visible)
+        .filter_by(activo=True)
+        .all()
+    )
     return jsonify({
-        "vendedores": [r.vendedor for r in vend],
+        "vendedores": sorted(vendedores_nombres, key=str.casefold),
         "clientes": [r.cliente for r in clientes],
         "productos": [r.producto for r in prod],
     })
@@ -1070,6 +1084,8 @@ def api_dashboard_comercial_filtros():
 def api_dashboard_comercial_analisis():
     """Top 15 + evolución 6M para producto / cliente / vendedor."""
     from models.sabiogo.staging import StgSabiogoVentas
+    from services.comercial_pre import expresion_vendedor_resuelta
+    from services.vendedores_comerciales import resolver_nombre_vendedor
 
     tipo_raw = (request.args.get("tipo") or "producto").lower().strip()
     tipo = tipo_raw if tipo_raw in ("producto", "cliente", "vendedor") else "producto"
@@ -1104,7 +1120,8 @@ def api_dashboard_comercial_analisis():
     evo_desde = date(evo_anio, evo_mes, 1)
     evo_hasta = hoy
 
-    col_expr = getattr(StgSabiogoVentas, tipo)
+    vendedor_expr = expresion_vendedor_resuelta()
+    col_expr = vendedor_expr if tipo == "vendedor" else getattr(StgSabiogoVentas, tipo)
 
     def base_filters(fd, fh):
         f = [
@@ -1115,7 +1132,9 @@ def api_dashboard_comercial_analisis():
         if empresa not in ("", "TODAS"):
             f.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
         if vendedor_filter and tipo != "vendedor":
-            f.append(StgSabiogoVentas.vendedor == vendedor_filter)
+            f.append(
+                vendedor_expr == resolver_nombre_vendedor(vendedor_filter)
+            )
         if cliente_filter and tipo != "cliente":
             f.append(StgSabiogoVentas.cliente == cliente_filter)
         if producto_filter and tipo != "producto":
@@ -1183,6 +1202,8 @@ def api_dashboard_comercial_mix():
     """Mix de ventas: distribución, diversidad por cliente, participación cliente×producto,
     evolución mensual del mix (últimos 6 meses)."""
     from models.sabiogo.staging import StgSabiogoVentas
+    from services.comercial_pre import expresion_vendedor_resuelta
+    from services.vendedores_comerciales import resolver_nombre_vendedor
 
     empresa  = (request.args.get("empresa") or "TODAS").upper().strip()
     vendedor_f = (request.args.get("vendedor") or "").strip()
@@ -1206,6 +1227,8 @@ def api_dashboard_comercial_mix():
         evo_anio -= 1
     evo_desde = date(evo_anio, evo_mes, 1)
 
+    vendedor_expr = expresion_vendedor_resuelta()
+
     def base_f(fd, fh):
         f = [
             StgSabiogoVentas.estado == "procesado",
@@ -1215,7 +1238,7 @@ def api_dashboard_comercial_mix():
         if empresa not in ("", "TODAS"):
             f.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
         if vendedor_f:
-            f.append(StgSabiogoVentas.vendedor == vendedor_f)
+            f.append(vendedor_expr == resolver_nombre_vendedor(vendedor_f))
         if cliente_f:
             f.append(StgSabiogoVentas.cliente == cliente_f)
         if producto_f:
@@ -1407,12 +1430,12 @@ def api_dashboard_comercial_seguimiento():
         return jsonify({"error": "fecha_hasta tiene un formato inválido"}), 400
     if fecha_desde and fecha_hasta and fecha_desde > fecha_hasta:
         return jsonify({"error": "fecha_desde no puede ser mayor a fecha_hasta"}), 400
-    if fecha_desde and not fecha_hasta:
-        desde, hasta = fecha_desde, hoy
-    elif fecha_hasta and not fecha_desde:
-        desde, hasta = fecha_hasta - timedelta(days=29), fecha_hasta
-    elif fecha_desde and fecha_hasta:
+    if fecha_desde and fecha_hasta:
         desde, hasta = fecha_desde, fecha_hasta
+    elif fecha_desde:
+        desde, hasta = fecha_desde, hoy
+    elif fecha_hasta:
+        desde, hasta = fecha_hasta - timedelta(days=29), fecha_hasta
     else:
         desde, hasta = hoy - timedelta(days=29), hoy
 
@@ -1420,6 +1443,12 @@ def api_dashboard_comercial_seguimiento():
     vendedor_filter = (request.args.get("vendedor") or "").strip()
     cliente_filter = (request.args.get("cliente") or "").strip()
     producto_filter = (request.args.get("producto") or "").strip()
+    medida_filter = (request.args.get("medida") or "importe").strip().lower()
+    if medida_filter not in ("importe", "cajas", "kilos"):
+        return jsonify({"error": "medida debe ser importe, cajas o kilos"}), 400
+    pagina = request.args.get("pagina", default=1, type=int)
+    if pagina is None or pagina < 1:
+        return jsonify({"error": "pagina debe ser un entero mayor que cero"}), 400
     vendedor_expr = expresion_vendedor_resuelta()
     cliente_expr = func.trim(StgSabiogoVentas.cliente)
     producto_expr = func.coalesce(
@@ -1433,6 +1462,7 @@ def api_dashboard_comercial_seguimiento():
     filtros_documento = [
         StgSabiogoVentas.estado == "procesado",
         func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
+        StgSabiogoVentas.fecha <= hasta,
         StgSabiogoVentas.vendedor.isnot(None),
         func.trim(StgSabiogoVentas.vendedor) != "",
         cliente_expr.isnot(None),
@@ -1504,6 +1534,8 @@ def api_dashboard_comercial_seguimiento():
                 vendedor_expr.label("vendedor"),
                 cliente_expr.label("cliente"),
                 func.sum(StgSabiogoVentas.subtot).label("plata"),
+                func.sum(StgSabiogoVentas.cajas).label("cajas"),
+                func.sum(StgSabiogoVentas.kilos).label("kilos"),
             )
             .filter(*filtros_documento)
             .filter(StgSabiogoVentas.fecha.between(inicio, fin))
@@ -1512,11 +1544,13 @@ def api_dashboard_comercial_seguimiento():
         )
 
     def mapear_ventas(rows):
-        resultado: dict[str, dict[str, float]] = {}
+        resultado: dict[str, dict[str, dict[str, float]]] = {}
         for row in rows:
-            resultado.setdefault(row.vendedor, {})[row.cliente] = float(
-                _to_float(row.plata)
-            )
+            resultado.setdefault(row.vendedor, {})[row.cliente] = {
+                "plata": float(_to_float(row.plata)),
+                "cajas": float(_to_float(row.cajas)),
+                "kilos": float(_to_float(row.kilos)),
+            }
         return resultado
 
     plata_actual_por_cliente = mapear_ventas(agrupar_ventas_por_cliente(desde, hasta))
@@ -1534,10 +1568,12 @@ def api_dashboard_comercial_seguimiento():
         .all()
     )
     ultima_compra_anterior: dict[str, dict[str, date]] = {}
+    clientes_previos_por_vendedor: dict[str, set[str]] = {}
     for row in compras_previas_rows:
         ultima_compra_anterior.setdefault(row.vendedor, {})[row.cliente] = como_date(
             row.ultima_compra
         )
+        clientes_previos_por_vendedor.setdefault(row.vendedor, set()).add(row.cliente)
 
     productos_activos_rows = (
         db.session.query(
@@ -1555,6 +1591,25 @@ def api_dashboard_comercial_seguimiento():
     productos_por_cliente: dict[str, dict[str, int]] = {}
     for row in productos_activos_rows:
         productos_por_cliente.setdefault(row.vendedor, {})[row.cliente] = int(
+            row.productos or 0
+        )
+
+    productos_anteriores_rows = (
+        db.session.query(
+            vendedor_expr.label("vendedor"),
+            cliente_expr.label("cliente"),
+            func.count(
+                func.distinct(func.nullif(func.trim(StgSabiogoVentas.producto), ""))
+            ).label("productos"),
+        )
+        .filter(*filtros_documento)
+        .filter(StgSabiogoVentas.fecha.between(desde_anterior, hasta_anterior))
+        .group_by(vendedor_expr, cliente_expr)
+        .all()
+    )
+    productos_anteriores_por_cliente: dict[str, dict[str, int]] = {}
+    for row in productos_anteriores_rows:
+        productos_anteriores_por_cliente.setdefault(row.vendedor, {})[row.cliente] = int(
             row.productos or 0
         )
 
@@ -1576,6 +1631,8 @@ def api_dashboard_comercial_seguimiento():
         )
 
     vendedores = []
+    clientes_atencion = []
+    medida_clave = {"importe": "plata", "cajas": "cajas", "kilos": "kilos"}[medida_filter]
     for vendedor in sorted(clientes_por_vendedor, key=str.casefold):
         clientes = clientes_por_vendedor[vendedor]
         nombres = sorted(clientes, key=str.casefold)
@@ -1621,15 +1678,28 @@ def api_dashboard_comercial_seguimiento():
         ultimas.sort(key=lambda item: (-item["dias"], item["nombre"].casefold()))
 
         activos = activos_por_vendedor.get(vendedor, set())
+        clientes_previos = clientes_previos_por_vendedor.get(vendedor, set())
         ventas_actuales = plata_actual_por_cliente.get(vendedor, {})
         ventas_anteriores = plata_anterior_por_cliente.get(vendedor, {})
         ultima_anterior = ultima_compra_anterior.get(vendedor, {})
+        recurrentes_nombres = sorted(activos & clientes_previos, key=str.casefold)
+        recuperados_nombres = sorted(
+            (
+                nombre
+                for nombre in activos - clientes_previos
+                if clientes.get(nombre, {}).get("primera_compra")
+                and clientes[nombre]["primera_compra"] < desde
+            ),
+            key=str.casefold,
+        )
 
         caidos = [
             {
                 "nombre": nombre,
                 "dias": (hasta - fecha).days,
-                "plata_anterior": float(ventas_anteriores.get(nombre, 0.0)),
+                "plata_anterior": float(
+                    ventas_anteriores.get(nombre, {}).get("plata", 0.0)
+                ),
             }
             for nombre, fecha in ultima_anterior.items()
             if nombre not in activos
@@ -1638,8 +1708,8 @@ def api_dashboard_comercial_seguimiento():
 
         baja = []
         for nombre in sorted(activos & set(ultima_anterior), key=str.casefold):
-            anterior = float(ventas_anteriores.get(nombre, 0.0))
-            actual = float(ventas_actuales.get(nombre, 0.0))
+            anterior = float(ventas_anteriores.get(nombre, {}).get("plata", 0.0))
+            actual = float(ventas_actuales.get(nombre, {}).get("plata", 0.0))
             if anterior <= 0 or actual > anterior * 0.8:
                 continue
             baja.append(
@@ -1651,6 +1721,7 @@ def api_dashboard_comercial_seguimiento():
                 }
             )
         baja.sort(key=lambda item: (item["variacion_pct"], item["nombre"].casefold()))
+
 
         productos_activos = productos_por_cliente.get(vendedor, {})
         promedio_productos = (
@@ -1672,12 +1743,88 @@ def api_dashboard_comercial_seguimiento():
                     )
         canasta_flaca.sort(key=lambda item: (item["productos"], item["nombre"].casefold()))
 
+        def fila_atencion(nombre, senal, ultima, medida="importe", valor_anterior=None, valor_actual=None):
+            datos_anteriores = ventas_anteriores.get(nombre, {})
+            datos_actuales = ventas_actuales.get(nombre, {})
+            importe_anterior = float(datos_anteriores.get("plata", 0.0))
+            importe_actual = float(datos_actuales.get("plata", 0.0))
+            base_variacion = valor_anterior if valor_anterior is not None else importe_anterior
+            actual_variacion = valor_actual if valor_actual is not None else importe_actual
+            variacion_pct = (
+                round((actual_variacion - base_variacion) / abs(base_variacion) * 100, 1)
+                if base_variacion != 0
+                else None
+            )
+            return {
+                "vendedor": vendedor,
+                "cliente": nombre,
+                "senal": senal,
+                "ultima_compra": ultima.isoformat() if ultima else None,
+                "dias_sin_comprar": (hasta - ultima).days if ultima else None,
+                "importe_anterior": importe_anterior,
+                "importe_actual": importe_actual,
+                "diferencia": importe_actual - importe_anterior,
+                "variacion_pct": variacion_pct,
+                "medida": medida,
+                "valor_anterior": valor_anterior,
+                "valor_actual": valor_actual,
+            }
+
+        for item in caidos:
+            clientes_atencion.append(
+                fila_atencion(
+                    item["nombre"],
+                    "Sin recompra",
+                    ultima_anterior.get(item["nombre"]),
+                )
+            )
+
+        for nombre in sorted(activos & set(ultima_anterior), key=str.casefold):
+            datos_anteriores = ventas_anteriores.get(nombre, {})
+            datos_actuales = ventas_actuales.get(nombre, {})
+            valor_anterior = float(datos_anteriores.get(medida_clave, 0.0))
+            valor_actual = float(datos_actuales.get(medida_clave, 0.0))
+            if valor_anterior > 0 and valor_actual <= valor_anterior * 0.8:
+                clientes_atencion.append(
+                    fila_atencion(
+                        nombre,
+                        "Compra en baja",
+                        clientes.get(nombre, {}).get("ultima_compra"),
+                        medida=medida_filter,
+                        valor_anterior=valor_anterior,
+                        valor_actual=valor_actual,
+                    )
+                )
+
+        productos_anteriores = productos_anteriores_por_cliente.get(vendedor, {})
+        for nombre in sorted(activos & set(productos_anteriores), key=str.casefold):
+            productos_previos = productos_anteriores.get(nombre, 0)
+            productos_actuales = productos_activos.get(nombre, 0)
+            if productos_previos >= 2 and productos_actuales * 2 <= productos_previos:
+                clientes_atencion.append(
+                    fila_atencion(
+                        nombre,
+                        "Menor variedad",
+                        clientes.get(nombre, {}).get("ultima_compra"),
+                        medida="productos",
+                        valor_anterior=float(productos_previos),
+                        valor_actual=float(productos_actuales),
+                    )
+                )
+
         vendedores.append(
             {
                 "nombre": vendedor,
                 "total": len(nombres),
                 "activos": len(activos),
+                "clientes_compradores": len(activos),
+                "clientes_sin_recompra": len(caidos),
+                "importe_pre_sin_recompra_anterior": sum(
+                    item["plata_anterior"] for item in caidos
+                ),
                 "nuevos": [{"nombre": nombre} for nombre in nuevos_nombres],
+                "recurrentes": [{"nombre": nombre} for nombre in recurrentes_nombres],
+                "recuperados": [{"nombre": nombre} for nombre in recuperados_nombres],
                 "lista": [{"nombre": nombre} for nombre in nombres],
                 "productos": productos,
                 "ultimas": [
@@ -1690,10 +1837,329 @@ def api_dashboard_comercial_seguimiento():
             }
         )
 
+    for vendedor_data in vendedores:
+        vendedor_data["clientes_reduccion"] = [
+            alerta
+            for alerta in clientes_atencion
+            if alerta["vendedor"] == vendedor_data["nombre"]
+            and alerta["senal"] == "Compra en baja"
+        ]
+        vendedor_data["clientes_menor_variedad"] = [
+            alerta
+            for alerta in clientes_atencion
+            if alerta["vendedor"] == vendedor_data["nombre"]
+            and alerta["senal"] == "Menor variedad"
+        ]
+
+    clientes_atencion.sort(
+        key=lambda item: (
+            -max(0.0, -float(item["diferencia"])),
+            -(item["dias_sin_comprar"] or 0),
+            item["vendedor"].casefold(),
+            item["cliente"].casefold(),
+            item["senal"],
+        )
+    )
+    total_casos = len(clientes_atencion)
+    por_pagina = 20
+    inicio_pagina = (pagina - 1) * por_pagina
+    clientes_atencion_pagina = clientes_atencion[inicio_pagina : inicio_pagina + por_pagina]
+
     return jsonify(
         {
             "desde": desde.isoformat(),
             "hasta": hasta.isoformat(),
             "vendedores": vendedores,
+            "clientes_atencion": clientes_atencion_pagina,
+            "total_casos": total_casos,
+            "pagina": pagina,
+            "por_pagina": por_pagina,
+            "total_paginas": max(1, (total_casos + por_pagina - 1) // por_pagina),
         }
     )
+
+
+@api.get("/dashboard-comercial/equipo")
+def api_dashboard_comercial_equipo():
+    """Resumen de equipo, cumplimiento mensual y diagnóstico PRE."""
+    from services.comercial_pre import calcular_resumen_pre
+    from services.objetivos_comerciales import obtener_objetivos_comerciales
+    from services.vendedores_comerciales import resolver_nombre_vendedor
+
+    hoy = today_local_date()
+    fecha_desde_raw = request.args.get("fecha_desde")
+    fecha_hasta_raw = request.args.get("fecha_hasta")
+    fecha_desde = _parse_iso_date(fecha_desde_raw)
+    fecha_hasta = _parse_iso_date(fecha_hasta_raw)
+    if fecha_desde_raw and not fecha_desde:
+        return jsonify({"error": "fecha_desde tiene un formato inválido"}), 400
+    if fecha_hasta_raw and not fecha_hasta:
+        return jsonify({"error": "fecha_hasta tiene un formato inválido"}), 400
+    if fecha_desde and fecha_hasta and fecha_desde > fecha_hasta:
+        return jsonify({"error": "fecha_desde no puede ser mayor a fecha_hasta"}), 400
+
+    if fecha_desde and fecha_hasta:
+        desde, hasta = fecha_desde, fecha_hasta
+    elif fecha_desde:
+        desde, hasta = fecha_desde, hoy
+    elif fecha_hasta:
+        desde, hasta = date(fecha_hasta.year, fecha_hasta.month, 1), fecha_hasta
+    else:
+        desde, hasta = date(hoy.year, hoy.month, 1), hoy
+
+    empresa = (request.args.get("empresa") or "TODAS").strip().upper()
+    if empresa not in ("TODAS", "CARNES", "LACTEOS"):
+        return jsonify({"error": "empresa debe ser TODAS, CARNES o LACTEOS"}), 400
+    medida = (request.args.get("medida") or "importe").strip().lower()
+    if medida not in ("importe", "cajas", "kilos"):
+        return jsonify({"error": "medida debe ser importe, cajas o kilos"}), 400
+
+    vendedor_filter = (request.args.get("vendedor") or "").strip()
+    vendedor_visible = resolver_nombre_vendedor(vendedor_filter) if vendedor_filter else None
+    cliente_filter = (request.args.get("cliente") or "").strip() or None
+    producto_filter = (request.args.get("producto") or "").strip() or None
+    rango_dias = (hasta - desde).days + 1
+    anterior_hasta = desde - timedelta(days=1)
+    anterior_desde = anterior_hasta - timedelta(days=rango_dias - 1)
+    primer_dia_mes = date(hasta.year, hasta.month, 1)
+    mes_objetivos = hasta.strftime("%Y-%m")
+
+    try:
+        resumen_actual = calcular_resumen_pre(
+            desde,
+            hasta,
+            empresa=empresa,
+            vendedor=vendedor_filter or None,
+        )
+        resumen_anterior = calcular_resumen_pre(
+            anterior_desde,
+            anterior_hasta,
+            empresa=empresa,
+            vendedor=vendedor_filter or None,
+        )
+        resumen_mes = calcular_resumen_pre(
+            primer_dia_mes,
+            hasta,
+            empresa=empresa,
+            limite=100000,
+        )
+        objetivos = obtener_objetivos_comerciales(
+            mes=mes_objetivos,
+            empresa=empresa,
+            medida=medida,
+            corte=hasta,
+        )
+
+        seguimiento_query = {key: value for key, value in request.args.items()}
+        seguimiento_query["fecha_desde"] = desde.isoformat()
+        seguimiento_query["fecha_hasta"] = hasta.isoformat()
+        seguimiento_query["empresa"] = empresa
+        seguimiento_query["medida"] = medida
+        with current_app.test_request_context(
+            "/api/dashboard-comercial/seguimiento",
+            query_string=seguimiento_query,
+        ):
+            seguimiento_resultado = api_dashboard_comercial_seguimiento()
+        if isinstance(seguimiento_resultado, tuple):
+            return seguimiento_resultado
+        if seguimiento_resultado.status_code >= 400:
+            return seguimiento_resultado
+        seguimiento = seguimiento_resultado.get_json(silent=True) or {}
+        seguimiento_por_vendedor = {
+            fila["nombre"]: fila for fila in seguimiento.get("vendedores", [])
+        }
+
+        def comparativo(actual, anterior):
+            actual = float(actual or 0)
+            anterior = float(anterior or 0)
+            if anterior == 0:
+                return {
+                    "actual": actual,
+                    "anterior": anterior,
+                    "variacion_pct": None,
+                    "variacion_texto": "Sin base comparable",
+                }
+            variacion = (actual - anterior) / abs(anterior) * 100
+            return {
+                "actual": actual,
+                "anterior": anterior,
+                "variacion_pct": round(variacion, 1),
+                "variacion_texto": f"{variacion:+.1f}%",
+            }
+
+        resumen_keys = {
+            "importe_pre": "importe_pre",
+            "cajas": "cajas",
+            "kilos": "kilos",
+            "clientes_compradores": "clientes_compradores",
+        }
+        kpis = {
+            etiqueta: comparativo(
+                resumen_actual[clave],
+                resumen_anterior[clave],
+            )
+            for etiqueta, clave in resumen_keys.items()
+        }
+
+        medida_resumen_key = {"importe": "importe_pre", "cajas": "cajas", "kilos": "kilos"}[medida]
+        realizado_mes_por_vendedor = {
+            fila["nombre"]: float(fila.get(medida_resumen_key) or 0)
+            for fila in resumen_mes.get("por_vendedor", [])
+        }
+        equipo = []
+        nombres_objetivo = set()
+        for objetivo in objetivos:
+            nombre = objetivo["nombre_visible"]
+            nombres_objetivo.add(nombre)
+            seguimiento_vendedor = seguimiento_por_vendedor.get(nombre, {})
+            equipo.append(
+                {
+                    "vendedor_id": objetivo["vendedor_id"],
+                    "vendedor": nombre,
+                    "realizado": objetivo["realizado"],
+                    "meta": objetivo["meta"],
+                    "cumplimiento": objetivo["cumplimiento"],
+                    "desvio": objetivo["desvio"],
+                    "estado": objetivo["estado"],
+                    "cobertura": objetivo["cobertura"],
+                    "clientes_compradores": seguimiento_vendedor.get(
+                        "clientes_compradores", 0
+                    ),
+                    "clientes_sin_recompra": seguimiento_vendedor.get(
+                        "clientes_sin_recompra", 0
+                    ),
+                    "importe_pre_sin_recompra_anterior": seguimiento_vendedor.get(
+                        "importe_pre_sin_recompra_anterior", 0.0
+                    ),
+                }
+            )
+
+        for nombre, seguimiento_vendedor in seguimiento_por_vendedor.items():
+            if nombre in nombres_objetivo:
+                continue
+            equipo.append(
+                {
+                    "vendedor_id": None,
+                    "vendedor": nombre,
+                    "realizado": realizado_mes_por_vendedor.get(nombre, 0.0),
+                    "meta": None,
+                    "cumplimiento": None,
+                    "desvio": None,
+                    "estado": "Sin meta",
+                    "cobertura": "sin_meta",
+                    "clientes_compradores": seguimiento_vendedor.get(
+                        "clientes_compradores", 0
+                    ),
+                    "clientes_sin_recompra": seguimiento_vendedor.get(
+                        "clientes_sin_recompra", 0
+                    ),
+                    "importe_pre_sin_recompra_anterior": seguimiento_vendedor.get(
+                        "importe_pre_sin_recompra_anterior", 0.0
+                    ),
+                }
+            )
+
+        if vendedor_visible:
+            equipo = [fila for fila in equipo if fila["vendedor"] == vendedor_visible]
+
+        def orden_equipo(fila):
+            if fila["estado"] == "Sin meta":
+                return (2, 0.0, fila["vendedor"].casefold())
+            if fila["desvio"] is None:
+                return (1, 0.0, fila["vendedor"].casefold())
+            return (0, float(fila["desvio"]), fila["vendedor"].casefold())
+
+        equipo.sort(key=orden_equipo)
+
+        diagnostico = None
+        if vendedor_filter:
+            resumen_detalle_actual = calcular_resumen_pre(
+                desde,
+                hasta,
+                empresa=empresa,
+                vendedor=vendedor_filter,
+                cliente=cliente_filter,
+                producto=producto_filter,
+                limite=100000,
+            )
+            resumen_detalle_anterior = calcular_resumen_pre(
+                anterior_desde,
+                anterior_hasta,
+                empresa=empresa,
+                vendedor=vendedor_filter,
+                cliente=cliente_filter,
+                producto=producto_filter,
+                limite=100000,
+            )
+            fila_seguimiento = seguimiento_por_vendedor.get(vendedor_visible, {})
+
+            def concentracion(filas):
+                ordenadas = sorted(
+                    filas,
+                    key=lambda fila: (-float(fila.get("plata") or 0), fila["nombre"].casefold()),
+                )
+                principales = ordenadas[:9]
+                resto = ordenadas[9:]
+                if resto:
+                    total_otros = sum(float(fila.get("plata") or 0) for fila in resto)
+                    total = sum(float(fila.get("plata") or 0) for fila in ordenadas)
+                    principales.append(
+                        {
+                            "nombre": "Otros",
+                            "plata": total_otros,
+                            "pct": round(total_otros / total * 100, 1) if total else 0.0,
+                        }
+                    )
+                return sorted(
+                    principales,
+                    key=lambda fila: (-float(fila.get("pct") or 0), fila["nombre"].casefold()),
+                )
+
+            diagnostico = {
+                "vendedor": vendedor_visible or vendedor_filter,
+                "estado_datos": (
+                    "disponible" if resumen_detalle_actual["lineas_pre"] else "sin_operaciones"
+                ),
+                "serie_actual": resumen_detalle_actual["por_fecha"],
+                "serie_anterior": resumen_detalle_anterior["por_fecha"],
+                "nuevos": fila_seguimiento.get("nuevos", []),
+                "recurrentes": fila_seguimiento.get("recurrentes", []),
+                "recuperados": fila_seguimiento.get("recuperados", []),
+                "clientes_reduccion": fila_seguimiento.get("clientes_reduccion", []),
+                "clientes_menor_variedad": fila_seguimiento.get(
+                    "clientes_menor_variedad", []
+                ),
+                "concentracion_clientes": concentracion(
+                    resumen_detalle_actual["por_cliente"]
+                ),
+                "concentracion_productos": concentracion(
+                    resumen_detalle_actual["por_producto"]
+                ),
+            }
+
+        return jsonify(
+            {
+                "desde": desde.isoformat(),
+                "hasta": hasta.isoformat(),
+                "desde_anterior": anterior_desde.isoformat(),
+                "hasta_anterior": anterior_hasta.isoformat(),
+                "mes_objetivos": mes_objetivos,
+                "empresa": empresa,
+                "medida": medida,
+                "estado_datos": (
+                    "disponible" if resumen_actual["lineas_pre"] else "sin_operaciones"
+                ),
+                "kpis": kpis,
+                "equipo": equipo,
+                "total_casos": seguimiento.get("total_casos", 0),
+                "pagina": seguimiento.get("pagina", 1),
+                "por_pagina": seguimiento.get("por_pagina", 20),
+                "total_paginas": seguimiento.get("total_paginas", 1),
+                "clientes_atencion": seguimiento.get("clientes_atencion", []),
+                "diagnostico": diagnostico,
+                "ultima_importacion": resumen_actual["ultima_importacion"],
+                "fecha_maxima_pre": resumen_actual["fecha_maxima_pre"],
+            }
+        )
+    except Exception:
+        return jsonify({"error": "No se pudo cargar el equipo comercial"}), 500

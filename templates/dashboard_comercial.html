@@ -47,8 +47,31 @@
   #panel-ventas .seg-table tbody tr.is-click:hover td { background:#f8fafc; }
   #panel-ventas .seg-table tbody tr.is-active td { background:#eef4f8; }
   #panel-ventas .seg-chart { height:220px; }
+  #panel-ventas .kpi-compare { display:grid; gap:0.2rem; margin-top:0.45rem; font-size:0.72rem; color:#475569; }
+  #panel-ventas .kpi-compare strong { color:#1f2937; font-variant-numeric:tabular-nums; }
+  #panel-ventas .kpi-variation { font-weight:700; }
+  #panel-ventas .team-toolbar { display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; }
+  #panel-ventas .team-table-wrap, #panel-ventas .attention-table-wrap { overflow:auto; }
+  #panel-ventas .team-table, #panel-ventas .attention-table { width:100%; border-collapse:collapse; min-width:900px; }
+  #panel-ventas .team-table th, #panel-ventas .attention-table th { position:sticky; top:0; background:#f8fafc; color:#475569; font-size:0.68rem; text-transform:uppercase; letter-spacing:.035em; text-align:left; padding:.6rem .55rem; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
+  #panel-ventas .team-table td, #panel-ventas .attention-table td { padding:.62rem .55rem; border-bottom:1px solid #eef2f6; vertical-align:middle; }
+  #panel-ventas .team-table .num, #panel-ventas .attention-table .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  #panel-ventas .status-text { display:inline-block; font-size:.68rem; font-weight:700; border-radius:999px; padding:.18rem .48rem; white-space:nowrap; }
+  #panel-ventas .status-ok { color:#176b4d; background:#e7f5ee; }
+  #panel-ventas .status-warn { color:#925d16; background:#fff3d9; }
+  #panel-ventas .status-bad { color:#a33a32; background:#fdebe9; }
+  #panel-ventas .status-neutral { color:#475569; background:#edf1f5; }
+  #panel-ventas .deviation-cell { display:flex; flex-direction:column; align-items:flex-end; gap:.25rem; }
+  #panel-ventas .dashboard-error { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; border:1px solid #f2c4c0; background:#fff2f0; color:#7f1d1d; border-radius:.65rem; padding:.75rem 1rem; margin:.75rem 0; }
+  #panel-ventas .dashboard-note { color:#64748b; font-size:.76rem; }
+  #panel-ventas .diagnostic-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.85rem; }
+  #panel-ventas .diagnostic-list { max-height:230px; overflow:auto; padding-left:1.1rem; font-size:.8rem; }
+  #panel-ventas .concentration-chart { height:280px; }
+  #panel-ventas .attention-pagination { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; padding:.75rem 1rem; }
+  #panel-ventas .attention-signal { font-weight:650; }
   @media (max-width: 900px) {
     #panel-ventas .seg-layout, #panel-ventas .seg-metrics { grid-template-columns:1fr; }
+    #panel-ventas .diagnostic-grid { grid-template-columns:1fr; }
   }
   @media (max-width: 767px) {
     #panel-ventas .seguimiento-clientes-lista, #panel-ventas .seg-metrics { columns:1; grid-template-columns:1fr 1fr; }
@@ -82,16 +105,12 @@
     <button class="pp" id="btn-limpiar-filtros" type="button">Limpiar</button>
     <span class="filter-sep"></span>
     <div class="period-pills">
-      <button class="pp active" data-period="7">7d</button>
+      <button class="pp active" data-period="mes">Mes actual</button>
+      <button class="pp" data-period="7">7d</button>
       <button class="pp" data-period="15">15d</button>
       <button class="pp" data-period="30">30d</button>
       <button class="pp" data-period="6m">6m</button>
       <button class="pp" data-period="ytd">YTD</button>
-    </div>
-    <div class="period-pills" aria-label="Medida de los gráficos PRE">
-      <button class="pp active" type="button" data-measure="plata">Plata</button>
-      <button class="pp" type="button" data-measure="cajas">Cajas</button>
-      <button class="pp" type="button" data-measure="pct">%</button>
     </div>
     <span class="filter-sep"></span>
     <div class="date-group">
@@ -111,51 +130,114 @@
   <!-- Skeleton -->
   <div id="skeleton">
     <div class="kpi-grid"><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div></div>
-    <div class="charts-grid"><div class="skeleton skeleton-chart"></div><div class="skeleton skeleton-chart"></div></div>
+    <div class="skeleton skeleton-chart" style="height:340px"></div>
+    <div class="skeleton skeleton-chart" style="height:240px"></div>
   </div>
 
   <!-- Content -->
   <div id="content" style="display:none">
 
-    <!-- KPIs PRE -->
-    <div class="kpi-grid">
-      <div class="kpi-card accent-green"><span class="kpi-label">Total PRE $</span><span class="kpi-value" id="kpi-pre-total">$0</span></div>
-      <div class="kpi-card accent-blue"><span class="kpi-label">Cantidad PRE</span><span class="kpi-value" id="kpi-pre-count">0</span></div>
-      <div class="kpi-card accent-amber"><span class="kpi-label">Ticket Promedio</span><span class="kpi-value" id="kpi-pre-ticket">$0</span></div>
-      <div class="kpi-card accent-purple"><span class="kpi-label">Top Vendedor</span><span class="kpi-value" id="kpi-pre-top-vendedor" style="font-size:1rem">–</span></div>
+    <div id="dashboard-error" class="dashboard-error" role="alert" hidden>
+      <span id="dashboard-error-message"></span>
+      <button class="pp pp-action" id="dashboard-retry" type="button">Reintentar</button>
+    </div>
+    <p id="sin-operaciones-note" class="dashboard-note" hidden>Sin operaciones PRE en el período seleccionado.</p>
+    <p id="period-comparison-label" class="dashboard-note"></p>
+
+    <!-- A. Indicadores comparables -->
+    <div class="kpi-grid" id="kpi-comparables">
+      <div class="kpi-card">
+        <span class="kpi-label">Importe PRE</span>
+        <span class="kpi-value" id="kpi-importe-actual">—</span>
+        <div class="kpi-compare"><span>Anterior: <strong id="kpi-importe-anterior">—</strong></span><span>Variación: <strong class="kpi-variation" id="kpi-importe-variacion">—</strong></span></div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Cajas</span>
+        <span class="kpi-value" id="kpi-cajas-actual">—</span>
+        <div class="kpi-compare"><span>Anterior: <strong id="kpi-cajas-anterior">—</strong></span><span>Variación: <strong class="kpi-variation" id="kpi-cajas-variacion">—</strong></span></div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Kilos</span>
+        <span class="kpi-value" id="kpi-kilos-actual">—</span>
+        <div class="kpi-compare"><span>Anterior: <strong id="kpi-kilos-anterior">—</strong></span><span>Variación: <strong class="kpi-variation" id="kpi-kilos-variacion">—</strong></span></div>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Clientes compradores</span>
+        <span class="kpi-value" id="kpi-clientes-actual">—</span>
+        <div class="kpi-compare"><span>Anterior: <strong id="kpi-clientes-anterior">—</strong></span><span>Variación: <strong class="kpi-variation" id="kpi-clientes-variacion">—</strong></span></div>
+      </div>
     </div>
 
-    <!-- Charts: Vendedor | Cliente -->
-    <div class="charts-grid">
-      <div class="chart-card-v2"><h6 id="vendedor-chart-title">PRE por Vendedor (Plata)</h6><canvas id="vendedorChart"></canvas><div id="vendedorChart-empty" hidden>No hay pedidos PRE para esos filtros.</div></div>
-      <div class="chart-card-v2"><h6 id="cliente-chart-title">PRE por Cliente (Plata)</h6><canvas id="clienteChart"></canvas><div id="clienteChart-empty" hidden>No hay pedidos PRE para esos filtros.</div></div>
-    </div>
+    <!-- B. Tabla principal del equipo -->
+    <section class="table-card mb-3" id="equipo-card" style="padding:0;background:#fff">
+      <div class="table-card-head team-toolbar">
+        <div><h2 style="font-size:1.08rem;margin:0">Equipo comercial</h2><p class="dashboard-note mb-0">Cumplimiento mensual hasta la fecha de corte, sin prorratear la meta por el período.</p></div>
+        <label style="display:flex;align-items:center;gap:.45rem;font-size:.76rem">Medida del objetivo
+          <select id="sel-medida-objetivo" class="form-select form-select-sm" style="width:auto">
+            <option value="importe">Importe</option><option value="cajas">Cajas</option><option value="kilos">Kilos</option>
+          </select>
+        </label>
+      </div>
+      <p id="equipo-data-note" class="dashboard-note" style="padding:0 1rem"></p>
+      <div class="team-table-wrap" style="padding:0 1rem 1rem" tabindex="0" role="region" aria-label="Tabla desplazable del equipo comercial">
+        <table class="team-table" aria-label="Seguimiento del equipo comercial">
+          <thead><tr><th>Vendedor</th><th class="num">Realizado</th><th class="num">Meta</th><th class="num">Cumplimiento</th><th class="num">Desvío y estado</th><th class="num">Clientes compradores</th><th class="num">Clientes sin recompra</th><th class="num">Importe PRE anterior de esos clientes</th><th>Detalle</th></tr></thead>
+          <tbody id="equipo-table-body"></tbody>
+        </table>
+        <p id="equipo-empty" class="dashboard-note" hidden></p>
+      </div>
+    </section>
 
-    <!-- Charts: Producto | Evolución diaria -->
-    <div class="charts-grid">
-      <div class="chart-card-v2"><h6 id="producto-chart-title">PRE por Producto (Plata)</h6><canvas id="productoChart"></canvas><div id="productoChart-empty" hidden>No hay pedidos PRE para esos filtros.</div></div>
-      <div class="chart-card-v2"><h6>Evolución diaria PRE</h6><canvas id="evolucionChart"></canvas></div>
-    </div>
+    <!-- C. Diagnóstico único del vendedor elegido -->
+    <section class="table-card mb-3" id="diagnostico-card" hidden>
+      <div class="table-card-head team-toolbar">
+        <h2 style="font-size:1.08rem;margin:0">Diagnóstico de <span id="diagnostico-vendedor"></span></h2>
+        <button class="pp" id="cerrar-diagnostico" type="button">Quitar selección</button>
+      </div>
+      <p id="diagnostico-note" class="dashboard-note"></p>
+      <div class="diagnostic-grid">
+        <div class="chart-card-v2"><h6>Importe PRE · evolución semanal</h6><div id="weekly-amount-wrap" style="height:260px"><canvas id="weekly-amount-chart"></canvas></div><p id="weekly-amount-empty" class="dashboard-note" hidden>Sin operaciones en esas ventanas.</p></div>
+        <div class="chart-card-v2"><h6>Cajas · evolución semanal</h6><div id="weekly-boxes-wrap" style="height:260px"><canvas id="weekly-boxes-chart"></canvas></div><p id="weekly-boxes-empty" class="dashboard-note" hidden>Sin operaciones en esas ventanas.</p></div>
+      </div>
+      <div class="diagnostic-grid" style="margin-top:.85rem">
+        <div class="chart-card-v2"><h6>Clientes nuevos con este vendedor</h6><div id="diag-nuevos"></div></div>
+        <div class="chart-card-v2"><h6>Clientes recurrentes</h6><div id="diag-recurrentes"></div></div>
+        <div class="chart-card-v2"><h6>Clientes recuperados</h6><div id="diag-recuperados"></div></div>
+        <div class="chart-card-v2"><h6>Clientes con reducción de compra</h6><div id="diag-reduccion"></div></div>
+      </div>
+      <div class="diagnostic-grid" style="margin-top:.85rem">
+        <div class="chart-card-v2"><h6>Concentración por cliente · importe y participación</h6><div class="concentration-chart"><canvas id="concentracion-clientes-chart"></canvas></div><p id="concentracion-clientes-empty" class="dashboard-note" hidden>Sin operaciones para mostrar.</p></div>
+        <div class="chart-card-v2"><h6>Concentración por producto · importe y participación</h6><div class="concentration-chart"><canvas id="concentracion-productos-chart"></canvas></div><p id="concentracion-productos-empty" class="dashboard-note" hidden>Sin operaciones para mostrar.</p></div>
+      </div>
+    </section>
 
-    <div id="cliente-analisis-row" class="chart-card-v2" hidden style="margin-top:0.75rem;display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap">
-      <strong id="cliente-analisis-nombre" style="font-size:0.78rem;color:#334155"></strong>
-      <span>Compras: <strong id="cliente-analisis-compras">—</strong></span>
-      <span>Productos: <strong id="cliente-analisis-productos">—</strong></span>
-      <span>Frecuencia: <strong id="cliente-analisis-frecuencia">—</strong></span>
-      <span>Última compra: <strong id="cliente-analisis-ultima">—</strong></span>
-      <span>Plata: <strong id="cliente-analisis-plata">—</strong></span>
-      <span>Cajas: <strong id="cliente-analisis-cajas">—</strong></span>
-      <span>Kilos: <strong id="cliente-analisis-kilos">—</strong></span>
-    </div>
+    <!-- D. Casos de atención, paginados de a veinte -->
+    <section class="table-card mb-3" id="clientes-atencion-card" style="padding:0;background:#fff">
+      <div class="table-card-head team-toolbar">
+        <div><h2 style="font-size:1.08rem;margin:0">Clientes que requieren atención</h2><p class="dashboard-note mb-0">El importe anterior es referencia; no representa pérdida confirmada ni venta recuperable.</p></div>
+        <strong id="clientes-atencion-total" aria-live="polite">0 casos</strong>
+      </div>
+      <div class="attention-table-wrap" style="padding:0 1rem" tabindex="0" role="region" aria-label="Tabla desplazable de clientes que requieren atención">
+        <table class="attention-table" aria-label="Clientes que requieren atención">
+          <thead><tr><th>Vendedor</th><th>Cliente</th><th>Señal</th><th>Última compra</th><th class="num">Días sin comprar</th><th class="num">Importe anterior</th><th class="num">Importe actual</th><th class="num">Diferencia</th><th class="num">Variación</th></tr></thead>
+          <tbody id="clientes-atencion-body"></tbody>
+        </table>
+        <p id="clientes-atencion-empty" class="dashboard-note" hidden>Sin casos de atención en el período seleccionado.</p>
+      </div>
+      <div class="attention-pagination">
+        <span id="clientes-atencion-paginacion" class="dashboard-note"></span>
+        <div><button class="pp" id="clientes-atencion-prev" type="button">Anterior</button> <button class="pp" id="clientes-atencion-next" type="button">Siguiente</button></div>
+      </div>
+    </section>
 
     <!-- ===== SECCIÓN: ANÁLISIS DE CANTIDADES ===== -->
     <div class="table-card mb-3" style="padding:0">
-      <div class="table-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;cursor:pointer" id="analisis-toggle">
+      <button type="button" class="table-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;cursor:pointer;border:0;text-align:left;width:100%;background:transparent" id="analisis-toggle" aria-controls="analisis-body" aria-expanded="false">
         <span><i class="bi bi-bar-chart-line me-2"></i>Análisis de Cantidades PRE</span>
         <i class="bi bi-chevron-down" id="analisis-chevron" style="transition:transform .25s"></i>
-      </div>
+      </button>
 
-      <div id="analisis-body" style="padding:1rem;display:block">
+      <div id="analisis-body" style="padding:1rem;display:none">
 
         <!-- Filtros independientes del análisis -->
         <div class="dim-bar" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.6rem;padding:0.4rem 0.6rem;margin-bottom:0.9rem;display:flex;align-items:center;gap:0.35rem;flex-wrap:wrap">
@@ -172,9 +254,10 @@
           </select>
           <span class="filter-sep"></span>
           <div class="period-pills" data-section-periods="analisis">
+            <button class="pp active" type="button" data-section-period="mes">Mes actual</button>
             <button class="pp" type="button" data-section-period="7">7d</button>
             <button class="pp" type="button" data-section-period="15">15d</button>
-            <button class="pp active" type="button" data-section-period="30">30d</button>
+            <button class="pp" type="button" data-section-period="30">30d</button>
             <button class="pp" type="button" data-section-period="6m">6m</button>
             <button class="pp" type="button" data-section-period="ytd">YTD</button>
           </div>
@@ -222,12 +305,12 @@
 
     <!-- ===== SECCIÓN: MIX DE VENTAS ===== -->
     <div class="table-card mb-3" style="padding:0">
-      <div class="table-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;cursor:pointer" id="mix-toggle">
-        <span><i class="bi bi-pie-chart-fill me-2" style="color:#5b7c99"></i>Mix de Ventas <span style="font-size:0.72rem;color:#334155;font-weight:400">· relación cliente–producto · pedidos PRE</span></span>
+      <button type="button" class="table-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;cursor:pointer;border:0;text-align:left;width:100%;background:transparent" id="mix-toggle" aria-controls="mix-body" aria-expanded="false">
+        <span><i class="bi bi-bar-chart-fill me-2" style="color:#5b7c99"></i>Mix de Ventas <span style="font-size:0.72rem;color:#334155;font-weight:400">· relación cliente–producto · pedidos PRE</span></span>
         <i class="bi bi-chevron-down" id="mix-chevron" style="transition:transform .25s"></i>
-      </div>
+      </button>
 
-      <div id="mix-body" style="padding:1rem;display:block">
+      <div id="mix-body" style="padding:1rem;display:none">
 
         <!-- Filtros independientes del mix -->
         <div class="period-bar dim-bar" style="background:#f8fafc;border-color:#e2e8f0;margin-bottom:0.9rem">
@@ -247,9 +330,10 @@
           </select>
           <span class="filter-sep"></span>
           <div class="period-pills" data-section-periods="mix">
+            <button class="pp active" type="button" data-section-period="mes">Mes actual</button>
             <button class="pp" type="button" data-section-period="7">7d</button>
             <button class="pp" type="button" data-section-period="15">15d</button>
-            <button class="pp active" type="button" data-section-period="30">30d</button>
+            <button class="pp" type="button" data-section-period="30">30d</button>
             <button class="pp" type="button" data-section-period="6m">6m</button>
             <button class="pp" type="button" data-section-period="ytd">YTD</button>
           </div>
@@ -266,7 +350,7 @@
         <!-- 4 gráficos en 2×2 -->
         <div class="charts-grid mb-3">
           <div class="chart-card-v2">
-            <h6>Distribución del Mix <span class="chart-tag">cajas por producto · top 10</span></h6>
+            <h6>Participación por producto <span class="chart-tag">barras ordenadas · incluye Otros</span></h6>
             <canvas id="mixDoughnutChart" style="max-height:300px"></canvas>
             <div id="mixDoughnutChart-empty" hidden>No hay pedidos PRE para esos filtros.</div>
           </div>
@@ -292,41 +376,7 @@
       </div>
     </div>
 
-    <!-- Seguimiento de clientes -->
-    <section class="table-card mb-3" id="seguimiento-clientes" style="padding:0;background:#fff">
-      <div class="table-card-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;background:#fff;color:#334155">
-        <span><i class="bi bi-people me-2"></i>Seguimiento de clientes</span>
-        <span id="seguimiento-periodo" style="font-size:0.72rem;color:#334155"></span>
-      </div>
-      <div class="period-bar dim-bar" style="background:#f8fafc;border-color:#e2e8f0;margin:0 1rem 0.9rem;flex-wrap:wrap" aria-label="Filtros de seguimiento">
-        <select id="s-empresa" class="form-select form-select-sm" style="width:auto;min-width:90px">
-          <option value="TODAS">Empresa</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option>
-        </select>
-        <select id="s-vendedor" class="form-select form-select-sm" style="width:auto;min-width:120px"><option value="">Vendedor</option></select>
-        <select id="s-cliente" class="form-select form-select-sm" style="width:auto;min-width:130px"><option value="">Cliente</option></select>
-        <select id="s-producto" class="form-select form-select-sm" style="width:auto;min-width:130px"><option value="">Producto</option></select>
-        <button class="pp" id="s-limpiar" type="button">Limpiar</button>
-        <span class="filter-sep"></span>
-        <div class="period-pills" data-section-periods="seguimiento">
-          <button class="pp" type="button" data-section-period="7">7d</button>
-          <button class="pp" type="button" data-section-period="15">15d</button>
-          <button class="pp" type="button" data-section-period="30">30d</button>
-          <button class="pp" type="button" data-section-period="6m">6m</button>
-          <button class="pp" type="button" data-section-period="ytd">YTD</button>
-        </div>
-        <span class="filter-sep"></span>
-        <div class="date-group">
-          <button class="pp pp-month" id="s-este-mes">Este mes</button>
-          <div><label for="s-desde">Desde</label><input id="s-desde" type="date" /></div>
-          <div><label for="s-hasta">Hasta</label><input id="s-hasta" type="date" /></div>
-          <button class="pp pp-action" id="s-aplicar">&#x2713; Aplicar</button>
-        </div>
-      </div>
-      <div id="seguimiento-body" style="padding:0 1rem 1rem">
-        <p id="seguimiento-cargando" style="color:#334155">Cargando seguimiento PRE…</p>
-        <div id="seguimiento-vendedores"></div>
-      </div>
-    </section>
+
 
   </div>
 </div>
@@ -335,14 +385,15 @@
   let vendedorChart, clienteChart, productoChart, evolucionChart;
   let _seguimientoCharts = [];
   let _preMeasure = 'plata', _lastDashboardPayload = null, _selectedPreProduct = '';
-  let _sharedFilters = {empresa:'TODAS',vendedor:'',cliente:'',producto:'',period:'30',desde:'',hasta:''};
+  let _teamMeasure = 'importe', _attentionPage = 1, _weeklyCharts = [], _concentrationCharts = [];
+  let _sharedFilters = {empresa:'TODAS',vendedor:'',cliente:'',producto:'',period:'mes',desde:'',hasta:''};
   const FILTER_SELECTS = {
-    empresa:['sel-empresa','a-empresa','m-empresa','s-empresa'],
-    vendedor:['sel-vendedor','a-vendedor','m-vendedor','s-vendedor'],
-    cliente:['sel-cliente','m-cliente','s-cliente'],
-    producto:['sel-producto','a-producto','m-producto','s-producto']
+    empresa:['sel-empresa','a-empresa','m-empresa'],
+    vendedor:['sel-vendedor','a-vendedor','m-vendedor'],
+    cliente:['sel-cliente','m-cliente'],
+    producto:['sel-producto','a-producto','m-producto']
   };
-  const FILTER_DATES = [['fecha-desde','fecha-hasta'],['a-desde','a-hasta'],['m-desde','m-hasta'],['s-desde','s-hasta']];
+  const FILTER_DATES = [['fecha-desde','fecha-hasta'],['a-desde','a-hasta'],['m-desde','m-hasta']];
   const GRAPH_PALETTE = ['#2F5D8C','#2F7D62','#C47B2D','#6A5A8A'];
   const GRAPH_INK = '#1f2937';
   const GRAPH_TEXT = '#334155';
@@ -372,12 +423,54 @@
   function dateFromISO(value){ const [year,month,day]=String(value).split('-').map(Number); return new Date(year,month-1,day,12,0,0); }
   function periodToDates(period){
     const hasta=argentinaTodayISO(), desde=dateFromISO(hasta);
-    if(period==='ytd') desde.setMonth(0,1);
+    if(period==='mes') desde.setDate(1);
+    else if(period==='ytd') desde.setMonth(0,1);
     else if(period==='6m'){ desde.setMonth(desde.getMonth()-6); desde.setDate(desde.getDate()+1); }
     else desde.setDate(desde.getDate()-Number(period)+1);
     return {desde:isoLocal(desde),hasta};
   }
   function esEsteMes(){ const hasta=argentinaTodayISO(), desde=dateFromISO(hasta); desde.setDate(1); return {desde:isoLocal(desde),hasta}; }
+  const PERIOD_KEYS = new Set(['mes','7','15','30','6m','ytd']);
+  function esFechaISO(value){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(value||''))) return false;
+    return isoLocal(dateFromISO(value))===value;
+  }
+  function cargarFiltrosDesdeURL(){
+    const params=new URLSearchParams(window.location.search);
+    const empresa=params.get('empresa');
+    const vendedor=params.get('vendedor')||'';
+    const cliente=params.get('cliente')||'';
+    const producto=params.get('producto')||'';
+    const period=params.get('period')||'mes';
+    const desde=params.get('fecha_desde')||'';
+    const hasta=params.get('fecha_hasta')||'';
+    _sharedFilters.empresa=['TODAS','CARNES','LACTEOS'].includes(empresa)?empresa:'TODAS';
+    _sharedFilters.vendedor=vendedor;
+    _sharedFilters.cliente=cliente;
+    _sharedFilters.producto=producto;
+    if(esFechaISO(desde) && esFechaISO(hasta) && desde<=hasta){
+      _sharedFilters.desde=desde;
+      _sharedFilters.hasta=hasta;
+      _sharedFilters.period=PERIOD_KEYS.has(period)?period:'';
+    }else{
+      const clave=PERIOD_KEYS.has(period)?period:'mes';
+      const rango=periodToDates(clave);
+      _sharedFilters.period=clave;
+      _sharedFilters.desde=rango.desde;
+      _sharedFilters.hasta=rango.hasta;
+    }
+  }
+  function syncUrlState(){
+    const url=new URL(window.location.href);
+    url.searchParams.set('empresa',_sharedFilters.empresa||'TODAS');
+    url.searchParams.set('period',_sharedFilters.period||'custom');
+    if(_sharedFilters.vendedor) url.searchParams.set('vendedor',_sharedFilters.vendedor); else url.searchParams.delete('vendedor');
+    if(_sharedFilters.cliente) url.searchParams.set('cliente',_sharedFilters.cliente); else url.searchParams.delete('cliente');
+    if(_sharedFilters.producto) url.searchParams.set('producto',_sharedFilters.producto); else url.searchParams.delete('producto');
+    if(_sharedFilters.desde) url.searchParams.set('fecha_desde',_sharedFilters.desde); else url.searchParams.delete('fecha_desde');
+    if(_sharedFilters.hasta) url.searchParams.set('fecha_hasta',_sharedFilters.hasta); else url.searchParams.delete('fecha_hasta');
+    history.replaceState({},'',url.pathname+url.search+url.hash);
+  }
 
   /* ── TomSelect: poblar select evitando recrear si no cambian los items ── */
   const _tsInstances = {};
@@ -447,18 +540,18 @@
 
   function reloadAllFilters(){
     const {period,desde,hasta}=_sharedFilters;
-    return Promise.all([
-      load(period,desde,hasta),
-      loadAnalisis(_analisisTipo),
-      loadMix(),
-      loadSeguimiento()
-    ]);
+    const jobs=[load(period,desde,hasta)];
+    if(document.getElementById('analisis-body').style.display!=='none') jobs.push(loadAnalisis(_analisisTipo));
+    if(document.getElementById('mix-body').style.display!=='none') jobs.push(loadMix());
+    return Promise.all(jobs);
   }
 
   async function updateSharedFilter(dimension,value){
     _sharedFilters[dimension]=dimension==='empresa'?(value||'TODAS'):value;
+    _attentionPage=1;
     if(dimension==='empresa') await _cargarFiltros(_sharedFilters.empresa);
     else syncFilterControls();
+    syncUrlState();
     return reloadAllFilters();
   }
 
@@ -466,7 +559,9 @@
     _sharedFilters.desde=desde||'';
     _sharedFilters.hasta=hasta||'';
     _sharedFilters.period=period;
+    _attentionPage=1;
     syncFilterControls();
+    syncUrlState();
     return reloadAllFilters();
   }
 
@@ -475,7 +570,11 @@
     _sharedFilters.vendedor='';
     _sharedFilters.cliente='';
     _sharedFilters.producto='';
-    return _cargarFiltros('TODAS').then(()=>reloadAllFilters());
+    _attentionPage=1;
+    return _cargarFiltros('TODAS').then(()=>{
+      syncUrlState();
+      return reloadAllFilters();
+    });
   }
 
   function setActive(period){
@@ -752,45 +851,315 @@
     vendedorChart=clienteChart=productoChart=evolucionChart=null;
   }
 
-  async function load(period=_sharedFilters.period, desde=_sharedFilters.desde, hasta=_sharedFilters.hasta){
+  function formatoVariacion(valor, medida='importe'){
+    if(valor==null || !Number.isFinite(Number(valor))) return 'Sin base comparable';
+    const signo=Number(valor)>0?'+':'';
+    const sufijo=medida==='importe'?'':` (${medida})`;
+    return `${signo}${Number(valor).toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})}%${sufijo}`;
+  }
+  function fechaCorta(value){
+    const date=dateFromISO(value);
+    return new Intl.DateTimeFormat('es-AR',{day:'2-digit',month:'2-digit'}).format(date);
+  }
+  function rangoAnterior(desde,hasta){
+    const inicio=dateFromISO(desde), fin=dateFromISO(hasta);
+    const dias=Math.round((fin-inicio)/86400000)+1;
+    fin.setDate(inicio.getDate()-1);
+    inicio.setDate(inicio.getDate()-dias);
+    return {desde:isoLocal(inicio),hasta:isoLocal(fin)};
+  }
+  function semanasCalendario(filas,desde,hasta,campo){
+    const inicio=dateFromISO(desde), fin=dateFromISO(hasta), semanas=new Map();
+    const cursor=new Date(inicio);
+    while(cursor<=fin){
+      const lunes=new Date(cursor), dia=(lunes.getDay()+6)%7;
+      lunes.setDate(lunes.getDate()-dia);
+      const domingo=new Date(lunes); domingo.setDate(domingo.getDate()+6);
+      const clave=isoLocal(lunes);
+      if(!semanas.has(clave)){
+        const desdeSemana=lunes<inicio?inicio:lunes;
+        const hastaSemana=domingo>fin?fin:domingo;
+        semanas.set(clave,{
+          inicio:isoLocal(desdeSemana),
+          fin:isoLocal(hastaSemana),
+          parcial:lunes<inicio || domingo>fin,
+          valor:0
+        });
+      }
+      cursor.setDate(cursor.getDate()+1);
+    }
+    (filas||[]).forEach(fila=>{
+      const fecha=String(fila.fecha||'').slice(0,10);
+      if(!esFechaISO(fecha) || fecha<desde || fecha>hasta) return;
+      const d=dateFromISO(fecha), dia=(d.getDay()+6)%7;
+      d.setDate(d.getDate()-dia);
+      const semana=semanas.get(isoLocal(d));
+      if(semana) semana.valor+=Number(fila[campo]||0);
+    });
+    return [...semanas.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([lunes,item])=>({lunes,...item}));
+  }
+  function destruirDiagnosticoCharts(){
+    _weeklyCharts.forEach(chart=>chart.destroy());
+    _concentrationCharts.forEach(chart=>chart.destroy());
+    _weeklyCharts=[];
+    _concentrationCharts=[];
+  }
+  function dibujarSemanal(canvasId,actual,anterior,medida){
+    const campo=medida==='importe'?'monto':'cajas';
+    const weeksActual=semanasCalendario(actual.serie_actual,actual.desde,actual.hasta,campo);
+    const weeksAnterior=semanasCalendario(anterior.serie_anterior,anterior.desde,anterior.hasta,campo);
+    const maxSemanas=Math.max(weeksActual.length,weeksAnterior.length);
+    const canvas=document.getElementById(canvasId);
+    const empty=document.getElementById(canvasId==='weekly-amount-chart'?'weekly-amount-empty':'weekly-boxes-empty');
+    canvas.hidden=false;
+    empty.hidden=true;
+    const labels=Array.from({length:maxSemanas},(_,index)=>{
+      const parcial=Boolean(weeksActual[index]?.parcial||weeksAnterior[index]?.parcial);
+      return `Semana ${index+1}${parcial?' (parcial)':''}`;
+    });
+    const datos=(weeks,label)=>Array.from({length:maxSemanas},(_,index)=>index<weeks.length?weeks[index].valor:null);
+    const tooltipRango=(weeks,index)=>{
+      const week=weeks[index];
+      if(!week) return 'Sin semana en esta ventana';
+      return `${week.inicio}–${week.fin}${week.parcial?' (parcial)':''}`;
+    };
+    const currency=medida==='importe';
+    _weeklyCharts.push(new Chart(canvas,{
+      type:'line',plugins:[datalabarsLine],
+      data:{labels,datasets:[
+        {label:'Período',data:datos(weeksActual),borderColor:GRAPH_PALETTE[0],backgroundColor:'rgba(47,93,140,0.12)',borderWidth:2,tension:.25,pointRadius:3,fill:true,currency},
+        {label:'Ventana anterior',data:datos(weeksAnterior),borderColor:GRAPH_PALETTE[2],backgroundColor:'rgba(196,123,45,0.08)',borderWidth:2,tension:.25,pointRadius:3,fill:false,currency}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,layout:{padding:{top:14,right:12}},
+        plugins:{legend:{display:true,position:'bottom',labels:{color:GRAPH_TEXT,boxWidth:10}},datalabarsLine:{currency},
+          tooltip:{callbacks:{title:items=>{
+            const item=items[0];
+            return `${item.dataset.label}: ${tooltipRango(item.datasetIndex===0?weeksActual:weeksAnterior,item.dataIndex)}`;
+          },label:ctx=>currency?money(ctx.parsed.y):formatNumber(ctx.parsed.y)}
+        }},
+        scales:{x:{ticks:{color:GRAPH_TEXT,maxRotation:0,autoSkip:false},grid:{display:false}},
+          y:{beginAtZero:true,ticks:{color:GRAPH_TEXT,callback:value=>currency?money(value):formatNumber(value)},grid:{color:'#eef2f6'}}}
+      }
+    }));
+  }
+  function dibujarConcentracion(canvasId,emptyId,filas){
+    const canvas=document.getElementById(canvasId), empty=document.getElementById(emptyId);
+    const rows=filas||[];
+    canvas.hidden=!rows.length;
+    empty.hidden=Boolean(rows.length);
+    if(!rows.length) return;
+    _concentrationCharts.push(new Chart(canvas,{
+      type:'bar',plugins:[datalabarsH],
+      data:{labels:rows.map(row=>row.nombre),datasets:[{
+        label:'Participación',data:rows.map(row=>Number(row.pct||0)),
+        backgroundColor:rows.map((_,i)=>GRAPH_PALETTE[i%GRAPH_PALETTE.length]),
+        borderColor:rows.map((_,i)=>GRAPH_PALETTE[i%GRAPH_PALETTE.length]),
+        borderWidth:0,borderRadius:3,barPercentage:.72,categoryPercentage:.78
+      }]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:50}},
+        plugins:{legend:{display:false},datalabarsH:{currency:false,percentage:true},
+          tooltip:{callbacks:{label:ctx=>`${money(rows[ctx.dataIndex]?.plata)} · ${formatNumber(rows[ctx.dataIndex]?.pct)}%`}}},
+        scales:{x:{min:0,max:100,ticks:{color:GRAPH_TEXT,callback:value=>`${value}%`},grid:{color:'#eef2f6'}},
+          y:{ticks:{color:GRAPH_TEXT,font:{size:10}},grid:{display:false}}}
+      }
+    }));
+  }
+  function renderNamesList(hostId,rows,emptyText){
+    const host=document.getElementById(hostId);
+    host.replaceChildren();
+    const names=(rows||[]).map(row=>typeof row==='string'?row:row.nombre).filter(Boolean);
+    if(!names.length){
+      const note=document.createElement('p'); note.className='dashboard-note'; note.textContent=emptyText; host.appendChild(note); return;
+    }
+    const count=document.createElement('p'); count.className='dashboard-note'; count.textContent=`${names.length} cliente${names.length===1?'':'s'}`; host.appendChild(count);
+    const list=document.createElement('ul'); list.className='diagnostic-list';
+    names.forEach(name=>{const item=document.createElement('li'); item.textContent=name; list.appendChild(item);});
+    host.appendChild(list);
+  }
+  function renderReductionTable(hostId,rows,emptyText){
+    const host=document.getElementById(hostId); host.replaceChildren();
+    if(!rows?.length){const note=document.createElement('p'); note.className='dashboard-note'; note.textContent=emptyText; host.appendChild(note); return;}
+    host.appendChild(crearTabla(
+      [{key:'cliente',label:'Cliente'},{key:'medida',label:'Medida'},{key:'anterior',label:'Anterior',num:true},{key:'actual',label:'Actual',num:true},{key:'variacion',label:'Variación',num:true}],
+      rows.map(row=>({
+        cliente:row.cliente,
+        medida:row.medida==='importe'?'Importe':row.medida==='cajas'?'Cajas':row.medida==='kilos'?'Kilos':'Productos',
+        anterior:row.medida==='importe'?money(row.valor_anterior):formatNumber(row.valor_anterior),
+        actual:row.medida==='importe'?money(row.valor_actual):formatNumber(row.valor_actual),
+        variacion:row.variacion_pct==null?'Sin base':`${Number(row.variacion_pct).toLocaleString('es-AR',{maximumFractionDigits:1})}%`
+      }))
+    ));
+  }
+  function renderDiagnostico(data){
+    const card=document.getElementById('diagnostico-card'), diagnostico=data.diagnostico;
+    destruirDiagnosticoCharts();
+    if(!diagnostico){card.hidden=true; return;}
+    card.hidden=false;
+    document.getElementById('diagnostico-vendedor').textContent=diagnostico.vendedor;
+    document.getElementById('diagnostico-note').textContent=diagnostico.estado_datos==='sin_operaciones'
+      ?'Sin operaciones PRE para ese vendedor en el período seleccionado.'
+      :`Nuevo = primera compra observada con este vendedor hasta ${data.hasta}; se excluyen compras posteriores al corte.`;
+    const ventanasActual={desde:data.desde,hasta:data.hasta,serie_actual:diagnostico.serie_actual};
+    const ventanasAnterior={desde:data.desde_anterior,hasta:data.hasta_anterior,serie_anterior:diagnostico.serie_anterior};
+    dibujarSemanal('weekly-amount-chart',ventanasActual,ventanasAnterior,'importe');
+    dibujarSemanal('weekly-boxes-chart',ventanasActual,ventanasAnterior,'cajas');
+    renderNamesList('diag-nuevos',diagnostico.nuevos,'Sin clientes nuevos en esta ventana.');
+    renderNamesList('diag-recurrentes',diagnostico.recurrentes,'Sin clientes recurrentes en esta ventana.');
+    renderNamesList('diag-recuperados',diagnostico.recuperados,'Sin clientes recuperados en esta ventana.');
+    renderReductionTable('diag-reduccion',diagnostico.clientes_reduccion,`Sin clientes con reducción en ${_teamMeasure}.`);
+    dibujarConcentracion('concentracion-clientes-chart','concentracion-clientes-empty',diagnostico.concentracion_clientes);
+    dibujarConcentracion('concentracion-productos-chart','concentracion-productos-empty',diagnostico.concentracion_productos);
+  }
+  function claseEstado(estado){
+    if(['Cumplido','En ritmo'].includes(estado)) return 'status-ok';
+    if(['Por debajo del ritmo esperado','No cumplido'].includes(estado)) return 'status-bad';
+    if(['Cobertura incompleta'].includes(estado)) return 'status-warn';
+    return 'status-neutral';
+  }
+  function valorMedida(value){return _teamMeasure==='importe'?money(value):formatNumber(value);}
+  function renderEquipo(rows,estadoDatos,mes,hasta){
+    const body=document.getElementById('equipo-table-body'), empty=document.getElementById('equipo-empty');
+    body.replaceChildren();
+    document.getElementById('equipo-data-note').textContent=estadoDatos==='sin_operaciones'
+      ?`Sin operaciones PRE en el período. Objetivos de ${mes} hasta ${hasta}; la tabla distingue “Sin meta” de “Sin operaciones”.`
+      :`Objetivos de ${mes}, realizados calculados hasta ${hasta}.`;
+    empty.hidden=Boolean(rows?.length);
+    empty.textContent=estadoDatos==='sin_operaciones'?'Sin operaciones PRE ni vendedores que listar.':'No hay vendedores en este alcance.';
+    (rows||[]).forEach(fila=>{
+      const row=document.createElement('tr');
+      if(_sharedFilters.vendedor && fila.vendedor===_sharedFilters.vendedor) row.classList.add('is-selected');
+      const add=(value,className='')=>{const cell=document.createElement('td'); cell.textContent=value; if(className)cell.className=className; row.appendChild(cell); return cell;};
+      add(fila.vendedor);
+      add(valorMedida(fila.realizado),'num');
+      add(fila.meta==null?'—':valorMedida(fila.meta),'num');
+      let cumplimiento='—';
+      if(fila.cumplimiento!=null) cumplimiento=`${(Number(fila.cumplimiento)*100).toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})}%`;
+      else if(fila.estado==='Sin meta') cumplimiento='Sin meta';
+      else if(fila.estado==='Cobertura incompleta') cumplimiento='Cobertura incompleta';
+      add(cumplimiento,'num');
+      const desviacion=add('','num'); desviacion.classList.add('deviation-cell');
+      const delta=document.createElement('span');
+      delta.textContent=fila.desvio==null?'—':`${Number(fila.desvio)>=0?'+':''}${(Number(fila.desvio)*100).toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1})} pp`;
+      desviacion.appendChild(delta);
+      const estado=document.createElement('span'); estado.className=`status-text ${claseEstado(fila.estado)}`; estado.textContent=fila.estado||'Datos no disponibles'; desviacion.appendChild(estado);
+      add(Number(fila.clientes_compradores||0).toLocaleString('es-AR'),'num');
+      add(Number(fila.clientes_sin_recompra||0).toLocaleString('es-AR'),'num');
+      add(money(fila.importe_pre_sin_recompra_anterior||0),'num');
+      const action=add('');
+      const button=document.createElement('button'); button.className='pp'; button.type='button'; button.textContent='Ver detalle';
+      button.addEventListener('click',()=>{
+        setFilterSilently('sel-vendedor',fila.vendedor);
+        updateSharedFilter('vendedor',fila.vendedor);
+      });
+      action.appendChild(button);
+      body.appendChild(row);
+    });
+  }
+  function renderKpis(kpis){
+    const campos={
+      importe_pre:{actual:'kpi-importe-actual',anterior:'kpi-importe-anterior',variacion:'kpi-importe-variacion',format:money},
+      cajas:{actual:'kpi-cajas-actual',anterior:'kpi-cajas-anterior',variacion:'kpi-cajas-variacion',format:formatNumber},
+      kilos:{actual:'kpi-kilos-actual',anterior:'kpi-kilos-anterior',variacion:'kpi-kilos-variacion',format:formatNumber},
+      clientes_compradores:{actual:'kpi-clientes-actual',anterior:'kpi-clientes-anterior',variacion:'kpi-clientes-variacion',format:value=>Number(value||0).toLocaleString('es-AR')}
+    };
+    Object.entries(campos).forEach(([key,ids])=>{
+      const dato=kpis?.[key];
+      if(!dato) throw new Error(`Respuesta incompleta para ${key}`);
+      document.getElementById(ids.actual).textContent=ids.format(dato.actual);
+      document.getElementById(ids.anterior).textContent=ids.format(dato.anterior);
+      document.getElementById(ids.variacion).textContent=dato.variacion_texto||'Sin base comparable';
+    });
+  }
+  function moneyConSigno(value){
+    const numero=Number(value||0);
+    return `${numero>0?'+':numero<0?'−':''}${money(Math.abs(numero))}`;
+  }
+  function renderClientesAtencion(data){
+    const rows=data.clientes_atencion||[];
+    const total=Number(data.total_casos||0);
+    const page=Number(data.pagina||1), pages=Math.max(1,Number(data.total_paginas||1));
+    const body=document.getElementById('clientes-atencion-body');
+    body.replaceChildren();
+    document.getElementById('clientes-atencion-total').textContent=`${total.toLocaleString('es-AR')} caso${total===1?'':'s'}`;
+    const empty=document.getElementById('clientes-atencion-empty');
+    empty.hidden=total>0;
+    empty.textContent=data.estado_datos==='sin_operaciones'?'Sin operaciones PRE; no hay casos en la ventana.':'Sin casos de atención en el período seleccionado.';
+    rows.forEach(item=>{
+      const row=document.createElement('tr');
+      const cell=(value,className='')=>{const td=document.createElement('td'); td.textContent=value; if(className)td.className=className; row.appendChild(td);};
+      cell(item.vendedor||'—');
+      cell(item.cliente||'—');
+      let senal=item.senal||'—';
+      if(senal==='Compra en baja') senal+=` (${item.medida||_teamMeasure})`;
+      else if(senal==='Menor variedad') senal+=' (productos)';
+      cell(senal,'attention-signal');
+      cell(fmtFecha(item.ultima_compra));
+      cell(item.dias_sin_comprar==null?'—':Number(item.dias_sin_comprar).toLocaleString('es-AR'),'num');
+      cell(money(item.importe_anterior),'num');
+      cell(money(item.importe_actual),'num');
+      cell(moneyConSigno(item.diferencia),'num');
+      const variacion=item.variacion_pct==null?'Sin base comparable':`${Number(item.variacion_pct)>0?'+':''}${Number(item.variacion_pct).toLocaleString('es-AR',{maximumFractionDigits:1})}%${item.medida&&item.medida!=='importe'?` (${item.medida})`:''}`;
+      cell(variacion,'num');
+      body.appendChild(row);
+    });
+    const desde=total?(page-1)*20+1:0, hasta=Math.min(page*20,total);
+    document.getElementById('clientes-atencion-paginacion').textContent=total
+      ?`Mostrando ${desde}–${hasta} de ${total.toLocaleString('es-AR')} · página ${page} de ${pages}`
+      :'Página 1 de 1';
+    document.getElementById('clientes-atencion-prev').disabled=page<=1;
+    document.getElementById('clientes-atencion-next').disabled=page>=pages;
+  }
+  function limpiarDashboardPorError(mensaje){
+    document.getElementById('dashboard-error-message').textContent=mensaje;
+    document.getElementById('dashboard-error').hidden=false;
+    document.getElementById('sin-operaciones-note').hidden=true;
+    document.getElementById('period-comparison-label').textContent='';
+    ['kpi-importe-actual','kpi-importe-anterior','kpi-importe-variacion','kpi-cajas-actual','kpi-cajas-anterior','kpi-cajas-variacion','kpi-kilos-actual','kpi-kilos-anterior','kpi-kilos-variacion','kpi-clientes-actual','kpi-clientes-anterior','kpi-clientes-variacion'].forEach(id=>document.getElementById(id).textContent='—');
+    document.getElementById('equipo-table-body').replaceChildren();
+    document.getElementById('equipo-data-note').textContent='Datos no disponibles.';
+    document.getElementById('equipo-empty').hidden=false;
+    document.getElementById('equipo-empty').textContent='Datos no disponibles.';
+    document.getElementById('clientes-atencion-body').replaceChildren();
+    document.getElementById('clientes-atencion-total').textContent='Datos no disponibles';
+    document.getElementById('clientes-atencion-paginacion').textContent='';
+    document.getElementById('clientes-atencion-empty').hidden=false;
+    document.getElementById('clientes-atencion-empty').textContent='Datos no disponibles.';
+    document.getElementById('diagnostico-card').hidden=true;
+    destruirDiagnosticoCharts();
+  }
+  async function load(period=_sharedFilters.period,desde=_sharedFilters.desde,hasta=_sharedFilters.hasta){
     setActive(period||'');
     document.getElementById('skeleton').style.display='';
     document.getElementById('content').style.display='none';
-    const empresa  = _sharedFilters.empresa;
-    const vendedor = _sharedFilters.vendedor;
-    const cliente  = _sharedFilters.cliente;
-    const producto = _sharedFilters.producto;
-    _selectedPreProduct = producto;
-    const p = new URLSearchParams();
-    if(period)  p.set('period', period);
-    if(desde)   p.set('fecha_desde', desde);
-    if(hasta)   p.set('fecha_hasta', hasta);
-    p.set('empresa', empresa);
-    if(vendedor) p.set('vendedor', vendedor);
-    if(cliente)  p.set('cliente', cliente);
-    if(producto) p.set('producto', producto);
+    const params=new URLSearchParams({
+      fecha_desde:desde||_sharedFilters.desde,
+      fecha_hasta:hasta||_sharedFilters.hasta,
+      empresa:_sharedFilters.empresa,
+      medida:_teamMeasure,
+      pagina:String(_attentionPage)
+    });
+    if(_sharedFilters.vendedor) params.set('vendedor',_sharedFilters.vendedor);
+    if(_sharedFilters.cliente) params.set('cliente',_sharedFilters.cliente);
+    if(_sharedFilters.producto) params.set('producto',_sharedFilters.producto);
     try{
-      const r = await fetch('/api/dashboard-comercial-v2?'+p), d = await r.json(), k = d.kpis||{}, s = d.series||{};
-      document.getElementById('period-label').textContent = `Período: ${d.desde||'–'} → ${d.hasta||'–'}`;
-
-      document.getElementById('kpi-pre-total').textContent       = money(k.ventas_pre_periodo_total);
-      document.getElementById('kpi-pre-count').textContent       = String(k.ventas_pre_periodo_count||0);
-      document.getElementById('kpi-pre-ticket').textContent      = money(k.ventas_pre_ticket_promedio);
-      document.getElementById('kpi-pre-top-vendedor').textContent= k.ventas_pre_top_vendedor||'–';
-
-      destroyAll();
-      _lastDashboardPayload = d;
-      renderTopPreCharts(s);
-      renderClienteAnalisis(d.cliente_analisis,cliente);
-
-      const evo=s.pre_evolucion_diaria||[], eL=evo.map(x=>fmtFecha(x.fecha)), eM=evo.map(x=>x.monto||0), eQ=evo.map(x=>x.cantidad||0);
-      evolucionChart=new Chart(document.getElementById('evolucionChart'),{type:'line',plugins:[datalabarsLine],data:{labels:eL,datasets:[
-        {label:'Monto', data:eM, borderColor:GRAPH_PALETTE[0], backgroundColor:'rgba(47,93,140,0.12)', borderWidth:2, tension:0.3, pointRadius:3, fill:true, yAxisID:'y', currency:true},
-        {label:'Cantidad', data:eQ, borderColor:GRAPH_PALETTE[1], backgroundColor:'transparent', borderWidth:2, tension:0.3, pointRadius:3, yAxisID:'y1', currency:false}
-      ]},options:{responsive:true, layout:{padding:{top:18,right:12}}, plugins:{legend:{display:true,position:'bottom',labels:{boxWidth:10,color:GRAPH_TEXT}}, datalabarsLine:{currency:true}, tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='Monto'?`Monto: ${money(ctx.parsed.y)}`:`Cant: ${ctx.parsed.y}`}}}, scales:{x:{ticks:{color:GRAPH_TEXT,font:{size:10},maxRotation:0,autoSkip:true,maxTicksLimit:6},grid:{display:false}}, y:{position:'left',ticks:{color:GRAPH_TEXT,callback:v=>money(v),font:{size:10}},grid:{color:'#eef2f6'}}, y1:{position:'right',ticks:{color:GRAPH_TEXT,precision:0,font:{size:10}},grid:{display:false}}}}});
-
-    }catch(e){ console.error(e);
-    }finally{
+      const response=await fetch('/api/dashboard-comercial/equipo?'+params);
+      const data=await response.json().catch(()=>null);
+      if(!response.ok) throw new Error(data?.error||`HTTP ${response.status}`);
+      if(!data || data.error) throw new Error(data?.error||'Respuesta inválida del equipo comercial');
+      document.getElementById('dashboard-error').hidden=true;
+      document.getElementById('period-label').textContent=`Período: ${data.desde} → ${data.hasta} · objetivos ${data.mes_objetivos}`;
+      document.getElementById('period-comparison-label').textContent=`Comparación: ${data.desde_anterior} → ${data.hasta_anterior} · misma cantidad de días.`;
+      document.getElementById('sin-operaciones-note').hidden=data.estado_datos!=='sin_operaciones';
+      renderKpis(data.kpis);
+      renderEquipo(data.equipo,data.estado_datos,data.mes_objetivos,data.hasta);
+      renderDiagnostico(data);
+      renderClientesAtencion(data);
+      _lastDashboardPayload=data;
+      document.getElementById('skeleton').style.display='none';
+      document.getElementById('content').style.display='';
+    }catch(error){
+      console.error('Error cargando equipo comercial:',error);
+      limpiarDashboardPorError(`No se pudieron cargar los datos del equipo. ${error.message||''}`.trim());
       document.getElementById('skeleton').style.display='none';
       document.getElementById('content').style.display='';
     }
@@ -897,26 +1266,31 @@
       if(mixEvoChart)        mixEvoChart.destroy();
       mixDoughnutChart=mixDiversidadChart=mixStackedChart=mixEvoChart=null;
 
-      /* 1. Doughnut: mix global */
+      /* 1. Barras horizontales: participación por producto, con Otros */
       const mg = d.mix_global||[];
       setChartVisibility('mixDoughnutChart','mixDoughnutChart-empty',mg.length>0);
       if(mg.length){
         mixDoughnutChart = new Chart(document.getElementById('mixDoughnutChart'),{
-          type:'doughnut', plugins:[donutLabels],
+          type:'bar', plugins:[datalabarsH],
           data:{
-            labels: mg.map(x=>x.producto),
+            labels:mg.map(x=>x.producto),
             datasets:[{
-              data:mg.map(x=>x.cajas),
+              label:'Participación',
+              data:mg.map(x=>Number(x.pct||0)),
               backgroundColor:mg.map((_,i)=>GRAPH_PALETTE[i%GRAPH_PALETTE.length]),
-              borderColor:'#fff',
-              borderWidth:2
+              borderColor:mg.map((_,i)=>GRAPH_PALETTE[i%GRAPH_PALETTE.length]),
+              borderWidth:0,
+              borderRadius:3,
+              barPercentage:0.72,
+              categoryPercentage:0.78
             }]
           },
-          options:{responsive:true, cutout:'62%', plugins:{legend:{position:'right',labels:{color:GRAPH_TEXT,font:{size:12},boxWidth:12,generateLabels(chart){
-            const ds=chart.data.datasets[0], total=ds.data.reduce((s,v)=>s+Number(v||0),0)||1;
-            return chart.data.labels.map((label,i)=>({text:`${label}  ${Math.round(Number(ds.data[i])/total*100)}%`, fillStyle:ds.backgroundColor[i], strokeStyle:ds.backgroundColor[i], lineWidth:0, hidden:false, index:i}));
-          }}},
-            tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${Number(ctx.parsed).toLocaleString('es-AR',{maximumFractionDigits:1})} caj (${mg[ctx.dataIndex]?.pct||0}%)`}}}}
+          options:{indexAxis:'y',responsive:true,layout:{padding:{right:52}},
+            plugins:{legend:{display:false},datalabarsH:{currency:false,percentage:true},
+              tooltip:{callbacks:{label:ctx=>`${Number(ctx.parsed.x||0).toLocaleString('es-AR',{maximumFractionDigits:1})}% · ${Number(mg[ctx.dataIndex]?.cajas||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
+            scales:{x:{min:0,max:100,ticks:{color:GRAPH_TEXT,callback:value=>`${value}%`},grid:{color:'#eef2f6'}},
+                    y:{ticks:{color:GRAPH_TEXT,font:{size:10}},grid:{display:false}}}
+          }
         });
       }
 
@@ -1255,10 +1629,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', async ()=>{
-    const initialRange=periodToDates('30');
-    _sharedFilters.period='30';
-    _sharedFilters.desde=initialRange.desde;
-    _sharedFilters.hasta=initialRange.hasta;
+    cargarFiltrosDesdeURL();
     syncFilterControls();
 
     Object.entries(FILTER_SELECTS).forEach(([dimension,ids])=>ids.forEach(id=>{
@@ -1286,41 +1657,56 @@
       ''
     );
     [
-      ['btn-aplicar',FILTER_DATES[0]],['a-aplicar',FILTER_DATES[1]],
-      ['m-aplicar',FILTER_DATES[2]],['s-aplicar',FILTER_DATES[3]]
+      ['btn-aplicar',FILTER_DATES[0]],['a-aplicar',FILTER_DATES[1]],['m-aplicar',FILTER_DATES[2]]
     ].forEach(([button,dates])=>document.getElementById(button).addEventListener('click',()=>aplicarFechas(dates)));
     [
-      ['btn-este-mes',FILTER_DATES[0]],['a-este-mes',FILTER_DATES[1]],
-      ['m-este-mes',FILTER_DATES[2]],['s-este-mes',FILTER_DATES[3]]
+      ['btn-este-mes',FILTER_DATES[0]],['a-este-mes',FILTER_DATES[1]],['m-este-mes',FILTER_DATES[2]]
     ].forEach(([button])=>document.getElementById(button).addEventListener('click',()=>{
       const range=esEsteMes();
-      updateSharedDates(range.desde,range.hasta,'');
+      updateSharedDates(range.desde,range.hasta,'mes');
     }));
 
-    document.querySelectorAll('[data-measure]').forEach(button=>button.addEventListener('click',()=>setPreMeasure(button.dataset.measure)));
-    document.getElementById('btn-limpiar-filtros').addEventListener('click',()=>{
-      setPreMeasure('plata',false);
-      clearSharedDimensions();
+    document.getElementById('sel-medida-objetivo').addEventListener('change',event=>{
+      _teamMeasure=event.currentTarget.value;
+      _attentionPage=1;
+      reloadAllFilters();
     });
-    ['a-limpiar','m-limpiar','s-limpiar'].forEach(id=>document.getElementById(id).addEventListener('click',clearSharedDimensions));
+    document.getElementById('clientes-atencion-prev').addEventListener('click',()=>{
+      if(_attentionPage>1){_attentionPage-=1;reloadAllFilters();}
+    });
+    document.getElementById('clientes-atencion-next').addEventListener('click',()=>{
+      _attentionPage+=1;
+      reloadAllFilters();
+    });
+    document.getElementById('dashboard-retry').addEventListener('click',()=>reloadAllFilters());
+    document.getElementById('cerrar-diagnostico').addEventListener('click',()=>{
+      setFilterSilently('sel-vendedor','');
+      updateSharedFilter('vendedor','');
+    });
+    document.getElementById('btn-limpiar-filtros').addEventListener('click',clearSharedDimensions);
+    ['a-limpiar','m-limpiar'].forEach(id=>document.getElementById(id).addEventListener('click',clearSharedDimensions));
 
-    document.getElementById('analisis-toggle').addEventListener('click',()=>{
+    document.getElementById('analisis-toggle').addEventListener('click',event=>{
       const body=document.getElementById('analisis-body');
       const open=body.style.display!=='none';
       body.style.display=open?'none':'';
+      event.currentTarget.setAttribute('aria-expanded',String(!open));
       document.getElementById('analisis-chevron').style.transform=open?'rotate(-90deg)':'';
       if(!open) loadAnalisis(_analisisTipo);
     });
     document.querySelectorAll('[data-tipo]').forEach(button=>button.addEventListener('click',()=>loadAnalisis(button.dataset.tipo)));
-    document.getElementById('mix-toggle').addEventListener('click',()=>{
+    document.getElementById('mix-toggle').addEventListener('click',event=>{
       const body=document.getElementById('mix-body');
       const open=body.style.display!=='none';
       body.style.display=open?'none':'';
+      event.currentTarget.setAttribute('aria-expanded',String(!open));
       document.getElementById('mix-chevron').style.transform=open?'rotate(-90deg)':'';
       if(!open) loadMix();
     });
 
-    await _cargarFiltros('TODAS');
+    await _cargarFiltros(_sharedFilters.empresa);
+    syncFilterControls();
+    syncUrlState();
     await reloadAllFilters();
   });
 </script>
