@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container-fluid" id="panel-ventas">
 <style>
-  #panel-ventas { color:#1f2937; }
+  #panel-ventas { color:#1f2937; overflow-anchor:none; }
   #panel-ventas .panel-header h1 { letter-spacing:-0.02em; }
   #panel-ventas .period-bar,
   #panel-ventas .dim-bar {
@@ -25,7 +25,10 @@
   #panel-ventas .chart-card-v2 { background:#fff; color:#1f2937; border-color:#e4e9f0; box-shadow:none; }
   #panel-ventas .chart-card-v2 h6 { color:#1f2937; font-size:0.84rem; display:flex; flex-wrap:wrap; gap:0.35rem; align-items:baseline; }
   #panel-ventas .chart-card-v2 .chart-tag { color:#64748b; font-weight:500; }
-  #panel-ventas .chart-card-v2 canvas { max-height:280px; }
+  #panel-ventas .chart-card-v2 canvas { max-height:320px; }
+  #panel-ventas .mix-plot { position:relative; height:320px; }
+  #panel-ventas .mix-plot--stacked { height:360px; }
+  #panel-ventas .chart-card-v2 .mix-plot canvas { width:100%!important; height:100%!important; max-height:none; }
   #panel-ventas .table-card, #panel-ventas .table-card-head { background:#fff; color:#1f2937; }
   #panel-ventas .seguimiento-vendedor { background:#fff; border:1px solid #e4e9f0; border-radius:0.75rem; padding:1rem 1rem 0.4rem; margin-bottom:1rem; }
   #panel-ventas .seguimiento-vendedor h3 { font-size:1rem; margin:0 0 0.7rem; }
@@ -39,9 +42,11 @@
   #panel-ventas .seg-layout { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(280px,0.85fr); gap:0.8rem; margin-bottom:0.9rem; }
   #panel-ventas .seg-block h4 { font-size:0.8rem; margin:0 0 0.4rem; color:#1f2937; }
   #panel-ventas .seg-note { font-size:0.72rem; color:#64748b; margin:0 0 0.7rem; }
-  #panel-ventas .seg-table { width:100%; border-collapse:collapse; font-size:0.78rem; }
-  #panel-ventas .seg-table th { text-align:left; font-size:0.66rem; letter-spacing:0.03em; text-transform:uppercase; color:#64748b; font-weight:600; padding:0.35rem 0.4rem; border-bottom:1px solid #e4e9f0; }
-  #panel-ventas .seg-table td { padding:0.42rem 0.4rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+  #panel-ventas .seg-table-wrap { max-height:360px; overflow:auto; border:1px solid #e4e9f0; border-radius:0.65rem; }
+  #panel-ventas .seg-table { width:100%; min-width:0; table-layout:auto; border-collapse:separate; border-spacing:0; font-size:0.78rem; }
+  #panel-ventas .seg-table th { position:sticky; top:0; z-index:2; text-align:left; white-space:nowrap; font-size:0.66rem; letter-spacing:0.04em; text-transform:uppercase; color:#526174; background:#f6f8fb; font-weight:700; padding:0.62rem 0.7rem; border-bottom:1px solid #dce4ed; }
+  #panel-ventas .seg-table td { padding:0.55rem 0.6rem; border-bottom:1px solid #edf1f5; vertical-align:middle; color:#344256; }
+  #panel-ventas .seg-table tbody tr:nth-child(even) td { background:#fbfcfe; }
   #panel-ventas .seg-table .num { text-align:right; font-variant-numeric:tabular-nums; }
   #panel-ventas .seg-table tbody tr.is-click { cursor:pointer; }
   #panel-ventas .seg-table tbody tr.is-click:hover td { background:#f8fafc; }
@@ -431,24 +436,24 @@
         <div class="charts-grid mb-3">
           <div class="chart-card-v2">
             <h6>Participación por producto <span class="chart-tag">barras ordenadas · incluye Otros</span></h6>
-            <canvas id="mixDoughnutChart" style="max-height:300px"></canvas>
+            <div class="mix-plot"><canvas id="mixDoughnutChart"></canvas></div>
             <div id="mixDoughnutChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
           <div class="chart-card-v2">
             <h6>Variedad por Cliente <span class="chart-tag">N° productos distintos comprados</span></h6>
-            <canvas id="mixDiversidadChart" style="max-height:300px"></canvas>
+            <div class="mix-plot"><canvas id="mixDiversidadChart"></canvas></div>
             <div id="mixDiversidadChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
         </div>
         <div class="charts-grid mb-2">
           <div class="chart-card-v2">
-            <h6>Participación Producto por Cliente <span class="chart-tag">top 8 clientes × top 5 productos · cajas</span></h6>
-            <canvas id="mixStackedChart" style="max-height:320px"></canvas>
+            <h6>Participación Producto por Cliente <span class="chart-tag">top 8 clientes, top 5 productos · cajas</span></h6>
+            <div class="mix-plot mix-plot--stacked"><canvas id="mixStackedChart"></canvas></div>
             <div id="mixStackedChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
           <div class="chart-card-v2">
             <h6>Evolución del Mix <span class="chart-tag">últimos 6 meses · top 3 productos</span></h6>
-            <canvas id="mixEvoChart" style="max-height:320px"></canvas>
+            <div class="mix-plot"><canvas id="mixEvoChart"></canvas></div>
             <div id="mixEvoChart-empty" hidden>Sin operaciones PRE en este período.</div>
           </div>
         </div>
@@ -1484,7 +1489,7 @@
               categoryPercentage:0.78
             }]
           },
-          options:{indexAxis:'y',responsive:true,layout:{padding:{right:52}},
+          options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:52}},
             plugins:{legend:{display:false},datalabarsH:{currency:false,percentage:true},
               tooltip:{callbacks:{label:ctx=>`${Number(ctx.parsed.x||0).toLocaleString('es-AR',{maximumFractionDigits:1})}% · ${Number(mg[ctx.dataIndex]?.cajas||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
             scales:{x:{min:0,max:100,ticks:{color:GRAPH_TEXT,callback:value=>`${value}%`},grid:{color:'#eef2f6'}},
@@ -1503,7 +1508,7 @@
             labels: dc.map(x=>x.cliente),
             datasets:[{label:'Productos distintos', data:dc.map(x=>x.n_productos), ...barLook(GRAPH_PALETTE[1])}]
           },
-          options:{indexAxis:'y', responsive:true, layout:{padding:{right:56}},
+          options:{indexAxis:'y', responsive:true, maintainAspectRatio:false, layout:{padding:{right:56}},
             plugins:{legend:{display:false}, datalabarsH:{currency:false},
               tooltip:{callbacks:{label:ctx=>`${ctx.parsed.x} productos · ${Number(dc[ctx.dataIndex]?.cajas||0).toLocaleString('es-AR',{maximumFractionDigits:0})} cajas`}}},
             scales:{x:{ticks:{color:GRAPH_TEXT,font:{size:11},precision:0,callback:v=>Number.isInteger(v)?String(v):''},grid:{color:'#eef2f6'}},
@@ -1528,7 +1533,7 @@
         mixStackedChart = new Chart(document.getElementById('mixStackedChart'),{
           type:'bar', plugins:[datalabarsH],
           data:{ labels:mpc.map(x=>x.cliente), datasets:stackData },
-          options:{indexAxis:'y', responsive:true,
+          options:{indexAxis:'y', responsive:true, maintainAspectRatio:false,
             plugins:{legend:{position:'bottom',labels:{color:GRAPH_TEXT,font:{size:10},boxWidth:10}},
               datalabarsH:{currency:false},
               tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.x||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
@@ -1555,7 +1560,7 @@
         mixEvoChart = new Chart(document.getElementById('mixEvoChart'),{
           type:'line', plugins:[datalabarsLine],
           data:{ labels:evoLabels, datasets:evoDatasets },
-          options:{responsive:true, layout:{padding:{top:18,right:18}},
+          options:{responsive:true, maintainAspectRatio:false, layout:{padding:{top:18,right:18}},
             plugins:{legend:{position:'bottom',labels:{color:GRAPH_TEXT,font:{size:10},boxWidth:10}},
               datalabarsLine:{currency:false},
               tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${Number(ctx.parsed.y||0).toLocaleString('es-AR',{maximumFractionDigits:1})} cajas`}}},
