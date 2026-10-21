@@ -72,6 +72,23 @@ def test_equipo_agrupa_aliases_y_sin_meta_no_es_cero_por_ciento(client, app):
     assert filas[0]["clientes_compradores"] == 1
 
 
+def test_vendedor_fuera_del_catalogo_conserva_el_realizado(client, app):
+    with app.app_context():
+        agregar_pre(date(2024, 2, 4), "Ana Ruiz", "Almacén Norte", importe=80, numero="B-1")
+        agregar_pre(date(2024, 2, 9), "Ana Ruiz", "Almacén Norte", importe=20, numero="B-2")
+        db.session.commit()
+
+    response = client.get(
+        "/api/dashboard-comercial/equipo?fecha_desde=2024-02-01&fecha_hasta=2024-02-29&empresa=CARNES"
+    )
+    assert response.status_code == 200
+    filas = [fila for fila in response.get_json()["equipo"] if fila["vendedor"] == "Ana Ruiz"]
+    assert len(filas) == 1
+    assert filas[0]["estado"] == "Sin meta"
+    assert filas[0]["realizado"] == 100.0
+    assert filas[0]["cumplimiento"] is None
+
+
 def test_atencion_devuelve_total_completo_y_pagina_de_20(client, app):
     with app.app_context():
         for indice in range(25):

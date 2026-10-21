@@ -55,6 +55,7 @@
   #panel-ventas .team-table, #panel-ventas .attention-table { width:100%; border-collapse:collapse; min-width:900px; }
   #panel-ventas .team-table th, #panel-ventas .attention-table th { position:sticky; top:0; background:#f8fafc; color:#475569; font-size:0.68rem; text-transform:uppercase; letter-spacing:.035em; text-align:left; padding:.6rem .55rem; border-bottom:1px solid #e2e8f0; white-space:nowrap; }
   #panel-ventas .team-table td, #panel-ventas .attention-table td { padding:.62rem .55rem; border-bottom:1px solid #eef2f6; vertical-align:middle; }
+  #panel-ventas .team-table td:first-child { white-space:nowrap; }
   #panel-ventas .team-table .num, #panel-ventas .attention-table .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
   #panel-ventas .status-text { display:inline-block; font-size:.68rem; font-weight:700; border-radius:999px; padding:.18rem .48rem; white-space:nowrap; }
   #panel-ventas .status-ok { color:#176b4d; background:#e7f5ee; }
@@ -181,7 +182,7 @@
       <p id="equipo-data-note" class="dashboard-note" style="padding:0 1rem"></p>
       <div class="team-table-wrap" style="padding:0 1rem 1rem" tabindex="0" role="region" aria-label="Tabla desplazable del equipo comercial">
         <table class="team-table" aria-label="Seguimiento del equipo comercial">
-          <thead><tr><th>Vendedor</th><th class="num">Realizado</th><th class="num">Meta</th><th class="num">Cumplimiento</th><th class="num">Desvío y estado</th><th class="num">Clientes compradores</th><th class="num">Clientes sin recompra</th><th class="num">Importe PRE anterior de esos clientes</th><th>Detalle</th></tr></thead>
+          <thead><tr><th>Vendedor</th><th class="num">Realizado</th><th class="num">Meta</th><th class="num">Cumplimiento</th><th>Estado</th><th class="num">Compradores</th><th class="num">Sin recompra</th><th class="num">PRE anterior</th><th></th></tr></thead>
           <tbody id="equipo-table-body"></tbody>
         </table>
         <p id="equipo-empty" class="dashboard-note" hidden></p>

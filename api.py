@@ -2001,7 +2001,7 @@ def api_dashboard_comercial_equipo():
             for etiqueta, clave in resumen_keys.items()
         }
 
-        medida_resumen_key = {"importe": "importe_pre", "cajas": "cajas", "kilos": "kilos"}[medida]
+        medida_resumen_key = {"importe": "plata", "cajas": "cajas", "kilos": "kilos"}[medida]
         realizado_mes_por_vendedor = {
             fila["nombre"]: float(fila.get(medida_resumen_key) or 0)
             for fila in resumen_mes.get("por_vendedor", [])
