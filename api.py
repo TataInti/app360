@@ -666,7 +666,13 @@ def api_dashboard_comercial_v2():
             "objetivos_en_progreso": 0,
             "ventas_pre_periodo_total": 0.0,
             "ventas_pre_periodo_count": 0,
-            "ventas_pre_ticket_promedio": 0.0,
+            "ventas_pre_ticket_promedio": None,
+            "ventas_pre_clientes_compradores": 0,
+            "ventas_pre_cajas": 0.0,
+            "ventas_pre_kilos": 0.0,
+            "ventas_pre_lineas_sin_numero": 0,
+            "fecha_maxima_pre": None,
+            "ultima_importacion_pre": None,
             "ventas_pre_top_vendedor": "",
         },
         "cliente_analisis": None,
@@ -787,20 +793,48 @@ def api_dashboard_comercial_v2():
         ]
         if empresa in ("CARNES", "LACTEOS"):
             _pre_filters.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
+        from services.comercial_pre import calcular_resumen_pre
+        from services.vendedores_comerciales import resolver_nombre_vendedor
+
         if vendedor_filter:
-            _pre_filters.append(StgSabiogoVentas.vendedor == vendedor_filter)
+            from services.comercial_pre import expresion_vendedor_resuelta
+
+            _pre_filters.append(
+                expresion_vendedor_resuelta()
+                == resolver_nombre_vendedor(vendedor_filter)
+            )
         if cliente_filter:
             _pre_filters.append(StgSabiogoVentas.cliente == cliente_filter)
         if producto_filter:
             _pre_filters.append(StgSabiogoVentas.producto == producto_filter)
 
+        pre_resumen = calcular_resumen_pre(
+            desde,
+            hasta,
+            empresa=empresa if empresa in ("CARNES", "LACTEOS") else None,
+            vendedor=vendedor_filter or None,
+            cliente=cliente_filter or None,
+            producto=producto_filter or None,
+        )
         pre_base_q = db.session.query(StgSabiogoVentas).filter(*_pre_filters)
 
-        pre_count = int(pre_base_q.count() or 0)
-        pre_total = float(_to_float(pre_base_q.with_entities(func.sum(StgSabiogoVentas.subtot)).scalar() or 0))
+        pre_count = int(pre_resumen["pedidos_identificados"])
+        pre_total = float(pre_resumen["importe_pre"])
         payload["kpis"]["ventas_pre_periodo_count"] = pre_count
         payload["kpis"]["ventas_pre_periodo_total"] = pre_total
-        payload["kpis"]["ventas_pre_ticket_promedio"] = float(pre_total / pre_count) if pre_count else 0.0
+        payload["kpis"]["ventas_pre_ticket_promedio"] = pre_resumen["ticket_promedio"]
+        payload["kpis"]["ventas_pre_clientes_compradores"] = pre_resumen[
+            "clientes_compradores"
+        ]
+        payload["kpis"]["ventas_pre_cajas"] = pre_resumen["cajas"]
+        payload["kpis"]["ventas_pre_kilos"] = pre_resumen["kilos"]
+        payload["kpis"]["ventas_pre_lineas_sin_numero"] = pre_resumen[
+            "lineas_sin_numero"
+        ]
+        payload["kpis"]["fecha_maxima_pre"] = pre_resumen["fecha_maxima_pre"]
+        payload["kpis"]["ultima_importacion_pre"] = pre_resumen[
+            "ultima_importacion"
+        ]
 
         pre_detalle_rows = pre_base_q.order_by(
             StgSabiogoVentas.fecha.desc(),
@@ -823,129 +857,37 @@ def api_dashboard_comercial_v2():
             for row in pre_detalle_rows
         ]
 
-        def frecuencia_dias(fecha_min, fecha_max, fechas_distintas):
-            fechas_distintas = int(fechas_distintas or 0)
-            if fechas_distintas < 2 or not fecha_min or not fecha_max:
-                return None
-            return float((fecha_max - fecha_min).days / (fechas_distintas - 1))
-
-        def agregar_pre_por_dimension(columna, nombre_sin_dato, incluir_productos=False):
-            rows = (
-                db.session.query(
-                    columna.label("nombre"),
-                    func.sum(StgSabiogoVentas.subtot).label("plata"),
-                    func.sum(StgSabiogoVentas.cajas).label("cajas"),
-                    func.sum(StgSabiogoVentas.kilos).label("kilos"),
-                    func.count(func.distinct(StgSabiogoVentas.nro_comprob)).label("compras"),
-                    func.count(func.distinct(StgSabiogoVentas.producto)).label("productos"),
-                    func.max(StgSabiogoVentas.fecha).label("ultima_compra"),
-                    func.min(StgSabiogoVentas.fecha).label("primera_compra"),
-                    func.count(func.distinct(StgSabiogoVentas.fecha)).label("fechas_distintas"),
-                )
-                .filter(*_pre_filters)
-                .group_by(columna)
-                .order_by(func.sum(StgSabiogoVentas.subtot).desc())
-                .limit(10)
-                .all()
-            )
-            resultado = []
-            for row in rows:
-                plata = float(_to_float(row.plata))
-                ultima = row.ultima_compra
-                resultado.append(
-                    {
-                        "nombre": row.nombre or nombre_sin_dato,
-                        "plata": plata,
-                        "cajas": float(_to_float(row.cajas)),
-                        "kilos": float(_to_float(row.kilos)),
-                        "compras": int(row.compras or 0),
-                        "pct": round(plata / pre_total * 100, 1) if pre_total else 0.0,
-                        "productos": int(row.productos or 0) if incluir_productos else 0,
-                        "ultima_compra": ultima.isoformat() if ultima else None,
-                        "frecuencia_dias": (
-                            frecuencia_dias(row.primera_compra, ultima, row.fechas_distintas)
-                            if incluir_productos
-                            else None
-                        ),
-                    }
-                )
-            return resultado
-
-        payload["series"]["pre_por_vendedor"] = agregar_pre_por_dimension(
-            StgSabiogoVentas.vendedor, "Sin vendedor"
-        )
+        payload["series"]["pre_por_vendedor"] = pre_resumen["por_vendedor"]
         if payload["series"]["pre_por_vendedor"]:
-            payload["kpis"]["ventas_pre_top_vendedor"] = payload["series"]["pre_por_vendedor"][0]["nombre"]
+            payload["kpis"]["ventas_pre_top_vendedor"] = payload["series"][
+                "pre_por_vendedor"
+            ][0]["nombre"]
 
-        payload["series"]["pre_por_cliente"] = agregar_pre_por_dimension(
-            StgSabiogoVentas.cliente, "Sin cliente", incluir_productos=True
-        )
-        payload["series"]["pre_por_producto"] = agregar_pre_por_dimension(
-            StgSabiogoVentas.producto, "Sin producto"
-        )
+        payload["series"]["pre_por_cliente"] = pre_resumen["por_cliente"]
+        payload["series"]["pre_por_producto"] = pre_resumen["por_producto"]
 
         if cliente_filter:
-            analisis = (
-                pre_base_q.with_entities(
-                    func.count(func.distinct(StgSabiogoVentas.producto)).label("productos"),
-                    func.sum(StgSabiogoVentas.subtot).label("plata"),
-                    func.sum(StgSabiogoVentas.cajas).label("cajas"),
-                    func.sum(StgSabiogoVentas.kilos).label("kilos"),
-                )
-                .first()
-            )
-            compras = (
-                pre_base_q.filter(
-                    StgSabiogoVentas.nro_comprob.isnot(None),
-                    func.trim(StgSabiogoVentas.nro_comprob) != "",
-                )
-                .with_entities(
-                    func.count(func.distinct(StgSabiogoVentas.nro_comprob)).label("cantidad"),
-                    func.min(StgSabiogoVentas.fecha).label("primera_compra"),
-                    func.max(StgSabiogoVentas.fecha).label("ultima_compra"),
-                )
-                .first()
-            )
-            compras_analisis = int(compras.cantidad or 0)
-            frecuencia_analisis = (
-                float(
-                    (compras.ultima_compra - compras.primera_compra).days
-                    / (compras_analisis - 1)
-                )
-                if compras_analisis > 1 and compras.primera_compra and compras.ultima_compra
-                else None
-            )
+            analisis = pre_resumen["cliente_seleccionado"] or {
+                "compras": 0,
+                "productos": 0,
+                "frecuencia_dias": None,
+                "ultima_compra": None,
+                "plata": 0.0,
+                "cajas": 0.0,
+                "kilos": 0.0,
+            }
             payload["cliente_analisis"] = {
                 "cliente": cliente_filter,
-                "compras": compras_analisis,
-                "productos": int(analisis.productos or 0),
-                "frecuencia_dias": frecuencia_analisis,
-                "ultima_compra": compras.ultima_compra.isoformat() if compras.ultima_compra else None,
-                "plata": float(_to_float(analisis.plata)),
-                "cajas": float(_to_float(analisis.cajas)),
-                "kilos": float(_to_float(analisis.kilos)),
+                "compras": analisis["compras"],
+                "productos": analisis["productos"],
+                "frecuencia_dias": analisis["frecuencia_dias"],
+                "ultima_compra": analisis["ultima_compra"],
+                "plata": analisis["plata"],
+                "cajas": analisis["cajas"],
+                "kilos": analisis["kilos"],
             }
 
-        # Evolución diaria PRE
-        pre_diaria_rows = (
-            db.session.query(
-                StgSabiogoVentas.fecha,
-                func.count(StgSabiogoVentas.id),
-                func.sum(StgSabiogoVentas.subtot),
-            )
-            .filter(*_pre_filters)
-            .group_by(StgSabiogoVentas.fecha)
-            .order_by(StgSabiogoVentas.fecha)
-            .all()
-        )
-        payload["series"]["pre_evolucion_diaria"] = [
-            {
-                "fecha": row[0].isoformat() if row[0] else None,
-                "cantidad": int(row[1] or 0),
-                "monto": float(_to_float(row[2] or 0)),
-            }
-            for row in pre_diaria_rows
-        ]
+        payload["series"]["pre_evolucion_diaria"] = pre_resumen["por_fecha"]
 
     return jsonify(payload)
 
@@ -1451,6 +1393,8 @@ def api_dashboard_comercial_mix():
 def api_dashboard_comercial_seguimiento():
     """Seguimiento por vendedor de los clientes con pedidos PRE procesados."""
     from models.sabiogo.staging import StgSabiogoVentas
+    from services.comercial_pre import expresion_vendedor_resuelta
+    from services.vendedores_comerciales import resolver_nombre_vendedor
 
     hoy = today_local_date()
     fecha_desde_raw = request.args.get("fecha_desde")
@@ -1476,7 +1420,7 @@ def api_dashboard_comercial_seguimiento():
     vendedor_filter = (request.args.get("vendedor") or "").strip()
     cliente_filter = (request.args.get("cliente") or "").strip()
     producto_filter = (request.args.get("producto") or "").strip()
-    vendedor_expr = func.trim(StgSabiogoVentas.vendedor)
+    vendedor_expr = expresion_vendedor_resuelta()
     cliente_expr = func.trim(StgSabiogoVentas.cliente)
     producto_expr = func.coalesce(
         func.nullif(func.trim(StgSabiogoVentas.producto), ""), "Sin producto"
@@ -1489,8 +1433,8 @@ def api_dashboard_comercial_seguimiento():
     filtros_documento = [
         StgSabiogoVentas.estado == "procesado",
         func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
-        vendedor_expr.isnot(None),
-        vendedor_expr != "",
+        StgSabiogoVentas.vendedor.isnot(None),
+        func.trim(StgSabiogoVentas.vendedor) != "",
         cliente_expr.isnot(None),
         cliente_expr != "",
     ]
@@ -1499,7 +1443,9 @@ def api_dashboard_comercial_seguimiento():
             func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa
         )
     if vendedor_filter:
-        filtros_documento.append(vendedor_expr == vendedor_filter)
+        filtros_documento.append(
+            vendedor_expr == resolver_nombre_vendedor(vendedor_filter)
+        )
     if cliente_filter:
         filtros_documento.append(cliente_expr == cliente_filter)
     if producto_filter:
