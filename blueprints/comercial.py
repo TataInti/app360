@@ -640,6 +640,7 @@ def _objetivo_comercial_por_id(objetivo_id, corte):
         empresa=objetivo.empresa,
         medida=objetivo.medida,
         corte=corte,
+        criterio_clientes=True,
     )
     return next(
         (item for item in lista if item["vendedor_id"] == objetivo.vendedor_id),
@@ -678,6 +679,8 @@ def objetivos_comerciales_listar():
             empresa=empresa,
             medida=medida,
             corte=corte,
+            criterio_clientes=True,
+            incluir_vendedores_venta=True,
         )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
@@ -705,21 +708,28 @@ def objetivos_comerciales_crear():
     if _CAMPOS_REALIZADO.intersection(data):
         return jsonify({"error": "El realizado se calcula al consultar y no se acepta"}), 400
 
-    permitidos = {"vendedor_id", "empresa", "mes", "medida", "meta", "descripcion"}
+    permitidos = {"vendedor_id", "vendedor_nombre", "empresa", "mes", "medida", "meta", "descripcion"}
     if set(data) - permitidos:
-        return jsonify({"error": "El alta solo acepta vendedor, empresa, mes, medida, meta y descripcion"}), 400
-    requeridos = {"vendedor_id", "empresa", "mes", "medida", "meta"}
+        return jsonify({"error": "El alta solo acepta vendedor, empresa, mes, medida, meta y descripción"}), 400
+    requeridos = {"empresa", "mes", "medida", "meta"}
     faltantes = requeridos - set(data)
     if faltantes:
         return jsonify({"error": f"Campos requeridos: {', '.join(sorted(faltantes))}"}), 400
 
-    vendedor_raw = data["vendedor_id"]
-    if isinstance(vendedor_raw, bool) or not (
-        isinstance(vendedor_raw, int)
-        or (isinstance(vendedor_raw, str) and vendedor_raw.isdigit())
-    ):
-        return jsonify({"error": "vendedor_id debe ser un entero"}), 400
-    vendedor_id = int(vendedor_raw)
+    vendedor_raw = data.get("vendedor_id")
+    nombre_raw = data.get("vendedor_nombre")
+    if (vendedor_raw is None) == (nombre_raw is None):
+        return jsonify({"error": "Indicá vendedor_id o vendedor_nombre"}), 400
+    vendedor_id = None
+    if vendedor_raw is not None:
+        if isinstance(vendedor_raw, bool) or not (
+            isinstance(vendedor_raw, int)
+            or (isinstance(vendedor_raw, str) and vendedor_raw.isdigit())
+        ):
+            return jsonify({"error": "vendedor_id debe ser un entero"}), 400
+        vendedor_id = int(vendedor_raw)
+    elif not isinstance(nombre_raw, str) or not nombre_raw.strip() or len(nombre_raw.strip()) > 200:
+        return jsonify({"error": "vendedor_nombre debe tener entre 1 y 200 caracteres"}), 400
 
     empresa_raw = data["empresa"]
     medida_raw = data["medida"]
@@ -742,9 +752,30 @@ def objetivos_comerciales_crear():
     if descripcion is not None and not isinstance(descripcion, str):
         return jsonify({"error": "descripcion debe ser texto o null"}), 400
 
-    vendedor = db.session.get(ComercialVendedor, vendedor_id)
-    if vendedor is None:
-        return jsonify({"error": "Vendedor comercial no encontrado"}), 404
+    if vendedor_id is not None:
+        vendedor = db.session.get(ComercialVendedor, vendedor_id)
+        if vendedor is None:
+            return jsonify({"error": "Vendedor comercial no encontrado"}), 404
+    else:
+        from services.vendedores_comerciales import colapsar_espacios, resolver_nombre_vendedor
+
+        nombre_visible = resolver_nombre_vendedor(colapsar_espacios(nombre_raw))
+        nombre_clave = colapsar_espacios(nombre_visible).casefold()
+        vendedor = next(
+            (
+                candidato
+                for candidato in ComercialVendedor.query.all()
+                if colapsar_espacios(candidato.nombre_visible).casefold() == nombre_clave
+            ),
+            None,
+        )
+        if vendedor is None:
+            vendedor = ComercialVendedor(nombre_visible=nombre_visible, activo=True)
+            db.session.add(vendedor)
+            db.session.flush()
+        vendedor_id = vendedor.id
+    if not vendedor.activo:
+        return jsonify({"error": "El vendedor está inactivo y no admite nuevos objetivos"}), 409
     usuario_id = _usuario_comercial_actual_id()
     if usuario_id is None:
         return jsonify({"error": "Sesión de usuario inválida"}), 401
@@ -824,6 +855,25 @@ def objetivos_comerciales_editar(objetivo_id):
 
     item = _objetivo_comercial_por_id(objetivo.id, today_local_date())
     return jsonify({"objetivo": item})
+
+
+@comercial_bp.route("/api/objetivos-comerciales/<int:objetivo_id>", methods=["DELETE"])
+def objetivos_comerciales_eliminar(objetivo_id):
+    objetivo = db.session.get(ComercialObjetivo, objetivo_id)
+    if objetivo is None:
+        return jsonify({"error": "Objetivo comercial no encontrado"}), 404
+
+    vinculo = ComercialObjetivoVinculo.query.filter_by(
+        comercial_objetivo_id=objetivo_id
+    ).first()
+    if vinculo is not None:
+        return jsonify(
+            {"error": "Este objetivo está vinculado a un objetivo histórico y no se puede eliminar."}
+        ), 409
+
+    db.session.delete(objetivo)
+    db.session.commit()
+    return jsonify({"mensaje": "Objetivo comercial eliminado"})
 
 
 def _mes_periodo_goal(periodo, validar_mes):

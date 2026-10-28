@@ -79,6 +79,14 @@ def _safe_str(value) -> str:
     return str(value) if value is not None else ""
 
 
+def _formatear_mes(value) -> str | None:
+    if value is None:
+        return None
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m")
+    return str(value)[:7]
+
+
 # -----------------------------------------------------------------------------
 #  /api/dashboard
 #  Dashboard operativo (equivalente a dashboard.html)
@@ -1091,6 +1099,8 @@ def api_dashboard_comercial_analisis():
 
     tipo_raw = (request.args.get("tipo") or "producto").lower().strip()
     tipo = tipo_raw if tipo_raw in ("producto", "cliente", "vendedor") else "producto"
+    medida_raw = (request.args.get("medida") or "cajas").lower().strip()
+    medida = medida_raw if medida_raw in ("importe", "cajas", "kilos") else "cajas"
 
     empresa = (request.args.get("empresa") or "TODAS").upper().strip()
     vendedor_filter = (request.args.get("vendedor") or "").strip()
@@ -1105,22 +1115,11 @@ def api_dashboard_comercial_analisis():
         fecha_desde = hoy - timedelta(days=30)
         fecha_hasta = hoy
 
-    # Últimos 6 meses para el gráfico de líneas (independiente del filtro de fechas)
-    m = hoy.month - 1 or 12
-    y = hoy.year if hoy.month > 1 else hoy.year - 1
-    for _ in range(4):
-        m = m - 1 or 12
-        y = y if m > 0 else y - 1
-    evo_desde = date(y if m != 12 or hoy.month > 6 else y, m, 1)
-    # Más robusto: restar 6 meses desde el primero del mes actual
-    primer_mes_actual = date(hoy.year, hoy.month, 1)
-    evo_mes = primer_mes_actual.month - 6
-    evo_anio = primer_mes_actual.year
-    if evo_mes <= 0:
-        evo_mes += 12
-        evo_anio -= 1
-    evo_desde = date(evo_anio, evo_mes, 1)
-    evo_hasta = hoy
+    # Seis meses calendario hasta la fecha de corte seleccionada.
+    corte_mes = fecha_hasta.year * 12 + fecha_hasta.month - 1
+    evo_anio, evo_mes = divmod(corte_mes - 5, 12)
+    evo_desde = date(evo_anio, evo_mes + 1, 1)
+    evo_hasta = fecha_hasta
 
     vendedor_expr = expresion_vendedor_resuelta()
     col_expr = vendedor_expr if tipo == "vendedor" else getattr(StgSabiogoVentas, tipo)
@@ -1143,18 +1142,24 @@ def api_dashboard_comercial_analisis():
             f.append(StgSabiogoVentas.producto == producto_filter)
         return f
 
-    # Top 15 por cajas en el período filtrado
+    medida_expr = {
+        "importe": StgSabiogoVentas.subtot,
+        "cajas": StgSabiogoVentas.cajas,
+        "kilos": StgSabiogoVentas.kilos,
+    }[medida]
+    # El orden del ranking sigue la medida elegida.
     top15_rows = (
         db.session.query(
             col_expr.label("nombre"),
             func.sum(StgSabiogoVentas.cajas).label("cajas"),
+            func.sum(StgSabiogoVentas.kilos).label("kilos"),
             func.sum(StgSabiogoVentas.subtot).label("monto"),
             func.count(func.distinct(StgSabiogoVentas.nro_comprob)).label("facturas"),
         )
         .filter(*base_filters(fecha_desde, fecha_hasta))
         .filter(col_expr.isnot(None))
         .group_by(col_expr)
-        .order_by(func.sum(StgSabiogoVentas.cajas).desc())
+        .order_by(func.sum(medida_expr).desc(), col_expr.asc())
         .limit(15)
         .all()
     )
@@ -1164,6 +1169,7 @@ def api_dashboard_comercial_analisis():
         db.session.query(
             func.date_trunc("month", StgSabiogoVentas.fecha).label("periodo"),
             func.sum(StgSabiogoVentas.cajas).label("cajas"),
+            func.sum(StgSabiogoVentas.kilos).label("kilos"),
             func.sum(StgSabiogoVentas.subtot).label("monto"),
         )
         .filter(*base_filters(evo_desde, evo_hasta))
@@ -1177,11 +1183,13 @@ def api_dashboard_comercial_analisis():
     return jsonify(
         {
             "tipo": tipo,
+            "medida": medida,
             "titulo": titulos.get(tipo, "Top 15"),
             "top15": [
                 {
                     "nombre": r.nombre or "–",
                     "cajas": float(r.cajas or 0),
+                    "kilos": float(r.kilos or 0),
                     "monto": float(r.monto or 0),
                     "facturas": int(r.facturas or 0),
                 }
@@ -1189,8 +1197,9 @@ def api_dashboard_comercial_analisis():
             ],
             "evo_6m": [
                 {
-                    "periodo": r.periodo.strftime("%Y-%m") if r.periodo else None,
+                    "periodo": _formatear_mes(r.periodo),
                     "cajas": float(r.cajas or 0),
+                    "kilos": float(r.kilos or 0),
                     "monto": float(r.monto or 0),
                 }
                 for r in evo_rows
@@ -1221,14 +1230,11 @@ def api_dashboard_comercial_mix():
         fecha_desde = date(hoy.year, hoy.month, 1)
         fecha_hasta = hoy
 
-    # Últimos 6 meses para evolución
-    primer_mes = date(hoy.year, hoy.month, 1)
-    evo_mes  = primer_mes.month - 6
-    evo_anio = primer_mes.year
-    if evo_mes <= 0:
-        evo_mes += 12
-        evo_anio -= 1
-    evo_desde = date(evo_anio, evo_mes, 1)
+    # Seis meses calendario hasta la fecha de corte seleccionada.
+    corte_mes = fecha_hasta.year * 12 + fecha_hasta.month - 1
+    evo_anio, evo_mes = divmod(corte_mes - 5, 12)
+    evo_desde = date(evo_anio, evo_mes + 1, 1)
+    evo_hasta = fecha_hasta
 
     vendedor_expr = expresion_vendedor_resuelta()
 
@@ -1362,7 +1368,7 @@ def api_dashboard_comercial_mix():
             StgSabiogoVentas.producto.label("producto"),
             func.sum(StgSabiogoVentas.cajas).label("cajas"),
         )
-        .filter(*base_f(evo_desde, hoy))
+        .filter(*base_f(evo_desde, evo_hasta))
         .filter(StgSabiogoVentas.producto.isnot(None))
         .group_by(StgSabiogoVentas.producto)
         .order_by(func.sum(StgSabiogoVentas.cajas).desc())
@@ -1379,7 +1385,7 @@ def api_dashboard_comercial_mix():
                 StgSabiogoVentas.producto.label("producto"),
                 func.sum(StgSabiogoVentas.cajas).label("cajas"),
             )
-            .filter(*base_f(evo_desde, hoy))
+            .filter(*base_f(evo_desde, evo_hasta))
             .filter(StgSabiogoVentas.producto.in_(top3_prods))
             .group_by(func.date_trunc("month", StgSabiogoVentas.fecha), StgSabiogoVentas.producto)
             .order_by(func.date_trunc("month", StgSabiogoVentas.fecha))
@@ -1388,7 +1394,7 @@ def api_dashboard_comercial_mix():
         # agrupar por mes
         evo_map: dict[str, dict[str, float]] = {}
         for r in evo_raw:
-            mes = r.periodo.strftime("%Y-%m") if r.periodo else "?"
+            mes = _formatear_mes(r.periodo) or "?"
             if mes not in evo_map:
                 evo_map[mes] = {}
             evo_map[mes][r.producto] = float(r.cajas or 0)
@@ -1978,23 +1984,7 @@ def api_dashboard_comercial_equipo():
             fila["nombre"]: fila for fila in seguimiento.get("vendedores", [])
         }
 
-        def comparativo(actual, anterior):
-            actual = float(actual or 0)
-            anterior = float(anterior or 0)
-            if anterior == 0:
-                return {
-                    "actual": actual,
-                    "anterior": anterior,
-                    "variacion_pct": None,
-                    "variacion_texto": "Sin base comparable",
-                }
-            variacion = (actual - anterior) / abs(anterior) * 100
-            return {
-                "actual": actual,
-                "anterior": anterior,
-                "variacion_pct": round(variacion, 1),
-                "variacion_texto": f"{variacion:+.1f}%",
-            }
+        from services.comercial_paneles import comparativo
 
         resumen_keys = {
             "importe_pre": "importe_pre",

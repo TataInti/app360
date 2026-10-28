@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from flask import Blueprint, jsonify, render_template, request, session
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -112,3 +114,133 @@ def criterio_clientes_guardar():
         "actualizado_por": actor,
         "actualizado_en": actualizado_en.isoformat(),
     })
+
+@dashboard_com_bp.get('/comercial/seguimiento-clientes')
+def seguimiento_clientes_pantalla():
+    return render_template('seguimiento_clientes.html')
+
+
+
+
+
+@dashboard_com_bp.get('/api/dashboard-comercial/resumen-estrategico')
+def resumen_estrategico_datos():
+    from services.comercial_paneles import resumen_estrategico
+    from services.comercial_web import lectura_panel, parametros_panel
+
+    def consultar():
+        parametros = parametros_panel()
+        medida = request.args.get('medida', 'importe')
+        if medida not in {'importe', 'cajas', 'kilos'}:
+            raise ValueError('Medida inválida')
+        return resumen_estrategico(**parametros, medida=medida,
+                                  cliente=request.args.get('cliente', '').strip() or None,
+                                  producto=request.args.get('producto', '').strip() or None)
+    return lectura_panel(consultar)
+
+
+@dashboard_com_bp.get('/api/comercial/seguimiento-clientes')
+def seguimiento_clientes_datos():
+    from services.comercial_paneles import seguimiento_clientes
+    from services.comercial_web import lectura_panel, parametros_panel
+
+    def consultar():
+        parametros = parametros_panel()
+        vista = request.args.get('vista', 'atencion')
+        orden = request.args.get('orden', 'prioridad')
+        pagina = int(request.args.get('pagina', 1))
+        por_pagina = int(request.args.get('por_pagina', 25))
+        if vista not in {'atencion', 'activos', 'sin_compra', 'todos'} or orden not in {'prioridad', 'cliente', 'dias', 'importe'}:
+            raise ValueError('Filtro inválido')
+        if pagina < 1 or por_pagina not in {25, 50}:
+            raise ValueError('Página inválida')
+        return seguimiento_clientes(**parametros, vista=vista, orden=orden, pagina=pagina,
+                                    por_pagina=por_pagina, busqueda=request.args.get('q', '').strip())
+    return lectura_panel(consultar)
+
+
+@dashboard_com_bp.get('/api/comercial/seguimiento-clientes/detalle')
+def seguimiento_cliente_detalle():
+    from services.comercial_paneles import seguimiento_clientes
+    from services.comercial_web import lectura_panel, parametros_panel
+
+    def consultar():
+        parametros = parametros_panel()
+        cliente = request.args.get('cliente', '').strip()
+        if not cliente:
+            raise ValueError('Falta cliente')
+        datos = seguimiento_clientes(**parametros, cliente=cliente, vista='todos')
+        return dict(**{k: v for k, v in datos.items() if k != 'clientes'},
+                    cliente=datos['clientes'][0] if datos['clientes'] else None)
+    return lectura_panel(consultar)
+
+
+@dashboard_com_bp.get('/api/comercial/paneles/opciones')
+def paneles_opciones():
+    from services.comercial_criterios import filtro_comprobante_panel_ventas
+    from services.vendedores_comerciales import resolver_nombre_vendedor
+    from models.comercial import ComercialVendedor
+    from services.comercial_web import lectura_panel, parametros_panel
+
+    def consultar():
+        parametros = parametros_panel()
+        filtros = [StgSabiogoVentas.estado == 'procesado', filtro_comprobante_panel_ventas(),
+                   StgSabiogoVentas.fecha < parametros['hasta'] + timedelta(days=1)]
+        if parametros['empresa'] != 'TODAS':
+            filtros.append(func.upper(func.coalesce(StgSabiogoVentas.origen, '')) == parametros['empresa'])
+        vendedores = {resolver_nombre_vendedor(f[0]) for f in
+                      db.session.query(StgSabiogoVentas.vendedor).filter(*filtros).distinct().all() if f[0]}
+        vendedores.update(f.nombre_visible for f in ComercialVendedor.query.filter_by(activo=True).all())
+        return dict(vendedores=sorted(vendedores, key=str.casefold))
+    return lectura_panel(consultar)
+
+
+@dashboard_com_bp.route("/comercial/performance-vendedores")
+def performance_vendedores_pantalla():
+    return render_template("performance_vendedores.html")
+
+
+@dashboard_com_bp.get("/api/comercial/performance")
+def performance_vendedores_datos():
+    from services.comercial_performance import performance_vendedores
+    from services.comercial_web import lectura_panel, parametros_panel
+
+    def consultar():
+        parametros = parametros_panel()
+        medida = request.args.get('medida', 'importe')
+        if medida not in {'importe', 'cajas', 'kilos'}:
+            raise ValueError('Medida inválida')
+        granularidad = request.args.get('granularidad', 'dia')
+        if granularidad not in {'dia', 'semana', 'mes'}:
+            raise ValueError('Granularidad inválida')
+        return performance_vendedores(
+            **parametros,
+            medida=medida,
+            granularidad=granularidad,
+            cliente=request.args.get('cliente', '').strip() or None,
+            producto=request.args.get('producto', '').strip() or None,
+        )
+    return lectura_panel(consultar)
+
+
+@dashboard_com_bp.get('/api/comercial/performance-vendedores', endpoint='performance_vendedores_datos_compat')
+def performance_vendedores_datos():
+    from services.comercial_performance import performance_vendedores
+    from services.comercial_web import lectura_panel, parametros_panel
+
+    def consultar():
+        parametros = parametros_panel()
+        medida = request.args.get('medida', 'importe')
+        granularidad = request.args.get('granularidad', 'dia')
+        if medida not in {'importe', 'cajas', 'kilos'}:
+            raise ValueError('Medida inválida')
+        if granularidad not in {'dia', 'semana', 'mes'}:
+            raise ValueError('Granularidad inválida')
+        return performance_vendedores(
+            **parametros,
+            medida=medida,
+            granularidad=granularidad,
+            cliente=request.args.get('cliente', '').strip() or None,
+            producto=request.args.get('producto', '').strip() or None,
+        )
+    return lectura_panel(consultar)

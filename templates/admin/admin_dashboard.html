@@ -11,13 +11,13 @@
 
     <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
         <!-- Movimientos -->
-        <div class="kpi-card" style="padding:0;overflow:hidden">
-            <div style="background:#fee2e2;padding:.75rem 1rem;display:flex;align-items:center;gap:.5rem">
-                <i class="bi bi-cash-stack" style="color:#dc2626;font-size:1.1rem"></i>
-                <strong style="color:#991b1b">Movimientos</strong>
+        <div class="kpi-card admin-module admin-module--danger">
+            <div class="admin-module__head">
+                <i class="bi bi-cash-stack"></i>
+                <strong>Movimientos</strong>
             </div>
-            <div style="padding:.75rem 1rem">
-                <ul class="list-group list-group-flush" style="font-size:.85rem">
+            <div class="admin-module__body">
+                <ul class="list-group list-group-flush">
                     {% for entidad, info in stats.get('movimientos', {}).items() %}
                     <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1 border-0">
                         {{ info.name }}
@@ -26,7 +26,7 @@
                     {% endfor %}
                 </ul>
             </div>
-            <div style="padding:.5rem 1rem 1rem">
+            <div class="admin-module__foot">
                 <a href="/admin/movimientos" class="btn btn-sm btn-outline-danger w-100">
                     <i class="bi bi-pencil-square"></i> Administrar
                 </a>
@@ -34,13 +34,13 @@
         </div>
 
         <!-- Tesorería -->
-        <div class="kpi-card" style="padding:0;overflow:hidden">
-            <div style="background:#dcfce7;padding:.75rem 1rem;display:flex;align-items:center;gap:.5rem">
-                <i class="bi bi-safe2" style="color:#16a34a;font-size:1.1rem"></i>
-                <strong style="color:#166534">Tesorería</strong>
+        <div class="kpi-card admin-module admin-module--green">
+            <div class="admin-module__head">
+                <i class="bi bi-safe2"></i>
+                <strong>Tesorería</strong>
             </div>
-            <div style="padding:.75rem 1rem">
-                <ul class="list-group list-group-flush" style="font-size:.85rem">
+            <div class="admin-module__body">
+                <ul class="list-group list-group-flush">
                     {% for entidad, info in stats.get('tesoreria', {}).items() %}
                     <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1 border-0">
                         {{ info.name }}
@@ -49,7 +49,7 @@
                     {% endfor %}
                 </ul>
             </div>
-            <div style="padding:.5rem 1rem 1rem">
+            <div class="admin-module__foot">
                 <a href="/admin/tesoreria" class="btn btn-sm btn-outline-success w-100">
                     <i class="bi bi-pencil-square"></i> Administrar
                 </a>
@@ -57,13 +57,13 @@
         </div>
 
         <!-- RRHH -->
-        <div class="kpi-card" style="padding:0;overflow:hidden">
-            <div style="background:#dbeafe;padding:.75rem 1rem;display:flex;align-items:center;gap:.5rem">
-                <i class="bi bi-people-fill" style="color:#2563eb;font-size:1.1rem"></i>
-                <strong style="color:#1e40af">RRHH</strong>
+        <div class="kpi-card admin-module admin-module--blue">
+            <div class="admin-module__head">
+                <i class="bi bi-people-fill"></i>
+                <strong>RRHH</strong>
             </div>
-            <div style="padding:.75rem 1rem">
-                <ul class="list-group list-group-flush" style="font-size:.85rem">
+            <div class="admin-module__body">
+                <ul class="list-group list-group-flush">
                     {% for entidad, info in stats.get('rrhh', {}).items() %}
                     <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1 border-0">
                         {{ info.name }}
@@ -72,7 +72,7 @@
                     {% endfor %}
                 </ul>
             </div>
-            <div style="padding:.5rem 1rem 1rem">
+            <div class="admin-module__foot">
                 <a href="/admin/rrhh" class="btn btn-sm btn-outline-primary w-100">
                     <i class="bi bi-pencil-square"></i> Administrar
                 </a>
@@ -80,13 +80,13 @@
         </div>
 
         <!-- Stock/Core -->
-        <div class="kpi-card" style="padding:0;overflow:hidden">
-            <div style="background:#fef3c7;padding:.75rem 1rem;display:flex;align-items:center;gap:.5rem">
-                <i class="bi bi-box-seam" style="color:#d97706;font-size:1.1rem"></i>
-                <strong style="color:#92400e">Stock / Maestros</strong>
+        <div class="kpi-card admin-module admin-module--amber">
+            <div class="admin-module__head">
+                <i class="bi bi-box-seam"></i>
+                <strong>Stock / Maestros</strong>
             </div>
-            <div style="padding:.75rem 1rem">
-                <ul class="list-group list-group-flush" style="font-size:.85rem">
+            <div class="admin-module__body">
+                <ul class="list-group list-group-flush">
                     {% for entidad, info in stats.get('stock', {}).items() %}
                     <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1 border-0">
                         {{ info.name }}
@@ -95,7 +95,7 @@
                     {% endfor %}
                 </ul>
             </div>
-            <div style="padding:.5rem 1rem 1rem">
+            <div class="admin-module__foot">
                 <a href="/admin/stock" class="btn btn-sm btn-outline-warning w-100">
                     <i class="bi bi-pencil-square"></i> Administrar
                 </a>
@@ -103,15 +103,15 @@
         </div>
 
         <!-- Control de Accesos -->
-        <div class="kpi-card" style="padding:0;overflow:hidden">
-            <div style="background:#f1f5f9;padding:.75rem 1rem;display:flex;align-items:center;gap:.5rem">
-                <i class="bi bi-shield-lock" style="color:#475569;font-size:1.1rem"></i>
-                <strong style="color:#1e293b">Control de Accesos</strong>
+        <div class="kpi-card admin-module admin-module--neutral">
+            <div class="admin-module__head">
+                <i class="bi bi-shield-lock"></i>
+                <strong>Control de Accesos</strong>
             </div>
-            <div style="padding:.75rem 1rem">
+            <div class="admin-module__body">
                 <p class="text-muted mb-0" style="font-size:.85rem">Gestiona permisos de acceso por módulo para cada usuario.</p>
             </div>
-            <div style="padding:.5rem 1rem 1rem">
+            <div class="admin-module__foot">
                 <a href="/admin/accesos" class="btn btn-sm btn-outline-dark w-100">
                     <i class="bi bi-shield-lock"></i> Administrar
                 </a>
@@ -119,13 +119,13 @@
         </div>
 
         <!-- Marketing -->
-        <div class="kpi-card" style="padding:0;overflow:hidden">
-            <div style="background:#ede9fe;padding:.75rem 1rem;display:flex;align-items:center;gap:.5rem">
-                <i class="bi bi-megaphone" style="color:#7c3aed;font-size:1.1rem"></i>
-                <strong style="color:#5b21b6">Marketing</strong>
+        <div class="kpi-card admin-module admin-module--purple">
+            <div class="admin-module__head">
+                <i class="bi bi-megaphone"></i>
+                <strong>Marketing</strong>
             </div>
-            <div style="padding:.75rem 1rem">
-                <ul class="list-group list-group-flush" style="font-size:.85rem">
+            <div class="admin-module__body">
+                <ul class="list-group list-group-flush">
                     {% for entidad, info in stats.get('marketing', {}).items() %}
                     <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1 border-0">
                         {{ info.name }}
@@ -134,7 +134,7 @@
                     {% endfor %}
                 </ul>
             </div>
-            <div style="padding:.5rem 1rem 1rem;display:flex;gap:.5rem">
+            <div class="admin-module__foot" style="display:flex;gap:.5rem">
                 <a href="/admin/marketing" class="btn btn-sm btn-outline-primary w-100">
                     <i class="bi bi-pencil-square"></i> Administrar
                 </a>

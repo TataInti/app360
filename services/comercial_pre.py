@@ -1,7 +1,8 @@
 """Cálculos compartidos sobre PRE procesados de staging."""
 
+from types import SimpleNamespace
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import case, func
@@ -44,7 +45,6 @@ def expresion_vendedor_resuelta(session=None):
         session.query(StgSabiogoVentas.vendedor)
         .filter(
             StgSabiogoVentas.estado == "procesado",
-            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
         )
         .distinct()
         .all()
@@ -160,7 +160,7 @@ def calcular_resumen_pre(
     filtros = [
         StgSabiogoVentas.estado == "procesado",
         StgSabiogoVentas.fecha >= desde,
-        StgSabiogoVentas.fecha <= hasta,
+        StgSabiogoVentas.fecha < hasta + timedelta(days=1),
     ]
     if criterio_clientes:
         from services.comercial_criterios import filtro_comprobante_panel_ventas
@@ -176,9 +176,9 @@ def calcular_resumen_pre(
             func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa_normalizada
         )
     if cliente:
-        filtros.append(StgSabiogoVentas.cliente == cliente)
+        filtros.append(func.trim(StgSabiogoVentas.cliente) == cliente)
     if producto:
-        filtros.append(StgSabiogoVentas.producto == producto)
+        filtros.append(func.trim(StgSabiogoVentas.producto) == producto)
 
     filas = (
         session.query(
@@ -209,6 +209,8 @@ def calcular_resumen_pre(
     detalle_cliente = None
 
     for fila in filas:
+        if isinstance(fila.fecha, datetime):
+            fila = SimpleNamespace(**{**fila._mapping, 'fecha': fila.fecha.date()})
         origen = fila.vendedor
         if origen not in vendedores_resueltos:
             vendedores_resueltos[origen] = resolver_nombre_vendedor(origen)

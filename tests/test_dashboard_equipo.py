@@ -229,25 +229,55 @@ def test_diagnostico_clasifica_clientes_y_compra_en_baja_indica_medida(client, a
     )
 
 
-def test_dashboard_renderiza_secciones_en_orden_y_mix_plegado(client):
+def test_dashboard_separa_estrategia_de_seguimiento(client):
     response = client.get("/dashboard-comercial")
-
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert "Importe PRE" in html
-    assert "Equipo comercial" in html
-    assert "Diagnóstico de" in html
-    assert "Clientes que requieren atención" in html
-    assert "Cartera de clientes" in html
-    assert 'id="a-cliente"' in html
-    for clear_button in ("btn-limpiar-filtros", "a-limpiar", "m-limpiar", "c-limpiar"):
-        assert f'id="{clear_button}"' in html
-    assert "<th>Cliente</th><th>Última compra</th><th class=\"num\">Días</th><th>Estado</th>" in html
-    assert 'data-period="mes"' in html
-    assert "Sin operaciones PRE en este período." in html
-    assert 'id="analisis-body" style="padding:1rem;display:none"' in html
-    assert 'id="mix-body" style="padding:1rem;display:none"' in html
-    assert 'id="kpi-pre-top-vendedor"' not in html
+    titles = ["Resultado del período", "Evolución de ventas", "Objetivos del equipo", "Composición y concentración"]
+    assert [html.index(title) for title in titles] == sorted(html.index(title) for title in titles)
+    assert 'id="com-filtros"' in html
+    assert 'id="cartera-clientes-body"' not in html
+    assert 'id="com-clientes"' not in html
+    assert "Análisis de cantidades" in html
+    assert "Mix de ventas" in html
+    assert 'id="cantidades-toggle" type="button" aria-expanded="true"' in html
+    assert 'id="mix-toggle" type="button" aria-expanded="true"' in html
+    assert 'id="com-performance"' not in html
+    assert 'Ver seguimiento de clientes' in html
+
+
+def test_analisis_cantidades_y_mix_respetan_medida_y_fecha_de_corte(client, app):
+    with app.app_context():
+        # SQLite no trae date_trunc; este UDF reproduce el agrupamiento mensual
+        # para probar el contrato del endpoint con la base aislada del test.
+        connection = db.engine.raw_connection()
+        connection.create_function(
+            "date_trunc",
+            2,
+            lambda unidad, valor: f"{str(valor)[:7]}-01" if unidad == "month" and valor else None,
+        )
+        connection.close()
+        agregar_pre(date(2026, 1, 3), "Ana Ruiz", "Cliente", producto="Producto A", cajas=10, kilos=100, importe=500, numero="M-A")
+        agregar_pre(date(2026, 1, 8), "Ana Ruiz", "Cliente", producto="Producto B", cajas=3, kilos=30, importe=300, numero="M-B")
+        agregar_pre(date(2026, 1, 9), "Ana Ruiz", "Cliente", producto="Producto C", cajas=1, kilos=120, importe=2000, numero="M-C")
+        agregar_pre(date(2026, 2, 1), "Ana Ruiz", "Cliente", producto="Producto futuro", cajas=1000, kilos=9999, importe=90000, numero="M-FUTURO")
+        db.session.commit()
+
+    filtros = "fecha_desde=2026-01-01&fecha_hasta=2026-01-31&empresa=CARNES"
+    analisis = client.get(f"/api/dashboard-comercial/analisis?{filtros}&tipo=producto&medida=kilos")
+    assert analisis.status_code == 200
+    datos = analisis.get_json()
+    assert datos["medida"] == "kilos"
+    assert datos["top15"][0]["nombre"] == "Producto C"
+    assert datos["top15"][0]["kilos"] == 120
+    assert datos["evo_6m"][-1]["periodo"] == "2026-01"
+    assert all(fila["kilos"] != 9999 for fila in datos["evo_6m"])
+
+    mix = client.get(f"/api/dashboard-comercial/mix?{filtros}")
+    assert mix.status_code == 200
+    mix_datos = mix.get_json()
+    assert all(fila["producto"] != "Producto futuro" for fila in mix_datos["mix_global"])
+    assert mix_datos["evo_mix"][-1]["periodo"] == "2026-01"
 
 
 def test_error_del_endpoint_equipo_no_devuelve_kpis_en_cero(client, monkeypatch):

@@ -42,6 +42,7 @@
       <button class="pp pp-action" id="btn-aplicar" type="button">
         <i class="bi bi-check2" aria-hidden="true"></i> Aplicar
       </button>
+      <button class="pp pp-clear" id="btn-limpiar" type="button">Limpiar</button>
     </div>
     <div class="period-context" id="empresa-context"></div>
   </div>
@@ -272,6 +273,8 @@
   let componentsChart;
   let monthlyChart;
   let cashflowAnalysisChart;
+  const C = window.App360Charts;
+  const S = C.semantic;
   const money = value => {
     const number = Number(value || 0);
     return new Intl.NumberFormat('es-AR', {
@@ -445,8 +448,9 @@
     const values = [facturacion, compras, ingresos, egresos, resultado];
     const effects = ['Suma', 'Resta', 'Suma', 'Resta', 'Resultado'];
     if (componentsChart) componentsChart.destroy();
-    componentsChart = new Chart(document.getElementById('components-chart'), {
+    componentsChart = C.create(document.getElementById('components-chart'), {
       type: 'bar',
+      dataLabels: false,
       plugins: [{
         id: 'componentValueLabels',
         afterDatasetsDraw(chart) {
@@ -454,8 +458,8 @@
           chart.getDatasetMeta(0).data.forEach((bar, index) => {
             const value = values[index];
             ctx.save();
-            ctx.fillStyle = '#334155';
-            ctx.font = '650 11px system-ui, sans-serif';
+            ctx.fillStyle = C.tokens.body;
+            ctx.font = `650 11px ${C.tokens.fontFamily}`;
             ctx.textAlign = 'center';
             ctx.textBaseline = value < 0 ? 'top' : 'bottom';
             ctx.fillText(shortMoney(value), bar.x, value < 0 ? bar.y + 7 : bar.y - 7);
@@ -467,14 +471,13 @@
         labels: ['Facturación', 'Compras', 'Ingresos incluidos', 'Egresos incluidos', 'Resultado'],
         datasets: [{
           data: values,
-          backgroundColor: ['rgba(22,163,74,.22)', 'rgba(220,38,38,.22)', 'rgba(22,163,74,.22)', 'rgba(220,38,38,.22)', 'rgba(37,99,235,.25)'],
-          borderColor: ['#16a34a', '#dc2626', '#16a34a', '#dc2626', '#2563eb'],
+          backgroundColor: [S.positiveSoft, S.negativeSoft, S.positiveSoft, S.negativeSoft, S.neutralSoft],
+          borderColor: [S.positive, S.negative, S.positive, S.negative, S.neutral],
           borderWidth: 1.5,
           borderRadius: 4
         }]
       },
       options: {
-        maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -484,8 +487,7 @@
           }
         },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#64748b' } },
-          y: { beginAtZero: true, ticks: { callback: shortMoney, color: '#64748b' }, grid: { color: '#eef2f7' } }
+          y: { beginAtZero: true, ticks: { callback: shortMoney } }
         }
       }
     });
@@ -493,26 +495,22 @@
 
   function renderMonthly(rows) {
     if (monthlyChart) monthlyChart.destroy();
-    monthlyChart = new Chart(document.getElementById('monthly-chart'), {
+    monthlyChart = C.create(document.getElementById('monthly-chart'), {
       type: 'line',
       data: {
         labels: (rows || []).map(row => new Date(`${row.periodo}T00:00:00`).toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })),
         datasets: [
-          { label: 'Facturación', data: (rows || []).map(row => row.facturacion), borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,.08)', tension: .3 },
-          { label: 'Compras', data: (rows || []).map(row => row.compras), borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,.08)', tension: .3 },
-          { label: 'Resultado', data: (rows || []).map(row => row.resultado_gestion), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.08)', tension: .3, borderWidth: 2.5 }
+          { label: 'Facturación', data: (rows || []).map(row => row.facturacion), borderColor: S.positive, backgroundColor: 'rgba(22,163,74,.08)', tension: .3 },
+          { label: 'Compras', data: (rows || []).map(row => row.compras), borderColor: S.negative, backgroundColor: 'rgba(220,38,38,.08)', tension: .3 },
+          { label: 'Resultado', data: (rows || []).map(row => row.resultado_gestion), borderColor: S.neutral, backgroundColor: 'rgba(35,78,112,.08)', tension: .3, borderWidth: 2.5 }
         ]
       },
       options: {
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { position: 'bottom', labels: { color: '#475569', usePointStyle: true } },
           tooltip: { callbacks: { label: context => `${context.dataset.label}: ${money(context.parsed.y)}` } }
         },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#64748b' } },
-          y: { ticks: { callback: shortMoney, color: '#64748b' }, grid: { color: '#eef2f7' } }
+          y: { ticks: { callback: shortMoney } }
         }
       }
     });
@@ -576,26 +574,22 @@
       return;
     }
     chartStage.innerHTML = '<canvas id="cashflow-analysis-chart"></canvas>';
-    cashflowAnalysisChart = new Chart(document.getElementById('cashflow-analysis-chart'), {
+    cashflowAnalysisChart = C.create(document.getElementById('cashflow-analysis-chart'), {
       type: 'bar',
       data: {
         labels: rows.map(row => new Date(`${row.periodo}T00:00:00`).toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })),
         datasets: [
-          { label: 'Ingresos', data: rows.map(row => row.ingresos), backgroundColor: 'rgba(21,147,111,.28)', borderColor: '#15936f', borderWidth: 1.2, borderRadius: 4 },
-          { label: 'Egresos', data: rows.map(row => row.egresos), backgroundColor: 'rgba(220,38,38,.24)', borderColor: '#dc2626', borderWidth: 1.2, borderRadius: 4 },
-          { type: 'line', label: 'Flujo neto', data: rows.map(row => row.neto), borderColor: '#2563eb', backgroundColor: '#2563eb', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: .25, fill: false }
+          { label: 'Ingresos', data: rows.map(row => row.ingresos), backgroundColor: 'rgba(22,163,74,.28)', borderColor: S.positive, borderWidth: 1.2, borderRadius: 4 },
+          { label: 'Egresos', data: rows.map(row => row.egresos), backgroundColor: 'rgba(220,38,38,.24)', borderColor: S.negative, borderWidth: 1.2, borderRadius: 4 },
+          { type: 'line', label: 'Flujo neto', data: rows.map(row => row.neto), borderColor: S.neutral, backgroundColor: S.neutral, borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, tension: .25, fill: false }
         ]
       },
       options: {
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { position: 'bottom', labels: { color: '#475569', usePointStyle: true } },
           tooltip: { callbacks: { label: context => `${context.dataset.label}: ${money(context.parsed.y)}` } }
         },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#64748b' } },
-          y: { beginAtZero: true, ticks: { callback: shortMoney, color: '#64748b' }, grid: { color: '#e5eeee' } }
+          y: { beginAtZero: true, ticks: { callback: shortMoney } }
         }
       }
     });
@@ -674,6 +668,11 @@
     });
     document.getElementById('sel-empresa').addEventListener('change', () => {
       load('', document.getElementById('fecha-desde').value, document.getElementById('fecha-hasta').value);
+    });
+    document.getElementById('btn-limpiar').addEventListener('click', () => {
+      document.getElementById('sel-empresa').value = 'TODAS';
+      history.replaceState(null, '', location.pathname);
+      load('30');
     });
     load('30');
   });

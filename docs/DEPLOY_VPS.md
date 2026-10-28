@@ -128,10 +128,16 @@ EXPECTED_GIT_SHA=<sha_completo> \
 PROD_SSH_HOST=<host> \
 MAINTENANCE_CONFIRMED=true \
 bash scripts/apply_db_migrations_to_vps.sh \
-  20260713_sabiogo_sync_runs \
   20260729_ensure_efectivo_iva \
-  scripts/sql/validate_20260729_resultado_comercial.sql
+  20261021_comercial_cliente_criterio \
+  scripts/sql/validate_20261021_comercial_cliente_criterio.sql
 ```
+
+Para esta release, Alembic aplicará cuatro revisiones comerciales consecutivas:
+`20261020_comercial_vendedores`, `20261020_comercial_objetivos`,
+`20261020_objetivo_vinculos` y `20261021_comercial_cliente_criterio`. La
+validación SQL anterior comprueba las tablas e índice esperados y reporta sus
+recuentos junto con los de las tablas legadas `goals` y `movimientos_caja`.
 
 Antes de ejecutarlo se deben pausar las escrituras y declarar
 `MAINTENANCE_CONFIRMED=true`. El comando crea el backup en
@@ -203,7 +209,9 @@ EXPECTED_GIT_SHA=<sha_completo> \
 PROD_SSH_HOST=<host> \
 MAINTENANCE_CONFIRMED=true \
 bash scripts/apply_db_migrations_to_vps.sh \
-  <revision_actual> <revision_objetivo> <sql_de_validacion>
+  20260729_ensure_efectivo_iva \
+  20261021_comercial_cliente_criterio \
+  scripts/sql/validate_20261021_comercial_cliente_criterio.sql
 
 sudo systemctl restart app360
 curl -fsS http://127.0.0.1:5000/api/health

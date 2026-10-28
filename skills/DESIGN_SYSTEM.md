@@ -61,8 +61,8 @@ cargar un gasto, registrar un movimiento, ver el estado de caja, revisar KPIs de
 
 ## 3. Sistema de Componentes — Referencia Completa
 
-Todos los componentes están definidos en `templates/base.html` dentro del bloque `<style>`.
-**Nunca duplicar estilos en `<style>` inline dentro de templates hijos.** Usar las clases del DS.
+Los tokens y componentes comunes viven en `templates/base.html`; los patrones compartidos de paneles y filtros están en `static/css/paneles_normalizados.css`.
+**Nunca duplicar estilos en `<style>` inline dentro de templates hijos.** Usar las clases del DS. Los paneles comerciales mantienen reglas de dominio en `static/css/comercial_paneles.css`, y cargan la capa normalizada después de sus estilos locales.
 
 ---
 
@@ -244,35 +244,109 @@ Para los **1-2 KPIs más importantes** de un panel (el que el usuario mira prime
 <div class="charts-grid">
     <div class="chart-card-v2">
         <h3><i class="bi bi-bar-chart"></i> Título del Gráfico</h3>
-        <div style="height:300px">
+        <span class="chart-description">Qué muestra y cómo leerlo, en una línea.</span>
+        <div class="chart-stage">
             <canvas id="miChart"></canvas>
         </div>
-    </div>
-    <div class="chart-card-v2">
-        ...
     </div>
 </div>
 ```
 
 **Reglas:**
 - El título usa `<h3>` (no `<h5>`, `<h6>`, ni `<div class="card-header">`).
-- El canvas siempre dentro de un `<div style="height:Xpx">` para controlar la altura.
+- El canvas va dentro de `.chart-stage` (300px) o `.chart-stage--compact` (260px).
+  No usar `style="height:Xpx"` inline: la altura vive en `--chart-height`.
 - `.charts-grid` usa `grid-template-columns: repeat(auto-fit, minmax(340px, 1fr))`.
 - Para gráfico único ancho completo: `<div class="charts-grid" style="grid-template-columns:1fr">`.
 - **No usar** `.chart-card`, `.chart-card-light`, `.panel-chart-card` (clases legacy, no migrar nuevo código a ellas).
 
-**Config de Chart.js estándar:**
+**Config de Chart.js — usar `App360Charts.create()` (obligatorio):**
+
+`static/js/app_charts.js` se carga globalmente desde `base.html`. Es la única
+fuente de verdad para paleta, ejes, leyendas, tooltips y etiquetas de datos.
+
+**Nunca llamar a `new Chart()` directamente.** `create()` aplica la base,
+registra las etiquetas, destruye la instancia previa y hace merge profundo de
+las opciones, de modo que un override parcial no borra los defaults.
+
 ```javascript
-options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-        y: { ticks: { color: '#6b7280', font: { size: 11 } }, grid: { color: '#f1f5f9' } },
-        x: { ticks: { color: '#6b7280', font: { size: 11 } }, grid: { display: false } }
+const C = window.App360Charts;
+
+chart = C.create(canvas, {
+    type: 'bar',
+    data: {
+        labels,
+        datasets: [{
+            label: 'Importe',
+            data: values,
+            backgroundColor: C.semantic.neutralSoft,
+            borderColor: C.semantic.neutral,
+            borderWidth: 1,
+            borderRadius: 4
+        }]
+    },
+    options: {
+        plugins: {
+            tooltip: { callbacks: { label: ctx => C.format.money(ctx.parsed.y) } }
+        }
     }
-}
+});
 ```
+
+**Lo que `create()` garantiza (no redefinir en el template):**
+
+| Aspecto | Valor fijo |
+|---|---|
+| Animación | desactivada |
+| `responsive` / `maintainAspectRatio` | `true` / `false` |
+| Interacción | `mode: 'index'`, `intersect: false` |
+| Leyenda | abajo, punto, 12px, color `--color-text-muted` |
+| Tooltip | fondo `rgba(37,54,74,.94)`, radio 6, padding 10 |
+| Ejes | grid `#e6ebf0`, ticks 12px muted, sin borde |
+| Tipografía | `system-ui`, 12px |
+| Etiquetas de datos | plugin `app360DataLabels` activo |
+
+**Regla de leyenda (automática):**
+- Dona/torta → siempre visible.
+- Barra/línea con 1 dataset → oculta.
+- Barra/línea con 2+ datasets → visible abajo.
+- Un `legend.display` explícito en el template siempre gana.
+
+**API disponible:**
+
+| Miembro | Uso |
+|---|---|
+| `C.create(canvas, config)` | Punto único de creación |
+| `C.palette` | Serie 1–10 para categorías |
+| `C.colorAt(i)` | Color de serie con wrap automático |
+| `C.semantic` | `positive`, `negative`, `neutral`, `warning`, `metric`, `flow`, `previous` (+ `*Soft`) |
+| `C.tokens` | `ink`, `body`, `muted`, `faint`, `grid`, `border`, `fontFamily`, `tickSize` |
+| `C.baseOptions({horizontal, stacked, percent, legend})` | Solo si necesitás opciones sueltas |
+| `C.dataLabels` | Plugin de etiquetas (ya incluido por `create`) |
+| `C.format` | `money`, `compactMoney`, `number`, `compactNumber`, `percent` |
+
+**Opciones propias del template:**
+
+| Clave | Efecto |
+|---|---|
+| `dataLabels: false` | Desactiva las etiquetas de datos |
+| `percent: true` | Formatea el eje de valores como porcentaje |
+| `options.indexAxis: 'y'` | Barras horizontales (ajusta los ejes solo) |
+
+**Reglas de color:**
+- Nunca escribir hex en un template. Usar `C.semantic` o `C.palette`.
+- Verde = ingreso/positivo, rojo = egreso/negativo, ámbar = advertencia,
+  violeta = porcentaje/rentabilidad, cielo = neto/flujo. No reasignar.
+- Para series categóricas (productos, clientes, instrumentos) usar `C.palette`.
+
+**Verificación automática:**
+
+```bash
+python scripts/verify_chart_consistency.py
+```
+
+Recorre los 9 paneles con gráficos en un navegador real y falla si dos
+gráficos difieren en leyenda, tooltip, ejes, tipografía o animación.
 
 ---
 
@@ -825,37 +899,97 @@ Son el marco teórico; este archivo es la aplicación concreta al proyecto.
 
 ## 8. Paleta de Colores Completa
 
+Los valores viven en `:root` de `templates/base.html`. **Nunca escribir hex en
+un template**: usar `var(--color-*)`.
+
 ```
-/* Backgrounds */
---bg-page:      #f1f5f9   (body de página en login, no en app)
---bg-surface:   #ffffff   (cards, tables, charts)
---bg-muted:     #f8fafc   (thead, period-bar, inputs)
+/* Superficies */
+--color-surface:          #ffffff
+--color-surface-subtle:   #f3f6fa   (filtros, encabezados de tabla)
+--color-surface-muted:    #f8fafc   (thead, inputs)
+--color-surface-sunken:   #eff4f8
 
 /* Textos */
---text-primary:   #0f172a  (títulos, valores de KPI)
---text-body:      #374151  (contenido general)
---text-muted:     #6b7280  (labels, subtítulos)
---text-faint:     #9ca3af  (kpi-sub, empty-text)
+--color-text-primary:     #25364a   (títulos, valores de KPI)
+--color-text-body:        #334155   (contenido general)
+--color-text-muted:       #58677a   (labels, subtítulos)
+--color-text-faint:       #8a97a6   (kpi-sub, empty-text)
 
 /* Bordes */
---border-default: #e5e7eb
---border-light:   #e2e8f0
+--color-border:           #dce3eb
+--color-border-soft:      #e2e8f0
+--color-border-control:   #bcc9d6
 
-/* Acentos semánticos */
---accent-blue:    #2563eb  (acción principal)
---accent-green:   #16a34a  (positivo)
---accent-red:     #dc2626  (negativo)
---accent-amber:   #f59e0b  (advertencia)
---accent-purple:  #7c3aed  (métricas %)
---accent-sky:     #0ea5e9  (neto/flujo)
+/* Acción e interacción */
+--color-action:           #234e70   (acento global)
+--color-action-hover:     #1b3d59
+--color-action-soft:      #eaf0f5
+--color-focus:            #3d7aa9
+--color-hover:            #edf2f7
 
-/* Sidebar */
+/* Acentos semánticos (código de color operativo) */
+--color-positive:         #16a34a   (ingreso, positivo)
+--color-negative:         #dc2626   (egreso, negativo)
+--color-warning:          #f59e0b   (advertencia)
+--color-metric:           #7c3aed   (porcentajes, rentabilidad)
+--color-flow:             #0ea5e9   (neto, flujo de caja)
+
+/* Estados */
+--state-attention-bg/ink: #fff2dc / #7b5016
+--state-active-bg/ink:    #eaf4ef / #286149
+--state-error-bg/border/ink: #fff3f0 / #d7a8a2 / #8c3027
+
+/* Tipografía */
+--font-size-body: 14px   --font-size-label: 12px   --font-size-note: 13px
+--font-size-section: 18px   --font-size-title: 28px   --font-size-page: 24px
+--font-weight-strong: 650   --font-weight-page: 700
+
+/* Forma */
+--radius-badge: 4px   --radius-control: 6px   --radius-table: 7px
+--radius-panel: 8px   --radius-pill: 999px
+
+/* Controles y espaciado */
+--control-height: 38px   --control-height-touch: 44px   --control-height-compact: 26px
+--space-control: 12px   --space-section: 28px   --content-max: 1500px
+
+/* Gráficos */
+--chart-height: 300px   --chart-height-tall: 380px   --chart-height-mobile: 240px
+--chart-grid: #e6ebf0
+
+/* Sidebar (sin cambios) */
 --sidebar-from:   #0f172a
 --sidebar-to:     #1e293b
 --sidebar-link:   #cbd5e1
 --sidebar-active-bg: rgba(37,99,235,0.2)
 --sidebar-active-text: #93c5fd
 ```
+
+**Alias heredados**: `--app-surface-0/1/2`, `--app-border-soft/strong`,
+`--app-ink-strong/ink/ink-muted` apuntan a los tokens nuevos. Se conservan para
+no romper estilos existentes; el código nuevo usa `--color-*`.
+
+**Excepción documentada**: las pills de período (`.pp`) mantienen 26px de alto
+aunque `--control-height` sea 38px. Son filtros compactos, no botones de acción.
+
+### 8.1 Normalización transversal de paneles y filtros
+
+`static/css/paneles_normalizados.css` es la capa común para encabezados, filtros,
+controles de período/dimensiones y métricas de panel. Carga desde `base.html`; los
+paneles comerciales con CSS propio la cargan después de `comercial_paneles.css`.
+
+- Encabezados `.panel-header` y `.com-heading` comparten escala de título,
+  subtítulo, espaciado y alineación.
+- Filtros `.period-bar` y `.com-filter` comparten superficie sutil, borde,
+  radio, etiquetas y espaciado desde tokens; inputs respetan controles estándar.
+- Filtros compactos conservan su rol y opciones, pero los colores, bordes y foco
+  heredan tokens de tema.
+- Métricas comerciales (`.com-metrics`) usan la misma superficie, borde,
+  tipografía y grid de KPI que el resto de los paneles.
+- No alterar contenido, acciones, filtros, tablas, datos ni gráficos por motivo
+  de normalización visual.
+
+Validación visual/técnica: `python scripts/verify_chart_consistency.py` y los
+selectores de tests de paneles disponibles en `tests/`.
 
 ---
 

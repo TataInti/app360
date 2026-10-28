@@ -4,6 +4,7 @@ import re
 from calendar import monthrange
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from types import SimpleNamespace
 
 from models import db
 from models.comercial import ComercialObjetivo, ComercialVendedor
@@ -104,6 +105,7 @@ def _base_item(vendedor, mes, empresa, medida, avance_esperado):
         "vendedor_id": vendedor.id,
         "vendedor": vendedor.nombre_visible,
         "nombre_visible": vendedor.nombre_visible,
+        "vendedor_activo": getattr(vendedor, "activo", True),
         "empresa": empresa,
         "mes": mes,
         "medida": medida,
@@ -231,6 +233,7 @@ def obtener_objetivos_comerciales(
     medida: str = "importe",
     corte: date | None = None,
     criterio_clientes: bool = False,
+    incluir_vendedores_venta: bool = False,
 ) -> list[dict]:
     """Lista objetivos y vendedores sin meta; calcula realizados desde staging."""
     desde, hasta = _periodo(mes)
@@ -253,6 +256,30 @@ def obtener_objetivos_comerciales(
     }
     for meta in metas:
         vendedores.setdefault(meta.vendedor_id, meta.vendedor)
+    vendedores_temporales = {}
+
+    # Include sellers visible in the same PRE/FAC source used by the strategic
+    # sales panel, even before they have a row in the commercial catalog.
+    if incluir_vendedores_venta and corte >= desde:
+        resumen_ventas = calcular_resumen_pre(
+            desde,
+            min(corte, hasta),
+            empresa=empresa,
+            limite=100000,
+            criterio_clientes=criterio_clientes,
+        )
+        nombres_catalogo = {
+            " ".join(vendedor.nombre_visible.split()).casefold()
+            for vendedor in vendedores.values()
+        }
+        for fila in resumen_ventas["por_vendedor"]:
+            nombre = " ".join((fila.get("nombre") or "").split())
+            if not nombre or nombre.casefold() == "sin vendedor":
+                continue
+            clave = nombre.casefold()
+            if clave not in nombres_catalogo:
+                vendedores_temporales[clave] = SimpleNamespace(id=None, nombre_visible=nombre)
+                nombres_catalogo.add(clave)
 
     metas_por_vendedor = {}
     for meta in metas:
@@ -260,7 +287,8 @@ def obtener_objetivos_comerciales(
 
     empresas_a_calcular = EMPRESAS_COMERCIALES if empresa == "TODAS" else (empresa,)
     resultado = []
-    for vendedor in sorted(vendedores.values(), key=lambda item: item.nombre_visible.casefold()):
+    vendedores_para_listar = [*vendedores.values(), *vendedores_temporales.values()]
+    for vendedor in sorted(vendedores_para_listar, key=lambda item: item.nombre_visible.casefold()):
         realizados = {
             empresa_actual: _obtener_realizado(
                 desde,

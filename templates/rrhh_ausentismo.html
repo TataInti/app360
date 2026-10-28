@@ -88,13 +88,13 @@
     <div class="charts-grid">
         <div class="chart-card-v2">
             <h3><i class="bi bi-bar-chart me-1"></i>Top 10 — Peor Comportamiento</h3>
-            <div style="padding:1rem;height:280px;">
+            <div class="chart-stage">
                 <canvas id="chartRanking"></canvas>
             </div>
         </div>
         <div class="chart-card-v2">
             <h3><i class="bi bi-graph-up me-1"></i>Tendencia Puntualidad (6 meses)</h3>
-            <div style="padding:1rem;height:280px;">
+            <div class="chart-stage">
                 <canvas id="chartTendencia"></canvas>
             </div>
         </div>
@@ -128,7 +128,7 @@
                 </tbody>
             </table>
         </div>
-        <div style="padding:0.5rem 1rem;font-size:0.75rem;color:#6b7280;border-top:1px solid #e5e7eb;" id="pie-tabla">—</div>
+        <div style="padding:0.5rem 1rem;font-size:0.75rem;color:var(--color-text-muted);border-top:1px solid var(--color-border);" id="pie-tabla">—</div>
     </div>
 </div>
 
@@ -376,7 +376,7 @@ async function verDetalleEmpleado(empId) {
         const r = await fetch(url);
         const d = await r.json();
         const dias_nombres = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-        let html = `<tr class="detail-row"><td colspan="11" style="background:#f8fafc;padding:0.75rem;">
+        let html = `<tr class="detail-row"><td colspan="11" style="background:var(--color-surface-muted);padding:0.75rem;">
             <div class="fw-semibold mb-2">${d.empleado} — ${d.periodo}</div>
             <div class="d-flex flex-wrap gap-1">`;
         for (const dia of d.dias) {
@@ -411,43 +411,40 @@ async function verDetalleEmpleado(empId) {
 function renderChartRanking(data) {
     const ctx = document.getElementById('chartRanking').getContext('2d');
     if (chartRanking) chartRanking.destroy();
-    chartRanking = new Chart(ctx, {
+    const C = window.App360Charts, S = C.semantic;
+    chartRanking = C.create(ctx.canvas, {
         type: 'bar',
         data: {
             labels: data.map(d => d.nombre.split(' ').slice(0, 2).join(' ')),
             datasets: [
-                {label: 'Faltas', data: data.map(d => d.faltas), backgroundColor: '#dc2626'},
-                {label: 'Tardanzas', data: data.map(d => d.tardanzas), backgroundColor: '#f59e0b'},
+                {label: 'Faltas', data: data.map(d => d.faltas), backgroundColor: S.negative},
+                {label: 'Tardanzas', data: data.map(d => d.tardanzas), backgroundColor: S.warning},
             ]
         },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            indexAxis: 'y',
-            scales: {x: {stacked: true, beginAtZero: true}, y: {stacked: true}},
-            plugins: {legend: {position: 'bottom', labels: {boxWidth: 12, font: {size: 11}}}}
-        }
+        options: { indexAxis: 'y' }
     });
 }
 
 function renderChartTendencia(data) {
     const ctx = document.getElementById('chartTendencia').getContext('2d');
     if (chartTendencia) chartTendencia.destroy();
-    chartTendencia = new Chart(ctx, {
+    const C = window.App360Charts, S = C.semantic;
+    chartTendencia = C.create(ctx.canvas, {
         type: 'line',
+        percent: true,
         data: {
             labels: data.map(d => d.mes),
             datasets: [{
                 label: '% Puntualidad',
                 data: data.map(d => d.puntualidad),
-                borderColor: '#16a34a',
+                borderColor: S.positive,
                 backgroundColor: 'rgba(22,163,74,0.1)',
                 fill: true, tension: 0.3,
             }]
         },
         options: {
-            responsive: true, maintainAspectRatio: false,
-            scales: {y: {min: 0, max: 100, ticks: {callback: v => v + '%'}}},
-            plugins: {legend: {display: false}}
+            plugins: { legend: { display: false } },
+            scales: { y: { min: 0, max: 100 } }
         }
     });
 }

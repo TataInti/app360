@@ -94,6 +94,31 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
+    # Cache-busting de estáticos: la versión se calcula una vez al arrancar a
+    # partir del mtime de los archivos propios. Evita que el navegador siga
+    # sirviendo CSS/JS viejos después de un deploy o de un cambio local.
+    def _compute_asset_version():
+        import hashlib
+        import pathlib
+        static_dir = pathlib.Path(app.static_folder)
+        digest = hashlib.sha1()
+        for pattern in ("css/*.css", "js/*.js"):
+            for path in sorted(static_dir.glob(pattern)):
+                try:
+                    digest.update(path.name.encode())
+                    digest.update(str(int(path.stat().st_mtime)).encode())
+                except OSError:
+                    continue
+        return digest.hexdigest()[:10]
+
+    _asset_version = _compute_asset_version()
+
+    @app.template_global()
+    def asset(filename):
+        """URL de un estático con query de versión para invalidar caché."""
+        from flask import url_for
+        return f"{url_for('static', filename=filename)}?v={_asset_version}"
+
     # Ajustar engine options según el backend real para evitar incompatibilidades
     # cuando el entorno de tests fuerza SQLite por variable DATABASE_URL.
     db_uri = (app.config.get("SQLALCHEMY_DATABASE_URI") or "").lower()
@@ -187,6 +212,7 @@ def create_app():
             "current_role": role,
             "can_access": can_access,
             "sabiogo_sync_alert": sabiogo_sync_alert,
+            "asset_version": _asset_version,
         }
 
     from blueprints.products import products_bp

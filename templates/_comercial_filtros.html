@@ -1,0 +1,12 @@
+<form id="com-filtros" class="com-filter" aria-label="Filtros comerciales">
+  <label>Empresa<select name="empresa"><option value="TODAS">Todas las empresas</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option></select></label>
+  <label>Vendedor<select name="vendedor"><option value="">Todos los vendedores</option></select></label>
+  <label>Desde<input type="date" name="fecha_desde" required></label>
+  <label>Hasta · fecha de corte<input type="date" name="fecha_hasta" required></label>
+  {% if seguimiento %}<label class="com-search">Buscar cliente<input type="search" name="q" placeholder="Nombre del cliente" autocomplete="off"></label>{% endif %}
+  <div class="com-filter-actions"><button type="submit" class="com-primary">Aplicar</button><button type="button" data-period-preset="7d">7 días</button><button type="button" data-period-preset="30d">30 días</button><button type="button" id="com-mes" data-period-preset="this-month">Este mes</button><button type="button" data-period-preset="last-month">Mes anterior</button><button type="button" data-period-preset="year">Año actual</button><button type="button" id="com-limpiar">Limpiar</button></div>
+  {% if not seguimiento %}<details class="com-advanced"><summary>Filtros avanzados</summary><div class="com-inline"><label>Cliente exacto<input name="cliente" placeholder="Nombre registrado"></label><label>Producto exacto<input name="producto" placeholder="Nombre registrado"></label></div><p class="com-note">Estos filtros afectan ventas y composición. Los objetivos mantienen el alcance por empresa y vendedor.</p></details>{% endif %}
+</form>
+<p class="com-note">Ventas según criterio PRE/FAC por cliente. Las métricas dependen del historial registrado; los nombres diferentes no se fusionan automáticamente.</p>
+<div id="com-error" role="alert" class="com-error" hidden><span></span> <button type="button" id="com-retry">Reintentar</button></div>
+<p id="com-status" role="status" class="com-note"></p>

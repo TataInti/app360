@@ -1,688 +1,623 @@
-{% extends "base.html" %}
-
+{% extends 'base.html' %}
 {% block content %}
-<div class="container-fluid">
-    <div class="panel-header">
-        <div>
-            <h1><i class="bi bi-bullseye"></i> Objetivos de Venta</h1>
-            <span>Seguimiento de metas comerciales por vendedor y periodo</span>
-        </div>
-        <div class="action-bar">
-            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoObjetivo">
-                <i class="bi bi-plus-circle"></i> Nuevo objetivo
-            </button>
-        </div>
+<link rel="stylesheet" href="{{ asset('css/comercial_paneles.css') }}">
+<link rel="stylesheet" href="{{ asset('css/paneles_normalizados.css') }}">
+<main class="com-panel com-goals" data-mode="objetivos">
+  <header class="com-heading">
+    <div>
+      <p class="com-eyebrow">Panel estratégico</p>
+      <h1>Objetivos de vendedores</h1>
+      <p>Definí metas por vendedor, empresa y medida; revisá el avance con las ventas registradas.</p>
     </div>
-
-    <!-- Filtro de Periodo -->
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <div class="input-group">
-                <label class="input-group-text">Periodo</label>
-                <input type="month" id="periodoFiltro" class="form-control">
-                <button class="btn btn-secondary" onclick="cargarDatos()">
-                    <i class="bi bi-search"></i> Filtrar
-                </button>
-            </div>
-        </div>
+    <div class="com-goal-heading-actions">
+      <a class="com-link" href="/dashboard-comercial">Volver al panel de ventas →</a>
+      <button class="com-primary" id="nuevoObjetivo" type="button">＋ Nuevo objetivo</button>
     </div>
+  </header>
 
-    <!-- KPIs -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body text-center">
-                    <h6>Objetivos Activos</h6>
-                    <h2 id="kpiObjetivos">0</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body text-center">
-                    <h6>Cumplidos (100%+)</h6>
-                    <h2 id="kpiCumplidos">0</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-dark">
-                <div class="card-body text-center">
-                    <h6>En Progreso</h6>
-                    <h2 id="kpiEnProgreso">0</h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body text-center">
-                    <h6>Cumplimiento Promedio</h6>
-                    <h2 id="kpiPromedio">0%</h2>
-                </div>
-            </div>
-        </div>
+  <form id="filtrosObjetivos" class="com-filter objective-filter-bar" aria-label="Filtros de visualización de objetivos">
+    <label>Periodo
+      <input type="month" id="periodoFiltro" required>
+    </label>
+    <label>Vendedor
+      <select id="filtroVendedor">
+        <option value="">Todos los vendedores</option>
+      </select>
+    </label>
+    <label>Estado
+      <select id="filtroEstado">
+        <option value="">Todos los estados</option>
+        <option value="Cumplido">Cumplido</option>
+        <option value="En ritmo">En ritmo</option>
+        <option value="No iniciado">No iniciado</option>
+        <option value="Por debajo del ritmo esperado">Por debajo del ritmo esperado</option>
+        <option value="No cumplido">No cumplido</option>
+        <option value="Cobertura incompleta">Cobertura incompleta</option>
+        <option value="Sin meta">Sin meta</option>
+        <option value="Sin estado">Sin estado</option>
+      </select>
+    </label>
+    <label>Empresa
+      <select id="empresaFiltro">
+        <option value="TODAS">Todas las empresas</option>
+        <option value="CARNES">Carnes</option>
+        <option value="LACTEOS">Lácteos</option>
+      </select>
+    </label>
+    <label>Medida del objetivo
+      <select id="medidaFiltro">
+        <option value="importe">Moneda (ARS)</option>
+        <option value="cajas">Cajas</option>
+        <option value="kilos">Kilos</option>
+      </select>
+    </label>
+    <div class="com-filter-actions">
+      <button class="com-primary" type="submit">Aplicar filtros</button>
+      <button type="button" data-objetivos-preset="this-month">Mes actual</button>
+      <button type="button" data-objetivos-preset="last-month">Mes anterior</button>
+      <button type="button" id="limpiarFiltrosObjetivos">Limpiar</button>
     </div>
+    <p class="com-note com-filter-note">El realizado se calcula desde las ventas que alimentan el Panel Estratégico, con su criterio de comprobantes. Se actualiza al consultar y no se edita manualmente.</p>
+  </form>
 
-    <div class="row">
-        <!-- Ranking de Vendedores -->
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header bg-dark text-white">
-                    <h5><i class="bi bi-trophy"></i> Ranking de Vendedores</h5>
-                </div>
-                <div class="card-body p-0">
-                    <table class="table table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Vendedor</th>
-                                <th>Cumplimiento</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tablaRanking">
-                            <tr><td colspan="3" class="text-center">Cargando...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- Lista de Objetivos -->
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h5><i class="bi bi-list-check"></i> Objetivos del Periodo</h5>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Vendedor</th>
-                                    <th>Objetivo</th>
-                                    <th>Meta</th>
-                                    <th>Actual</th>
-                                    <th>Progreso</th>
-                                    <th>Estado</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tablaObjetivos">
-                                <tr><td colspan="7" class="text-center">Cargando...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
+  <section aria-labelledby="resumenObjetivosTitulo">
+    <h2 id="resumenObjetivosTitulo">Avance del periodo</h2>
+    <div id="metricasObjetivos" class="com-metrics" aria-live="polite">
+      <div class="com-metric"><span>Metas definidas</span><strong id="kpiMetas">—</strong><small>Vendedor, empresa y medida</small></div>
+      <div class="com-metric"><span>Cumplidas</span><strong id="kpiCumplidas">—</strong><small>Alcanzaron el 100%</small></div>
+      <div class="com-metric"><span>Debajo del ritmo</span><strong id="kpiAtencion">—</strong><small>Requieren revisión</small></div>
+      <div class="com-metric"><span>Avance promedio</span><strong id="kpiAvance">—</strong><small>Solo metas con avance calculable</small></div>
     </div>
+  </section>
 
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-1"><i class="bi bi-link-45deg"></i> Objetivos anteriores sin vincular</h5>
-                    <p class="text-muted small mb-0">Los objetivos originales se conservan. Seleccioná explícitamente vendedor comercial, empresa y medida; no se deducen del texto.</p>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle">
-                            <thead>
-                                <tr>
-                                    <th>Empleado</th>
-                                    <th>Periodo</th>
-                                    <th>Descripción</th>
-                                    <th>Meta</th>
-                                    <th>Vinculación comercial</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tablaObjetivosPendientes">
-                                <tr><td colspan="5" class="text-center text-muted">Cargando...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
+  <section class="com-section" aria-labelledby="tablaObjetivosTitulo">
+    <div class="com-section-head">
+      <div>
+        <h2 id="tablaObjetivosTitulo">Objetivos del periodo</h2>
+        <p id="contextoObjetivos" class="com-note" aria-live="polite"></p>
+      </div>
     </div>
-</div>
+    <div id="objetivosError" class="com-error" role="alert" hidden></div>
+    <p id="objetivosCarga" class="com-note" role="status">Cargando ventas y objetivos…</p>
+    <div id="tablaObjetivos" class="com-table-wrap com-objective-table"></div>
+  </section>
 
-<!-- Modal Nuevo Objetivo -->
+  <details class="com-section com-goal-legacy">
+    <summary class="com-disclosure">
+      <span>
+        <span class="com-disclosure-title">Objetivos anteriores sin vincular</span>
+        <span class="com-disclosure-subtitle">Vinculá cada registro histórico a vendedor comercial, empresa y medida.</span>
+      </span>
+      <span aria-hidden="true">＋</span>
+    </summary>
+    <p class="com-note">Los objetivos originales se conservan. La vinculación es explícita; no se deduce del nombre ni de la descripción.</p>
+    <p id="pendientesCarga" class="com-note" role="status">Cargando objetivos anteriores…</p>
+    <div id="pendientesError" class="com-error" role="alert" hidden></div>
+    <div id="tablaObjetivosPendientes" class="com-table-wrap"></div>
+  </details>
+</main>
+
 <div class="modal fade app-modal app-modal--blue" id="modalNuevoObjetivo" tabindex="-1" aria-labelledby="modalNuevoObjetivoTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header app-modal__header">
-                <div class="app-modal__title-group">
-                    <span class="app-modal__eyebrow">Meta comercial</span>
-                    <h5 class="modal-title" id="modalNuevoObjetivoTitle">Nuevo objetivo de venta</h5>
-                    <p class="app-modal__subtitle">Define el vendedor, el periodo y la meta para empezar a medir progreso.</p>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-            </div>
-            <form id="formObjetivo">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Vendedor *</label>
-                        <select class="form-select" name="employee_id" id="selectVendedor" required>
-                            <option value="">Seleccionar...</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Descripción *</label>
-                        <input type="text" class="form-control" name="description" placeholder="Ej: Cuota mensual enero" required>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Periodo *</label>
-                            <input type="month" class="form-control" name="period" id="periodoNuevo" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Meta ($) *</label>
-                            <input type="number" class="form-control" name="target_value" step="0.01" min="1" required>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Valor Actual ($)</label>
-                            <input type="number" class="form-control" name="current_value" step="0.01" value="0">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Estado</label>
-                            <select class="form-select" name="status">
-                                <option value="en progreso">En Progreso</option>
-                                <option value="cumplido">Cumplido</option>
-                                <option value="no cumplido">No Cumplido</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
-                </div>
-            </form>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header app-modal__header">
+        <div class="app-modal__title-group">
+          <span class="app-modal__eyebrow">Meta comercial</span>
+          <h2 class="modal-title" id="modalNuevoObjetivoTitle">Nuevo objetivo</h2>
+          <p class="app-modal__subtitle">Elegí qué resultado medir para este vendedor.</p>
         </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form id="formObjetivo">
+        <div class="modal-body">
+          <div class="com-goal-form-grid">
+            <label>Vendedor comercial *<select name="vendedor_ref" id="selectVendedor" required><option value="">Seleccionar…</option></select></label>
+            <label>Empresa *<select name="empresa" id="empresaObjetivo" required><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option></select></label>
+            <label>Medida *<select name="medida" id="medidaObjetivo" required><option value="importe">Moneda (ARS)</option><option value="cajas">Cajas</option><option value="kilos">Kilos</option></select></label>
+            <label>Periodo *<input type="month" name="mes" id="periodoNuevo" required></label>
+            <label class="com-goal-form-wide">Meta *<span class="com-goal-input-unit"><input type="number" name="meta" id="metaNueva" min="0.01" step="0.01" required><span id="unidadMeta">ARS</span></span></label>
+            <label class="com-goal-form-wide">Descripción <input type="text" name="descripcion" maxlength="250" placeholder="Opcional"></label>
+          </div>
+          <p class="com-note">El realizado se toma de las ventas procesadas del periodo. Importe se expresa en ARS; cajas y kilos suman las cantidades informadas por producto.</p>
+          <p id="nuevoObjetivoError" class="com-error" role="alert" hidden></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="com-primary">Guardar objetivo</button>
+        </div>
+      </form>
     </div>
+  </div>
 </div>
 
-<!-- Modal Editar Objetivo -->
 <div class="modal fade app-modal app-modal--amber" id="modalEditarObjetivo" tabindex="-1" aria-labelledby="modalEditarObjetivoTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header app-modal__header">
-                <div class="app-modal__title-group">
-                    <span class="app-modal__eyebrow">Seguimiento</span>
-                    <h5 class="modal-title" id="modalEditarObjetivoTitle">Actualizar progreso</h5>
-                    <p class="app-modal__subtitle">Ajusta el valor actual y el estado para mantener el tablero alineado con la realidad comercial.</p>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-            </div>
-            <form id="formEditar">
-                <input type="hidden" name="objetivo_id" id="editObjetivoId">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Vendedor</label>
-                        <input type="text" class="form-control" id="editVendedor" readonly>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Meta</label>
-                        <input type="text" class="form-control" id="editMeta" readonly>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Valor Actual ($) *</label>
-                        <input type="number" class="form-control" name="current_value" id="editActual" step="0.01" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Estado</label>
-                        <select class="form-select" name="status" id="editEstado">
-                            <option value="en progreso">En Progreso</option>
-                            <option value="cumplido">Cumplido</option>
-                            <option value="no cumplido">No Cumplido</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-primary">Actualizar</button>
-                </div>
-            </form>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header app-modal__header">
+        <div class="app-modal__title-group">
+          <span class="app-modal__eyebrow">Meta comercial</span>
+          <h2 class="modal-title" id="modalEditarObjetivoTitle">Actualizar meta</h2>
+          <p class="app-modal__subtitle">El realizado continúa vinculado a las ventas.</p>
         </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <form id="formEditar">
+        <input type="hidden" name="objetivo_id" id="editObjetivoId">
+        <div class="modal-body">
+          <dl class="com-goal-context" id="editObjetivoContexto"></dl>
+          <label>Meta *<span class="com-goal-input-unit"><input type="number" name="meta" id="editMeta" min="0.01" step="0.01" required><span id="unidadMetaEdit"></span></span></label>
+          <label class="com-goal-form-wide">Descripción <input type="text" name="descripcion" id="editDescripcion" maxlength="250" placeholder="Opcional"></label>
+          <p class="com-note">El avance real se recalcula con las ventas del periodo.</p>
+          <p id="editarObjetivoError" class="com-error" role="alert" hidden></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="com-primary">Guardar cambios</button>
+        </div>
+      </form>
     </div>
+  </div>
 </div>
 
 <script>
-const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+const MEDIDAS = {
+  importe: { nombre: 'Moneda (ARS)', unidad: 'ARS', decimales: 2 },
+  cajas: { nombre: 'Cajas', unidad: 'cajas', decimales: 2 },
+  kilos: { nombre: 'Kilos', unidad: 'kg', decimales: 2 },
+};
+const EMPRESAS = { CARNES: 'Carnes', LACTEOS: 'Lácteos' };
+const estadoObjetivos = { vendedores: [], vendedoresFiltro: [], filas: new Map() };
 
-function getUI() {
-    return window.App360UI;
+function escapeHtml(value) {
+  const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  return String(value ?? '').replace(/[&<>"']/g, character => entities[character]);
+}
+
+function mesLocal() {
+  const hoy = new Date();
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function formatNumber(value, digits = 2) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  return number.toLocaleString('es-AR', { maximumFractionDigits: digits });
+}
+
+function formatMeasure(value, measure) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+  if (measure === 'importe') {
+    return Number(value).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 2 });
+  }
+  const unit = measure === 'cajas' ? 'cajas' : 'kg';
+  return `${formatNumber(value)} ${unit}`;
+}
+
+function formatPercent(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+  return `${formatNumber(Number(value) * 100, 1)}%`;
 }
 
 function notify(message, variant = 'info', options = {}) {
-    const ui = getUI();
-    if (ui && typeof ui.notify === 'function') {
-        ui.notify(message, variant, options);
-        return;
-    }
-    window.alert(message);
+  const ui = window.App360UI;
+  if (ui && typeof ui.notify === 'function') {
+    ui.notify(message, variant, options);
+    return;
+  }
+  window.alert(message);
 }
 
-function askConfirmation(options) {
-    const ui = getUI();
-    if (ui && typeof ui.confirm === 'function') {
-        return ui.confirm(options);
-    }
-    return Promise.resolve(window.confirm(options.message || options.title || 'Confirmar accion'));
+function confirmAction(options) {
+  const ui = window.App360UI;
+  if (ui && typeof ui.confirm === 'function') return ui.confirm(options);
+  return Promise.resolve(window.confirm(options.message || options.title || 'Confirmar acción'));
 }
 
-function showModal(modalId) {
-    const ui = getUI();
-    if (ui && typeof ui.openModal === 'function') {
-        ui.openModal(modalId);
-        return;
-    }
-    bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).show();
+function openModal(id) {
+  const ui = window.App360UI;
+  if (ui && typeof ui.openModal === 'function') return ui.openModal(id);
+  bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).show();
 }
 
-function hideModal(modalId) {
-    const ui = getUI();
-    if (ui && typeof ui.closeModal === 'function') {
-        ui.closeModal(modalId);
-        return;
-    }
-    bootstrap.Modal.getOrCreateInstance(document.getElementById(modalId)).hide();
+function closeModal(id) {
+  const ui = window.App360UI;
+  if (ui && typeof ui.closeModal === 'function') return ui.closeModal(id);
+  bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).hide();
 }
 
-function alert(message) {
-    const content = String(message || '');
-    const normalized = content.toLowerCase();
-    let variant = 'info';
-    let title = 'Informacion';
-
-    if (normalized.startsWith('error') || normalized.includes('no se pudo')) {
-        variant = 'danger';
-        title = 'No se pudo completar';
-    } else if (normalized.includes('eliminar')) {
-        variant = 'warning';
-        title = 'Revisar accion';
-    } else if (normalized.includes('actualiz') || normalized.includes('guardad')) {
-        variant = 'success';
-        title = 'Listo';
-    }
-
-    notify(content, variant, { title });
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(data.error || 'No se pudo completar la operación.');
+    error.status = response.status;
+    throw error;
+  }
+  return data;
 }
 
-function escapeHtml(value) {
-    const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-    return String(value ?? '').replace(/[&<>"']/g, character => entities[character]);
+function setError(id, message = '') {
+  const element = document.getElementById(id);
+  element.textContent = message;
+  element.hidden = !message;
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    const hoy = new Date();
-    const periodo = hoy.toISOString().slice(0, 7);
-    document.getElementById('periodoFiltro').value = periodo;
-    document.getElementById('periodoNuevo').value = periodo;
-    
-    cargarVendedores();
-    cargarDatos();
-    cargarObjetivosSinVincular();
-});
-
-async function cargarVendedores() {
-    try {
-        const resp = await fetch('/api/comercial/vendedores');
-        const data = await resp.json();
-        const select = document.getElementById('selectVendedor');
-        (data.vendedores || []).forEach(v => {
-            select.innerHTML += `<option value="${v.id}">${v.nombre}</option>`;
-        });
-    } catch(e) {
-        console.error('Error cargando vendedores:', e);
-    }
+function estadoClass(estado) {
+  if (estado === 'Cumplido' || estado === 'En ritmo') return 'active';
+  if (estado === 'Por debajo del ritmo esperado' || estado === 'No cumplido' || estado === 'Cobertura incompleta') return 'attention';
+  return '';
 }
 
-async function cargarObjetivosSinVincular() {
-    const tbody = document.getElementById('tablaObjetivosPendientes');
-    if (!tbody) return;
-
-    try {
-        const response = await fetch('/api/objetivos-comerciales/pendientes');
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'No se pudieron cargar los objetivos pendientes');
-
-        const pendientes = data.pendientes || [];
-        const vendedores = data.vendedores_comerciales || [];
-        if (!pendientes.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay objetivos anteriores sin vincular.</td></tr>';
-            return;
-        }
-
-        const opcionesVendedores = vendedores.map(v =>
-            `<option value="${escapeHtml(v.id)}">${escapeHtml(v.nombre_visible)}</option>`
-        ).join('');
-
-        tbody.innerHTML = pendientes.map(goal => {
-            const goalId = escapeHtml(goal.goal_id);
-            const mesSugerido = goal.mes_sugerido || '';
-            const mesControl = mesSugerido
-                ? `<div class="small text-muted">Mes del periodo: <strong>${escapeHtml(mesSugerido)}</strong></div>`
-                : `<label class="form-label small mb-1">Mes *</label><input type="month" class="form-control form-control-sm" data-mes required aria-label="Mes comercial para ${escapeHtml(goal.empleado)}">`;
-            const meta = Number(goal.meta);
-            const metaTexto = Number.isFinite(meta) ? meta.toLocaleString('es-AR') : escapeHtml(goal.meta);
-
-            return `
-                <tr data-goal-id="${goalId}" data-mes-sugerido="${escapeHtml(mesSugerido)}">
-                    <td>${escapeHtml(goal.empleado || 'Sin empleado')}</td>
-                    <td>${escapeHtml(goal.periodo || 'Sin periodo')}</td>
-                    <td>${escapeHtml(goal.descripcion || '')}</td>
-                    <td>${metaTexto}</td>
-                    <td>
-                        <form data-conversion-form>
-                        <div class="row g-2">
-                            <div class="col-lg-4">
-                                <label class="form-label small mb-1">Vendedor comercial *</label>
-                                <select class="form-select form-select-sm" data-vendedor required aria-label="Vendedor comercial para ${escapeHtml(goal.empleado)}">
-                                    <option value="">Seleccionar...</option>${opcionesVendedores}
-                                </select>
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label small mb-1">Empresa *</label>
-                                <select class="form-select form-select-sm" data-empresa required aria-label="Empresa para ${escapeHtml(goal.empleado)}">
-                                    <option value="">Seleccionar...</option>
-                                    <option value="CARNES">Carnes</option>
-                                    <option value="LACTEOS">Lácteos</option>
-                                </select>
-                            </div>
-                            <div class="col-lg-2">
-                                <label class="form-label small mb-1">Medida *</label>
-                                <select class="form-select form-select-sm" data-medida required aria-label="Medida para ${escapeHtml(goal.empleado)}">
-                                    <option value="">Seleccionar...</option>
-                                    <option value="importe">Importe</option>
-                                    <option value="cajas">Cajas</option>
-                                    <option value="kilos">Kilos</option>
-                                </select>
-                            </div>
-                            <div class="col-lg-3">
-                                ${mesControl}
-                                <button type="submit" class="btn btn-sm btn-primary mt-2" data-convertir-goal="${goalId}">
-                                    <i class="bi bi-link-45deg"></i> Convertir
-                                </button>
-                            </div>
-                        </div>
-                        </form>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-    } catch (error) {
-        console.error('Error cargando objetivos anteriores pendientes:', error);
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">No se pudieron cargar los objetivos pendientes. Recargá para reintentar.</td></tr>';
-    }
+function renderMetricas(rows) {
+  const conMeta = rows.filter(row => row.meta !== null && row.meta !== undefined);
+  const cumplidas = conMeta.filter(row => row.estado === 'Cumplido').length;
+  const atencion = conMeta.filter(row => ['Por debajo del ritmo esperado', 'No cumplido'].includes(row.estado)).length;
+  const avances = conMeta.map(row => Number(row.cumplimiento)).filter(Number.isFinite);
+  const promedio = avances.length ? `${formatNumber(avances.reduce((sum, value) => sum + value, 0) / avances.length * 100, 0)}%` : '—';
+  document.getElementById('kpiMetas').textContent = conMeta.length.toLocaleString('es-AR');
+  document.getElementById('kpiCumplidas').textContent = cumplidas.toLocaleString('es-AR');
+  document.getElementById('kpiAtencion').textContent = atencion.toLocaleString('es-AR');
+  document.getElementById('kpiAvance').textContent = promedio;
 }
 
-document.getElementById('tablaObjetivosPendientes')?.addEventListener('submit', function(event) {
-    const form = event.target.closest?.('[data-conversion-form]');
-    if (!form) return;
-    event.preventDefault();
-    convertirObjetivoAnterior(form);
-});
+function vendedorReferencia(row) {
+  const nombre = row.nombre_visible || row.vendedor || '';
+  return row.vendedor_id !== null && row.vendedor_id !== undefined
+    ? `id:${row.vendedor_id}`
+    : `nombre:${nombre}`;
+}
 
-async function convertirObjetivoAnterior(form) {
-    const row = form.closest('tr');
-    const button = form.querySelector('[data-convertir-goal]');
-    if (!row || !button) return;
-    const vendedor = row.querySelector('[data-vendedor]');
-    const empresa = row.querySelector('[data-empresa]');
-    const medida = row.querySelector('[data-medida]');
-    const mesControl = row.querySelector('[data-mes]');
+function actualizarVendedores(rows) {
+  const vendedores = new Map();
+  rows.forEach(row => {
+    const nombre = row.nombre_visible || row.vendedor || '';
+    if (!nombre) return;
+    const referencia = vendedorReferencia(row);
+    const clave = row.vendedor_id !== null && row.vendedor_id !== undefined
+      ? `id:${row.vendedor_id}`
+      : `nombre:${nombre.trim().toLocaleLowerCase('es-AR')}`;
+    if (!vendedores.has(clave)) vendedores.set(clave, { referencia, nombre, activo: row.vendedor_activo !== false });
+  });
+  estadoObjetivos.vendedoresFiltro = [...vendedores.values()];
+  estadoObjetivos.vendedores = estadoObjetivos.vendedoresFiltro.filter(vendedor => vendedor.activo);
 
-    for (const control of [vendedor, empresa, medida]) {
-        if (!control || !control.value) {
-            control?.reportValidity();
-            notify('Elegí vendedor comercial, empresa y medida antes de convertir.', 'warning');
-            return;
-        }
+  const filtroVendedor = document.getElementById('filtroVendedor');
+  const filtroSeleccionado = filtroVendedor.value;
+  filtroVendedor.innerHTML = '<option value="">Todos los vendedores</option>' + estadoObjetivos.vendedoresFiltro.map(v => `<option value="${escapeHtml(v.referencia)}">${escapeHtml(v.nombre)}</option>`).join('');
+  if (estadoObjetivos.vendedoresFiltro.some(v => v.referencia === filtroSeleccionado)) filtroVendedor.value = filtroSeleccionado;
+
+  const selectVendedor = document.getElementById('selectVendedor');
+  const vendedorSeleccionado = selectVendedor.value;
+  selectVendedor.innerHTML = '<option value="">Seleccionar…</option>' + estadoObjetivos.vendedores.map(v => `<option value="${escapeHtml(v.referencia)}">${escapeHtml(v.nombre)}</option>`).join('');
+  if (estadoObjetivos.vendedores.some(v => v.referencia === vendedorSeleccionado)) selectVendedor.value = vendedorSeleccionado;
+}
+
+function filasParaVista(data, empresa) {
+  if (empresa !== 'TODAS') return data.objetivos || [];
+  return (data.objetivos || []).flatMap(vendedor => vendedor.detalle_empresas || []);
+}
+
+function renderObjetivos(rows, mes) {
+  actualizarVendedores(rows);
+  const vendedor = document.getElementById('filtroVendedor').value;
+  const estadoFiltro = document.getElementById('filtroEstado').value;
+  rows = rows.filter(row => {
+    const estado = row.estado || (row.meta === null ? 'Sin meta' : 'Sin estado');
+    return (!vendedor || vendedorReferencia(row) === vendedor)
+      && (!estadoFiltro || estado === estadoFiltro);
+  });
+  estadoObjetivos.filas = new Map(rows.filter(row => row.id !== null && row.id !== undefined).map(row => [String(row.id), row]));
+  renderMetricas(rows);
+  const tbody = rows.map(row => {
+    const vendedor = row.nombre_visible || row.vendedor || 'Sin vendedor';
+    const empresa = row.empresa || '—';
+    const medida = row.medida || document.getElementById('medidaFiltro').value;
+    const estado = row.estado || (row.meta === null ? 'Sin meta' : 'Sin estado');
+    const progreso = row.cumplimiento === null || row.cumplimiento === undefined ? null : Number(row.cumplimiento) * 100;
+    const ancho = Number.isFinite(progreso) ? Math.max(0, Math.min(progreso, 100)) : 0;
+    const barra = progreso === null
+      ? '<span class="com-note">Definí una meta para medir el avance.</span>'
+      : `<div class="com-goal-progress" role="progressbar" aria-label="Avance de ${escapeHtml(vendedor)} en ${escapeHtml(EMPRESAS[empresa] || empresa)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.max(0, Math.min(Math.round(progreso), 100))}"><span class="${progreso >= 100 ? 'is-complete' : estadoClass(estado)}" style="width:${ancho}%"></span></div><span class="com-goal-percent">${formatPercent(row.cumplimiento)}</span>`;
+    let acciones = '';
+    if (row.id !== null && row.id !== undefined) {
+      acciones = `<div class="com-goal-actions"><button type="button" data-action="edit" data-id="${escapeHtml(row.id)}" aria-label="Editar meta de ${escapeHtml(vendedor)}">Editar meta</button><button type="button" class="com-goal-delete" data-action="delete" data-id="${escapeHtml(row.id)}" aria-label="Eliminar meta de ${escapeHtml(vendedor)}">Eliminar</button></div>`;
+    } else {
+      const referencia = vendedorReferencia(row);
+      const puedeCrear = estadoObjetivos.vendedores.some(item => item.referencia === referencia);
+      acciones = puedeCrear
+        ? `<button type="button" data-action="create" data-vendedor-ref="${escapeHtml(referencia)}" data-empresa="${escapeHtml(empresa)}" data-medida="${escapeHtml(medida)}" data-mes="${escapeHtml(mes)}">Crear meta</button>`
+        : '<span class="com-note">Vendedor inactivo</span>';
     }
+    return `<tr>
+      <td data-label="Vendedor"><strong>${escapeHtml(vendedor)}</strong></td>
+      <td data-label="Empresa">${escapeHtml(EMPRESAS[empresa] || empresa)}</td>
+      <td data-label="Medida">${escapeHtml(MEDIDAS[medida]?.nombre || medida)}</td>
+      <td data-label="Meta" class="num">${row.meta === null || row.meta === undefined ? '<span class="com-badge">Sin meta</span>' : escapeHtml(formatMeasure(row.meta, medida))}</td>
+      <td data-label="Realizado" class="num">${escapeHtml(formatMeasure(row.realizado, medida))}</td>
+      <td data-label="Avance"><div class="com-goal-progress-cell">${barra}</div></td>
+      <td data-label="Estado"><span class="com-badge ${estadoClass(estado)}">${escapeHtml(estado)}</span></td>
+      <td data-label="Acciones">${acciones}</td>
+    </tr>`;
+  }).join('');
 
-    const mesSugerido = row.dataset.mesSugerido || '';
-    if (!mesSugerido && (!mesControl || !mesControl.value)) {
-        mesControl?.reportValidity();
-        notify('Este periodo no es YYYY-MM. Indicá el mes antes de convertir.', 'warning');
-        return;
-    }
-
-    const payload = {
-        goal_id: Number(row.dataset.goalId),
-        vendedor_id: Number(vendedor.value),
-        empresa: empresa.value,
-        medida: medida.value,
-    };
-    if (!mesSugerido) payload.mes = mesControl.value;
-
-    const textoOriginal = button.innerHTML;
-    button.disabled = true;
-    button.textContent = 'Convirtiendo...';
-    try {
-        const response = await fetch('/api/objetivos-comerciales/convertir', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken || '',
-            },
-            body: JSON.stringify(payload),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (response.status === 409) {
-            notify(data.error || 'Ya existe una conversión o una meta para esa combinación.', 'warning', { title: 'No se pudo convertir' });
-            await cargarObjetivosSinVincular();
-            return;
-        }
-        if (!response.ok) {
-            notify(data.error || 'No se pudo convertir el objetivo anterior.', 'danger', { title: 'No se pudo convertir' });
-            return;
-        }
-
-        notify('Objetivo anterior vinculado correctamente.', 'success', { title: 'Objetivo convertido' });
-        await cargarObjetivosSinVincular();
-    } catch (error) {
-        console.error('Error convirtiendo objetivo anterior:', error);
-        notify('No se pudo conectar para convertir el objetivo.', 'danger', { title: 'Error de conexión' });
-    } finally {
-        if (button.isConnected) {
-            button.disabled = false;
-            button.innerHTML = textoOriginal;
-        }
-    }
+  const empresa = document.getElementById('empresaFiltro').value;
+  const medida = MEDIDAS[document.getElementById('medidaFiltro').value]?.nombre || '';
+  document.getElementById('contextoObjetivos').textContent = `${mes} · ${empresa === 'TODAS' ? 'Todas las empresas' : EMPRESAS[empresa]} · ${medida}. El avance es mensual y se actualiza con las ventas disponibles al consultar.`;
+  document.getElementById('tablaObjetivos').innerHTML = `<table><thead><tr><th>Vendedor</th><th>Empresa</th><th>Medida</th><th class="num">Meta</th><th class="num">Realizado al corte</th><th>Avance</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${tbody || '<tr><td colspan="8" class="com-empty">No hay vendedores comerciales para mostrar.</td></tr>'}</tbody></table>`;
 }
 
 async function cargarDatos() {
-    const periodo = document.getElementById('periodoFiltro').value;
-    
-    // Cargar objetivos
-    try {
-        const resp = await fetch(`/api/comercial/objetivos?periodo=${periodo}`);
-        const data = await resp.json();
-        const objetivos = data.objetivos || [];
-        
-        // Calcular KPIs
-        let cumplidos = 0, enProgreso = 0, sumaProg = 0;
-        objetivos.forEach(o => {
-            if (o.progreso >= 100) cumplidos++;
-            else enProgreso++;
-            sumaProg += o.progreso;
-        });
-        
-        document.getElementById('kpiObjetivos').textContent = objetivos.length;
-        document.getElementById('kpiCumplidos').textContent = cumplidos;
-        document.getElementById('kpiEnProgreso').textContent = enProgreso;
-        document.getElementById('kpiPromedio').textContent = objetivos.length ? 
-            Math.round(sumaProg / objetivos.length) + '%' : '0%';
-        
-        // Tabla de objetivos
-        const tbody = document.getElementById('tablaObjetivos');
-        if (objetivos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No hay objetivos para este periodo</td></tr>';
-        } else {
-            tbody.innerHTML = objetivos.map(o => {
-                const progClass = o.progreso >= 100 ? 'bg-success' : o.progreso >= 50 ? 'bg-warning' : 'bg-danger';
-                return `
-                <tr>
-                    <td>${o.empleado}</td>
-                    <td>${o.descripcion}</td>
-                    <td>$${o.meta.toLocaleString('es-AR')}</td>
-                    <td>$${o.valor_actual.toLocaleString('es-AR')}</td>
-                    <td>
-                        <div class="progress" style="height: 20px;">
-                            <div class="progress-bar ${progClass}" style="width: ${Math.min(o.progreso, 100)}%">
-                                ${o.progreso}%
-                            </div>
-                        </div>
-                    </td>
-                    <td><span class="badge ${o.estado === 'cumplido' ? 'bg-success' : 'bg-secondary'}">${o.estado}</span></td>
-                    <td>
-                        <button class="btn btn-sm btn-outline-primary" onclick="editarObjetivo(${o.id}, '${o.empleado}', ${o.meta}, ${o.valor_actual}, '${o.estado}')">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="eliminarObjetivo(${o.id})">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </td>
-                </tr>
-            `}).join('');
-        }
-    } catch(e) {
-        console.error('Error cargando objetivos:', e);
-    }
-    
-    // Cargar ranking
-    try {
-        const resp = await fetch(`/api/comercial/ranking?periodo=${periodo}`);
-        const data = await resp.json();
-        const ranking = data.ranking || [];
-        
-        const tbody = document.getElementById('tablaRanking');
-        if (ranking.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Sin datos</td></tr>';
-        } else {
-            tbody.innerHTML = ranking.map((r, i) => {
-                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
-                const progClass = r.cumplimiento >= 100 ? 'text-success' : r.cumplimiento >= 50 ? 'text-warning' : 'text-danger';
-                return `
-                <tr>
-                    <td>${medal}</td>
-                    <td>${r.empleado}</td>
-                    <td class="${progClass}"><strong>${r.cumplimiento}%</strong></td>
-                </tr>
-            `}).join('');
-        }
-    } catch(e) {
-        console.error('Error cargando ranking:', e);
-    }
+  const mes = document.getElementById('periodoFiltro').value;
+  const empresa = document.getElementById('empresaFiltro').value;
+  const medida = document.getElementById('medidaFiltro').value;
+  if (!mes) return;
+  const loading = document.getElementById('objetivosCarga');
+  loading.hidden = false;
+  document.getElementById('tablaObjetivos').innerHTML = '';
+  setError('objetivosError');
+  try {
+    const params = new URLSearchParams({ mes, empresa, medida });
+    const data = await requestJson(`/api/objetivos-comerciales?${params}`);
+    const rows = filasParaVista(data, empresa);
+    renderObjetivos(rows, mes);
+  } catch (error) {
+    setError('objetivosError', error.message || 'No se pudieron cargar los objetivos y las ventas.');
+    document.getElementById('kpiMetas').textContent = '—';
+    document.getElementById('kpiCumplidas').textContent = '—';
+    document.getElementById('kpiAtencion').textContent = '—';
+    document.getElementById('kpiAvance').textContent = '—';
+  } finally {
+    loading.hidden = true;
+  }
 }
 
-function editarObjetivo(id, empleado, meta, actual, estado) {
-    document.getElementById('editObjetivoId').value = id;
-    document.getElementById('editVendedor').value = empleado;
-    document.getElementById('editMeta').value = '$' + meta.toLocaleString('es-AR');
-    document.getElementById('editActual').value = actual;
-    document.getElementById('editEstado').value = estado;
-    
-    showModal('modalEditarObjetivo');
+function abrirNuevoObjetivo(prefill = {}) {
+  const form = document.getElementById('formObjetivo');
+  form.reset();
+  document.getElementById('periodoNuevo').value = prefill.mes || document.getElementById('periodoFiltro').value || mesLocal();
+  document.getElementById('selectVendedor').value = prefill.vendedorRef || '';
+  document.getElementById('empresaObjetivo').value = prefill.empresa || (document.getElementById('empresaFiltro').value === 'TODAS' ? 'CARNES' : document.getElementById('empresaFiltro').value);
+  document.getElementById('medidaObjetivo').value = prefill.medida || document.getElementById('medidaFiltro').value;
+  document.getElementById('metaNueva').value = '';
+  actualizarUnidadMeta();
+  setError('nuevoObjetivoError');
+  openModal('modalNuevoObjetivo');
+}
+
+function actualizarUnidadMeta() {
+  const medida = document.getElementById('medidaObjetivo').value;
+  document.getElementById('unidadMeta').textContent = MEDIDAS[medida]?.unidad || '';
+  document.getElementById('metaNueva').setAttribute('aria-label', `Meta en ${MEDIDAS[medida]?.nombre || medida}`);
+}
+
+function abrirEdicion(row) {
+  const medida = row.medida || document.getElementById('medidaFiltro').value;
+  document.getElementById('editObjetivoId').value = row.id;
+  document.getElementById('editMeta').value = row.meta ?? '';
+  document.getElementById('editDescripcion').value = row.descripcion || '';
+  document.getElementById('editMeta').setAttribute('aria-label', `Meta en ${MEDIDAS[medida]?.nombre || medida}`);
+  document.getElementById('unidadMetaEdit').textContent = MEDIDAS[medida]?.unidad || '';
+  document.getElementById('editObjetivoContexto').innerHTML = `<div><dt>Vendedor</dt><dd>${escapeHtml(row.nombre_visible || row.vendedor)}</dd></div><div><dt>Empresa</dt><dd>${escapeHtml(EMPRESAS[row.empresa] || row.empresa)}</dd></div><div><dt>Medida</dt><dd>${escapeHtml(MEDIDAS[medida]?.nombre || medida)}</dd></div><div><dt>Periodo</dt><dd>${escapeHtml(row.mes || row.periodo)}</dd></div>`;
+  setError('editarObjetivoError');
+  openModal('modalEditarObjetivo');
 }
 
 async function eliminarObjetivo(id) {
-    const confirmed = await askConfirmation({
-        variant: 'danger',
-        title: 'Eliminar objetivo',
-        subtitle: 'La baja remueve la meta del periodo actual.',
-        message: 'Confirma que queres eliminar este objetivo comercial.',
-        confirmText: 'Eliminar',
+  const row = estadoObjetivos.filas.get(String(id));
+  const confirmado = await confirmAction({
+    variant: 'danger',
+    title: 'Eliminar objetivo',
+    subtitle: 'Se quitará la meta del periodo seleccionado.',
+    message: `¿Querés eliminar la meta de ${row?.nombre_visible || row?.vendedor || 'este vendedor'}?`,
+    confirmText: 'Eliminar',
+  });
+  if (!confirmado) return;
+  try {
+    await requestJson(`/api/objetivos-comerciales/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'X-CSRFToken': csrfToken },
     });
-    if (!confirmed) return;
-    
-    try {
-        const resp = await fetch(`/api/comercial/objetivos/${id}`, {
-            method: 'DELETE',
-            headers: { 'X-CSRFToken': csrfToken }
-        });
-        if (resp.ok) {
-            cargarDatos();
-            notify('Objetivo eliminado correctamente.', 'success', { title: 'Objetivo actualizado' });
-        } else {
-            alert('Error al eliminar');
-        }
-    } catch(e) {
-        alert('Error de conexión');
-    }
+    await cargarDatos();
+    notify('Objetivo eliminado.', 'success', { title: 'Objetivo actualizado' });
+  } catch (error) {
+    notify(error.message, 'danger', { title: 'No se pudo eliminar' });
+  }
 }
 
-// Form nuevo objetivo
-document.getElementById('formObjetivo')?.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const formData = new FormData(this);
-    const data = {
-        employee_id: parseInt(formData.get('employee_id')),
-        description: formData.get('description'),
-        period: formData.get('period'),
-        target_value: parseFloat(formData.get('target_value')),
-        current_value: parseFloat(formData.get('current_value') || 0),
-        status: formData.get('status')
-    };
-    
-    try {
-        const resp = await fetch('/api/comercial/objetivos', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify(data)
-        });
-        
-        if (resp.ok) {
-            hideModal('modalNuevoObjetivo');
-            this.reset();
-            document.getElementById('periodoNuevo').value = document.getElementById('periodoFiltro').value;
-            cargarDatos();
-            notify('Objetivo creado correctamente.', 'success', { title: 'Objetivo guardado' });
-        } else {
-            const err = await resp.json();
-            alert('Error: ' + (err.error || 'No se pudo guardar'));
-        }
-    } catch(e) {
-        alert('Error de conexión');
-    }
+document.getElementById('filtrosObjetivos').addEventListener('submit', event => {
+  event.preventDefault();
+  cargarDatos();
 });
 
-// Form editar objetivo
-document.getElementById('formEditar')?.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const id = document.getElementById('editObjetivoId').value;
-    const data = {
-        current_value: parseFloat(document.getElementById('editActual').value),
-        status: document.getElementById('editEstado').value
-    };
-    
-    try {
-        const resp = await fetch(`/api/comercial/objetivos/${id}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify(data)
-        });
-        
-        if (resp.ok) {
-            hideModal('modalEditarObjetivo');
-            cargarDatos();
-            notify('Objetivo actualizado correctamente.', 'success', { title: 'Seguimiento guardado' });
-        } else {
-            alert('Error al actualizar');
-        }
-    } catch(e) {
-        alert('Error de conexión');
+document.querySelectorAll('[data-objetivos-preset]').forEach(button => {
+  button.addEventListener('click', () => {
+    const fecha = new Date();
+    if (button.dataset.objetivosPreset === 'last-month') fecha.setMonth(fecha.getMonth() - 1);
+    document.getElementById('periodoFiltro').value = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+    cargarDatos();
+  });
+});
+
+document.getElementById('limpiarFiltrosObjetivos').addEventListener('click', () => {
+  document.getElementById('periodoFiltro').value = mesLocal();
+  document.getElementById('filtroVendedor').value = '';
+  document.getElementById('filtroEstado').value = '';
+  document.getElementById('empresaFiltro').value = 'TODAS';
+  document.getElementById('medidaFiltro').value = 'importe';
+  cargarDatos();
+});
+
+document.getElementById('nuevoObjetivo').addEventListener('click', () => abrirNuevoObjetivo());
+document.getElementById('medidaObjetivo').addEventListener('change', actualizarUnidadMeta);
+
+document.getElementById('tablaObjetivos').addEventListener('click', event => {
+  const button = event.target.closest('[data-action]');
+  if (!button) return;
+  const action = button.dataset.action;
+  if (action === 'edit') {
+    const row = estadoObjetivos.filas.get(String(button.dataset.id));
+    if (row) abrirEdicion(row);
+  } else if (action === 'delete') {
+    eliminarObjetivo(button.dataset.id);
+  } else if (action === 'create') {
+    abrirNuevoObjetivo({
+      vendedorRef: button.dataset.vendedorRef,
+      empresa: button.dataset.empresa,
+      medida: button.dataset.medida,
+      mes: button.dataset.mes,
+    });
+  }
+});
+
+document.getElementById('formObjetivo').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const vendedorReferenciaSeleccionada = form.elements.vendedor_ref.value;
+  const payload = {
+    empresa: form.elements.empresa.value,
+    medida: form.elements.medida.value,
+    mes: form.elements.mes.value,
+    meta: Number(form.elements.meta.value),
+    descripcion: form.elements.descripcion.value.trim() || null,
+  };
+  if (vendedorReferenciaSeleccionada.startsWith('id:')) {
+    payload.vendedor_id = Number(vendedorReferenciaSeleccionada.slice(3));
+  } else if (vendedorReferenciaSeleccionada.startsWith('nombre:')) {
+    payload.vendedor_nombre = vendedorReferenciaSeleccionada.slice(7);
+  }
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  setError('nuevoObjetivoError');
+  try {
+    await requestJson('/api/objetivos-comerciales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify(payload),
+    });
+    closeModal('modalNuevoObjetivo');
+    await cargarDatos();
+    notify('Objetivo guardado. El realizado se calculará desde las ventas.', 'success', { title: 'Meta creada' });
+  } catch (error) {
+    setError('nuevoObjetivoError', error.message);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.getElementById('formEditar').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const id = form.elements.objetivo_id.value;
+  const payload = {
+    meta: Number(form.elements.meta.value),
+    descripcion: form.elements.descripcion.value.trim() || null,
+  };
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  setError('editarObjetivoError');
+  try {
+    await requestJson(`/api/objetivos-comerciales/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify(payload),
+    });
+    closeModal('modalEditarObjetivo');
+    await cargarDatos();
+    notify('La meta se actualizó correctamente.', 'success', { title: 'Objetivo actualizado' });
+  } catch (error) {
+    setError('editarObjetivoError', error.message);
+  } finally {
+    button.disabled = false;
+  }
+});
+
+async function cargarObjetivosSinVincular() {
+  const tbody = document.getElementById('tablaObjetivosPendientes');
+  const loading = document.getElementById('pendientesCarga');
+  loading.hidden = false;
+  setError('pendientesError');
+  try {
+    const data = await requestJson('/api/objetivos-comerciales/pendientes');
+    const pendientes = data.pendientes || [];
+    const vendedores = data.vendedores_comerciales || [];
+    const opcionesVendedores = vendedores.map(v => `<option value="${escapeHtml(v.id)}">${escapeHtml(v.nombre_visible)}</option>`).join('');
+    if (!pendientes.length) {
+      tbody.innerHTML = '<p class="com-empty">No hay objetivos anteriores sin vincular.</p>';
+      return;
     }
+    const filas = pendientes.map(goal => {
+      const mes = goal.mes_sugerido || '';
+      const controlMes = mes
+        ? `<span>${escapeHtml(mes)}</span>`
+        : `<input type="month" data-mes required aria-label="Mes comercial para ${escapeHtml(goal.empleado)}">`;
+      return `<tr data-goal-id="${escapeHtml(goal.goal_id)}" data-mes-sugerido="${escapeHtml(mes)}">
+        <td data-label="Empleado">${escapeHtml(goal.empleado || 'Sin empleado')}</td>
+        <td data-label="Periodo">${escapeHtml(goal.periodo || 'Sin periodo')}</td>
+        <td data-label="Descripción">${escapeHtml(goal.descripcion || '')}</td>
+        <td data-label="Meta" class="num">${formatNumber(goal.meta)}</td>
+        <td data-label="Vínculo comercial"><form data-conversion-form class="com-goal-conversion">
+          <label>Vendedor<select data-vendedor required><option value="">Seleccionar…</option>${opcionesVendedores}</select></label>
+          <label>Empresa<select data-empresa required><option value="">Seleccionar…</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option></select></label>
+          <label>Medida<select data-medida required><option value="">Seleccionar…</option><option value="importe">Moneda (ARS)</option><option value="cajas">Cajas</option><option value="kilos">Kilos</option></select></label>
+          <label>Mes ${controlMes}</label>
+          <button type="submit" class="com-primary" data-convertir-goal="${escapeHtml(goal.goal_id)}">Vincular</button>
+        </form></td>
+      </tr>`;
+    }).join('');
+    tbody.innerHTML = `<table><thead><tr><th>Empleado</th><th>Periodo original</th><th>Descripción</th><th class="num">Meta</th><th>Vinculación comercial</th></tr></thead><tbody>${filas}</tbody></table>`;
+  } catch (error) {
+    setError('pendientesError', error.message || 'No se pudieron cargar los objetivos anteriores.');
+  } finally {
+    loading.hidden = true;
+  }
+}
+
+document.getElementById('tablaObjetivosPendientes').addEventListener('submit', async event => {
+  const form = event.target.closest('[data-conversion-form]');
+  if (!form) return;
+  event.preventDefault();
+  const row = form.closest('tr');
+  const button = form.querySelector('[data-convertir-goal]');
+  const mesSugerido = row.dataset.mesSugerido || '';
+  const mesControl = row.querySelector('[data-mes]');
+  const payload = {
+    goal_id: Number(row.dataset.goalId),
+    vendedor_id: Number(row.querySelector('[data-vendedor]').value),
+    empresa: row.querySelector('[data-empresa]').value,
+    medida: row.querySelector('[data-medida]').value,
+  };
+  if (!payload.vendedor_id || !payload.empresa || !payload.medida) {
+    form.reportValidity();
+    return;
+  }
+  if (mesSugerido) payload.mes = mesSugerido;
+  else if (mesControl?.value) payload.mes = mesControl.value;
+  else {
+    mesControl?.reportValidity();
+    return;
+  }
+  button.disabled = true;
+  try {
+    await requestJson('/api/objetivos-comerciales/convertir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify(payload),
+    });
+    await Promise.all([cargarDatos(), cargarObjetivosSinVincular()]);
+    notify('Objetivo histórico vinculado correctamente.', 'success', { title: 'Vínculo creado' });
+  } catch (error) {
+    notify(error.message, error.status === 409 ? 'warning' : 'danger', { title: 'No se pudo vincular' });
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const mes = mesLocal();
+  document.getElementById('periodoFiltro').value = mes;
+  document.getElementById('periodoNuevo').value = mes;
+  await Promise.all([cargarDatos(), cargarObjetivosSinVincular()]);
 });
 </script>
 {% endblock %}

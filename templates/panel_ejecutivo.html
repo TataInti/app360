@@ -42,6 +42,7 @@
       <button class="pp pp-action" id="btn-aplicar" type="button">
         <i class="bi bi-check2" aria-hidden="true"></i> Aplicar
       </button>
+      <button class="pp pp-clear" id="btn-limpiar" type="button">Limpiar</button>
     </div>
     <div class="period-context" id="empresa-context"></div>
   </div>
@@ -172,6 +173,8 @@
 
 <script>
   let resultadoChart;
+  const C = window.App360Charts;
+  const S = C.semantic;
   const money = value => {
     const number = Number(value || 0);
     return new Intl.NumberFormat('es-AR', {
@@ -331,29 +334,27 @@
 
   function renderChart(rows) {
     if (resultadoChart) resultadoChart.destroy();
-    resultadoChart = new Chart(document.getElementById('resultado-chart'), {
+    resultadoChart = C.create(document.getElementById('resultado-chart'), {
       type: 'line',
       data: {
         labels: (rows || []).map(row => new Date(`${row.periodo}T00:00:00`).toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })),
         datasets: [{
           label: 'Resultado de gestión',
           data: (rows || []).map(row => row.resultado_gestion),
-          borderColor: '#2563eb',
-          backgroundColor: 'rgba(37,99,235,.1)',
+          borderColor: S.neutral,
+          backgroundColor: 'rgba(35,78,112,.1)',
           fill: true,
           tension: .3,
           pointRadius: 3
         }]
       },
       options: {
-        maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
           tooltip: { callbacks: { label: context => money(context.parsed.y) } }
         },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#64748b' } },
-          y: { ticks: { callback: shortMoney, color: '#64748b' }, grid: { color: '#eef2f7' } }
+          y: { ticks: { callback: shortMoney } }
         }
       }
     });
@@ -422,6 +423,11 @@
     });
     document.getElementById('sel-empresa').addEventListener('change', () => {
       load('', document.getElementById('fecha-desde').value, document.getElementById('fecha-hasta').value);
+    });
+    document.getElementById('btn-limpiar').addEventListener('click', () => {
+      document.getElementById('sel-empresa').value = 'TODAS';
+      history.replaceState(null, '', location.pathname);
+      load('30');
     });
     load('30');
   });

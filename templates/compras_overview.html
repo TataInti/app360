@@ -55,8 +55,8 @@
     <!-- Chart -->
     <div class="charts-grid">
       <div class="chart-card-v2">
-        <h6>Órdenes por estado</h6>
-        <canvas id="estadoChart"></canvas>
+        <h3>Órdenes por estado</h3>
+        <div class="chart-stage"><canvas id="estadoChart"></canvas></div>
       </div>
     </div>
 
@@ -106,10 +106,10 @@
     const labels = Object.keys(series || {});
     const values = Object.values(series || {});
     if (estadoChart) estadoChart.destroy();
-    estadoChart = new Chart(document.getElementById('estadoChart'), {
+    estadoChart = window.App360Charts.create(document.getElementById('estadoChart'), {
       type: 'bar',
-      data: { labels, datasets: [{ label: 'Órdenes', data: values, backgroundColor: 'rgba(59,130,246,0.25)', borderColor: '#3b82f6', borderWidth: 1 }] },
-      options: { responsive: true, maintainAspectRatio: false }
+      data: { labels, datasets: [{ label: 'Órdenes', data: values, backgroundColor: 'rgba(35,78,112,.25)', borderColor: window.App360Charts.semantic.neutral, borderWidth: 1, borderRadius: 4 }] },
+      options: { plugins: { legend: { display: false } } }
     });
   }
 
