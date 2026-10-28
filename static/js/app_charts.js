@@ -368,9 +368,9 @@
 
   function create(canvas, config) {
     if (typeof global.Chart === 'undefined' || !canvas) return null;
-
-    const previous = instances.get(canvas);
-    if (previous) previous.destroy();
+    // Chart.js mantiene su propio registro. Limpiarlo también cubre gráficos
+    // creados por otra instancia del helper o por código previo de la página.
+    destroy(canvas);
 
     const horizontal = config.options?.indexAxis === 'y';
     const stacked = Boolean(config.options?.scales?.x?.stacked || config.options?.scales?.y?.stacked);
@@ -406,11 +406,14 @@
   }
 
   function destroy(canvas) {
+    if (!canvas) return;
     const previous = instances.get(canvas);
-    if (previous) {
-      previous.destroy();
-      instances.delete(canvas);
-    }
+    const registered = typeof global.Chart?.getChart === 'function'
+      ? global.Chart.getChart(canvas)
+      : null;
+    if (registered) registered.destroy();
+    if (previous && previous !== registered) previous.destroy();
+    instances.delete(canvas);
   }
 
   /* ── Defaults globales ─────────────────────────────────────────────
