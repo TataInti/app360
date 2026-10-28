@@ -378,3 +378,203 @@
         grid-column: auto;
     }
 }
+
+/* Compact commercial filters match the former dashboard bars: controls share
+   one baseline and stay on a single row whenever the viewport allows it. */
+.com-panel[data-mode] .com-filter.com-filter-compact {
+    align-items: flex-end;
+    gap: 0.35rem 0.4rem;
+    margin: 0 0 0.65rem;
+    padding: 0.45rem 0.55rem;
+    background: var(--color-surface-subtle, #f6f8fb);
+    border-color: var(--color-border, #e4e9f0);
+    border-radius: 0.65rem;
+}
+
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-field {
+    flex-direction: row;
+    align-items: center;
+    flex: 0 1 160px;
+    gap: 0.3rem;
+    min-width: 130px;
+    color: var(--color-text-muted, #64748b);
+    font-size: 0.68rem;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-field > span {
+    flex: 0 0 auto;
+}
+
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-company { flex-basis: 145px; }
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-seller { flex-basis: 155px; }
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-dimension { flex-basis: 180px; }
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-date { flex-basis: 154px; min-width: 154px; }
+
+.com-panel[data-mode] .com-filter.com-filter-compact .com-search {
+    flex: 1 1 220px;
+}
+
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-field > input,
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-field > select {
+    box-sizing: border-box;
+    width: 100%;
+    flex: 1 1 80px;
+    min-width: 0;
+    min-height: 30px;
+    height: 30px;
+    padding: 0.15rem 1.7rem 0.15rem 0.4rem;
+    border-radius: 0.45rem;
+    font-size: 0.78rem;
+}
+
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-field > input[type="date"] {
+    padding-right: 0.25rem;
+    min-width: 114px;
+}
+
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-actions {
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-actions button {
+    min-height: 30px;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.73rem;
+    white-space: nowrap;
+}
+
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-actions .com-primary {
+    border-color: var(--color-action, #234e70);
+    background: var(--color-action, #234e70);
+    color: #fff;
+}
+
+.com-panel[data-mode] .com-filter.com-filter-compact .ts-wrapper {
+    width: auto;
+    flex: 1 1 80px;
+    min-width: 0;
+}
+
+.com-panel[data-mode] .com-filter.com-filter-compact .ts-control {
+    box-sizing: border-box;
+    min-height: 30px !important;
+    height: 30px;
+    padding: 0.15rem 1.6rem 0.15rem 0.4rem !important;
+    border-radius: 0.45rem !important;
+    font-size: 0.78rem !important;
+    line-height: 1.25;
+}
+
+.com-panel[data-mode] .com-filter.com-filter-compact .ts-control input {
+    min-height: 22px;
+    height: 22px;
+    padding: 0;
+    font-size: 0.78rem;
+}
+
+.com-panel[data-mode] .com-filter.com-filter-compact .ts-dropdown {
+    z-index: 1100;
+    font-size: 0.82rem;
+}
+
+.com-panel[data-mode] .com-section-head .com-dimension-filters {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+}
+
+.com-panel[data-mode] .com-section-head .com-dimension-filters label {
+    flex-direction: row;
+    align-items: center;
+    flex: 0 1 165px;
+    gap: 0.3rem;
+    min-width: 140px;
+    color: var(--color-text-muted, #64748b);
+    font-size: 0.68rem;
+    line-height: 1.15;
+}
+
+.com-panel[data-mode] .com-section-head .com-dimension-filters select {
+    box-sizing: border-box;
+    width: 100%;
+    flex: 1 1 85px;
+    min-width: 0;
+    min-height: 30px;
+    height: 30px;
+    padding: 0.15rem 1.6rem 0.15rem 0.4rem;
+    border-radius: 0.45rem;
+    font-size: 0.78rem;
+}
+
+.com-panel[data-mode] .com-section-head > label select,
+.com-panel[data-mode] .com-section-head .com-inline label select {
+    min-height: 30px;
+    height: 30px;
+    padding: 0.15rem 1.6rem 0.15rem 0.4rem;
+    font-size: 0.78rem;
+}
+
+.com-panel[data-mode] .com-section-head > label,
+.com-panel[data-mode] .com-section-head .com-inline label {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.3rem;
+    white-space: nowrap;
+}
+
+.com-panel[data-mode] .com-section-head .com-dimension-filters .ts-wrapper {
+    width: auto;
+    flex: 1 1 85px;
+    min-width: 0;
+}
+
+.com-panel[data-mode] .com-section-head .com-dimension-filters .ts-control {
+    box-sizing: border-box;
+    min-height: 30px !important;
+    height: 30px;
+    padding: 0.15rem 1.6rem 0.15rem 0.4rem !important;
+    border-radius: 0.45rem !important;
+    font-size: 0.78rem !important;
+}
+
+.com-panel[data-mode] .com-analysis-heading {
+    justify-content: flex-start;
+}
+
+.com-panel[data-mode] .com-analysis-heading .com-disclosure {
+    flex: 1 1 320px;
+    width: auto !important;
+}
+
+@media (max-width: 700px) {
+    .com-panel[data-mode] .com-filter.com-filter-compact {
+        align-items: flex-end;
+        padding: 0.5rem;
+    }
+
+    .com-panel[data-mode] .com-filter.com-filter-compact .com-filter-field {
+        flex: 1 1 145px;
+    }
+
+    .com-panel[data-mode] .com-filter.com-filter-compact .com-filter-actions {
+        flex-basis: 100%;
+    }
+
+    .com-panel[data-mode] .com-section-head .com-dimension-filters {
+        flex: 1 1 100%;
+    }
+
+    .com-panel[data-mode] .com-section-head .com-dimension-filters label {
+        flex: 1 1 145px;
+    }
+
+    .com-panel[data-mode] .com-analysis-heading .com-disclosure {
+        flex-basis: 100%;
+    }
+}

@@ -28,6 +28,15 @@
   const badge = (text, cls = '') => elem('span', text, `com-badge ${cls}`);
   let state = new URLSearchParams(location.search), data, chart, requestId = 0, detailId = 0, detailTrigger;
   const extraCharts = new Map(); let quantityRequestId = 0, mixRequestId = 0, analysisDimension = 'producto';
+  const filterInstances = new Map();
+  const filterLabels = {
+    cliente: {all: 'Todos los clientes', search: 'Buscar cliente…'},
+    producto: {all: 'Todos los productos', search: 'Buscar producto…'}
+  };
+  const sectionFilters = {
+    analisis: {cliente: state.get('analisis_cliente') || '', producto: state.get('analisis_producto') || ''},
+    mix: {cliente: state.get('mix_cliente') || '', producto: state.get('mix_producto') || ''}
+  };
   const today = () => new Intl.DateTimeFormat('sv-SE', {timeZone: 'America/Argentina/Tucuman'}).format(new Date());
   function defaults() {
     const end = today();
@@ -51,12 +60,14 @@
     } else defaults();
   }
   defaults();
-  for (const name of ['empresa', 'fecha_desde', 'fecha_hasta', 'q', 'cliente', 'producto']) {
+  for (const name of ['empresa', 'fecha_desde', 'fecha_hasta', 'q']) {
     if (form.elements[name] && state.has(name)) form.elements[name].value = state.get(name);
+  }
+  for (const dimension of ['cliente', 'producto']) {
+    if (state.get(dimension)) form.elements[dimension].add(new Option(state.get(dimension), state.get(dimension), true, true));
   }
   if (!form.elements.empresa.value) form.elements.empresa.value = 'TODAS';
   if (state.get('vendedor')) form.elements.vendedor.add(new Option(state.get('vendedor'), state.get('vendedor'), true, true));
-  if (!clientes && (state.get('cliente') || state.get('producto'))) document.querySelector('.com-advanced').open = true;
   if (clientes) {
     if (!['atencion', 'activos', 'sin_compra', 'todos'].includes(state.get('vista'))) state.set('vista', 'atencion');
     $('com-orden').value = ['prioridad', 'cliente', 'dias', 'importe'].includes(state.get('orden')) ? state.get('orden') : 'prioridad';
@@ -69,7 +80,15 @@
     if (clientes) {
       p.set('vista', state.get('vista') || 'atencion'); p.set('pagina', state.get('pagina') || '1');
       p.set('orden', $('com-orden').value); p.set('por_pagina', $('com-size').value);
-    } else p.set('medida', $('com-meta-medida').value);
+    } else {
+      p.set('medida', $('com-meta-medida').value);
+      if (root.dataset.mode === 'ventas') {
+        for (const [scope, values] of Object.entries(sectionFilters)) for (const dimension of ['cliente', 'producto']) {
+          const key = `${scope}_${dimension}`;
+          if (values[dimension]) p.set(key, values[dimension]); else p.delete(key);
+        }
+      }
+    }
     return p;
   }
   async function get(url, p) {
@@ -104,8 +123,51 @@
   function transferLink(p) {
     const link = $(clientes ? 'com-ventas' : 'com-seguimiento');
     const query = new URLSearchParams();
-    for (const key of ['empresa', 'vendedor', 'fecha_desde', 'fecha_hasta']) if (p.get(key)) query.set(key, p.get(key));
+    for (const key of ['empresa', 'vendedor', 'cliente', 'producto', 'fecha_desde', 'fecha_hasta']) if (p.get(key)) query.set(key, p.get(key));
     link.href = (clientes ? '/dashboard-comercial' : '/comercial/seguimiento-clientes') + '?' + query;
+  }
+  function readFilterValue(select) {
+    return filterInstances.get(select)?.getValue() ?? select.value;
+  }
+  function setFilterValue(select, value) {
+    const instance = filterInstances.get(select);
+    if (instance) instance.setValue(value || '', true);
+    else select.value = value || '';
+  }
+  function filterSelects(scope, dimension) {
+    return document.querySelectorAll(`[data-com-filter-scope="${scope}"][data-com-filter-dimension="${dimension}"]`);
+  }
+  function populateFilter(scope, dimension, items, selected) {
+    const {all: allLabel, search: searchLabel} = filterLabels[dimension];
+    const values = [...new Set((items || []).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+    const selectedValue = selected || '';
+    if (selectedValue && !values.includes(selectedValue)) values.push(selectedValue);
+    const signature = values.join('\u0000');
+    filterSelects(scope, dimension).forEach(select => {
+      if (select.dataset.optionsKey !== signature) {
+        filterInstances.get(select)?.destroy();
+        filterInstances.delete(select);
+        select.replaceChildren(new Option(allLabel, ''), ...values.map(value => new Option(value, value)));
+        select.dataset.optionsKey = signature;
+        if (window.TomSelect) {
+          const instance = new TomSelect(select, {
+            create: false,
+            allowEmptyOption: true,
+            maxOptions: 500,
+            placeholder: searchLabel,
+            plugins: ['dropdown_input']
+          });
+          filterInstances.set(select, instance);
+        }
+      }
+      setFilterValue(select, selectedValue);
+    });
+  }
+  function syncFilterScope(scope) {
+    for (const dimension of ['cliente', 'producto']) {
+      const selected = scope === 'principal' ? form.elements[dimension].value || '' : sectionFilters[scope][dimension];
+      filterSelects(scope, dimension).forEach(select => setFilterValue(select, selected));
+    }
   }
   async function options(p, id) {
     const opts = await get('/api/comercial/paneles/opciones', p);
@@ -115,6 +177,12 @@
     const values = new Set(opts.vendedores); if (selected) values.add(selected);
     [...values].sort((a,b) => a.localeCompare(b, 'es')).forEach(v => form.elements.vendedor.add(new Option(v, v)));
     form.elements.vendedor.value = selected;
+    populateFilter('principal', 'cliente', opts.clientes, p.get('cliente'));
+    populateFilter('principal', 'producto', opts.productos, p.get('producto'));
+    for (const scope of ['analisis', 'mix']) {
+      populateFilter(scope, 'cliente', opts.clientes, sectionFilters[scope].cliente);
+      populateFilter(scope, 'producto', opts.productos, sectionFilters[scope].producto);
+    }
   }
   async function load() {
     if (!form.reportValidity()) return;
@@ -214,9 +282,15 @@
     return true;
   }
   const chartColors = charts ? charts.palette : ['#234e70','#4f8095','#769b82','#a97c3f','#9b7180','#667b91','#7a8a4f','#bf8065','#7d8fa3','#7f7c55'];
-  function analyticsParams() {
+  function analyticsParams(scope) {
     const p = params();
     p.delete('q'); p.delete('vista'); p.delete('orden'); p.delete('pagina'); p.delete('por_pagina');
+    if (scope && sectionFilters[scope]) {
+      for (const dimension of ['cliente', 'producto']) {
+        if (sectionFilters[scope][dimension]) p.set(dimension, sectionFilters[scope][dimension]);
+        else p.delete(dimension);
+      }
+    }
     return p;
   }
   function showAnalyticsError(prefix, error, retry) {
@@ -230,7 +304,7 @@
   };
   function accessibleTable(id, headers, rows) { $(id).replaceChildren(table(headers, rows)); }
   async function loadQuantities() {
-    const id = ++quantityRequestId, p = analyticsParams(); p.set('tipo', analysisDimension);
+    const id = ++quantityRequestId, p = analyticsParams('analisis'); p.set('tipo', analysisDimension);
     p.set('medida', $('cantidad-medida').value);
     $('cantidad-error').hidden = true;
     $('cantidad-loading').hidden = false;
@@ -256,7 +330,7 @@
     } catch (error) { if (id === quantityRequestId) { $('cantidad-loading').hidden = true; showAnalyticsError('cantidad',error,loadQuantities); } }
   }
   async function loadMix() {
-    const id = ++mixRequestId, p = analyticsParams(); $('mix-error').hidden = true;
+    const id = ++mixRequestId, p = analyticsParams('mix'); $('mix-error').hidden = true;
     $('mix-loading').hidden = false;
     try {
       const result = await get('/api/dashboard-comercial/mix', p);
@@ -316,7 +390,42 @@
       $('com-detalle-content').replaceChildren(elem('p', error.message, 'com-error'), retry);
     }
   }
+  async function refreshWithoutJump(refresh) {
+    const scrollX = window.scrollX, scrollY = window.scrollY;
+    await refresh();
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    window.scrollTo({left: scrollX, top: scrollY, behavior: 'instant'});
+  }
+  function refreshSectionFilters(scope) {
+    if (scope === 'analisis') {
+      if (!$('cantidades-body').hidden) return refreshWithoutJump(loadQuantities);
+      return;
+    }
+    if (scope === 'mix') {
+      if (!$('mix-body').hidden) return refreshWithoutJump(loadMix);
+    }
+  }
   form.addEventListener('submit', event => {event.preventDefault(); state.set('pagina', '1'); load();});
+  document.querySelectorAll('[data-com-filter-scope][data-com-filter-dimension]').forEach(select => select.addEventListener('change', () => {
+    const scope = select.dataset.comFilterScope;
+    const dimension = select.dataset.comFilterDimension;
+    const value = readFilterValue(select);
+    if (scope === 'principal') {
+      setFilterValue(form.elements[dimension], value);
+      syncFilterScope('principal');
+      if (clientes) state.set('pagina', '1');
+      refreshWithoutJump(load);
+      return;
+    }
+    if (!sectionFilters[scope]) return;
+    sectionFilters[scope][dimension] = value || '';
+    syncFilterScope(scope);
+    const key = `${scope}_${dimension}`;
+    if (value) state.set(key, value); else state.delete(key);
+    const p = params(); state = p;
+    history.replaceState(null, '', location.pathname + '?' + p); transferLink(p);
+    refreshSectionFilters(scope);
+  }));
   $('com-retry').onclick = load;
   document.querySelectorAll('[data-period-preset]').forEach(button => button.addEventListener('click', () => {
     setPreset(button.dataset.periodPreset);
@@ -325,6 +434,12 @@
   }));
   $('com-limpiar').onclick = () => {
     form.reset();
+    for (const dimension of ['cliente', 'producto']) setFilterValue(form.elements[dimension], '');
+    syncFilterScope('principal');
+    for (const scope of Object.keys(sectionFilters)) {
+      for (const dimension of ['cliente', 'producto']) sectionFilters[scope][dimension] = '';
+      syncFilterScope(scope);
+    }
     defaults();
     const preserved = new URLSearchParams();
     if (clientes) {

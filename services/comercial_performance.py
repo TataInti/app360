@@ -50,7 +50,15 @@ def _clave_mes(fecha: date) -> tuple[str, str]:
     return clave, f"{fecha.month:02d}/{fecha.year % 100:02d}"
 
 
-def _series_por_dia(desde: date, hasta: date, *, empresa, vendedor) -> dict[date, dict]:
+def _series_por_dia(
+    desde: date,
+    hasta: date,
+    *,
+    empresa,
+    vendedor,
+    cliente=None,
+    producto=None,
+) -> dict[date, dict]:
     """Acumula líneas de staging en una serie por día (importe/cajas/kilos)."""
     vendedor_expr = expresion_vendedor_resuelta()
     filtros = [
@@ -63,6 +71,10 @@ def _series_por_dia(desde: date, hasta: date, *, empresa, vendedor) -> dict[date
         filtros.append(func.upper(func.coalesce(Venta.origen, "")) == empresa.upper())
     if vendedor:
         filtros.append(vendedor_expr == resolver_nombre_vendedor(vendedor))
+    if cliente:
+        filtros.append(func.trim(Venta.cliente) == cliente)
+    if producto:
+        filtros.append(func.trim(Venta.producto) == producto)
 
     filas = (
         db.session.query(
@@ -142,16 +154,38 @@ def _puntos(desde: date, hasta: date, por_dia: dict, granularidad: str) -> list[
     return serie
 
 
-def _evolucion(desde, hasta, empresa, vendedor, granularidad):
+def _evolucion(
+    desde,
+    hasta,
+    empresa,
+    vendedor,
+    granularidad,
+    cliente=None,
+    producto=None,
+):
     anterior_desde, anterior_hasta = periodo_anterior(desde, hasta)
     actual = _puntos(
         desde, hasta,
-        _series_por_dia(desde, hasta, empresa=empresa, vendedor=vendedor),
+        _series_por_dia(
+            desde,
+            hasta,
+            empresa=empresa,
+            vendedor=vendedor,
+            cliente=cliente,
+            producto=producto,
+        ),
         granularidad,
     )
     anterior = _puntos(
         anterior_desde, anterior_hasta,
-        _series_por_dia(anterior_desde, anterior_hasta, empresa=empresa, vendedor=vendedor),
+        _series_por_dia(
+            anterior_desde,
+            anterior_hasta,
+            empresa=empresa,
+            vendedor=vendedor,
+            cliente=cliente,
+            producto=producto,
+        ),
         granularidad,
     )
     return {
@@ -216,7 +250,7 @@ def performance_vendedores(
         ),
     }
 
-    evolucion = _evolucion(desde, hasta, empresa, vendedor, granularidad)
+    evolucion = _evolucion(desde, hasta, empresa, vendedor, granularidad, cliente=cliente, producto=producto)
 
     # Objetivos del mes del corte (realizado desde PRE); la UI solo los muestra si hay metas.
     mes = hasta.strftime("%Y-%m")

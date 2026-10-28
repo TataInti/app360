@@ -155,7 +155,9 @@ def seguimiento_clientes_datos():
         if pagina < 1 or por_pagina not in {25, 50}:
             raise ValueError('Página inválida')
         return seguimiento_clientes(**parametros, vista=vista, orden=orden, pagina=pagina,
-                                    por_pagina=por_pagina, busqueda=request.args.get('q', '').strip())
+                                    por_pagina=por_pagina, busqueda=request.args.get('q', '').strip(),
+                                    cliente=request.args.get('cliente', '').strip() or None,
+                                    producto=request.args.get('producto', '').strip() or None)
     return lectura_panel(consultar)
 
 
@@ -169,7 +171,8 @@ def seguimiento_cliente_detalle():
         cliente = request.args.get('cliente', '').strip()
         if not cliente:
             raise ValueError('Falta cliente')
-        datos = seguimiento_clientes(**parametros, cliente=cliente, vista='todos')
+        datos = seguimiento_clientes(**parametros, cliente=cliente, vista='todos',
+                                     producto=request.args.get('producto', '').strip() or None)
         return dict(**{k: v for k, v in datos.items() if k != 'clientes'},
                     cliente=datos['clientes'][0] if datos['clientes'] else None)
     return lectura_panel(consultar)
@@ -178,20 +181,38 @@ def seguimiento_cliente_detalle():
 @dashboard_com_bp.get('/api/comercial/paneles/opciones')
 def paneles_opciones():
     from services.comercial_criterios import filtro_comprobante_panel_ventas
+    from services.comercial_pre import expresion_vendedor_resuelta
     from services.vendedores_comerciales import resolver_nombre_vendedor
     from models.comercial import ComercialVendedor
     from services.comercial_web import lectura_panel, parametros_panel
 
     def consultar():
         parametros = parametros_panel()
-        filtros = [StgSabiogoVentas.estado == 'procesado', filtro_comprobante_panel_ventas(),
-                   StgSabiogoVentas.fecha < parametros['hasta'] + timedelta(days=1)]
+        hasta = parametros['hasta']
+        vendedor_expr = expresion_vendedor_resuelta()
+        filtros_dimensiones = [StgSabiogoVentas.estado == 'procesado']
         if parametros['empresa'] != 'TODAS':
-            filtros.append(func.upper(func.coalesce(StgSabiogoVentas.origen, '')) == parametros['empresa'])
+            filtro_empresa = func.upper(func.coalesce(StgSabiogoVentas.origen, '')) == parametros['empresa']
+            filtros_dimensiones.append(filtro_empresa)
+        cliente = func.trim(StgSabiogoVentas.cliente)
+        producto = func.trim(StgSabiogoVentas.producto)
+        filtros_cliente = [*filtros_dimensiones, cliente.isnot(None), cliente != '']
+        filtros_producto = [*filtros_dimensiones, producto.isnot(None), producto != '']
+        clientes = db.session.query(cliente.label('cliente')).filter(*filtros_cliente).distinct().all()
+        productos = db.session.query(producto.label('producto')).filter(*filtros_producto).distinct().all()
+
+        # Las dimensiones mantienen el catálogo completo por empresa, como en
+        # los filtros anteriores; fechas y vendedor limitan los datos, no el catálogo.
+        filtros_vendedor = [StgSabiogoVentas.estado == 'procesado', filtro_comprobante_panel_ventas(),
+                            StgSabiogoVentas.fecha < hasta + timedelta(days=1)]
+        if parametros['empresa'] != 'TODAS':
+            filtros_vendedor.append(func.upper(func.coalesce(StgSabiogoVentas.origen, '')) == parametros['empresa'])
         vendedores = {resolver_nombre_vendedor(f[0]) for f in
-                      db.session.query(StgSabiogoVentas.vendedor).filter(*filtros).distinct().all() if f[0]}
+                      db.session.query(StgSabiogoVentas.vendedor).filter(*filtros_vendedor).distinct().all() if f[0]}
         vendedores.update(f.nombre_visible for f in ComercialVendedor.query.filter_by(activo=True).all())
-        return dict(vendedores=sorted(vendedores, key=str.casefold))
+        return dict(vendedores=sorted(vendedores, key=str.casefold),
+                    clientes=sorted({row.cliente for row in clientes}, key=str.casefold),
+                    productos=sorted({row.producto for row in productos}, key=str.casefold))
     return lectura_panel(consultar)
 
 

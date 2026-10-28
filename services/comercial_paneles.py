@@ -70,7 +70,7 @@ def resumen_estrategico(desde, hasta, empresa='TODAS', vendedor=None,
                 ultima_importacion=actual['ultima_importacion'], fecha_maxima=actual['fecha_maxima_pre'])
 
 
-def _historial(hasta, empresa, vendedor, cliente=None):
+def _historial(hasta, empresa, vendedor, cliente=None, producto=None):
     nombre = func.trim(Venta.cliente)
     vendedor_expr = expresion_vendedor_resuelta()
     filtros = [Venta.estado == 'procesado', Venta.fecha < hasta + timedelta(days=1),
@@ -87,6 +87,8 @@ def _historial(hasta, empresa, vendedor, cliente=None):
         filtros.append(vendedor_expr == resolver_nombre_vendedor(vendedor))
     if cliente:
         filtros.append(nombre == cliente)
+    if producto:
+        filtros.append(func.trim(Venta.producto) == producto)
     # Agregar en SQL antes de construir estados; no cargar objetos de ventas.
     filas = db.session.query(
         nombre.label('cliente'), vendedor_expr.label('vendedor'), Venta.fecha,
@@ -98,10 +100,10 @@ def _historial(hasta, empresa, vendedor, cliente=None):
 
 def seguimiento_clientes(desde, hasta, empresa='TODAS', vendedor=None, busqueda='',
                          vista='atencion', orden='prioridad', pagina=1, por_pagina=25,
-                         cliente=None):
+                         cliente=None, producto=None):
     anterior_desde, anterior_hasta = periodo_anterior(desde, hasta)
     inicio_actividad = hasta - timedelta(days=29)
-    filas, primeras = _historial(hasta, empresa, vendedor, cliente)
+    filas, primeras = _historial(hasta, empresa, vendedor, cliente, producto)
     clientes = {}
     ultima_importacion = fecha_maxima = None
     for fila in filas:

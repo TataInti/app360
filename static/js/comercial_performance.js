@@ -9,6 +9,11 @@
   const elem = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
   const colors = window.App360Charts ? window.App360Charts.semantic : {neutral:'#234e70', neutralSoft:'rgba(35,78,112,.55)', previous:'#8496a8', previousSoft:'rgba(132,150,168,.4)'};
   let state = new URLSearchParams(location.search), data, chart, requestId = 0;
+  const filterInstances = new Map();
+  const filterLabels = {
+    cliente: {all: 'Todos los clientes', search: 'Buscar cliente…'},
+    producto: {all: 'Todos los productos', search: 'Buscar producto…'}
+  };
   const today = () => new Intl.DateTimeFormat('sv-SE', {timeZone: 'America/Argentina/Tucuman'}).format(new Date());
   function defaults() {
     const end = today();
@@ -33,12 +38,14 @@
   }
   const form = $('com-filtros');
   defaults();
-  for (const name of ['empresa', 'vendedor', 'fecha_desde', 'fecha_hasta', 'cliente', 'producto']) {
+  for (const name of ['empresa', 'vendedor', 'fecha_desde', 'fecha_hasta']) {
     if (form.elements[name] && state.has(name)) form.elements[name].value = state.get(name);
+  }
+  for (const dimension of ['cliente', 'producto']) {
+    if (state.get(dimension)) form.elements[dimension].add(new Option(state.get(dimension), state.get(dimension), true, true));
   }
   if (!form.elements.empresa.value) form.elements.empresa.value = 'TODAS';
   if (state.get('vendedor')) form.elements.vendedor.add(new Option(state.get('vendedor'), state.get('vendedor'), true, true));
-  if (state.get('cliente') || state.get('producto')) document.querySelector('.com-advanced').open = true;
   $('com-evolucion-medida').value = ['importe', 'cajas', 'kilos'].includes(state.get('medida')) ? state.get('medida') : 'importe';
   $('com-granularidad').value = ['dia', 'semana', 'mes'].includes(state.get('granularidad')) ? state.get('granularidad') : 'dia';
   function params() {
@@ -76,8 +83,42 @@
   function transferLink(p) {
     const link = $('com-seguimiento');
     const query = new URLSearchParams();
-    for (const key of ['empresa', 'vendedor', 'fecha_desde', 'fecha_hasta']) if (p.get(key)) query.set(key, p.get(key));
+    for (const key of ['empresa', 'vendedor', 'cliente', 'producto', 'fecha_desde', 'fecha_hasta']) if (p.get(key)) query.set(key, p.get(key));
     link.href = '/comercial/seguimiento-clientes' + '?' + query;
+  }
+  function readFilterValue(select) {
+    return filterInstances.get(select)?.getValue() ?? select.value;
+  }
+  function setFilterValue(select, value) {
+    const instance = filterInstances.get(select);
+    if (instance) instance.setValue(value || '', true);
+    else select.value = value || '';
+  }
+  function populateFilter(dimension, items, selected) {
+    const {all: allLabel, search: searchLabel} = filterLabels[dimension];
+    const values = [...new Set((items || []).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+    const selectedValue = selected || '';
+    if (selectedValue && !values.includes(selectedValue)) values.push(selectedValue);
+    const signature = values.join('\u0000');
+    document.querySelectorAll(`[data-com-filter-scope="principal"][data-com-filter-dimension="${dimension}"]`).forEach(select => {
+      if (select.dataset.optionsKey !== signature) {
+        filterInstances.get(select)?.destroy();
+        filterInstances.delete(select);
+        select.replaceChildren(new Option(allLabel, ''), ...values.map(value => new Option(value, value)));
+        select.dataset.optionsKey = signature;
+        if (window.TomSelect) {
+          const instance = new TomSelect(select, {
+            create: false,
+            allowEmptyOption: true,
+            maxOptions: 500,
+            placeholder: searchLabel,
+            plugins: ['dropdown_input']
+          });
+          filterInstances.set(select, instance);
+        }
+      }
+      setFilterValue(select, selectedValue);
+    });
   }
   async function options(p, id) {
     const opts = await get('/api/comercial/paneles/opciones', p);
@@ -87,6 +128,8 @@
     const values = new Set(opts.vendedores); if (selected) values.add(selected);
     [...values].sort((a,b) => a.localeCompare(b, 'es')).forEach(v => form.elements.vendedor.add(new Option(v, v)));
     form.elements.vendedor.value = selected;
+    populateFilter('cliente', opts.clientes, p.get('cliente'));
+    populateFilter('producto', opts.productos, p.get('producto'));
   }
   function rankList(title, rows, moneyFormat = true) {
     const section = elem('section'); section.append(elem('h3', title));
@@ -141,7 +184,7 @@
     const objectivesSection = $('com-objetivos-section');
     if (data.tienen_meta) {
       objectivesSection.hidden = false;
-      $('com-objetivos-nota').textContent = `Mes ${data.mes_objetivos} · Realizado desde el día 1 hasta ${fecha(data.hasta)}. Meta mensual completa, sin prorrateo. Desvío = realizado − meta.`;
+      $('com-objetivos-nota').textContent = `Mes ${data.mes_objetivos} · Realizado desde el día 1 hasta ${fecha(data.hasta)}. Meta mensual completa, sin prorrateo. Alcance: empresa y vendedor; no aplica cliente ni producto. Desvío = realizado − meta.`;
       $('com-objetivos').replaceChildren(data.objetivos.length ? table([['Vendedor'], ['Empresa'], ['Realizado', true], ['Meta', true], ['Cumplimiento', true], ['Desvío', true], ['Estado']], data.objetivos.map(o => [o.nombre_visible, o.empresa, format(o.realizado), o.meta == null ? '—' : format(o.meta), o.cumplimiento == null ? '—' : number(o.cumplimiento * 100) + '%', o.desvio == null ? '—' : money(o.desvio), o.estado])) : elem('p', 'No hay vendedores con objetivo en este mes.', 'com-empty'));
     } else {
       objectivesSection.hidden = true;
@@ -172,12 +215,22 @@
     chart = window.App360Charts.create(canvas, {type: measure === 'importe' ? 'line' : 'bar', data:{labels, datasets:[{label:'Período actual', data:values, borderColor:colors.neutral, backgroundColor: measure === 'importe' ? colors.neutral : colors.neutralSoft, pointRadius:0, borderWidth:2, borderRadius:3}, {label:'Período anterior', data:prevValues, borderColor:colors.previous, backgroundColor:colors.previousSoft, pointRadius:0, borderWidth:2, borderDash:[5,4]}]}, options:{scales:{x:{ticks:{maxTicksLimit:10, autoSkip:true}}, y:{ticks:{callback:value => number(value)}}}, plugins:{tooltip:{callbacks:{label:ctx => `${ctx.dataset.label}: ${format(ctx.parsed.y)}`}}}}});
   }
   form.addEventListener('submit', event => {event.preventDefault(); load();});
+  document.querySelectorAll('[data-com-filter-scope="principal"][data-com-filter-dimension]').forEach(select => select.addEventListener('change', () => {
+    const dimension = select.dataset.comFilterDimension;
+    setFilterValue(form.elements[dimension], readFilterValue(select));
+    load();
+  }));
   $('com-retry').onclick = load;
   document.querySelectorAll('[data-period-preset]').forEach(button => button.addEventListener('click', () => {
     setPreset(button.dataset.periodPreset);
     load();
   }));
-  $('com-limpiar').onclick = () => {form.reset(); defaults(); state = new URLSearchParams(); $('com-evolucion-medida').value = 'importe'; $('com-granularidad').value = 'dia'; load();};
+  $('com-limpiar').onclick = () => {
+    form.reset();
+    for (const dimension of ['cliente', 'producto']) setFilterValue(form.elements[dimension], '');
+    document.querySelectorAll('[data-com-filter-scope="principal"][data-com-filter-dimension]').forEach(select => setFilterValue(select, ''));
+    defaults(); state = new URLSearchParams(); $('com-evolucion-medida').value = 'importe'; $('com-granularidad').value = 'dia'; load();
+  };
   for (const id of ['com-evolucion-medida', 'com-granularidad']) $(id).onchange = load;
   load();
 })();
