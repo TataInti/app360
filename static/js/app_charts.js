@@ -146,11 +146,10 @@
 
   const dataLabels = {
     id: 'app360DataLabels',
-    afterDatasetsDraw(chart) {
+    afterDatasetsDraw(chart, _args, pluginOptions = {}) {
       const area = chart.chartArea;
       if (!area || area.right - area.left < 24 || area.bottom - area.top < 18) return;
       const ctx = chart.ctx, placed = [], lineCandidates = [];
-      const pluginOptions = chart.options.plugins?.app360DataLabels || chart.options.plugins?.commercialDataLabels || {};
       const fmt = (value, index, dataset, datasetIndex) => pluginOptions.formatter
         ? pluginOptions.formatter(value, index, dataset, chart, datasetIndex)
         : compactNumber(value);
