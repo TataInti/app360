@@ -131,7 +131,11 @@
   }
   function setFilterValue(select, value) {
     const instance = filterInstances.get(select);
-    if (instance) instance.setValue(value || '', true);
+    if (instance) {
+      instance.setValue(value || '', true);
+      const item = value ? instance.getItem(value) : null;
+      if (item) item.title = item.textContent.trim();
+    }
     else select.value = value || '';
   }
   function filterSelects(scope, dimension) {
@@ -156,6 +160,11 @@
             maxOptions: 500,
             placeholder: searchLabel,
             plugins: ['dropdown_input']
+          });
+          instance.on('dropdown_open', () => {
+            instance.dropdown.querySelectorAll('.option').forEach(option => {
+              option.title = option.textContent.trim();
+            });
           });
           filterInstances.set(select, instance);
         }
