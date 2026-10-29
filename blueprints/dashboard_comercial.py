@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
 from flask import Blueprint, jsonify, render_template, request, session
 from sqlalchemy import func
@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from models import db
 from models.comercial import ComercialClienteCriterio
 from models.sabiogo.staging import StgSabiogoVentas
-from models.time_utils import now_local
+from models.time_utils import now_local, today_local_date
 from security import protect_blueprint
 
 dashboard_com_bp = Blueprint("dashboard_comercial", __name__)
@@ -120,6 +120,16 @@ def seguimiento_clientes_pantalla():
     return render_template('seguimiento_clientes.html')
 
 
+@dashboard_com_bp.get('/comercial/salon')
+def tablero_salon_pantalla():
+    hoy = today_local_date()
+    return render_template(
+        'tablero_salon.html',
+        fecha_desde=hoy.replace(day=1).isoformat(),
+        fecha_hasta=hoy.isoformat(),
+    )
+
+
 
 
 
@@ -136,6 +146,24 @@ def resumen_estrategico_datos():
         return resumen_estrategico(**parametros, medida=medida,
                                   cliente=request.args.get('cliente', '').strip() or None,
                                   producto=request.args.get('producto', '').strip() or None)
+    return lectura_panel(consultar)
+
+
+@dashboard_com_bp.get('/api/comercial/salon')
+def tablero_salon_datos():
+    from services.comercial_salon import resumen_tablero_salon
+    from services.comercial_web import lectura_panel
+
+    def consultar():
+        hoy = today_local_date()
+        hasta = date.fromisoformat(request.args.get('fecha_hasta') or hoy.isoformat())
+        desde = date.fromisoformat(
+            request.args.get('fecha_desde') or hasta.replace(day=1).isoformat()
+        )
+        if desde > hasta:
+            raise ValueError('Desde no puede ser posterior a Hasta.')
+        return resumen_tablero_salon(desde, hasta)
+
     return lectura_panel(consultar)
 
 
