@@ -89,6 +89,38 @@ def test_vendedor_fuera_del_catalogo_conserva_el_realizado(client, app):
     assert filas[0]["cumplimiento"] is None
 
 
+@pytest.mark.parametrize(
+    ("medida", "esperado"),
+    [("importe", 500.0), ("cajas", 4.0), ("kilos", 30.0)],
+)
+def test_vendedor_no_catalogado_realizado_usa_la_medida_solicitada(
+    client, app, medida, esperado
+):
+    with app.app_context():
+        agregar_pre(
+            date(2024, 2, 4),
+            "Vendedor sin catálogo",
+            "Cliente sin catálogo",
+            importe=500,
+            cajas=4,
+            kilos=30,
+            numero="B-MEDIDA",
+        )
+        db.session.commit()
+
+    response = client.get(
+        "/api/dashboard-comercial/equipo?fecha_desde=2024-02-01&fecha_hasta=2024-02-29"
+        f"&empresa=CARNES&medida={medida}"
+    )
+    assert response.status_code == 200
+    fila = next(
+        row
+        for row in response.get_json()["equipo"]
+        if row["vendedor"] == "Vendedor sin catálogo"
+    )
+    assert fila["realizado"] == esperado
+
+
 def test_atencion_devuelve_total_completo_y_pagina_de_20(client, app):
     with app.app_context():
         for indice in range(25):

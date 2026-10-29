@@ -310,7 +310,9 @@ def test_dashboard_comercial_analysis_mix_only_pedidos_pre(client, app):
 
     resp = client.get(f"/api/dashboard-comercial/mix?{fechas}")
     assert resp.status_code == 200
-    mix_global = resp.get_json()["mix_global"]
+    mix_data = resp.get_json()
+    assert "clientes_disponibles" not in mix_data
+    mix_global = mix_data["mix_global"]
     mix_productos = {row["producto"] for row in mix_global}
     assert "Producto corte PRE" in mix_productos
     assert "Producto corte FAC" not in mix_productos

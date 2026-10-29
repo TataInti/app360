@@ -6,7 +6,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from types import SimpleNamespace
 
-from sqlalchemy import case, func
+from sqlalchemy import case, func, literal, union_all
 
 from models import db
 from models.comercial import ComercialObjetivo, ComercialVendedor
@@ -292,6 +292,84 @@ def _sumas_pre(
     return {measure: _decimal(getattr(row, measure)) for measure in MEDIDAS_COMERCIALES}
 
 
+def _realizados_pre_agrupados(desde, hasta, session, realizados_por_vendedor=None):
+    """Lee realizados por vendedor y dimensión con una agregación SQL por período."""
+    filtros = [
+        StgSabiogoVentas.estado == "procesado",
+        StgSabiogoVentas.fecha >= desde,
+        StgSabiogoVentas.fecha <= hasta,
+        func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
+    ]
+    nombres_origen = [
+        nombre
+        for (nombre,) in session.query(StgSabiogoVentas.vendedor).filter(*filtros).distinct().all()
+    ]
+    vendedor_expr = expresion_vendedor_resuelta(session, nombres_origen)
+    columnas_medidas = {
+        "importe": func.coalesce(func.sum(StgSabiogoVentas.subtot), 0).label("importe"),
+        "cajas": func.coalesce(func.sum(StgSabiogoVentas.cajas), 0).label("cajas"),
+        "kilos": func.coalesce(func.sum(StgSabiogoVentas.kilos), 0).label("kilos"),
+    }
+    consultas = []
+    if realizados_por_vendedor is None:
+        consultas.append(
+            session.query(
+                vendedor_expr.label("vendedor"),
+                literal("total").label("dimension_tipo"),
+                literal("").label("dimension_valor"),
+                *columnas_medidas.values(),
+            )
+            .filter(*filtros)
+            .group_by(vendedor_expr)
+        )
+    origenes = func.upper(func.coalesce(StgSabiogoVentas.origen, ""))
+    for dimension_tipo, nombre_columna in DIMENSIONES_STAGING.items():
+        columna = getattr(StgSabiogoVentas, nombre_columna)
+        if dimension_tipo == "empresa":
+            dimension_expr = func.upper(func.trim(func.coalesce(columna, "")))
+            filtros_dimension = []
+        else:
+            dimension_expr = func.trim(columna)
+            filtros_dimension = [
+                columna.isnot(None),
+                dimension_expr != "",
+                origenes.in_(EMPRESAS_COMERCIALES),
+            ]
+        consultas.append(
+            session.query(
+                vendedor_expr.label("vendedor"),
+                literal(dimension_tipo).label("dimension_tipo"),
+                dimension_expr.label("dimension_valor"),
+                *columnas_medidas.values(),
+            )
+            .filter(*filtros, *filtros_dimension)
+            .group_by(vendedor_expr, dimension_expr)
+        )
+
+    agregados = union_all(*(consulta.statement for consulta in consultas)).subquery()
+    filas = session.query(
+        agregados.c.vendedor,
+        agregados.c.dimension_tipo,
+        agregados.c.dimension_valor,
+        agregados.c.importe,
+        agregados.c.cajas,
+        agregados.c.kilos,
+    ).all()
+    cero = {medida: Decimal("0") for medida in MEDIDAS_COMERCIALES}
+    totales = {
+        vendedor: {medida: _decimal(valores.get(medida)) for medida in MEDIDAS_COMERCIALES}
+        for vendedor, valores in (realizados_por_vendedor or {}).items()
+    }
+    por_dimension = {}
+    for fila in filas:
+        valores = {medida: _decimal(getattr(fila, medida)) for medida in MEDIDAS_COMERCIALES}
+        if fila.dimension_tipo == "total":
+            totales[fila.vendedor] = valores
+        else:
+            por_dimension[(fila.vendedor, fila.dimension_tipo, fila.dimension_valor)] = valores
+    return nombres_origen, totales, por_dimension, cero
+
+
 def _serializar_linea(objetivo, realizados):
     metas = {
         "importe": _decimal(objetivo.meta_importe),
@@ -419,6 +497,7 @@ def obtener_objetivos_comerciales(
     corte: date | None = None,
     criterio_clientes: bool = False,
     incluir_vendedores_venta: bool = False,
+    realizados_agrupados: dict[str, dict[str, float]] | None = None,
 ) -> list[dict]:
     """Calcula metas y realizados agregando las líneas del vendedor sin promediar porcentajes."""
     desde, hasta = _periodo(mes)
@@ -435,20 +514,18 @@ def obtener_objetivos_comerciales(
     for objetivo in objetivos:
         vendedores.setdefault(objetivo.vendedor_id, objetivo.vendedor)
 
+    corte_real = min(corte, hasta)
+    _, realizados_por_vendedor, realizados_por_dimension, cero = _realizados_pre_agrupados(
+        desde,
+        corte_real,
+        db.session,
+        realizados_agrupados,
+    )
     vendedores_temporales = {}
     if incluir_vendedores_venta and corte >= desde:
-        filtros = [
-            StgSabiogoVentas.estado == "procesado",
-            StgSabiogoVentas.fecha >= desde,
-            StgSabiogoVentas.fecha <= min(corte, hasta),
-            func.coalesce(func.upper(func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
-            StgSabiogoVentas.vendedor.isnot(None),
-            func.trim(StgSabiogoVentas.vendedor) != "",
-        ]
-        nombres = db.session.query(StgSabiogoVentas.vendedor).filter(*filtros).distinct().all()
         claves = {" ".join(v.nombre_visible.split()).casefold() for v in vendedores.values()}
-        for (nombre_origen,) in nombres:
-            nombre = " ".join(resolver_nombre_vendedor(nombre_origen).split())
+        for nombre in realizados_por_vendedor:
+            nombre = " ".join((nombre or "").split())
             clave = nombre.casefold()
             if nombre and clave not in claves:
                 vendedores_temporales[clave] = SimpleNamespace(id=None, nombre_visible=nombre)
@@ -460,27 +537,19 @@ def obtener_objetivos_comerciales(
 
     resultado = []
     vendedores_para_listar = [*vendedores.values(), *vendedores_temporales.values()]
-    vendedor_expression = (
-        expresion_vendedor_resuelta() if vendedores_para_listar else None
-    )
     for vendedor in sorted(vendedores_para_listar, key=lambda item: item.nombre_visible.casefold()):
         lineas = []
         for objetivo in objetivos_por_vendedor.get(vendedor.id, []):
-            actual = _sumas_pre(
-                desde,
-                min(corte, hasta),
-                vendedor.nombre_visible,
-                objetivo.dimension_tipo,
-                objetivo.dimension_valor,
-                vendedor_expression,
+            actual = realizados_por_dimension.get(
+                (
+                    vendedor.nombre_visible,
+                    objetivo.dimension_tipo,
+                    objetivo.dimension_valor,
+                ),
+                cero,
             )
             lineas.append(_serializar_linea(objetivo, actual))
-        realizados_sin_lineas = _sumas_pre(
-            desde,
-            min(corte, hasta),
-            vendedor.nombre_visible,
-            vendedor_expression=vendedor_expression,
-        )
+        realizados_sin_lineas = realizados_por_vendedor.get(vendedor.nombre_visible, cero)
         resultado.append(
             _item_vendedor(
                 vendedor,

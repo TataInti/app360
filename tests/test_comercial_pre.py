@@ -428,3 +428,105 @@ def test_pantalla_criterios_guardado_selectivo_y_auditoria(client, app, pre_alia
         assert criterios["Cliente C"].criterio == "FAC"
         assert criterios["Cliente B"].actualizado_por == "Ciro"
         assert criterios["Cliente B"].actualizado_en is not None
+
+
+def test_alias_resuelto_con_mayusculas_y_espacios(app, pre_aliases):
+    with app.app_context():
+        db.session.add(
+            StgSabiogoVentas(
+                fecha=date(2024, 1, 20),
+                origen="CARNES",
+                sucursal="Central",
+                tipo="A",
+                codigo="PRE-ALIAS-ESPACIOS",
+                producto="Producto C",
+                cliente="Cliente alias",
+                vendedor="  kalja   benjamin  ",
+                comprobante="PRE",
+                nro_comprob="301",
+                cajas=2,
+                kilos=20,
+                subtot=55,
+                estado="procesado",
+            )
+        )
+        db.session.commit()
+
+        resumen = calcular_resumen_pre(date(2024, 1, 1), date(2024, 1, 31))
+
+        vendedor = next(
+            row for row in resumen["por_vendedor"] if row["nombre"] == "Benjamín Kalja"
+        )
+        assert vendedor["plata"] == 285.0
+        assert vendedor["cajas"] == 7.25
+
+
+def test_mismo_numero_en_origenes_distintos_son_tickets_distintos(app):
+    with app.app_context():
+        db.session.add_all(
+            [
+                StgSabiogoVentas(
+                    fecha=date(2024, 1, 5),
+                    origen=origen,
+                    sucursal="Central",
+                    tipo="A",
+                    codigo=f"PRE-{origen}-MISMO-NUMERO",
+                    producto="Producto A",
+                    cliente="Cliente A",
+                    vendedor="Vendedor sin catálogo",
+                    comprobante="PRE",
+                    nro_comprob="12345",
+                    cajas=1,
+                    kilos=10,
+                    subtot=importe,
+                    estado="procesado",
+                )
+                for origen, importe in (("CARNES", 10), ("LACTEOS", 20))
+            ]
+        )
+        db.session.commit()
+
+        resumen = calcular_resumen_pre(date(2024, 1, 1), date(2024, 1, 31))
+
+        assert resumen["pedidos_identificados"] == 2
+        assert resumen["importe_pedidos_identificados"] == 30.0
+        assert resumen["ticket_promedio"] == 15.0
+        vendedor = next(
+            row
+            for row in resumen["por_vendedor"]
+            if row["nombre"] == "Vendedor sin catálogo"
+        )
+        assert vendedor["compras"] == 2
+
+
+def test_limite_uno_recorta_dimensiones_sin_recortar_totales(app):
+    with app.app_context():
+        db.session.add_all(
+            [
+                StgSabiogoVentas(
+                    fecha=date(2024, 1, 5),
+                    origen="CARNES",
+                    codigo=f"PRE-LIMITE-{vendedor}",
+                    producto=f"Producto {vendedor}",
+                    cliente=f"Cliente {vendedor}",
+                    vendedor=vendedor,
+                    comprobante="PRE",
+                    nro_comprob=vendedor,
+                    cajas=1,
+                    kilos=10,
+                    subtot=importe,
+                    estado="procesado",
+                )
+                for vendedor, importe in (("Vendedor A", 10), ("Vendedor B", 20))
+            ]
+        )
+        db.session.commit()
+
+        resumen = calcular_resumen_pre(date(2024, 1, 1), date(2024, 1, 31), limite=1)
+
+        assert resumen["importe_pre"] == 30.0
+        assert resumen["cajas"] == 2.0
+        assert resumen["kilos"] == 20.0
+        assert resumen["lineas_pre"] == 2
+        assert [row["nombre"] for row in resumen["por_vendedor"]] == ["Vendedor B"]
+        assert len(resumen["por_cliente"]) == len(resumen["por_producto"]) == 1

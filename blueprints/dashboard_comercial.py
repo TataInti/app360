@@ -209,16 +209,20 @@ def seguimiento_cliente_detalle():
 @dashboard_com_bp.get('/api/comercial/paneles/opciones')
 def paneles_opciones():
     from services.comercial_criterios import filtro_comprobante_panel_ventas
-    from services.comercial_pre import expresion_vendedor_resuelta
     from services.vendedores_comerciales import resolver_nombre_vendedor
     from models.comercial import ComercialVendedor
     from services.comercial_web import lectura_panel, parametros_panel
 
     def consultar():
         parametros = parametros_panel()
+        desde = parametros['desde']
         hasta = parametros['hasta']
-        vendedor_expr = expresion_vendedor_resuelta()
-        filtros_dimensiones = [StgSabiogoVentas.estado == 'procesado']
+        filtros_dimensiones = [
+            StgSabiogoVentas.estado == 'procesado',
+            StgSabiogoVentas.fecha >= desde,
+            StgSabiogoVentas.fecha < hasta + timedelta(days=1),
+            filtro_comprobante_panel_ventas(),
+        ]
         if parametros['empresa'] != 'TODAS':
             filtro_empresa = func.upper(func.coalesce(StgSabiogoVentas.origen, '')) == parametros['empresa']
             filtros_dimensiones.append(filtro_empresa)
@@ -229,8 +233,7 @@ def paneles_opciones():
         clientes = db.session.query(cliente.label('cliente')).filter(*filtros_cliente).distinct().all()
         productos = db.session.query(producto.label('producto')).filter(*filtros_producto).distinct().all()
 
-        # Las dimensiones mantienen el catálogo completo por empresa, como en
-        # los filtros anteriores; fechas y vendedor limitan los datos, no el catálogo.
+        # Clientes y productos representan operaciones disponibles en el período elegido.
         filtros_vendedor = [StgSabiogoVentas.estado == 'procesado', filtro_comprobante_panel_ventas(),
                             StgSabiogoVentas.fecha < hasta + timedelta(days=1)]
         if parametros['empresa'] != 'TODAS':

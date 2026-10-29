@@ -98,6 +98,47 @@ def test_mover_vendedor_no_crea_sin_recompra_global(client, app):
     assert client.get(BASE + QUERY + '&vendedor=Ana').get_json()['total'] == 1
 
 
+def test_opciones_clientes_y_productos_respetan_periodo_y_empresa(client, app):
+    with app.app_context():
+        agregar_pre(
+            date(2024, 6, 10),
+            'Ana',
+            'Cliente del período',
+            producto='Producto del período',
+            numero='opcion-junio',
+        )
+        agregar_pre(
+            date(2024, 5, 31),
+            'Ana',
+            'Cliente anterior',
+            producto='Producto anterior',
+            numero='opcion-mayo',
+        )
+        agregar_pre(
+            date(2024, 6, 12),
+            'Ana',
+            'Cliente otra empresa',
+            producto='Producto otra empresa',
+            numero='opcion-lacteos',
+        )
+        StgSabiogoVentas.query.filter_by(nro_comprob='opcion-lacteos').one().origen = 'LACTEOS'
+        db.session.commit()
+
+    response = client.get(
+        '/api/comercial/paneles/opciones',
+        query_string={
+            'fecha_desde': '2024-06-01',
+            'fecha_hasta': '2024-06-30',
+            'empresa': 'CARNES',
+        },
+    )
+
+    assert response.status_code == 200
+    opciones = response.get_json()
+    assert opciones['clientes'] == ['Cliente del período']
+    assert opciones['productos'] == ['Producto del período']
+
+
 def test_criterios_empresas_y_aliases_fac(client, app):
     with app.app_context():
         db.session.add(ComercialClienteCriterio(cliente='Factura', criterio='FAC', actualizado_por='test'))

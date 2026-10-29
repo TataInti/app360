@@ -1258,32 +1258,54 @@ def api_dashboard_comercial_mix():
     producto_mix_expr = func.coalesce(
         func.nullif(func.trim(StgSabiogoVentas.producto), ""), "Sin producto"
     )
-    mg_rows = (
+    mix_agregado = (
         db.session.query(
             producto_mix_expr.label("producto"),
-            func.sum(StgSabiogoVentas.cajas).label("cajas"),
+            func.coalesce(func.sum(StgSabiogoVentas.cajas), 0).label("cajas"),
         )
         .filter(*base_f(fecha_desde, fecha_hasta))
         .group_by(producto_mix_expr)
-        .order_by(func.sum(StgSabiogoVentas.cajas).desc())
+        .subquery()
+    )
+    mix_ordenado = (
+        db.session.query(
+            mix_agregado.c.producto,
+            mix_agregado.c.cajas,
+            func.row_number()
+            .over(
+                order_by=(
+                    mix_agregado.c.cajas.desc(),
+                    func.lower(mix_agregado.c.producto),
+                    mix_agregado.c.producto,
+                )
+            )
+            .label("posicion"),
+        )
+        .subquery()
+    )
+    categoria_mix = case(
+        (mix_ordenado.c.posicion <= 10, mix_ordenado.c.producto),
+        else_="Otros",
+    )
+    mg_rows = (
+        db.session.query(
+            categoria_mix.label("producto"),
+            func.sum(mix_ordenado.c.cajas).label("cajas"),
+            func.min(mix_ordenado.c.posicion).label("posicion"),
+        )
+        .group_by(categoria_mix)
+        .order_by(func.min(mix_ordenado.c.posicion))
         .all()
     )
     total_cajas = sum(float(r.cajas or 0) for r in mg_rows)
     mix_global = []
-    otros = 0.0
-    for i, r in enumerate(mg_rows):
+    for r in mg_rows:
         c = float(r.cajas or 0)
-        if i < 10:
-            mix_global.append({
-                "producto": r.producto,
-                "cajas": c,
-                "pct": round(c / total_cajas * 100, 1) if total_cajas else 0,
-            })
-        else:
-            otros += c
-    if len(mg_rows) > 10:
-        mix_global.append({"producto": "Otros", "cajas": otros,
-                            "pct": round(otros / total_cajas * 100, 1) if total_cajas else 0})
+        mix_global.append({
+            "producto": r.producto,
+            "cajas": c,
+            "pct": round(c / total_cajas * 100, 1) if total_cajas else 0,
+        })
 
     # ── 2. Diversidad de clientes: top 15 por N° productos distintos ──
     div_rows = (
@@ -1400,16 +1422,6 @@ def api_dashboard_comercial_mix():
             evo_map[mes][r.producto] = float(r.cajas or 0)
         evo_rows = [{"periodo": mes, "productos": prods} for mes, prods in sorted(evo_map.items())]
 
-    # ── 5. Clientes disponibles para el select ──
-    clientes_rows = (
-        db.session.query(StgSabiogoVentas.cliente)
-        .filter(*base_f(fecha_desde, fecha_hasta))
-        .filter(StgSabiogoVentas.cliente.isnot(None), StgSabiogoVentas.cliente != "")
-        .distinct()
-        .order_by(StgSabiogoVentas.cliente)
-        .all()
-    )
-
     return jsonify({
         "mix_global":          mix_global,
         "diversidad_clientes": diversidad_clientes,
@@ -1417,7 +1429,6 @@ def api_dashboard_comercial_mix():
         "top_productos_stacked": top5_prods,
         "evo_mix":             evo_rows,
         "top_productos_evo":   top3_prods,
-        "clientes_disponibles": [r.cliente for r in clientes_rows],
     })
 
 
@@ -1956,6 +1967,17 @@ def api_dashboard_comercial_equipo():
             empresa=empresa,
             limite=100000,
         )
+        realizados_agrupados = None
+        if empresa == "TODAS":
+            # El período PRE mensual coincide con el período consultado por objetivos.
+            realizados_agrupados = {
+                fila["nombre"]: {
+                    "importe": fila["plata"],
+                    "cajas": fila["cajas"],
+                    "kilos": fila["kilos"],
+                }
+                for fila in resumen_mes["por_vendedor"]
+            }
         objetivos = obtener_objetivos_comerciales(
             mes=mes_objetivos,
             empresa=empresa,
@@ -1963,6 +1985,7 @@ def api_dashboard_comercial_equipo():
             corte=hasta,
             criterio_clientes=True,
             incluir_vendedores_venta=True,
+            realizados_agrupados=realizados_agrupados,
         )
 
         seguimiento_query = {key: value for key, value in request.args.items()}
