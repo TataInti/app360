@@ -365,8 +365,8 @@ def push_daily_to_vps(
 
 
 def finalize_sync(cfg: configparser.ConfigParser, fecha: date) -> dict:
-    """Refresca facts y objetivos después de completar ambos tipos."""
-    log.info(f"Finalizando sincronización {fecha}: facts y objetivos PRE")
+    """Refresca derivados de staging después de completar ambos tipos."""
+    log.info(f"Finalizando sincronización {fecha}: actualización de facts")
     result = _post_json_to_vps(
         cfg,
         '/sabiogo/api/db-sync/finalize',

@@ -157,7 +157,7 @@ class ComercialVendedorAlias(db.Model):
 
 
 class ComercialObjetivo(db.Model):
-    """Meta comercial mensual, independiente de los objetivos de RRHH."""
+    """Línea mensual de objetivo comercial para un vendedor y un slice de ventas."""
 
     __tablename__ = "comercial_objetivos"
 
@@ -167,10 +167,16 @@ class ComercialObjetivo(db.Model):
         db.ForeignKey("comercial_vendedores.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    empresa = db.Column(db.String(10), nullable=False)
+    # Columnas legacy conservadas para historial y compatibilidad de lectura.
+    empresa = db.Column(db.String(10), nullable=True)
     mes = db.Column(db.String(7), nullable=False)
-    medida = db.Column(db.String(10), nullable=False)
-    meta = db.Column(db.Numeric(18, 4), nullable=False)
+    medida = db.Column(db.String(10), nullable=True)
+    meta = db.Column(db.Numeric(18, 4), nullable=True)
+    dimension_tipo = db.Column(db.String(20), nullable=False)
+    dimension_valor = db.Column(db.String(255), nullable=False)
+    meta_importe = db.Column(db.Numeric(18, 4), nullable=False, default=0, server_default="0")
+    meta_cajas = db.Column(db.Numeric(18, 4), nullable=False, default=0, server_default="0")
+    meta_kilos = db.Column(db.Numeric(18, 4), nullable=False, default=0, server_default="0")
     descripcion = db.Column(db.Text, nullable=True)
     creado_en = db.Column(db.DateTime, nullable=False, default=now_local)
     actualizado_en = db.Column(
@@ -193,31 +199,40 @@ class ComercialObjetivo(db.Model):
     vendedor = db.relationship("ComercialVendedor")
 
     __table_args__ = (
-        db.UniqueConstraint(
-            "vendedor_id",
-            "empresa",
-            "mes",
-            "medida",
-            name="uq_comercial_objetivo_vendedor_empresa_mes_medida",
+        db.CheckConstraint(
+            "dimension_tipo IN ('empresa', 'rubro', 'subrubro', 'marca', 'producto')",
+            name="ck_comercial_objetivo_dimension_tipo",
         ),
         db.CheckConstraint(
-            "empresa IN ('CARNES', 'LACTEOS')",
-            name="ck_comercial_objetivo_empresa",
+            "length(trim(dimension_valor)) > 0",
+            name="ck_comercial_objetivo_dimension_valor",
         ),
         db.CheckConstraint(
-            "medida IN ('importe', 'cajas', 'kilos')",
-            name="ck_comercial_objetivo_medida",
+            "dimension_tipo != 'empresa' OR dimension_valor IN ('CARNES', 'LACTEOS')",
+            name="ck_comercial_objetivo_empresa_valor",
         ),
-        db.CheckConstraint("meta > 0", name="ck_comercial_objetivo_meta_positiva"),
+        db.CheckConstraint(
+            "meta_importe >= 0 AND meta_cajas >= 0 AND meta_kilos >= 0",
+            name="ck_comercial_objetivo_metas_no_negativas",
+        ),
+        db.CheckConstraint(
+            "meta_importe > 0 OR meta_cajas > 0 OR meta_kilos > 0",
+            name="ck_comercial_objetivo_al_menos_una_meta",
+        ),
         db.CheckConstraint(
             "length(mes) = 7 AND substr(mes, 5, 1) = '-'",
             name="ck_comercial_objetivo_mes_formato",
         ),
         db.Index(
-            "ix_comercial_objetivos_mes_empresa_medida",
+            "ix_comercial_objetivos_mes_vendedor",
             "mes",
-            "empresa",
-            "medida",
+            "vendedor_id",
+        ),
+        db.Index(
+            "ix_comercial_objetivos_mes_dimension",
+            "mes",
+            "dimension_tipo",
+            "dimension_valor",
         ),
     )
 

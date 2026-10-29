@@ -393,10 +393,6 @@ document.getElementById('formCargaGlobal').addEventListener('submit', async func
             html += `<div class="alert alert-danger py-2"><strong>${key}</strong>: ${escapeHtml(error)}</div>`;
         });
 
-        if (data.objetivos_sync?.ejecuciones?.length) {
-            html += `<details class="mt-2"><summary>Sincronización PRE (${data.objetivos_sync.ejecuciones.length} períodos)</summary><pre class="small bg-light p-2 border rounded mt-2">${escapeHtml(JSON.stringify(data.objetivos_sync, null, 2))}</pre></details>`;
-        }
-
         resultadoDiv.innerHTML = html;
 
         if (data.success) {

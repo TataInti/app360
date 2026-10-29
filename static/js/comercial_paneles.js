@@ -252,7 +252,7 @@
     }));
     drawEvolution();
     const measure = $('com-meta-medida').value, format = measure === 'importe' ? money : number;
-    $('com-objetivos-nota').textContent = `Mes ${data.mes_objetivos} · Realizado desde el día 1 hasta ${fecha(data.hasta)}. Meta mensual completa, sin prorrateo. Alcance: empresa y vendedor; no aplica cliente ni producto. Desvío = realizado − meta.`;
+    $('com-objetivos-nota').textContent = `Mes ${data.mes_objetivos} · Realizado desde el día 1 hasta ${fecha(data.hasta)}. Cumplimiento por suma de líneas del vendedor, sin prorrateo. Los filtros de cliente y producto ajustan el diagnóstico y mantienen el alcance de la meta.`;
     $('com-objetivos').replaceChildren(data.objetivos.length ? table([['Vendedor'], ['Realizado', true], ['Meta', true], ['Cumplimiento', true], ['Desvío', true], ['Estado']], data.objetivos.map(o => [o.nombre_visible, format(o.realizado), format(o.meta), o.cumplimiento == null ? '—' : number(o.cumplimiento * 100) + '%', format(o.diferencia_meta), o.estado + (o.cobertura === 'parcial' ? ' · cobertura parcial' : '')]), 'com-objective-table') : elem('p', 'No hay vendedores en este alcance.', 'com-empty'));
     $('com-rankings').replaceChildren(...[['vendedor', 'Participación por vendedor'], ['producto', 'Principales productos'], ['cliente', 'Concentración por cliente']].map(([key, title]) => {
       const section = elem('section'); section.append(elem('h3', title));

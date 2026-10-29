@@ -5,7 +5,7 @@ import pytest
 from app import create_app
 from config import Config
 from models import db
-from models.comercial import ComercialClienteCriterio
+from models.comercial import ComercialClienteCriterio, ComercialObjetivo, ComercialVendedor
 from models.sabiogo.staging import StgSabiogoVentas
 from services.comercial_pre import calcular_resumen_pre
 from services.vendedores_comerciales import seed_vendedores_comerciales
@@ -318,6 +318,17 @@ def test_criterio_fac_sustituye_pre_solo_para_cliente_marcado(client, app, pre_a
                 ),
             ]
         )
+        vendedor = ComercialVendedor.query.filter_by(nombre_visible="Benjamín Kalja").one()
+        db.session.add(
+            ComercialObjetivo(
+                vendedor_id=vendedor.id,
+                empresa="CARNES",
+                mes="2024-01",
+                dimension_tipo="empresa",
+                dimension_valor="CARNES",
+                meta_importe=500,
+            )
+        )
         db.session.commit()
 
         default = calcular_resumen_pre(date(2024, 1, 1), date(2024, 1, 31))
@@ -341,7 +352,9 @@ def test_criterio_fac_sustituye_pre_solo_para_cliente_marcado(client, app, pre_a
     objetivo = next(
         row for row in equipo.get_json()["equipo"] if row["vendedor"] == "Benjamín Kalja"
     )
-    assert objetivo["realizado"] == 1006.0
+    assert objetivo["meta"] == 500.0
+    assert objetivo["realizado"] == 237.0
+    assert objetivo["cumplimiento"] == 0.474
 
 
 def test_pantalla_criterios_guardado_selectivo_y_auditoria(client, app, pre_aliases):

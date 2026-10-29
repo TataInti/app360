@@ -143,7 +143,7 @@ Variables relevantes adicionales:
 - `WTF_CSRF_ENABLED`
 - `RATELIMIT_ENABLED`, `RATELIMIT_DEFAULT`
 - `LOG_LEVEL`, `LOG_FILE`, `SECURITY_LOG_FILE`
-- `SABIOGO_SYNC_API_KEY`, `SABIOGO_CRON_TOKEN` si se opera la integración automática SabioGo
+- `SABIOGO_SYNC_API_KEY` para la integración automática SabioGo
 
 No se versionan plantillas de entorno en el repositorio.
 

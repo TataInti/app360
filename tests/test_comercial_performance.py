@@ -128,23 +128,43 @@ def test_objetivos_con_meta(client, app):
             vendedor = ComercialVendedor(nombre_visible='Ana', activo=True)
             db.session.add(vendedor)
             db.session.flush()
-        db.session.add(ComercialObjetivo(vendedor_id=vendedor.id, empresa='CARNES', mes='2024-06',
-                                         medida='importe', meta=200, descripcion='meta jun'))
+        db.session.add(
+            ComercialObjetivo(
+                vendedor_id=vendedor.id,
+                empresa='CARNES',
+                mes='2024-06',
+                dimension_tipo='empresa',
+                dimension_valor='CARNES',
+                meta_importe=200,
+                descripcion='meta jun',
+            )
+        )
         db.session.commit()
 
-    # Con una sola empresa con meta, TODAS queda con cobertura incompleta.
+    # Una línea de empresa basta para calcular el cumplimiento del vendedor.
     todas = client.get(BASE + QUERY).get_json()
     assert todas['tienen_meta'] is True
-    incompleta = next(o for o in todas['objetivos'] if o['nombre_visible'] == 'Ana')
-    assert incompleta['cobertura'] == 'incompleta'
-    assert incompleta['cumplimiento'] is None
+    objetivo_total = next(o for o in todas['objetivos'] if o['nombre_visible'] == 'Ana')
+    assert objetivo_total['cobertura'] == 'completa'
+    assert objetivo_total['cumplimiento'] == 0.5
 
-    # Con la empresa puntual, el cumplimiento se calcula.
+    # El alcance de la meta se mantiene alineado con su línea.
     data = client.get(BASE + '?fecha_desde=2024-06-01&fecha_hasta=2024-06-30&empresa=CARNES').get_json()
     objetivo = next(o for o in data['objetivos'] if o['nombre_visible'] == 'Ana')
     assert objetivo['realizado'] == 100
     assert objetivo['meta'] == 200
     assert objetivo['cumplimiento'] == 0.5
+
+    diagnostico_filtrado = client.get(
+        BASE + '?fecha_desde=2024-06-01&fecha_hasta=2024-06-30'
+        '&empresa=TODAS&cliente=A&producto=No%20hay%20ventas'
+    ).get_json()
+    objetivo_filtrado = next(
+        o for o in diagnostico_filtrado['objetivos'] if o['nombre_visible'] == 'Ana'
+    )
+    assert diagnostico_filtrado['kpis']['importe']['actual'] == 0
+    assert objetivo_filtrado['realizado'] == 100
+    assert objetivo_filtrado['cumplimiento'] == 0.5
 
 
 def test_criterio_fac_por_cliente(client, app):

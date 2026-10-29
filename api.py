@@ -1955,7 +1955,6 @@ def api_dashboard_comercial_equipo():
             hasta,
             empresa=empresa,
             limite=100000,
-            criterio_clientes=True,
         )
         objetivos = obtener_objetivos_comerciales(
             mes=mes_objetivos,
@@ -1963,6 +1962,7 @@ def api_dashboard_comercial_equipo():
             medida=medida,
             corte=hasta,
             criterio_clientes=True,
+            incluir_vendedores_venta=True,
         )
 
         seguimiento_query = {key: value for key, value in request.args.items()}

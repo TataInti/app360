@@ -3,11 +3,8 @@
 from repositories.sabiogo_repository import SabiogoRepository
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
-import unicodedata
 
 from models import db
-from models.hr.employee import Employee
-from models.hr.goal import Goal
 from models.sabiogo import StgSabiogoVentas
 from sqlalchemy import text
 
@@ -238,91 +235,3 @@ class SabiogoService:
             producto=producto,
             limit=limit,
         )
-
-    @staticmethod
-    def _normalizar_texto(value: Optional[str]) -> str:
-        if not value:
-            return ""
-        base = unicodedata.normalize("NFKD", value)
-        ascii_text = "".join(ch for ch in base if not unicodedata.combining(ch))
-        return " ".join(ascii_text.lower().strip().split())
-
-    def sincronizar_objetivos_pre(self, periodo: Optional[str] = None) -> Dict:
-        """
-        Actualiza Goal.current_value según ventas PRE por vendedor y período.
-        Mantiene target_value manual.
-        """
-        if not periodo:
-            periodo = datetime.now().strftime("%Y-%m")
-
-        try:
-            anio, mes = periodo.split("-")
-            fecha_inicio = date(int(anio), int(mes), 1)
-        except Exception:
-            raise ValueError("Formato de periodo inválido. Use YYYY-MM")
-
-        if fecha_inicio.month == 12:
-            fecha_fin = date(fecha_inicio.year + 1, 1, 1) - timedelta(days=1)
-        else:
-            fecha_fin = date(fecha_inicio.year, fecha_inicio.month + 1, 1) - timedelta(days=1)
-
-        ventas_por_vendedor = db.session.query(
-            StgSabiogoVentas.vendedor,
-            db.func.coalesce(db.func.sum(StgSabiogoVentas.subtot), 0).label("monto_pre"),
-        ).filter(
-            StgSabiogoVentas.estado == "procesado",
-            db.func.coalesce(db.func.upper(db.func.trim(StgSabiogoVentas.comprobante)), "") == "PRE",
-            StgSabiogoVentas.fecha >= fecha_inicio,
-            StgSabiogoVentas.fecha <= fecha_fin,
-            StgSabiogoVentas.vendedor.isnot(None),
-        ).group_by(
-            StgSabiogoVentas.vendedor,
-        ).all()
-
-        empleados = Employee.query.filter(Employee.is_active == True).all()
-        empleados_por_nombre = {
-            self._normalizar_texto(emp.full_name): emp
-            for emp in empleados
-            if emp.full_name
-        }
-
-        montos_por_employee_id: Dict[int, float] = {}
-        vendedores_sin_mapeo: List[str] = []
-
-        for row in ventas_por_vendedor:
-            vendedor_raw = (row.vendedor or "").strip()
-            vendedor_norm = self._normalizar_texto(vendedor_raw)
-            monto = float(row.monto_pre or 0)
-
-            empleado = empleados_por_nombre.get(vendedor_norm)
-
-            if not empleado and vendedor_norm:
-                for emp in empleados:
-                    full_name = self._normalizar_texto(emp.full_name)
-                    if vendedor_norm in full_name or full_name in vendedor_norm:
-                        empleado = emp
-                        break
-
-            if not empleado:
-                if vendedor_raw:
-                    vendedores_sin_mapeo.append(vendedor_raw)
-                continue
-
-            montos_por_employee_id[empleado.id] = montos_por_employee_id.get(empleado.id, 0.0) + monto
-
-        objetivos = Goal.query.filter(Goal.period == periodo).all()
-        objetivos_actualizados = 0
-
-        for objetivo in objetivos:
-            nuevo_valor = float(montos_por_employee_id.get(objetivo.employee_id, 0.0))
-            objetivo.current_value = nuevo_valor
-            objetivos_actualizados += 1
-
-        db.session.commit()
-
-        return {
-            "periodo": periodo,
-            "objetivos_actualizados": objetivos_actualizados,
-            "vendedores_en_pre": len(ventas_por_vendedor),
-            "vendedores_sin_mapeo": sorted(set(vendedores_sin_mapeo)),
-        }

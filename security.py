@@ -284,14 +284,6 @@ def protect_blueprint(bp, module):
                 return
             return jsonify({'error': 'Unauthorized'}), 401
 
-        if request.endpoint == 'sabiogo.sync_objetivos_pre_cron':
-            cron_token = current_app.config.get('SABIOGO_CRON_TOKEN')
-            if not cron_token:
-                return jsonify({'error': 'SABIOGO_CRON_TOKEN no configurado'}), 503
-            if secrets_match(request.headers.get('X-App360-Cron-Token'), cron_token):
-                return
-            return jsonify({'error': 'Token de cron inválido'}), 401
-
         if module_allowed(module):
             # Enforce read-only for 'view' level on mutating methods
             user_id = session.get("user_id")

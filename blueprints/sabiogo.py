@@ -35,7 +35,7 @@ from dtos.sabiogo_dto import (
     ProductoTopMargenDTO
 )
 from extensions import csrf
-from security import protect_blueprint, secrets_match
+from security import protect_blueprint
 from models.core.user import User
 
 sabiogo_bp = Blueprint("sabiogo", __name__, url_prefix="/sabiogo")
@@ -651,11 +651,9 @@ def sabiogo_db_sync_finalize():
     if not fecha_lote:
         return jsonify({'error': 'fecha requerida con formato YYYY-MM-DD'}), 400
 
-    periodo = fecha_lote.strftime('%Y-%m')
     service = SabiogoService()
     try:
         facts = service.refresh_facts()
-        objetivos = service.sincronizar_objetivos_pre(periodo=periodo)
     except Exception as exc:
         current_app.logger.error(
             f'[db-sync/finalize] error fecha={fecha_lote}: {exc}',
@@ -671,7 +669,6 @@ def sabiogo_db_sync_finalize():
         'success': True,
         'fecha': fecha_lote.isoformat(),
         'facts': facts,
-        'objetivos': objetivos,
     }), 200
 
 
@@ -931,7 +928,6 @@ def cargar_globales():
     }
 
     replace = request.form.get('replace', 'true').lower() not in ('false', '0', 'no')
-    sync_objetivos = request.form.get('sync_objetivos', 'false').lower() in ('true', '1', 'yes')
     upload_folder = current_app.config.get('UPLOAD_FOLDER', '/tmp')
     os.makedirs(upload_folder, exist_ok=True)
 
@@ -1033,36 +1029,7 @@ def cargar_globales():
             'archivos': None,
             'errores': errores_archivos,
             'total_filas_insertadas': 0,
-            'sync_objetivos_ejecutado': False,
-            'periodos_detectados': [],
-            'objetivos_sync': None,
         }), 500
-
-    # Sincronización PRE desacoplada de la carga principal.
-    objetivos_sync = None
-    periodos_detectados = []
-    ventas_keys = [k for k in archivos_recibidos if 'ventas' in k]
-    if ventas_keys:
-        try:
-            periodos_q = db.session.query(StgSabiogoVentas.fecha).filter(
-                StgSabiogoVentas.origen.in_(
-                    [ARCHIVOS_CONFIG[k][0] for k in ventas_keys]
-                ),
-                StgSabiogoVentas.estado == 'procesado',
-                StgSabiogoVentas.fecha.isnot(None),
-            ).distinct().all()
-            periodos = sorted({f"{r.fecha.year:04d}-{r.fecha.month:02d}" for r in periodos_q if r.fecha})
-            periodos_detectados = periodos[:24]
-            if sync_objetivos and periodos_detectados:
-                sync_runs = []
-                for periodo in periodos_detectados:
-                    try:
-                        sync_runs.append(service.sincronizar_objetivos_pre(periodo=periodo))
-                    except Exception as se:
-                        sync_runs.append({'periodo': periodo, 'error': str(se)})
-                objetivos_sync = {'ejecuciones': sync_runs}
-        except Exception as se:
-            current_app.logger.warning(f"[cargar-globales] sync PRE falló: {se}")
 
     total_insertadas = sum(r.get('filas_insertadas', 0) for r in resultados.values())
     return jsonify({
@@ -1071,56 +1038,7 @@ def cargar_globales():
         'archivos': resultados,
         'errores': errores_archivos or None,
         'total_filas_insertadas': total_insertadas,
-        'sync_objetivos_ejecutado': bool(sync_objetivos),
-        'periodos_detectados': periodos_detectados if 'periodos_detectados' in locals() else [],
-        'objetivos_sync': objetivos_sync,
     }), 200
-
-
-@sabiogo_bp.route('/api/sync-objetivos-pre', methods=['POST'])
-@login_required
-def sync_objetivos_pre():
-    """Endpoint para sincronización manual/nocturna de objetivos desde ventas PRE."""
-    payload = request.get_json(silent=True) or {}
-    periodo = payload.get('periodo') or request.args.get('periodo')
-
-    service = SabiogoService()
-    try:
-        resultado = service.sincronizar_objetivos_pre(periodo=periodo)
-    except ValueError as exc:
-        return jsonify({'error': str(exc)}), 400
-    except Exception as exc:
-        current_app.logger.error(f"Error sincronizando objetivos PRE: {exc}", exc_info=True)
-        return jsonify({'error': str(exc)}), 500
-
-    return jsonify({'success': True, 'resultado': resultado})
-
-
-@sabiogo_bp.route('/api/sync-objetivos-pre-cron', methods=['POST'])
-@csrf.exempt
-def sync_objetivos_pre_cron():
-    """Endpoint para cron nocturno protegido por token en header."""
-    configured_token = current_app.config.get('SABIOGO_CRON_TOKEN') or os.getenv('SABIOGO_CRON_TOKEN')
-    if not configured_token:
-        return jsonify({'error': 'SABIOGO_CRON_TOKEN no configurado'}), 503
-
-    received_token = request.headers.get('X-App360-Cron-Token', '')
-    if not secrets_match(received_token, configured_token):
-        return jsonify({'error': 'Token de cron inválido'}), 401
-
-    payload = request.get_json(silent=True) or {}
-    periodo = payload.get('periodo') or request.args.get('periodo')
-
-    service = SabiogoService()
-    try:
-        resultado = service.sincronizar_objetivos_pre(periodo=periodo)
-    except ValueError as exc:
-        return jsonify({'error': str(exc)}), 400
-    except Exception as exc:
-        current_app.logger.error(f"Error en sync_objetivos_pre_cron: {exc}", exc_info=True)
-        return jsonify({'error': str(exc)}), 500
-
-    return jsonify({'success': True, 'resultado': resultado})
 
 
 # ============================================================================

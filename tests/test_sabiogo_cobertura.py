@@ -772,7 +772,7 @@ class TestDbSyncEndpoint:
 
         assert resp.status_code == 401
 
-    def test_finalize_refresca_facts_y_objetivos(self, client, monkeypatch):
+    def test_finalize_refresca_facts_sin_sync_de_objetivos(self, client, monkeypatch):
         calls = []
 
         def fake_refresh(service):
@@ -782,12 +782,7 @@ class TestDbSyncEndpoint:
                 'staging_promovidos': {'ventas': 0, 'compras': 0},
             }
 
-        def fake_objetivos(service, periodo=None):
-            calls.append(('objetivos', periodo))
-            return {'periodo': periodo, 'objetivos_actualizados': 0}
-
         monkeypatch.setattr(SabiogoService, 'refresh_facts', fake_refresh)
-        monkeypatch.setattr(SabiogoService, 'sincronizar_objetivos_pre', fake_objetivos)
 
         resp = client.post(
             '/sabiogo/api/db-sync/finalize',
@@ -797,39 +792,15 @@ class TestDbSyncEndpoint:
 
         assert resp.status_code == 200
         assert resp.get_json()['success'] is True
-        assert calls == [('facts', None), ('objetivos', '2025-03')]
+        assert calls == [('facts', None)]
+        assert 'objetivos' not in resp.get_json()
 
-    def test_cron_token_alcanza_sin_sesion(self, client, monkeypatch):
-        client.application.config['SABIOGO_CRON_TOKEN'] = 'test-cron-token'
-        monkeypatch.setattr(
-            SabiogoService,
-            'sincronizar_objetivos_pre',
-            lambda service, periodo=None: {'periodo': periodo, 'objetivos_actualizados': 0},
-        )
-        with client.session_transaction() as session:
-            session.clear()
-
+    def test_endpoint_legacy_sync_objetivos_pre_fue_retirado(self, client):
         resp = client.post(
             '/sabiogo/api/sync-objetivos-pre-cron',
             json={'periodo': '2025-03'},
-            headers={'X-App360-Cron-Token': 'test-cron-token'},
         )
-
-        assert resp.status_code == 200
-        assert resp.get_json()['resultado']['periodo'] == '2025-03'
-
-    def test_cron_rechaza_sync_key(self, client):
-        client.application.config['SABIOGO_CRON_TOKEN'] = 'test-cron-token'
-        with client.session_transaction() as session:
-            session.clear()
-
-        resp = client.post(
-            '/sabiogo/api/sync-objetivos-pre-cron',
-            json={'periodo': '2025-03'},
-            headers={'X-Sync-Key': 'test-sync-key'},
-        )
-
-        assert resp.status_code == 401
+        assert resp.status_code == 404
 
 
 class TestHistorialCargasEndpoint:
