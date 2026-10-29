@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('css/comercial_paneles.css') }}">
+<link rel="stylesheet" href="{{ asset('css/objetivos_comerciales.css') }}">
+<main class="com-panel com-goals oc-page" data-mode="objetivos">
+  <header class="com-heading">
+    <div>
+      <p class="com-eyebrow">Panel estratégico</p>
+      <h1>Objetivos de vendedores</h1>
+      <p>Definí objetivos mensuales por líneas comerciales y revisá el avance calculado desde PRE.</p>
+    </div>
+    <div class="com-goal-heading-actions">
+      <a class="com-link" href="/dashboard-comercial">Volver al Panel de Ventas →</a>
+      <button class="com-primary" id="agregarVendedor" type="button">＋ Agregar vendedor</button>
+    </div>
+  </header>
+
+  <section class="oc-period-bar" aria-label="Período de objetivos">
+    <label for="periodoObjetivos">Período mensual</label>
+    <input type="month" id="periodoObjetivos" required>
+    <p class="com-note">Cada línea define un corte de ventas y sus metas. Las líneas que se superponen suman por separado; el avance del vendedor es la suma de realizados dividida por la suma de metas.</p>
+  </section>
+
+  <div id="objetivosError" class="com-error" role="alert" hidden></div>
+  <p id="objetivosCarga" class="com-note" role="status" hidden>Cargando objetivos del período…</p>
+  <p id="objetivosVacio" class="com-empty">El período está listo para cargar. Agregá un vendedor y sus líneas de objetivos.</p>
+  <section id="listaVendedores" class="oc-sellers" aria-live="polite" aria-label="Objetivos por vendedor"></section>
+
+  <details class="com-section oc-legacy">
+    <summary class="com-disclosure">
+      <span>
+        <span class="com-disclosure-title">Convertir objetivos históricos de RRHH</span>
+        <span class="com-disclosure-subtitle">Elegí vendedor comercial, empresa, medida y período para convertir cada registro en una línea de nivel empresa.</span>
+      </span>
+      <span aria-hidden="true">＋</span>
+    </summary>
+    <p class="com-note">El vínculo conserva intacto el registro original de RRHH. La conversión usa la empresa y medida elegidas y no interpreta el texto libre.</p>
+    <p id="legacyLoading" class="com-note" role="status" hidden>Cargando objetivos anteriores…</p>
+    <div id="legacyError" class="com-error" role="alert" hidden></div>
+    <div id="legacyGoals" class="com-table-wrap"></div>
+  </details>
+</main>
+<script src="{{ asset('js/objetivos_comerciales.js') }}" defer></script>
+{% endblock %}

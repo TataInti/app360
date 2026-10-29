@@ -89,6 +89,38 @@ def test_vendedor_fuera_del_catalogo_conserva_el_realizado(client, app):
     assert filas[0]["cumplimiento"] is None
 
 
+@pytest.mark.parametrize(
+    ("medida", "esperado"),
+    [("importe", 500.0), ("cajas", 4.0), ("kilos", 30.0)],
+)
+def test_vendedor_no_catalogado_realizado_usa_la_medida_solicitada(
+    client, app, medida, esperado
+):
+    with app.app_context():
+        agregar_pre(
+            date(2024, 2, 4),
+            "Vendedor sin catálogo",
+            "Cliente sin catálogo",
+            importe=500,
+            cajas=4,
+            kilos=30,
+            numero="B-MEDIDA",
+        )
+        db.session.commit()
+
+    response = client.get(
+        "/api/dashboard-comercial/equipo?fecha_desde=2024-02-01&fecha_hasta=2024-02-29"
+        f"&empresa=CARNES&medida={medida}"
+    )
+    assert response.status_code == 200
+    fila = next(
+        row
+        for row in response.get_json()["equipo"]
+        if row["vendedor"] == "Vendedor sin catálogo"
+    )
+    assert fila["realizado"] == esperado
+
+
 def test_atencion_devuelve_total_completo_y_pagina_de_20(client, app):
     with app.app_context():
         for indice in range(25):
@@ -278,6 +310,42 @@ def test_analisis_cantidades_y_mix_respetan_medida_y_fecha_de_corte(client, app)
     mix_datos = mix.get_json()
     assert all(fila["producto"] != "Producto futuro" for fila in mix_datos["mix_global"])
     assert mix_datos["evo_mix"][-1]["periodo"] == "2026-01"
+
+
+def test_analisis_aplica_el_filtro_a_la_dimension_rankeada(client, app):
+    with app.app_context():
+        connection = db.engine.raw_connection()
+        connection.create_function(
+            "date_trunc",
+            2,
+            lambda unidad, valor: f"{str(valor)[:7]}-01" if unidad == "month" and valor else None,
+        )
+        connection.close()
+        operaciones = [
+            ("VendedorA", "ClienteA", "ProductoA", "A-1"),
+            ("VendedorB", "ClienteB", "ProductoB", "B-1"),
+            ("VendedorA", "ClienteB", "ProductoB", "A-2"),
+            ("VendedorB", "ClienteA", "ProductoA", "B-2"),
+        ]
+        for vendedor, cliente, producto, numero in operaciones:
+            agregar_pre(
+                date(2026, 1, 10), vendedor, cliente, producto=producto, numero=numero
+            )
+        db.session.commit()
+
+    filtros = "fecha_desde=2026-01-01&fecha_hasta=2026-01-31&empresa=CARNES"
+    casos = [
+        ("producto", "producto", "ProductoA"),
+        ("cliente", "cliente", "ClienteA"),
+        ("vendedor", "vendedor", "VendedorA"),
+    ]
+    for dimension, filtro, valor in casos:
+        response = client.get(
+            f"/api/dashboard-comercial/analisis?{filtros}&tipo={dimension}&{filtro}={valor}"
+        )
+        assert response.status_code == 200
+        filas = response.get_json()["top15"]
+        assert [fila["nombre"] for fila in filas] == [valor]
 
 
 def test_error_del_endpoint_equipo_no_devuelve_kpis_en_cero(client, monkeypatch):

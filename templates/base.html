@@ -2149,6 +2149,11 @@
             <span class="nav-icon"><i class="bi bi-graph-up"></i></span>
             <span class="link-text">Ventas</span>
         </a>
+        <a href="/comercial/salon"
+           class="{% if current == '/comercial/salon' %}active-link{% endif %}">
+            <span class="nav-icon"><i class="bi bi-receipt"></i></span>
+            <span class="link-text">Tablero Salón</span>
+        </a>
         {% endif %}
         {% if can_access('panel') %}
         <a href="/panel-ejecutivo"

@@ -45,15 +45,19 @@ def resumen_estrategico(desde, hasta, empresa='TODAS', vendedor=None,
     actual = calcular_resumen_pre(desde, hasta, **filtros)
     anterior = calcular_resumen_pre(anterior_desde, anterior_hasta, **filtros)
     objetivos = obtener_objetivos_comerciales(hasta.strftime('%Y-%m'), empresa=empresa,
-                                             medida=medida, corte=hasta, criterio_clientes=True)
+                                             medida=medida, corte=hasta, criterio_clientes=True,
+                                             incluir_vendedores_venta=True)
     mensual = calcular_resumen_pre(hasta.replace(day=1), hasta, empresa=empresa,
                                   criterio_clientes=True, limite=100000)
     nombres = {f['nombre_visible'] for f in objetivos}
     for fila in mensual['por_vendedor']:
         if fila['nombre'] not in nombres:
             objetivos.append(dict(nombre_visible=fila['nombre'],
-                                  realizado=fila[{'importe': 'plata', 'cajas': 'cajas', 'kilos': 'kilos'}[medida]],
-                                  meta=None, cumplimiento=None, estado='Sin meta', cobertura='sin_meta'))
+                                  vendedor=fila['nombre'], vendedor_id=None, empresa='TODAS',
+                                  medida=medida, mes=hasta.strftime('%Y-%m'), lineas=[],
+                                  cantidad_lineas=0, realizado=0.0, meta=None,
+                                  cumplimiento=None, faltante=None, desvio=None,
+                                  estado='Sin meta', cobertura='sin_meta'))
     if vendedor:
         objetivos = [f for f in objetivos if f['nombre_visible'] == resolver_nombre_vendedor(vendedor)]
     for fila in objetivos:
@@ -66,6 +70,9 @@ def resumen_estrategico(desde, hasta, empresa='TODAS', vendedor=None,
                 serie=actual['por_fecha'], serie_anterior=anterior['por_fecha'],
                 objetivos=objetivos, mes_objetivos=hasta.strftime('%Y-%m'),
                 composicion={k: ranking(actual['por_' + k]) for k in ('vendedor', 'producto', 'cliente')},
+                composicion_detalle={
+                    k: actual['por_' + k][:100] for k in ('vendedor', 'producto', 'cliente')
+                },
                 estado_datos='disponible' if actual['lineas_pre'] else 'sin_operaciones',
                 ultima_importacion=actual['ultima_importacion'], fecha_maxima=actual['fecha_maxima_pre'])
 

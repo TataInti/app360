@@ -238,7 +238,7 @@ Si el reporte terminal no llega al VPS despues de los retries, el cliente termin
 - Otras rutas siguen exigiendo sesion y permisos.
 - Las comparaciones de secretos usan `hmac.compare_digest`.
 - Las rutas tecnicas estan exentas de CSRF, pero mantienen autenticacion por header.
-- El cron PRE independiente usa `X-App360-Cron-Token`; no acepta `X-Sync-Key`.
+- El realizado de objetivos comerciales se calcula desde PRE al consultar; la carga no dispara una sincronización de metas.
 - Los secretos no deben guardarse en el repositorio, documentacion, logs ni Task Scheduler arguments.
 - `install_task.bat` elimina permisos heredados de `C:\SabioGoSync` y conserva acceso completo solo para `Administrador` y `SYSTEM`.
 
@@ -246,7 +246,6 @@ Variables requeridas en el VPS:
 
 ```env
 SABIOGO_SYNC_API_KEY=<secreto-aleatorio-de-al-menos-32-bytes>
-SABIOGO_CRON_TOKEN=<solo-si-se-mantiene-el-cron-independiente>
 ```
 
 ## 7. Integridad e idempotencia

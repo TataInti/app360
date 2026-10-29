@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('css/comercial_paneles.css') }}">
+<link rel="stylesheet" href="{{ asset('css/paneles_normalizados.css') }}">
+<link rel="stylesheet" href="{{ asset('css/tablero_salon.css') }}">
+<main class="com-panel" data-mode="salon">
+  <header class="com-heading">
+    <div>
+      <p class="com-eyebrow">Panel estratégico</p>
+      <h1>Tablero Salón</h1>
+      <p>Tickets facturados del vendedor Salón y comparación con la ventana anterior.</p>
+    </div>
+  </header>
+
+  <form id="salon-filtros" class="com-filter salon-filters" aria-label="Fechas del Tablero Salón">
+    <label class="com-filter-field">
+      <span>Desde</span>
+      <input type="date" name="fecha_desde" value="{{ fecha_desde }}" required>
+    </label>
+    <label class="com-filter-field">
+      <span>Hasta</span>
+      <input type="date" name="fecha_hasta" value="{{ fecha_hasta }}" required>
+    </label>
+    <div class="com-filter-actions">
+      <button type="submit" class="com-primary">Aplicar fechas</button>
+    </div>
+  </form>
+
+  <p id="salon-status" class="com-note" role="status" aria-live="polite"></p>
+  <div id="salon-error" class="com-error" role="alert" hidden></div>
+
+  <section class="salon-section" aria-labelledby="salon-resumen-titulo">
+    <div class="salon-section-heading">
+      <h2 id="salon-resumen-titulo">Resumen del período</h2>
+      <p id="salon-periodo" class="com-note"></p>
+    </div>
+    <div id="salon-kpis" class="com-metrics" aria-live="polite"></div>
+  </section>
+
+  <section class="salon-section" aria-labelledby="salon-tickets-titulo">
+    <div class="salon-section-heading">
+      <h2 id="salon-tickets-titulo">Tickets</h2>
+      <p id="salon-tickets-total" class="com-note"></p>
+    </div>
+    <div id="salon-tabla" class="com-table-wrap salon-table-wrap" aria-live="polite"></div>
+  </section>
+</main>
+<script src="{{ asset('js/tablero_salon.js') }}" defer></script>
+{% endblock %}

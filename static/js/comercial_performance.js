@@ -184,8 +184,8 @@
     const objectivesSection = $('com-objetivos-section');
     if (data.tienen_meta) {
       objectivesSection.hidden = false;
-      $('com-objetivos-nota').textContent = `Mes ${data.mes_objetivos} · Realizado desde el día 1 hasta ${fecha(data.hasta)}. Meta mensual completa, sin prorrateo. Alcance: empresa y vendedor; no aplica cliente ni producto. Desvío = realizado − meta.`;
-      $('com-objetivos').replaceChildren(data.objetivos.length ? table([['Vendedor'], ['Empresa'], ['Realizado', true], ['Meta', true], ['Cumplimiento', true], ['Desvío', true], ['Estado']], data.objetivos.map(o => [o.nombre_visible, o.empresa, format(o.realizado), o.meta == null ? '—' : format(o.meta), o.cumplimiento == null ? '—' : number(o.cumplimiento * 100) + '%', o.desvio == null ? '—' : money(o.desvio), o.estado])) : elem('p', 'No hay vendedores con objetivo en este mes.', 'com-empty'));
+      $('com-objetivos-nota').textContent = `Mes ${data.mes_objetivos} · Realizado desde el día 1 hasta ${fecha(data.hasta)}. Cumplimiento por suma de líneas del vendedor, sin prorrateo. Los filtros de cliente y producto ajustan el diagnóstico y mantienen el alcance de la meta.`;
+      $('com-objetivos').replaceChildren(data.objetivos.length ? table([['Vendedor'], ['Líneas', true], ['Realizado', true], ['Meta', true], ['Cumplimiento', true], ['Desvío', true], ['Estado']], data.objetivos.map(o => [o.nombre_visible, number(o.cantidad_lineas), format(o.realizado), o.meta == null ? '—' : format(o.meta), o.cumplimiento == null ? '—' : number(o.cumplimiento * 100) + '%', o.desvio == null ? '—' : format(o.desvio), o.estado])) : elem('p', 'No hay vendedores con objetivo en este mes.', 'com-empty'));
     } else {
       objectivesSection.hidden = true;
       $('com-objetivos').replaceChildren();

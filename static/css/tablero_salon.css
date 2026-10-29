@@ -1,0 +1,22 @@
+.salon-filters .com-filter-field { flex: 0 1 190px; }
+.salon-section { margin-top: 1.5rem; }
+.salon-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.salon-section-heading h2 { margin-bottom: 0.25rem; }
+.salon-section-heading p { margin: 0; }
+.salon-metric-note { color: var(--color-text-muted); font-size: var(--font-size-label); }
+.salon-table-wrap { overflow-x: auto; margin-top: 0.75rem; }
+.salon-table { width: 100%; min-width: 950px; border-collapse: collapse; }
+.salon-table th, .salon-table td { padding: 0.7rem 0.65rem; border-bottom: 1px solid var(--color-border); text-align: left; vertical-align: top; }
+.salon-table th { background: var(--color-surface-muted); color: var(--color-text-primary); font-size: var(--font-size-label); white-space: nowrap; }
+.salon-table td { color: var(--color-text-body); }
+.salon-table .salon-client-cell { min-width: 170px; }
+.salon-table .salon-number-cell { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.salon-empty { padding: 1rem; margin: 0; }
+.salon-section .com-metric small { color: var(--color-text-muted); line-height: 1.4; }
+
+@media (max-width: 600px) {
+  .salon-filters .com-filter-field { flex: 1 1 145px; }
+  .salon-filters .com-filter-actions { flex: 1 1 100%; }
+  .salon-filters .com-filter-actions button { width: 100%; }
+  .salon-section-heading { align-items: flex-start; flex-direction: column; gap: 0.2rem; }
+}

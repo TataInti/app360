@@ -76,4 +76,3 @@ class Config:
 
     # SabioGo sync: API key para el script de sincronización en Windows Server
     SABIOGO_SYNC_API_KEY = os.getenv("SABIOGO_SYNC_API_KEY")
-    SABIOGO_CRON_TOKEN = os.getenv("SABIOGO_CRON_TOKEN")

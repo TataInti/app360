@@ -32,7 +32,7 @@ protect_blueprint(comercial_bp, "comercial")
 @comercial_bp.route("/comercial/objetivos", methods=["GET"])
 def objetivos_ventas():
     """Panel de Objetivos de Venta por vendedor"""
-    return render_template("objetivos_ventas.html")
+    return render_template("objetivos_ventas_lineas.html")
 
 
 # Endpoints para Promociones
@@ -382,38 +382,7 @@ def comisiones_pagar(comision_id):
 
 @comercial_bp.route("/api/comercial/objetivos", methods=["GET"])
 def objetivos_listar():
-    """Listar objetivos de venta con progreso calculado"""
-    periodo = request.args.get("periodo")
-    
-    query = Goal.query.join(Employee)
-    
-    if periodo:
-        query = query.filter(Goal.period == periodo)
-    
-    objetivos = query.order_by(Goal.period.desc(), Employee.first_name, Employee.last_name).all()
-    
-    # El avance oficial sale de Goal.current_value (sincronizado desde PRE SabioGo).
-    resultado = []
-    for obj in objetivos:
-        ventas_empleado = float(obj.current_value or 0)
-        progreso = (ventas_empleado / obj.target_value * 100) if obj.target_value else 0
-        progreso_ventas = progreso
-        
-        resultado.append({
-            "id": obj.id,
-            "empleado_id": obj.employee_id,
-            "empleado": obj.employee.full_name if obj.employee else "N/A",
-            "descripcion": obj.description,
-            "periodo": obj.period,
-            "meta": float(obj.target_value),
-            "valor_actual": float(obj.current_value or 0),
-            "ventas_reales": ventas_empleado,
-            "progreso": round(progreso, 1),
-            "progreso_ventas": round(progreso_ventas, 1),
-            "estado": obj.status
-        })
-    
-    return jsonify({"objetivos": resultado})
+    return jsonify({"error": "Los objetivos de ventas se gestionan por líneas mensuales."}), 410
 
 
 @comercial_bp.route("/api/comercial/ventas-pre-detalle", methods=["GET"])
@@ -470,80 +439,22 @@ def ventas_pre_detalle():
 
 @comercial_bp.route("/api/comercial/objetivos/sincronizar-pre", methods=["POST"])
 def sincronizar_objetivos_pre():
-    """Sincroniza Goal.current_value con ventas PRE por vendedor y período."""
-    payload = request.get_json(silent=True) or {}
-    periodo = payload.get("periodo") or request.args.get("periodo")
-
-    service = SabiogoService()
-    try:
-        resultado = service.sincronizar_objetivos_pre(periodo=periodo)
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-    except Exception as exc:
-        return jsonify({"error": f"No se pudo sincronizar objetivos PRE: {exc}"}), 500
-
-    return jsonify({
-        "success": True,
-        "resultado": resultado,
-    })
+    return jsonify({"error": "El realizado se calcula desde PRE al consultar."}), 410
 
 
 @comercial_bp.route("/api/comercial/objetivos", methods=["POST"])
 def objetivos_crear():
-    """Crear nuevo objetivo de venta"""
-    data = request.get_json()
-    
-    required = ["employee_id", "description", "target_value"]
-    for field in required:
-        if field not in data:
-            return jsonify({"error": f"Campo requerido: {field}"}), 400
-    
-    objetivo = Goal(
-        employee_id=data["employee_id"],
-        description=data["description"],
-        period=data.get("period", datetime.now().strftime("%Y-%m")),
-        target_value=float(data["target_value"]),
-        current_value=float(data.get("current_value", 0)),
-        status=data.get("status", "en progreso")
-    )
-    
-    db.session.add(objetivo)
-    db.session.commit()
-    
-    return jsonify({
-        "message": "Objetivo creado exitosamente",
-        "id": objetivo.id
-    }), 201
+    return jsonify({"error": "Los objetivos de ventas se dan de alta como líneas mensuales."}), 410
 
 
 @comercial_bp.route("/api/comercial/objetivos/<int:objetivo_id>", methods=["PUT"])
 def objetivos_actualizar(objetivo_id):
-    """Actualizar objetivo de venta"""
-    objetivo = Goal.query.get_or_404(objetivo_id)
-    data = request.get_json()
-    
-    if "current_value" in data:
-        objetivo.current_value = float(data["current_value"])
-    if "status" in data:
-        objetivo.status = data["status"]
-    if "target_value" in data:
-        objetivo.target_value = float(data["target_value"])
-    if "description" in data:
-        objetivo.description = data["description"]
-    
-    db.session.commit()
-    
-    return jsonify({"message": "Objetivo actualizado"})
+    return jsonify({"error": "Los objetivos de ventas se editan como líneas mensuales."}), 410
 
 
 @comercial_bp.route("/api/comercial/objetivos/<int:objetivo_id>", methods=["DELETE"])
 def objetivos_eliminar(objetivo_id):
-    """Eliminar objetivo"""
-    objetivo = Goal.query.get_or_404(objetivo_id)
-    db.session.delete(objetivo)
-    db.session.commit()
-    
-    return jsonify({"message": "Objetivo eliminado"})
+    return jsonify({"error": "Los objetivos de ventas se gestionan por líneas mensuales."}), 410
 
 
 @comercial_bp.route("/api/comercial/vendedores", methods=["GET"])
@@ -581,32 +492,15 @@ def vendedores_listar():
 
 @comercial_bp.route("/api/comercial/ranking", methods=["GET"])
 def ranking_vendedores():
-    """Ranking de vendedores por cumplimiento de objetivos"""
-    periodo = request.args.get("periodo", datetime.now().strftime("%Y-%m"))
-    
-    objetivos = Goal.query.filter(Goal.period == periodo).all()
-    
-    ranking = []
-    for obj in objetivos:
-        if obj.target_value and obj.target_value > 0:
-            cumplimiento = (obj.current_value / obj.target_value) * 100
-            ranking.append({
-                "empleado_id": obj.employee_id,
-                "empleado": obj.employee.full_name if obj.employee else "N/A",
-                "meta": float(obj.target_value),
-                "actual": float(obj.current_value or 0),
-                "cumplimiento": round(cumplimiento, 1)
-            })
-    
-    # Ordenar por cumplimiento descendente
-    ranking.sort(key=lambda x: x["cumplimiento"], reverse=True)
-    
-    return jsonify({"ranking": ranking, "periodo": periodo})
+    return jsonify({"error": "El cumplimiento comercial se consulta en el Panel de Ventas."}), 410
 
 
-# API de objetivos comerciales nuevos, independiente del modelo Goal de RRHH.
+# API de objetivos comerciales por línea; Goal se conserva para RRHH e historial.
 _CAMPOS_REALIZADO = {
     "realizado",
+    "realizado_importe",
+    "realizado_cajas",
+    "realizado_kilos",
     "current_value",
     "valor_actual",
     "ventas_reales",
@@ -630,22 +524,67 @@ def _usuario_comercial_actual_id():
 
 
 def _objetivo_comercial_por_id(objetivo_id, corte):
-    from services.objetivos_comerciales import obtener_objetivos_comerciales
+    from services.objetivos_comerciales import linea_objetivo_dict
 
     objetivo = db.session.get(ComercialObjetivo, objetivo_id)
     if objetivo is None:
         return None
-    lista = obtener_objetivos_comerciales(
-        objetivo.mes,
-        empresa=objetivo.empresa,
-        medida=objetivo.medida,
-        corte=corte,
-        criterio_clientes=True,
+    return linea_objetivo_dict(objetivo, corte)
+
+
+def _metas_desde_payload(data, objetivo_actual=None, legacy_measure=None):
+    from services.objetivos_comerciales import decimal_no_negativo, decimal_positivo
+
+    medidas = ("importe", "cajas", "kilos")
+    metas = {
+        measure: (
+            decimal_no_negativo(getattr(objetivo_actual, f"meta_{measure}"))
+            if objetivo_actual is not None
+            else Decimal("0")
+        )
+        for measure in medidas
+    }
+    for measure in medidas:
+        key = f"meta_{measure}"
+        if key in data:
+            metas[measure] = decimal_no_negativo(data[key])
+    if "meta" in data:
+        measure = str(data.get("medida") or legacy_measure or "").strip().lower()
+        if measure not in medidas:
+            raise ValueError("medida debe ser importe, cajas o kilos para una meta histórica")
+        metas = {item: Decimal("0") for item in medidas}
+        metas[measure] = decimal_positivo(data["meta"])
+    if not any(value > 0 for value in metas.values()):
+        raise ValueError("Define al menos una meta mayor que cero")
+    return metas
+
+
+def _dimension_desde_payload(data):
+    from services.objetivos_comerciales import (
+        dimension_existe_en_staging,
+        normalizar_dimension,
     )
-    return next(
-        (item for item in lista if item["vendedor_id"] == objetivo.vendedor_id),
-        None,
-    )
+
+    dimension_tipo = data.get("dimension_tipo")
+    dimension_valor = data.get("dimension_valor")
+    if dimension_tipo is None and "empresa" in data:
+        dimension_tipo, dimension_valor = "empresa", data.get("empresa")
+    tipo, valor = normalizar_dimension(dimension_tipo, dimension_valor)
+    if not dimension_existe_en_staging(tipo, valor):
+        raise ValueError("El valor seleccionado no existe en staging procesado")
+    return tipo, valor
+
+
+def _validar_capacidades_producto(dimension_tipo, dimension_valor, metas):
+    if dimension_tipo != "producto":
+        return
+    from services.objetivos_comerciales import capacidades_producto
+
+    capacidades = capacidades_producto(dimension_valor)
+    if metas["cajas"] > 0 and not capacidades["supports_cajas"]:
+        raise ValueError("Las cajas están disponibles cuando el producto tiene cantidades en staging")
+    if metas["kilos"] > 0 and not capacidades["supports_kilos"]:
+        raise ValueError("Los kilos están disponibles cuando el producto tiene cantidades en staging")
 
 
 @comercial_bp.route("/api/objetivos-comerciales", methods=["GET"])
@@ -659,9 +598,9 @@ def objetivos_comerciales_listar():
 
     mes = request.args.get("mes")
     empresa = request.args.get("empresa", "TODAS")
-    medida = request.args.get("medida")
-    if not mes or not medida:
-        return jsonify({"error": "mes y medida son requeridos"}), 400
+    medida = request.args.get("medida", "importe")
+    if not mes:
+        return jsonify({"error": "mes es requerido"}), 400
 
     corte_raw = request.args.get("fecha_corte")
     if corte_raw:
@@ -697,10 +636,28 @@ def objetivos_comerciales_listar():
     )
 
 
+@comercial_bp.get("/api/objetivos-comerciales/opciones")
+def objetivos_comerciales_opciones():
+    from services.objetivos_comerciales import (
+        obtener_opciones_dimension,
+        obtener_opciones_vendedores,
+    )
+
+    dimension = request.args.get("dimension")
+    busqueda = request.args.get("q", "")
+    if dimension:
+        try:
+            opciones = obtener_opciones_dimension(dimension, busqueda)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"dimension": dimension, "opciones": opciones})
+    return jsonify({"vendedores": obtener_opciones_vendedores(busqueda)})
+
+
 @comercial_bp.route("/api/objetivos-comerciales", methods=["POST"])
 def objetivos_comerciales_crear():
     from models.time_utils import now_local, today_local_date
-    from services.objetivos_comerciales import decimal_positivo, validar_mes
+    from services.objetivos_comerciales import validar_mes
 
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -708,10 +665,23 @@ def objetivos_comerciales_crear():
     if _CAMPOS_REALIZADO.intersection(data):
         return jsonify({"error": "El realizado se calcula al consultar y no se acepta"}), 400
 
-    permitidos = {"vendedor_id", "vendedor_nombre", "empresa", "mes", "medida", "meta", "descripcion"}
+    permitidos = {
+        "vendedor_id",
+        "vendedor_nombre",
+        "empresa",
+        "dimension_tipo",
+        "dimension_valor",
+        "mes",
+        "medida",
+        "meta",
+        "meta_importe",
+        "meta_cajas",
+        "meta_kilos",
+        "descripcion",
+    }
     if set(data) - permitidos:
-        return jsonify({"error": "El alta solo acepta vendedor, empresa, mes, medida, meta y descripción"}), 400
-    requeridos = {"empresa", "mes", "medida", "meta"}
+        return jsonify({"error": "El alta acepta vendedor, mes, slice, metas y descripción"}), 400
+    requeridos = {"mes"}
     faltantes = requeridos - set(data)
     if faltantes:
         return jsonify({"error": f"Campos requeridos: {', '.join(sorted(faltantes))}"}), 400
@@ -731,22 +701,14 @@ def objetivos_comerciales_crear():
     elif not isinstance(nombre_raw, str) or not nombre_raw.strip() or len(nombre_raw.strip()) > 200:
         return jsonify({"error": "vendedor_nombre debe tener entre 1 y 200 caracteres"}), 400
 
-    empresa_raw = data["empresa"]
-    medida_raw = data["medida"]
     mes = data["mes"]
-    if not isinstance(empresa_raw, str) or not isinstance(medida_raw, str):
-        return jsonify({"error": "empresa o medida inválida"}), 400
-    empresa = empresa_raw.strip().upper()
-    medida = medida_raw.strip().lower()
     try:
         validar_mes(mes)
-        meta = decimal_positivo(data["meta"])
+        dimension_tipo, dimension_valor = _dimension_desde_payload(data)
+        metas = _metas_desde_payload(data)
+        _validar_capacidades_producto(dimension_tipo, dimension_valor, metas)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    if empresa not in ("CARNES", "LACTEOS"):
-        return jsonify({"error": "empresa debe ser CARNES o LACTEOS"}), 400
-    if medida not in ("importe", "cajas", "kilos"):
-        return jsonify({"error": "medida debe ser importe, cajas o kilos"}), 400
 
     descripcion = data.get("descripcion")
     if descripcion is not None and not isinstance(descripcion, str):
@@ -780,21 +742,19 @@ def objetivos_comerciales_crear():
     if usuario_id is None:
         return jsonify({"error": "Sesión de usuario inválida"}), 401
 
-    duplicado = ComercialObjetivo.query.filter_by(
-        vendedor_id=vendedor_id,
-        empresa=empresa,
-        mes=mes,
-        medida=medida,
-    ).first()
-    if duplicado is not None:
-        return jsonify({"error": "Ya existe una meta para el vendedor, empresa, mes y medida"}), 409
-
+    legacy_measure = data.get("medida") if data.get("medida") in ("importe", "cajas", "kilos") else None
+    legacy_meta = data.get("meta")
     objetivo = ComercialObjetivo(
         vendedor_id=vendedor_id,
-        empresa=empresa,
+        empresa=dimension_valor if dimension_tipo == "empresa" else None,
         mes=mes,
-        medida=medida,
-        meta=meta,
+        medida=legacy_measure,
+        meta=Decimal(str(legacy_meta)) if legacy_meta is not None else None,
+        dimension_tipo=dimension_tipo,
+        dimension_valor=dimension_valor,
+        meta_importe=metas["importe"],
+        meta_cajas=metas["cajas"],
+        meta_kilos=metas["kilos"],
         descripcion=descripcion,
         creado_en=now_local(),
         actualizado_en=now_local(),
@@ -806,7 +766,7 @@ def objetivos_comerciales_crear():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        return jsonify({"error": "Ya existe una meta para el vendedor, empresa, mes y medida"}), 409
+        return jsonify({"error": "No se pudo guardar la línea de objetivo"}), 409
 
     item = _objetivo_comercial_por_id(objetivo.id, today_local_date())
     return jsonify({"objetivo": item}), 201
@@ -815,26 +775,25 @@ def objetivos_comerciales_crear():
 @comercial_bp.route("/api/objetivos-comerciales/<int:objetivo_id>", methods=["PATCH"])
 def objetivos_comerciales_editar(objetivo_id):
     from models.time_utils import now_local, today_local_date
-    from services.objetivos_comerciales import decimal_positivo
 
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "Se esperaba un objeto JSON"}), 400
     if _CAMPOS_REALIZADO.intersection(data):
         return jsonify({"error": "El realizado se calcula al consultar y no se acepta"}), 400
-    if not data or set(data) - {"meta", "descripcion"}:
-        return jsonify({"error": "PATCH solo acepta meta y descripcion"}), 400
+    permitidos = {"meta", "medida", "meta_importe", "meta_cajas", "meta_kilos", "descripcion"}
+    if not data or set(data) - permitidos:
+        return jsonify({"error": "PATCH acepta las metas de línea y su descripción"}), 400
 
     objetivo = db.session.get(ComercialObjetivo, objetivo_id)
     if objetivo is None:
         return jsonify({"error": "Objetivo comercial no encontrado"}), 404
 
-    nueva_meta = None
-    if "meta" in data:
-        try:
-            nueva_meta = decimal_positivo(data["meta"])
-        except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
+    try:
+        metas = _metas_desde_payload(data, objetivo, objetivo.medida)
+        _validar_capacidades_producto(objetivo.dimension_tipo, objetivo.dimension_valor, metas)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     nueva_descripcion = None
     if "descripcion" in data:
         nueva_descripcion = data["descripcion"]
@@ -846,7 +805,15 @@ def objetivos_comerciales_editar(objetivo_id):
         return jsonify({"error": "Sesión de usuario inválida"}), 401
 
     if "meta" in data:
-        objetivo.meta = nueva_meta
+        medida_legacy = str(data.get("medida") or objetivo.medida or "").strip().lower()
+        if medida_legacy not in ("importe", "cajas", "kilos"):
+            return jsonify({"error": "medida debe ser importe, cajas o kilos"}), 400
+        objetivo.medida = medida_legacy
+        objetivo.meta = metas[medida_legacy]
+    for measure in ("importe", "cajas", "kilos"):
+        setattr(objetivo, f"meta_{measure}", metas[measure])
+    if objetivo.medida in ("importe", "cajas", "kilos"):
+        objetivo.meta = metas[objetivo.medida]
     if "descripcion" in data:
         objetivo.descripcion = nueva_descripcion
     objetivo.actualizado_en = now_local()
@@ -1002,28 +969,20 @@ def objetivos_comerciales_convertir():
     except ValueError as exc:
         return jsonify({"error": f"La meta del objetivo anterior no es válida: {exc}"}), 400
 
-    duplicada = ComercialObjetivo.query.filter_by(
-        vendedor_id=vendedor_id,
-        empresa=empresa,
-        mes=mes,
-        medida=medida,
-    ).first()
-    if duplicada is not None:
-        return jsonify(
-            {
-                "error": (
-                    "Ya hay una meta para esa combinación de vendedor, empresa, mes y medida."
-                )
-            }
-        ), 409
-
     ahora = now_local()
+    metas = {item: Decimal("0") for item in ("importe", "cajas", "kilos")}
+    metas[medida] = meta
     comercial_objetivo = ComercialObjetivo(
         vendedor_id=vendedor_id,
         empresa=empresa,
         mes=mes,
         medida=medida,
         meta=meta,
+        dimension_tipo="empresa",
+        dimension_valor=empresa,
+        meta_importe=metas["importe"],
+        meta_cajas=metas["cajas"],
+        meta_kilos=metas["kilos"],
         descripcion=goal.description,
         creado_en=ahora,
         actualizado_en=ahora,
@@ -1044,19 +1003,6 @@ def objetivos_comerciales_convertir():
         db.session.rollback()
         if ComercialObjetivoVinculo.query.filter_by(goal_id=goal_id).first() is not None:
             return jsonify({"error": "Este objetivo anterior ya fue convertido"}), 409
-        if ComercialObjetivo.query.filter_by(
-            vendedor_id=vendedor_id,
-            empresa=empresa,
-            mes=mes,
-            medida=medida,
-        ).first() is not None:
-            return jsonify(
-                {
-                    "error": (
-                        "Ya hay una meta para esa combinación de vendedor, empresa, mes y medida."
-                    )
-                }
-            ), 409
         return jsonify({"error": "No se pudo registrar el vínculo del objetivo"}), 409
 
     item = _objetivo_comercial_por_id(comercial_objetivo.id, today_local_date())

@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
 from flask import Blueprint, jsonify, render_template, request, session
 from sqlalchemy import func
@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from models import db
 from models.comercial import ComercialClienteCriterio
 from models.sabiogo.staging import StgSabiogoVentas
-from models.time_utils import now_local
+from models.time_utils import now_local, today_local_date
 from security import protect_blueprint
 
 dashboard_com_bp = Blueprint("dashboard_comercial", __name__)
@@ -120,6 +120,16 @@ def seguimiento_clientes_pantalla():
     return render_template('seguimiento_clientes.html')
 
 
+@dashboard_com_bp.get('/comercial/salon')
+def tablero_salon_pantalla():
+    hoy = today_local_date()
+    return render_template(
+        'tablero_salon.html',
+        fecha_desde=hoy.replace(day=1).isoformat(),
+        fecha_hasta=hoy.isoformat(),
+    )
+
+
 
 
 
@@ -136,6 +146,24 @@ def resumen_estrategico_datos():
         return resumen_estrategico(**parametros, medida=medida,
                                   cliente=request.args.get('cliente', '').strip() or None,
                                   producto=request.args.get('producto', '').strip() or None)
+    return lectura_panel(consultar)
+
+
+@dashboard_com_bp.get('/api/comercial/salon')
+def tablero_salon_datos():
+    from services.comercial_salon import resumen_tablero_salon
+    from services.comercial_web import lectura_panel
+
+    def consultar():
+        hoy = today_local_date()
+        hasta = date.fromisoformat(request.args.get('fecha_hasta') or hoy.isoformat())
+        desde = date.fromisoformat(
+            request.args.get('fecha_desde') or hasta.replace(day=1).isoformat()
+        )
+        if desde > hasta:
+            raise ValueError('Desde no puede ser posterior a Hasta.')
+        return resumen_tablero_salon(desde, hasta)
+
     return lectura_panel(consultar)
 
 
@@ -181,16 +209,20 @@ def seguimiento_cliente_detalle():
 @dashboard_com_bp.get('/api/comercial/paneles/opciones')
 def paneles_opciones():
     from services.comercial_criterios import filtro_comprobante_panel_ventas
-    from services.comercial_pre import expresion_vendedor_resuelta
     from services.vendedores_comerciales import resolver_nombre_vendedor
     from models.comercial import ComercialVendedor
     from services.comercial_web import lectura_panel, parametros_panel
 
     def consultar():
         parametros = parametros_panel()
+        desde = parametros['desde']
         hasta = parametros['hasta']
-        vendedor_expr = expresion_vendedor_resuelta()
-        filtros_dimensiones = [StgSabiogoVentas.estado == 'procesado']
+        filtros_dimensiones = [
+            StgSabiogoVentas.estado == 'procesado',
+            StgSabiogoVentas.fecha >= desde,
+            StgSabiogoVentas.fecha < hasta + timedelta(days=1),
+            filtro_comprobante_panel_ventas(),
+        ]
         if parametros['empresa'] != 'TODAS':
             filtro_empresa = func.upper(func.coalesce(StgSabiogoVentas.origen, '')) == parametros['empresa']
             filtros_dimensiones.append(filtro_empresa)
@@ -201,8 +233,7 @@ def paneles_opciones():
         clientes = db.session.query(cliente.label('cliente')).filter(*filtros_cliente).distinct().all()
         productos = db.session.query(producto.label('producto')).filter(*filtros_producto).distinct().all()
 
-        # Las dimensiones mantienen el catálogo completo por empresa, como en
-        # los filtros anteriores; fechas y vendedor limitan los datos, no el catálogo.
+        # Clientes y productos representan operaciones disponibles en el período elegido.
         filtros_vendedor = [StgSabiogoVentas.estado == 'procesado', filtro_comprobante_panel_ventas(),
                             StgSabiogoVentas.fecha < hasta + timedelta(days=1)]
         if parametros['empresa'] != 'TODAS':

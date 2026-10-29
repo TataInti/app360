@@ -255,7 +255,12 @@ def performance_vendedores(
     # Objetivos del mes del corte (realizado desde PRE); la UI solo los muestra si hay metas.
     mes = hasta.strftime("%Y-%m")
     objetivos = obtener_objetivos_comerciales(
-        mes, empresa=empresa, medida=medida, corte=hasta, criterio_clientes=True
+        mes,
+        empresa=empresa,
+        medida=medida,
+        corte=hasta,
+        criterio_clientes=True,
+        incluir_vendedores_venta=True,
     )
     if vendedor_objetivo:
         objetivos = [o for o in objetivos if o["nombre_visible"] == vendedor_objetivo]
@@ -285,6 +290,31 @@ def performance_vendedores(
         if vendedor_objetivo and fila["vendedor"] != vendedor_objetivo:
             continue
         por_vendedor.append(fila)
+
+    objetivos_por_nombre = {item["nombre_visible"] for item in objetivos}
+    for fila in por_vendedor:
+        if fila["vendedor"] not in objetivos_por_nombre:
+            objetivos.append(
+                {
+                    "vendedor_id": None,
+                    "vendedor": fila["vendedor"],
+                    "nombre_visible": fila["vendedor"],
+                    "vendedor_activo": False,
+                    "empresa": "TODAS",
+                    "mes": mes,
+                    "medida": medida,
+                    "lineas": [],
+                    "cantidad_lineas": 0,
+                    "meta": None,
+                    "realizado": 0.0,
+                    "cumplimiento": None,
+                    "faltante": None,
+                    "desvio": None,
+                    "estado": "Sin meta",
+                    "cobertura": "sin_meta",
+                }
+            )
+            objetivos_por_nombre.add(fila["vendedor"])
 
     # Mix por empresa dentro del alcance.
     if empresa not in ("", "TODAS"):

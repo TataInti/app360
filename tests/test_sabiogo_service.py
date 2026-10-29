@@ -352,63 +352,9 @@ class TestSabiogoService:
             assert resumen['fac_acumulado'] == pytest.approx(190.0)
             assert resumen['saldo_pre_fac'] == pytest.approx(-140.0)
 
-    def test_sincronizar_objetivos_pre(self, app, setup_data):
-        """Sincroniza Goal.current_value usando sólo ventas PRE del periodo."""
-        with app.app_context():
-            empleado = Employee(
-                first_name='Juan',
-                last_name='Perez',
-                email='juan@example.com',
-                is_active=True,
-            )
-            db.session.add(empleado)
-            db.session.flush()
-
-            periodo = datetime.now().strftime('%Y-%m')
-            objetivo = Goal(
-                employee_id=empleado.id,
-                description='Objetivo mensual',
-                period=periodo,
-                target_value=1000,
-                current_value=0,
-            )
-            db.session.add(objetivo)
-
-            fecha_hoy = date.today()
-            db.session.add(
-                StgSabiogoVentas(
-                    fecha=fecha_hoy,
-                    origen='LEGACY',
-                    codigo='PROD001',
-                    producto='Producto Test',
-                    cliente='Cliente Test',
-                    vendedor='Juan Perez',
-                    comprobante='PRE',
-                    subtot=Decimal('300.00'),
-                    estado='procesado',
-                )
-            )
-            db.session.add(
-                StgSabiogoVentas(
-                    fecha=fecha_hoy,
-                    origen='LEGACY',
-                    codigo='PROD001',
-                    producto='Producto Test',
-                    cliente='Cliente Test',
-                    vendedor='Juan Perez',
-                    comprobante='FAC-A',
-                    subtot=Decimal('999.00'),
-                    estado='procesado',
-                )
-            )
-            db.session.commit()
-
-            service = SabiogoService()
-            resultado = service.sincronizar_objetivos_pre(periodo=periodo)
-
-            db.session.refresh(objetivo)
-            assert resultado['objetivos_actualizados'] >= 1
-            assert objetivo.current_value == pytest.approx(300.0)
+    def test_sabiogo_service_no_sincroniza_realizados_en_goal_rrhh(self):
+        """El avance comercial se calcula al consultar y no muta Goal.current_value."""
+        assert not hasattr(SabiogoService, 'sincronizar_objetivos_pre')
 
 
 class TestSabiogoModels:
