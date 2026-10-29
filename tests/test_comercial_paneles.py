@@ -170,6 +170,18 @@ def test_ranking_incluye_otros(client, app):
     rows = result['composicion']['cliente']
     assert len(rows) == 9 and rows[-1]['nombre'] == 'Otros'
     assert sum(r['plata'] for r in rows) == result['kpis']['importe']['actual']
+    detail_rows = result['composicion_detalle']['cliente']
+    assert len(detail_rows) == 12
+    assert all(row['nombre'] != 'Otros' for row in detail_rows)
+
+
+def test_tabla_composicion_acepta_limites_y_default_de_10(client):
+    script = client.get('/static/js/comercial_paneles.js').get_data(as_text=True)
+    assert 'const COMPOSITION_ROW_LIMITS = [10, 20, 50, 100];' in script
+    assert 'COMPOSITION_ROW_LIMITS.forEach(limit => {' in script
+    assert 'select.add(new Option(String(limit), String(limit)))' in script
+    assert "select.value = String(COMPOSITION_ROW_LIMITS[0]);" in script
+    assert 'rows.slice(0, Number(select.value))' in script
 
 
 @pytest.mark.parametrize('suffix', ['&por_pagina=0', '&por_pagina=100', '&pagina=-1', '&pagina=x', '&orden=otro', '&vista=otro'])

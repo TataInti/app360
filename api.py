@@ -1132,13 +1132,13 @@ def api_dashboard_comercial_analisis():
         ]
         if empresa not in ("", "TODAS"):
             f.append(func.upper(func.coalesce(StgSabiogoVentas.origen, "")) == empresa)
-        if vendedor_filter and tipo != "vendedor":
+        if vendedor_filter:
             f.append(
                 vendedor_expr == resolver_nombre_vendedor(vendedor_filter)
             )
-        if cliente_filter and tipo != "cliente":
+        if cliente_filter:
             f.append(StgSabiogoVentas.cliente == cliente_filter)
-        if producto_filter and tipo != "producto":
+        if producto_filter:
             f.append(StgSabiogoVentas.producto == producto_filter)
         return f
 

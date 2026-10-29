@@ -280,6 +280,42 @@ def test_analisis_cantidades_y_mix_respetan_medida_y_fecha_de_corte(client, app)
     assert mix_datos["evo_mix"][-1]["periodo"] == "2026-01"
 
 
+def test_analisis_aplica_el_filtro_a_la_dimension_rankeada(client, app):
+    with app.app_context():
+        connection = db.engine.raw_connection()
+        connection.create_function(
+            "date_trunc",
+            2,
+            lambda unidad, valor: f"{str(valor)[:7]}-01" if unidad == "month" and valor else None,
+        )
+        connection.close()
+        operaciones = [
+            ("VendedorA", "ClienteA", "ProductoA", "A-1"),
+            ("VendedorB", "ClienteB", "ProductoB", "B-1"),
+            ("VendedorA", "ClienteB", "ProductoB", "A-2"),
+            ("VendedorB", "ClienteA", "ProductoA", "B-2"),
+        ]
+        for vendedor, cliente, producto, numero in operaciones:
+            agregar_pre(
+                date(2026, 1, 10), vendedor, cliente, producto=producto, numero=numero
+            )
+        db.session.commit()
+
+    filtros = "fecha_desde=2026-01-01&fecha_hasta=2026-01-31&empresa=CARNES"
+    casos = [
+        ("producto", "producto", "ProductoA"),
+        ("cliente", "cliente", "ClienteA"),
+        ("vendedor", "vendedor", "VendedorA"),
+    ]
+    for dimension, filtro, valor in casos:
+        response = client.get(
+            f"/api/dashboard-comercial/analisis?{filtros}&tipo={dimension}&{filtro}={valor}"
+        )
+        assert response.status_code == 200
+        filas = response.get_json()["top15"]
+        assert [fila["nombre"] for fila in filas] == [valor]
+
+
 def test_error_del_endpoint_equipo_no_devuelve_kpis_en_cero(client, monkeypatch):
     def fallar(*args, **kwargs):
         raise RuntimeError("fallo de prueba")

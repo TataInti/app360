@@ -202,13 +202,17 @@
     history.replaceState(null, '', location.pathname + '?' + p); transferLink(p);
     $('com-error').hidden = true; $('com-content').hidden = true; root.setAttribute('aria-busy', 'true');
     $('com-status').textContent = 'Cargando datos…';
+    if (!clientes && root.dataset.mode === 'ventas') {
+      if (!$('cantidades-body').hidden) void loadQuantities();
+      if (!$('mix-body').hidden) void loadMix();
+    }
     try {
       // Filters and data load together; a failure is explicit, never a fabricated zero.
       const [result] = await Promise.all([get(clientes ? '/api/comercial/seguimiento-clientes' : '/api/dashboard-comercial/resumen-estrategico', p), options(p, id)]);
       if (id !== requestId) return;
       data = result;
       $('com-content').hidden = false;
-      if (clientes) renderClientes(); else { renderVentas(); if (!$('cantidades-body').hidden) loadQuantities(); if (!$('mix-body').hidden) loadMix(); }
+      if (clientes) renderClientes(); else renderVentas();
       $('com-status').textContent = `Última importación: ${data.ultima_importacion ? fecha(data.ultima_importacion) + ' ' + data.ultima_importacion.slice(11, 16) : 'Sin registro'} · Última operación disponible en el alcance: ${fecha(data.fecha_maxima)} · Corte: ${fecha(data.hasta)}`;
     } catch (error) {
       if (id !== requestId) return;
@@ -260,9 +264,32 @@
         const track = elem('div', null, 'com-rank-track'), bar = elem('div', null, 'com-rank-bar'); bar.style.width = Math.min(100, Math.max(0, r.pct)) + '%'; track.append(bar);
         row.append(label, track, elem('small', money(r.plata))); section.append(row);
       });
-      if (rows.length) {const details = elem('details'); details.append(elem('summary', 'Ver importes y cantidades')); const wrap = elem('div', null, 'com-table-wrap'); wrap.append(table([['Nombre'], ['Importe', true], ['Cajas', true], ['Kilos', true]], rows.map(r => [r.nombre, money(r.plata), number(r.cajas), number(r.kilos)]))); details.append(wrap); section.append(details);}
+      if (rows.length) {
+        const details = elem('details'); details.append(elem('summary', 'Ver importes y cantidades'));
+        const wrap = elem('div');
+        renderCompositionTable(wrap, data.composicion_detalle?.[key] || rows);
+        details.append(wrap); section.append(details);
+      }
       return section;
     }));
+  }
+  const COMPOSITION_ROW_LIMITS = [10, 20, 50, 100];
+  function renderCompositionTable(host, rows) {
+    const controls = elem('div', null, 'com-rank-table-controls');
+    const label = elem('label'); label.append(elem('span', 'Filas visibles'));
+    const select = elem('select');
+    COMPOSITION_ROW_LIMITS.forEach(limit => {
+      select.add(new Option(String(limit), String(limit)));
+    });
+    select.value = String(COMPOSITION_ROW_LIMITS[0]);
+    label.append(select); controls.append(label);
+    const tableHost = elem('div', null, 'com-table-wrap');
+    const renderRows = () => tableHost.replaceChildren(table(
+      [['Nombre'], ['Importe', true], ['Cajas', true], ['Kilos', true]],
+      rows.slice(0, Number(select.value)).map(row => [row.nombre, money(row.plata), number(row.cajas), number(row.kilos)])
+    ));
+    select.addEventListener('change', renderRows);
+    renderRows(); host.append(controls, tableHost);
   }
   function drawEvolution() {
     if (chart) {chart.destroy(); chart = null;}
@@ -319,7 +346,7 @@
     $('cantidad-loading').hidden = false;
     try {
       const result = await get('/api/dashboard-comercial/analisis', p);
-      if (id !== quantityRequestId || !data) return;
+      if (id !== quantityRequestId) return;
       $('cantidad-loading').hidden = true;
       const top = result.top15 || [], measure = $('cantidad-medida').value;
       const value = row => measure === 'cajas' ? row.cajas : measure === 'kilos' ? (row.kilos ?? 0) : row.monto;
@@ -343,7 +370,7 @@
     $('mix-loading').hidden = false;
     try {
       const result = await get('/api/dashboard-comercial/mix', p);
-      if (id !== mixRequestId || !data) return;
+      if (id !== mixRequestId) return;
       $('mix-loading').hidden = true;
       const palette = chartColors;
       const products = result.mix_global || [], diversity = result.diversidad_clientes || [];

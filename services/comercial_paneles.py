@@ -66,6 +66,9 @@ def resumen_estrategico(desde, hasta, empresa='TODAS', vendedor=None,
                 serie=actual['por_fecha'], serie_anterior=anterior['por_fecha'],
                 objetivos=objetivos, mes_objetivos=hasta.strftime('%Y-%m'),
                 composicion={k: ranking(actual['por_' + k]) for k in ('vendedor', 'producto', 'cliente')},
+                composicion_detalle={
+                    k: actual['por_' + k][:100] for k in ('vendedor', 'producto', 'cliente')
+                },
                 estado_datos='disponible' if actual['lineas_pre'] else 'sin_operaciones',
                 ultima_importacion=actual['ultima_importacion'], fecha_maxima=actual['fecha_maxima_pre'])
 
