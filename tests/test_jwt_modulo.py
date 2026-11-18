@@ -51,12 +51,6 @@ ROL_SIN_MODULO = {
     "rrhh": "sales",
 }
 
-DEFECTO_ALTA_UBICACION = (
-    "Defecto preexistente en origin/main: api_rest.create_location pasa 'province', "
-    "que Location no define (TypeError, 500). El guardia de módulo sí la deja pasar; "
-    "ver test_alta_de_ubicacion_pasa_el_guardia."
-)
-
 # Altas con un rol que sí tiene el módulo: una muestra por blueprint.
 ALTAS_CON_MODULO = [
     pytest.param(
@@ -66,7 +60,6 @@ ALTAS_CON_MODULO = [
     pytest.param(
         "locations", "operations", "/api/locations",
         lambda m: {"name": "PROBE ubicación"}, id="locations",
-        marks=pytest.mark.xfail(strict=True, reason=DEFECTO_ALTA_UBICACION),
     ),
     pytest.param(
         "stock", "operations", "/api/stock",
@@ -154,7 +147,7 @@ def test_alta_con_modulo_responde_201(app_seguridad, maestros, modulo, rol, ruta
 
 
 def test_alta_de_ubicacion_pasa_el_guardia(app_seguridad):
-    # Independiente del defecto de create_location: el guardia de módulo no la rechaza.
+    # El guardia de módulo no la rechaza; la alta completa está en ALTAS_CON_MODULO.
     respuesta = app_seguridad.test_client().post(
         "/api/locations", json={"name": "PROBE ubicación"}, headers=_cabecera("operations")
     )
@@ -169,6 +162,19 @@ def test_baja_de_ubicacion_con_modulo_responde_200(app_seguridad):
         f"/api/locations/{ubicacion.id}", headers=_cabecera("operations")
     )
     assert respuesta.status_code == 200
+
+
+def test_listado_de_ubicaciones_con_filas_responde_200(app_seguridad):
+    # Antes, el listado leía Location.province y respondía 500 con al menos una fila.
+    db.session.add(Location(name="PROBE-ubicacion", type="nave", city="PROBE-ciudad"))
+    db.session.commit()
+
+    respuesta = app_seguridad.test_client().get("/api/locations", headers=_cabecera("operations"))
+
+    assert respuesta.status_code == 200, respuesta.get_data(as_text=True)[:200]
+    item = respuesta.get_json()["items"][0]
+    assert item["city"] == "PROBE-ciudad"
+    assert "province" not in item
 
 
 def test_modificar_y_eliminar_con_modulo_responde_200(app_seguridad, maestros):

@@ -279,6 +279,10 @@ def delete_product(product_id):
 # -----------------------------------------------------------------------------
 # LOCATIONS ENDPOINTS
 # -----------------------------------------------------------------------------
+# Campos de Location que la API acepta en alta y edición. Location no tiene 'province':
+# ese campo se descarta y no se reasigna a otro.
+CAMPOS_UBICACION = ("name", "address", "city", "country", "phone", "email")
+
 @api_rest.route('/locations', methods=['GET'])
 @jwt_required
 def get_locations():
@@ -292,7 +296,6 @@ def get_locations():
             'name': l.name,
             'address': l.address,
             'city': l.city,
-            'province': l.province,
             'country': l.country,
             'phone': l.phone,
             'email': l.email
@@ -319,15 +322,7 @@ def create_location():
         missing = require_fields(data, ["name"])
         if missing:
             return missing
-        location = Location(
-            name=data['name'],
-            address=data.get('address'),
-            city=data.get('city'),
-            province=data.get('province'),
-            country=data.get('country'),
-            phone=data.get('phone'),
-            email=data.get('email')
-        )
+        location = Location(**{campo: data.get(campo) for campo in CAMPOS_UBICACION})
         db.session.add(location)
         db.session.commit()
         return jsonify({'id': location.id, 'message': 'Location created successfully'}), 201
@@ -345,13 +340,9 @@ def update_location(location_id):
         data = get_json_payload()
         if not data:
             return error_response(400, "Invalid request body")
-        location.name = data.get('name', location.name)
-        location.address = data.get('address', location.address)
-        location.city = data.get('city', location.city)
-        location.province = data.get('province', location.province)
-        location.country = data.get('country', location.country)
-        location.phone = data.get('phone', location.phone)
-        location.email = data.get('email', location.email)
+        for campo in CAMPOS_UBICACION:
+            if campo in data:
+                setattr(location, campo, data[campo])
         db.session.commit()
         return jsonify({'message': 'Location updated successfully'})
     except Exception as e:

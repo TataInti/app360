@@ -10,6 +10,7 @@ import pytest
 from models import BusinessUnit, Location, Product, StockLevel, db
 from sesion_de_prueba import asegurar_usuario, marcar_sesion
 from repositories.base_repository import BaseRepository
+from security import generate_access_token
 from services.product_service import ProductService
 
 
@@ -209,3 +210,50 @@ def test_repositorio_sin_lista_blanca_no_asigna_nada(app_seguridad):
 
     with pytest.raises(NotImplementedError):
         RepositorioSinLista(Product).create(name="PROBE")
+
+
+# -----------------------------------------------------------------------------
+# API de ubicaciones (S9): alta y edición con lista blanca; province no es un campo de Location
+# -----------------------------------------------------------------------------
+def _cabecera_jwt(app, usuario_id, username, role):
+    with app.app_context():
+        token = generate_access_token(usuario_id, username, role)
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_api_ubicacion_alta_ignora_province_y_guarda_el_resto(app_seguridad):
+    asegurar_usuario(app_seguridad, 2, "PROBE-operaciones", "operations")
+    cabecera = _cabecera_jwt(app_seguridad, 2, "PROBE-operaciones", "operations")
+
+    respuesta = app_seguridad.test_client().post(
+        "/api/locations",
+        json={"name": "PROBE-ubicacion", "city": "PROBE-ciudad", "province": "PROBE-provincia"},
+        headers=cabecera,
+    )
+
+    assert respuesta.status_code == 201, respuesta.get_data(as_text=True)[:200]
+    ubicacion = Location.query.filter_by(name="PROBE-ubicacion").one()
+    assert ubicacion.city == "PROBE-ciudad"
+    # Un campo ausente de la petición toma el valor por defecto del modelo, igual que antes.
+    assert ubicacion.country == "México"
+
+
+def test_api_ubicacion_edicion_ignora_province_y_conserva_los_demas_campos(app_seguridad):
+    asegurar_usuario(app_seguridad, 2, "PROBE-operaciones", "operations")
+    cabecera = _cabecera_jwt(app_seguridad, 2, "PROBE-operaciones", "operations")
+    cliente = app_seguridad.test_client()
+    alta = cliente.post(
+        "/api/locations", json={"name": "PROBE-ubicacion", "city": "PROBE-ciudad"}, headers=cabecera
+    )
+    ubicacion_id = alta.get_json()["id"]
+
+    respuesta = cliente.put(
+        f"/api/locations/{ubicacion_id}",
+        json={"city": "PROBE-nueva", "province": "PROBE-provincia"},
+        headers=cabecera,
+    )
+
+    assert respuesta.status_code == 200, respuesta.get_data(as_text=True)[:200]
+    ubicacion = Location.query.filter_by(name="PROBE-ubicacion").one()
+    assert ubicacion.city == "PROBE-nueva"
+    assert ubicacion.name == "PROBE-ubicacion"
