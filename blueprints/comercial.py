@@ -20,12 +20,15 @@ from models import (
     Venta,
     db,
 )
-from security import protect_blueprint
+from security import ACCESS_MAP, protect_blueprint
 from services.sabiogo_service import SabiogoService
 
 comercial_bp = Blueprint("comercial", __name__)
 
 protect_blueprint(comercial_bp, "comercial")
+
+# Roles con administración total (ACCESS_MAP con "all"): no reciben comisiones por defecto.
+ROLES_ADMIN_TOTAL = tuple(sorted(rol for rol, modulos in ACCESS_MAP.items() if "all" in modulos))
 
 
 # RUTAS WEB
@@ -284,12 +287,30 @@ def comisiones_calcular():
     except:
         return jsonify({"error": "Formato de período inválido"}), 400
 
-    # Obtener usuarios vendedores (asumiendo rol específico)
+    # Obtener usuarios vendedores. Sin usuario_id: solo activos sin administración total.
     if usuario_id:
         usuarios = User.query.filter(User.id == usuario_id).all()
+        cobertura = {"filtro": "usuario_id explícito", "incluidos": len(usuarios)}
     else:
-        # Por ahora todos los usuarios, en producción filtrar por rol de vendedor
-        usuarios = User.query.all()
+        total_usuarios = User.query.count()
+        usuarios = (
+            User.query.filter_by(active=True)
+            .filter(~User.role.in_(ROLES_ADMIN_TOTAL))
+            .order_by(User.id)
+            .all()
+        )
+        inactivos = User.query.filter(User.active.is_not(True)).count()
+        administracion = (
+            User.query.filter_by(active=True)
+            .filter(User.role.in_(ROLES_ADMIN_TOTAL))
+            .count()
+        )
+        cobertura = {
+            "filtro": "activos sin administración total",
+            "usuarios_total": total_usuarios,
+            "incluidos": len(usuarios),
+            "excluidos": {"inactivos": inactivos, "administracion_total": administracion},
+        }
 
     comisiones_creadas = []
 
@@ -359,7 +380,8 @@ def comisiones_calcular():
 
     return jsonify({
         "message": f"Comisiones calculadas para {len(comisiones_creadas)} usuarios",
-        "comisiones": comisiones_creadas
+        "comisiones": comisiones_creadas,
+        "usuarios": cobertura,
     })
 
 
