@@ -11,7 +11,7 @@ from models import (
 )
 from security import (
     generate_access_token, generate_refresh_token, decode_token,
-    jwt_required, jwt_optional, log_login_attempt, log_security_event
+    jwt_required, jwt_o_sesion, log_login_attempt, log_security_event
 )
 from extensions import limiter
 
@@ -185,7 +185,7 @@ def get_current_user():
 # PRODUCTS ENDPOINTS
 # -----------------------------------------------------------------------------
 @api_rest.route('/products', methods=['GET'])
-@jwt_optional
+@jwt_required
 def get_products():
     """Get all products with their business unit information"""
     try:
@@ -280,6 +280,7 @@ def delete_product(product_id):
 # LOCATIONS ENDPOINTS
 # -----------------------------------------------------------------------------
 @api_rest.route('/locations', methods=['GET'])
+@jwt_required
 def get_locations():
     """Get all locations"""
     try:
@@ -376,6 +377,7 @@ def delete_location(location_id):
 # LEADS ENDPOINTS
 # -----------------------------------------------------------------------------
 @api_rest.route('/leads', methods=['GET'])
+@jwt_required
 def get_leads():
     """Get all leads with related information"""
     try:
@@ -503,6 +505,7 @@ def delete_lead(lead_id):
 # STOCK ENDPOINTS
 # -----------------------------------------------------------------------------
 @api_rest.route('/stock', methods=['GET'])
+@jwt_required
 def get_stock():
     """Get all stock records with product and location information"""
     try:
@@ -608,6 +611,7 @@ def delete_stock(stock_id):
 # COMPRAS ENDPOINTS
 # -----------------------------------------------------------------------------
 @api_rest.route('/compras', methods=['GET'])
+@jwt_o_sesion('compras')
 def get_compras():
     """Get all purchase orders."""
     try:
@@ -651,6 +655,7 @@ def get_compras():
 
 
 @api_rest.route('/compras/overview', methods=['GET'])
+@jwt_o_sesion('compras')
 def compras_overview():
     """KPIs simples para panel de compras (similar a paneles estratégicos)."""
     try:
@@ -825,6 +830,7 @@ def delete_compra(order_id):
 # RRHH ENDPOINTS
 # -----------------------------------------------------------------------------
 @api_rest.route('/rrhh', methods=['GET'])
+@jwt_o_sesion('rrhh')
 def get_rrhh():
     """Get RRHH dashboard data"""
     try:
@@ -858,6 +864,7 @@ def get_rrhh():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/rrhh/dotacion', methods=['GET'])
+@jwt_required
 def get_rrhh_dotacion():
     """Get employee staffing data"""
     try:
@@ -884,6 +891,7 @@ def get_rrhh_dotacion():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/rrhh/empleados', methods=['GET'])
+@jwt_o_sesion('rrhh')
 def get_employees():
     """Get all employees"""
     try:
@@ -1028,6 +1036,7 @@ def delete_employee(id):
 # BUSINESS UNITS ENDPOINT (helper for forms)
 # -----------------------------------------------------------------------------
 @api_rest.route('/business-units', methods=['GET'])
+@jwt_required
 def get_business_units():
     """Get all business units"""
     try:

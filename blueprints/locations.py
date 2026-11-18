@@ -1,8 +1,10 @@
 from flask import Blueprint, redirect, render_template, request, url_for
 
 from models import Location, db
+from security import protect_blueprint
 
 locations_bp = Blueprint("locations", __name__)
+protect_blueprint(locations_bp, "locations")
 
 
 @locations_bp.route("/locations")

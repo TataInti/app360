@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="panel-header">
+        <div>
+            <h1><i class="bi bi-shield-lock"></i> Sin acceso</h1>
+            <span>Tu usuario todavía no tiene módulos asignados.</span>
+        </div>
+    </div>
+
+    <div class="table-card">
+        <div class="empty-state">
+            <i class="bi bi-lock empty-icon"></i>
+            <div class="empty-title">Sin módulos habilitados</div>
+            <div class="empty-text">Un administrador puede asignarte los módulos que necesitas.
+                Mientras tanto, puedes cerrar la sesión.</div>
+            <a href="/logout" class="btn btn-sm btn-outline-secondary mt-3">
+                <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
