@@ -230,6 +230,45 @@ def jwt_o_sesion(modulo):
     return decorator
 
 
+# Métodos que modifican datos: exigen edición del módulo.
+METODOS_ESCRITURA = ('POST', 'PUT', 'PATCH', 'DELETE')
+
+
+def jwt_modulo(modulo, nivel='view'):
+    """JWT válido, acceso al módulo y, en escrituras, edición del módulo.
+
+    Pensado para las escrituras de api_rest. Sin token o con token inválido responde
+    401 (jwt_required). Con token válido pero sin el módulo, o sin edición en una
+    escritura, responde 403 JSON. Rol e id salen solo del token: no usa la sesión web.
+
+    nivel='view': en lecturas basta con acceso de solo lectura o de edición.
+    nivel='edit': exige edición también en lecturas.
+    En POST, PUT, PATCH y DELETE siempre se exige edición, como protect_blueprint.
+    """
+    if nivel not in ('view', 'edit'):
+        raise ValueError(f"nivel de acceso inválido: {nivel!r}")
+
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            usuario = request.current_user
+            role = usuario.get('role')
+            user_id = usuario.get('user_id')
+            if not role or user_id is None:
+                log_access_denied(usuario.get('username'), modulo)
+                return jsonify({'error': 'Sin acceso al módulo'}), 403
+            if not module_allowed(modulo, role=role, user_id=user_id):
+                log_access_denied(usuario.get('username'), modulo)
+                return jsonify({'error': 'Sin acceso al módulo'}), 403
+            requiere_edicion = nivel == 'edit' or request.method in METODOS_ESCRITURA
+            if requiere_edicion and get_user_module_access(modulo, user_id, role) != 'edit':
+                log_access_denied(usuario.get('username'), modulo)
+                return jsonify({'error': 'Sin permiso de edición en el módulo'}), 403
+            return f(*args, **kwargs)
+        return jwt_required(decorated)
+    return decorator
+
+
 def jwt_optional(f):
     """Decorator that allows both authenticated and unauthenticated access"""
     @wraps(f)
