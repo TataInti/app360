@@ -2,7 +2,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 
 from config import Config
 from models import User
-from security import first_allowed_route, log_login_attempt
+from security import SIN_ACCESO_ROUTE, first_allowed_route, log_login_attempt
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -37,6 +37,14 @@ def login():
         "login.html",
         title=Config.LOGIN_TITLE,
     )
+
+
+@auth_bp.route(SIN_ACCESO_ROUTE)
+def sin_acceso():
+    """Pantalla para usuarios sin módulos: no redirige de vuelta al login."""
+    if not session.get("user"):
+        return redirect(url_for("auth.login"))
+    return render_template("sin_acceso.html")
 
 
 @auth_bp.route("/logout")

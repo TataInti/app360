@@ -3,14 +3,46 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, session
 from sqlalchemy import String, case, cast, func
 
 import models as m
 from models import db
 from models.time_utils import today_local_date
+from security import log_access_denied, module_allowed
 
 api = Blueprint("api", __name__, url_prefix="/api")
+
+# Módulo que exige cada GET de este blueprint, según la pantalla que lo consume.
+# Un endpoint que no figure aquí responde 403 (falla cerrada).
+API_MODULO_POR_ENDPOINT = {
+    "api.api_dashboard": "dashboard",
+    "api.api_dashboard_comercial": "dashboard_comercial",
+    "api.api_panel_ejecutivo": "panel",
+    "api.api_dashboard_financiero": "dashboard",
+    "api.api_dashboard_comercial_v2": "dashboard_comercial",
+    "api.api_panel_ejecutivo_v2": "panel",
+    "api.api_dashboard_comercial_filtros": "dashboard_comercial",
+    "api.api_dashboard_comercial_analisis": "dashboard_comercial",
+    "api.api_dashboard_comercial_mix": "dashboard_comercial",
+    "api.api_dashboard_comercial_seguimiento": "dashboard_comercial",
+    "api.api_dashboard_comercial_equipo": "dashboard_comercial",
+}
+
+
+@api.before_request
+def exigir_sesion_y_modulo():
+    """Sesión web y módulo para todos los endpoints de api.py.
+
+    Sin sesión responde 401 JSON; con sesión sin el módulo, 403 JSON.
+    """
+    if not session.get("user"):
+        return jsonify({"error": "Sesión requerida"}), 401
+    modulo = API_MODULO_POR_ENDPOINT.get(request.endpoint)
+    if modulo is None or not module_allowed(modulo):
+        log_access_denied(session.get("user"), modulo or request.endpoint)
+        return jsonify({"error": "Sin acceso al módulo"}), 403
+    return None
 
 
 def get_model(name):

@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for
 
 from models import BusinessUnit
 from services.product_service import ProductService
+from security import protect_blueprint
 from .base_crud import BaseCRUD
 
 products_bp = Blueprint("products", __name__)
@@ -9,6 +10,8 @@ products_bp = Blueprint("products", __name__)
 # Create CRUD instance
 crud = BaseCRUD("products", None, ProductService, "products")
 products_bp = crud.bp
+# Incluye las rutas de BaseCRUD (/, /new, /edit/<id>) además de las propias.
+protect_blueprint(products_bp, "products")
 
 # Override list to include business units
 @products_bp.route("/products")

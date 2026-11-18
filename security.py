@@ -79,6 +79,9 @@ MODULE_ROUTES = {
     "admin": "/admin",
 }
 
+# Pantalla de destino para un usuario que no tiene ningún módulo permitido.
+SIN_ACCESO_ROUTE = "/sin-acceso"
+
 
 # =============================================================================
 # Security Event Logging
@@ -198,6 +201,35 @@ def jwt_required(f):
     return decorated
 
 
+def jwt_o_sesion(modulo):
+    """Acepta un JWT de acceso válido o una sesión web con el módulo indicado.
+
+    Para los GET de api_rest que también consumen pantallas: el navegador los
+    llama con la cookie de sesión y sin token. Si llega un Bearer, debe ser
+    válido (no cae a la sesión). Sin credencial responde 401; con sesión sin
+    el módulo, 403.
+    """
+    def decorator(f):
+        con_jwt = jwt_required(f)
+
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            tiene_bearer = request.headers.get('Authorization', '').startswith('Bearer ')
+            if tiene_bearer or not session.get('user'):
+                return con_jwt(*args, **kwargs)
+            if not module_allowed(modulo):
+                log_access_denied(session.get('user'), modulo)
+                return jsonify({'error': 'Sin acceso al módulo'}), 403
+            request.current_user = {
+                'user_id': session.get('user_id'),
+                'username': session.get('user'),
+                'role': session.get('role'),
+            }
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+
 def jwt_optional(f):
     """Decorator that allows both authenticated and unauthenticated access"""
     @wraps(f)
@@ -299,6 +331,9 @@ def protect_blueprint(bp, module):
             # Usuario logueado pero sin acceso, redirigir a ruta permitida
             log_access_denied(session.get("user"), module)
             route = first_allowed_route(session.get("role"))
+            if route == request.path:
+                # La pantalla de destino también niega el acceso: no redirigir a sí misma
+                route = SIN_ACCESO_ROUTE
             flash("No tienes acceso a esta sección.", "warning")
             return redirect(route)
         flash("Debes iniciar sesión.", "warning")
@@ -321,15 +356,20 @@ def require_module(module):
 
 
 def first_allowed_route(role):
+    """Primera pantalla a la que puede entrar un usuario con este rol.
+
+    Nunca devuelve "/": es la pantalla de login, y el login redirigía a sí
+    misma para roles sin módulos. Sin pantalla posible, devuelve SIN_ACCESO_ROUTE.
+    """
     allowed = ACCESS_MAP.get(role, [])
-    if not allowed:
-        # Si no hay módulos permitidos, devolver dashboard si tiene acceso, sino nada
-        if module_allowed("dashboard", role):
-            return MODULE_ROUTES.get("dashboard", "/dashboard")
-        return "/"  # O alguna página de error
     if "all" in allowed:
         return MODULE_ROUTES.get("dashboard", "/dashboard")
     for module in allowed:
         if module in MODULE_ROUTES:
             return MODULE_ROUTES[module]
-    return "/dashboard"
+    # Sin módulos por rol: primer permiso individual sobre un módulo administrable
+    for module in MANAGED_MODULES:
+        if module in MODULE_ROUTES and module_allowed(module, role):
+            return MODULE_ROUTES[module]
+    return SIN_ACCESO_ROUTE
+
