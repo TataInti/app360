@@ -392,6 +392,18 @@ def test_permiso_individual_define_la_pantalla_de_entrada(app_test, cliente_anon
     assert _ruta(login.headers["Location"]) == "/products"
 
 
+def test_permiso_bi_sin_permiso_panel_no_hace_bucle(app_test, cliente_anonimo):
+    # /bi exige el módulo panel (bi.py): con solo el permiso individual bi, la guardia
+    # niega la pantalla. Debe llevar a "Sin acceso", no volver a /bi.
+    _crear_usuario(app_test, "PROBE-bi", "comercial", modulos=("bi",))
+
+    login = cliente_anonimo.post("/", data={"username": "PROBE-bi", "password": CLAVE_PRUEBA})
+    assert _ruta(login.headers["Location"]) == "/bi"
+
+    entrada = cliente_anonimo.get("/bi")
+    assert _ruta(entrada.headers["Location"]) == SIN_ACCESO_ROUTE
+
+
 @pytest.mark.parametrize(
     "rol, destino",
     [
