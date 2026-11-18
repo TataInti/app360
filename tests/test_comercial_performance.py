@@ -8,6 +8,7 @@ from app import create_app
 from config import Config
 from test_dashboard_equipo import agregar_pre
 from services.vendedores_comerciales import seed_vendedores_comerciales
+from sesion_de_prueba import cambiar_usuario
 from models import db
 from models.comercial import (
     ComercialClienteCriterio,
@@ -63,11 +64,9 @@ def test_plantilla_ok_y_permiso(client, app):
     html = response.get_data(as_text=True)
     assert 'comercial_performance.js' in html
     # Solo el rol con dashboard_comercial accede; hr no.
-    with client.session_transaction() as session:
-        session['role'] = 'hr'
+    cambiar_usuario(client, 1, role='hr')
     assert client.get(PAGE).status_code == 302
-    with client.session_transaction() as session:
-        session['role'] = 'direccion'
+    cambiar_usuario(client, 1, role='direccion')
     assert client.get(PAGE).status_code == 200
 
 

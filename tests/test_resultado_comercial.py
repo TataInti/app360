@@ -14,6 +14,7 @@ from models.sabiogo.staging import StgSabiogoCompras, StgSabiogoVentas
 from models.tesoreria import InstrumentoPago, MovimientoCaja
 from models.time_utils import today_local_date
 from services.resultado_comercial_service import ResultadoComercialService
+from sesion_de_prueba import marcar_sesion
 
 
 @pytest.fixture
@@ -165,10 +166,7 @@ def scenario(app):
 
 
 def login(client, user_id):
-    with client.session_transaction() as flask_session:
-        flask_session["user"] = "admin"
-        flask_session["user_id"] = user_id
-        flask_session["role"] = "admin"
+    marcar_sesion(client, user_id)
 
 
 def test_resultado_excluye_pre_y_aplica_conceptos_compatibles(app, scenario):

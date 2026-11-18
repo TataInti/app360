@@ -11,6 +11,7 @@ from models import BusinessUnit, Employee, Location, Product, db
 from models.core.user import User
 from models.core.user_permission import UserModulePermission
 from security import generate_access_token, jwt_modulo
+from sesion_de_prueba import asegurar_usuario, marcar_sesion
 
 # Las 18 escrituras de api_rest, con el módulo que exige cada una y un cuerpo mínimo.
 ESCRITURAS = [
@@ -104,6 +105,13 @@ def _usuario_con_permiso(access_level, rol="sales", modulo="products"):
     db.session.add(permiso)
     db.session.commit()
     return usuario.id, permiso
+
+
+@pytest.fixture(autouse=True)
+def usuarios_de_los_tokens(app_seguridad):
+    """Los tokens de estas pruebas apuntan a los usuarios 1 y 2: la revocación exige que existan y estén activos."""
+    asegurar_usuario(app_seguridad, 1, "PROBE-admin", "admin")
+    asegurar_usuario(app_seguridad, 2, "PROBE-usuario", "hr")
 
 
 @pytest.fixture
@@ -236,19 +244,13 @@ def test_escrituras_sin_token_o_con_token_invalido_responden_401(app_seguridad):
 
 def test_escrituras_no_aceptan_sesion_web(app_seguridad):
     cliente = app_seguridad.test_client()
-    with cliente.session_transaction() as sesion:
-        sesion["user"] = "PROBE-admin"
-        sesion["role"] = "admin"
-        sesion["user_id"] = 1
+    marcar_sesion(cliente, 1)
     assert cliente.post("/api/products", json={"name": "PROBE"}).status_code == 401
 
 
 def test_token_sin_rol_no_se_completa_con_la_sesion(app_seguridad):
     cliente = app_seguridad.test_client()
-    with cliente.session_transaction() as sesion:
-        sesion["user"] = "PROBE-admin"
-        sesion["role"] = "admin"
-        sesion["user_id"] = 1
+    marcar_sesion(cliente, 1)
     cabecera = {"Authorization": f"Bearer {generate_access_token(1, 'PROBE-sin-rol', None)}"}
     assert cliente.post("/api/products", json={"name": "PROBE"}, headers=cabecera).status_code == 403
 

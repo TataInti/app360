@@ -10,6 +10,7 @@ from models import db
 from models.sabiogo import SabiogoSyncRun
 from models.time_utils import LOCAL_TZ
 from services.sabiogo_sync_monitor import get_sabiogo_sync_alert
+from sesion_de_prueba import cambiar_usuario
 
 
 @pytest.fixture
@@ -195,20 +196,14 @@ def test_banner_visible_para_usuario_o_rol_gerente(client, app):
     with app.app_context():
         add_run(date(2026, 7, 12), 'error', 'Falló la carga.')
 
-    with client.session_transaction() as user_session:
-        user_session['user'] = 'Gerencia'
-        user_session['role'] = 'gerente'
+    cambiar_usuario(client, 1, username='Gerencia', role='gerente')
     gerente_response = client.get('/_test/sync-alert')
     assert b'Fall\xc3\xb3 la sincronizaci\xc3\xb3n SabioGo' in gerente_response.data
 
-    with client.session_transaction() as user_session:
-        user_session['user'] = 'gerente'
-        user_session['role'] = 'admin'
+    cambiar_usuario(client, 1, username='gerente', role='admin')
     legacy_gerente_response = client.get('/_test/sync-alert')
     assert b'Fall\xc3\xb3 la sincronizaci\xc3\xb3n SabioGo' in legacy_gerente_response.data
 
-    with client.session_transaction() as user_session:
-        user_session['user'] = 'Otro administrador'
-        user_session['role'] = 'manager'
+    cambiar_usuario(client, 1, username='Otro administrador', role='manager')
     manager_response = client.get('/_test/sync-alert')
     assert b'Fall\xc3\xb3 la sincronizaci\xc3\xb3n SabioGo' not in manager_response.data

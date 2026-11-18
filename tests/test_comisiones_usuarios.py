@@ -9,16 +9,14 @@ from datetime import date
 
 from blueprints.comercial import ROLES_ADMIN_TOTAL
 from models import Client, Comision, Product, User, Venta, db
+from sesion_de_prueba import marcar_sesion
 
 CALCULAR = "/api/comercial/comisiones/calcular"
 
 
-def _cliente_admin(app):
+def _cliente_admin(app, usuario_id):
     cliente = app.test_client()
-    with cliente.session_transaction() as sesion:
-        sesion["user"] = "PROBE-admin-sesion"
-        sesion["role"] = "admin"
-        sesion["user_id"] = 1
+    marcar_sesion(cliente, usuario_id)
     return cliente
 
 
@@ -57,7 +55,7 @@ def test_sin_usuario_id_incluye_solo_activos_sin_administracion(app_seguridad):
     ids = _crear_usuarios()
     _crear_venta_en_el_periodo()
 
-    respuesta = _cliente_admin(app_seguridad).post(CALCULAR, json={"periodo": "2026-10"})
+    respuesta = _cliente_admin(app_seguridad, ids["PROBE-admin"]).post(CALCULAR, json={"periodo": "2026-10"})
     assert respuesta.status_code == 200
     cobertura = respuesta.get_json()["usuarios"]
     assert cobertura["usuarios_total"] == 6
@@ -71,7 +69,7 @@ def test_usuario_id_explicito_conserva_el_calculo_directo(app_seguridad):
     ids = _crear_usuarios()
     _crear_venta_en_el_periodo()
 
-    respuesta = _cliente_admin(app_seguridad).post(
+    respuesta = _cliente_admin(app_seguridad, ids["PROBE-admin"]).post(
         CALCULAR, json={"periodo": "2026-10", "usuario_id": ids["PROBE-inactivo"]}
     )
     assert respuesta.status_code == 200

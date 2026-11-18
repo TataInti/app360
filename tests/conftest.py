@@ -1,18 +1,30 @@
 import pytest
 
+from sesion_de_prueba import ADMIN_PRUEBA_ID, asegurar_usuario, marcar_sesion
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "sin_sesion_admin: el módulo no inyecta la sesión admin (su base no tiene tabla users)",
+    )
+
 
 @pytest.fixture(autouse=True)
 def authenticated_session_for_client(request):
-    if "client" not in request.fixturenames:
+    """Sesión admin para los tests que piden `client`.
+
+    La sesión web se revalida contra la base en cada request: el usuario 1 debe existir
+    y estar activo, y la sesión debe llevar su huella. Se crea el usuario sintético si
+    falta y la sesión se marca con el mismo helper que usa el login.
+    """
+    if "client" not in request.fixturenames or request.node.get_closest_marker("sin_sesion_admin"):
         yield
         return
 
     client = request.getfixturevalue("client")
-    with client.session_transaction() as session:
-        session.setdefault("user", "test-admin")
-        session.setdefault("role", "admin")
-        session.setdefault("user_id", 1)
-
+    asegurar_usuario(client.application, ADMIN_PRUEBA_ID, "test-admin", "admin")
+    marcar_sesion(client, ADMIN_PRUEBA_ID)
     yield
 
 

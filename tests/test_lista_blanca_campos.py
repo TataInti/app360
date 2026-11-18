@@ -8,16 +8,15 @@ formulario ni desde un payload. Datos sintéticos rotulados PROBE; SQLite en mem
 import pytest
 
 from models import BusinessUnit, Location, Product, StockLevel, db
+from sesion_de_prueba import asegurar_usuario, marcar_sesion
 from repositories.base_repository import BaseRepository
 from services.product_service import ProductService
 
 
 def _cliente_admin(app):
+    asegurar_usuario(app, 1, "PROBE-admin", "admin")
     cliente = app.test_client()
-    with cliente.session_transaction() as sesion:
-        sesion["user"] = "PROBE-admin"
-        sesion["role"] = "admin"
-        sesion["user_id"] = 1
+    marcar_sesion(cliente, 1)
     return cliente
 
 

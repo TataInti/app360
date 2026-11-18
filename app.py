@@ -13,7 +13,7 @@ load_dotenv()
 
 from config import Config
 from models import db
-from security import module_allowed
+from security import module_allowed, revalidar_sesion_web
 from exceptions import AppException
 from extensions import limiter, csrf, migrate
 
@@ -144,6 +144,10 @@ def create_app():
     if app.config.get('WTF_CSRF_ENABLED', True):
         csrf.init_app(app)
         app.logger.info("CSRF protection enabled")
+
+    # Revalidación de la sesión web en cada request (R-04). Se registra antes de los
+    # blueprints: sus guardias de módulo leen el rol ya alineado con la base.
+    app.before_request(revalidar_sesion_web)
 
     db.init_app(app)
     migrate.init_app(app, db)
