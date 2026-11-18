@@ -155,7 +155,7 @@
   function crearInputMeta(measure, value = 0) {
     const label = document.createElement('label');
     label.className = 'oc-line-target';
-    label.innerHTML = `<span>${MEDIDAS[measure].label}</span><input type="number" min="0" step="0.01" value="${esc(value)}" data-meta="${measure}" aria-label="Meta de ${MEDIDAS[measure].label}"><small>${MEDIDAS[measure].unidad}</small>`;
+    label.innerHTML = `<span>${MEDIDAS[measure].label}</span><input type="number" min="0" step="0.01" value="${esc(value)}" placeholder="0" data-meta="${measure}" aria-label="Meta de ${MEDIDAS[measure].label}"><small>${MEDIDAS[measure].unidad}</small>`;
     return label;
   }
 
@@ -197,6 +197,8 @@
         maxOptions: 100,
         loadThrottle: 250,
         shouldLoad: () => true,
+        // Con 'focus', TomSelect consulta las opciones al abrir el desplegable sin escribir.
+        preload: 'focus',
         placeholder: `Buscar ${DIMENSIONES[selectedType].toLowerCase()}…`,
         plugins: ['dropdown_input'],
         load(query, callback) {
@@ -204,7 +206,7 @@
           fetch(`/api/objetivos-comerciales/opciones?${params}`)
             .then(response => response.json())
             .then(data => callback(data.opciones || []))
-            .catch(() => callback());
+            .catch(() => callback([]));
         },
         onChange(value) {
           applyCapabilities(value ? this.options[value] : null);
@@ -239,7 +241,7 @@
       const typeSelect = form.querySelector('[data-dimension-tipo]');
       typeSelect.replaceWith(crearSelectDimension());
       const targets = form.querySelector('[data-targets]');
-      targets.replaceWith(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, 0)));
+      targets.replaceWith(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, '')));
       const lineHeader = form.querySelector('.oc-line-head');
       lineHeader.querySelector('[data-cancel-line]').addEventListener('click', () => {
         form.remove();
@@ -270,6 +272,15 @@
     return crearTarjeta('', '', true);
   }
 
+  function metasDelFormulario(form) {
+    const metas = {importe: Number(form.querySelector('[data-meta="importe"]').value || 0)};
+    for (const measure of ['cajas', 'kilos']) {
+      const input = form.querySelector(`[data-meta="${measure}"]`);
+      if (!input.disabled) metas[measure] = Number(input.value || 0);
+    }
+    return metas;
+  }
+
   async function guardarLinea(event, card, form, linea) {
     event.preventDefault();
     const error = form.querySelector('[data-line-error]');
@@ -278,14 +289,13 @@
     button.disabled = true;
     form.classList.add('oc-line-saving');
     try {
-      const payload = {
-        mes: $('periodoObjetivos').value,
-        meta_importe: Number(form.querySelector('[data-meta="importe"]').value || 0),
-      };
-      for (const measure of ['cajas', 'kilos']) {
-        const input = form.querySelector(`[data-meta="${measure}"]`);
-        if (!input.disabled) payload[`meta_${measure}`] = Number(input.value || 0);
+      const metas = metasDelFormulario(form);
+      if (!Object.values(metas).some(valor => valor > 0)) {
+        throw new Error('Cargá una meta mayor que cero en importe, cajas o kilos para guardar la línea.');
       }
+      const payload = Object.fromEntries(
+        Object.entries(metas).map(([measure, valor]) => [`meta_${measure}`, valor]),
+      );
       if (linea) {
         await requestJson(`/api/objetivos-comerciales/${encodeURIComponent(linea.id)}`, {
           method: 'PATCH',
@@ -298,6 +308,7 @@
         if (!dimensionType || !dimensionValue) throw new Error('Elegí el nivel y el valor del catálogo para esta línea.');
         const ref = obtenerRefVendedor(card);
         if (!ref) throw new Error('Elegí un vendedor antes de guardar la línea.');
+        payload.mes = $('periodoObjetivos').value;
         payload.dimension_tipo = dimensionType;
         payload.dimension_valor = dimensionValue;
         if (ref.startsWith('id:')) payload.vendedor_id = Number(ref.slice(3));
@@ -356,7 +367,7 @@
           ? `<span>${esc(goal.mes_sugerido)}</span>`
           : `<input type="month" data-month required aria-label="Período mensual">`;
         const sellerOptions = state.vendedores.map(v => `<option value="${esc(v.id)}">${esc(v.nombre_visible)}</option>`).join('');
-        return `<tr data-goal-id="${esc(goal.goal_id)}" data-month-suggested="${esc(goal.mes_sugerido || '')}"><td data-label="Empleado">${esc(goal.empleado || 'Sin empleado')}</td><td data-label="Período original">${esc(goal.periodo || 'Sin período')}</td><td data-label="Descripción">${esc(goal.descripcion || '')}</td><td data-label="Meta" class="num">${number(goal.meta)}</td><td data-label="Conversión"><form class="oc-legacy-form" data-convert-form><label>Vendedor comercial<select data-seller required><option value="">Buscar vendedor…</option>${sellerOptions}</select></label><label>Empresa<select data-company required><option value="">Elegir…</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option></select></label><label>Medida<select data-measure required><option value="">Elegir…</option><option value="importe">Importe</option><option value="cajas">Cajas</option><option value="kilos">Kilos</option></select></label><label>Mes ${monthField}</label><button class="com-primary" type="submit">Convertir a línea</button></form></td></tr>`;
+        return `<tr data-goal-id="${esc(goal.goal_id)}" data-month-suggested="${esc(goal.mes_sugerido || '')}"><td data-label="Empleado">${esc(goal.empleado || 'Sin empleado')}</td><td data-label="Período original">${esc(goal.periodo || 'Sin período')}</td><td data-label="Descripción">${esc(goal.descripcion || '')}</td><td data-label="Meta" class="num">${number(goal.meta)}</td><td data-label="Conversión"><form class="oc-legacy-form" data-convert-form novalidate><label>Vendedor comercial<select data-seller required><option value="">Buscar vendedor…</option>${sellerOptions}</select></label><label>Empresa<select data-company required><option value="">Elegir…</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option></select></label><label>Medida<select data-measure required><option value="">Elegir…</option><option value="importe">Importe</option><option value="cajas">Cajas</option><option value="kilos">Kilos</option></select></label><label>Mes ${monthField}</label><button class="com-primary" type="submit">Convertir a línea</button></form></td></tr>`;
       }).join('');
       $('legacyGoals').innerHTML = `<table><thead><tr><th>Empleado</th><th>Período original</th><th>Descripción</th><th>Meta</th><th>Vinculación comercial</th></tr></thead><tbody>${rows}</tbody></table>`;
       $('legacyGoals').querySelectorAll('[data-seller]').forEach(select => tomSelect(select, {
@@ -384,16 +395,18 @@
       empresa: form.querySelector('[data-company]').value,
       medida: form.querySelector('[data-measure]').value,
     };
-    if (!payload.vendedor_id || !payload.empresa || !payload.medida) {
-      form.reportValidity();
-      return;
-    }
+    const faltantes = [];
+    if (!payload.vendedor_id) faltantes.push('vendedor comercial');
+    if (!payload.empresa) faltantes.push('empresa');
+    if (!payload.medida) faltantes.push('medida');
     if (row.dataset.monthSuggested) payload.mes = row.dataset.monthSuggested;
     else if (monthInput?.value) payload.mes = monthInput.value;
-    else {
-      monthInput?.reportValidity();
+    else faltantes.push('mes');
+    if (faltantes.length) {
+      setError('legacyError', `Para convertir este objetivo falta: ${faltantes.join(', ')}.`);
       return;
     }
+    setError('legacyError');
     const button = form.querySelector('button[type="submit"]');
     button.disabled = true;
     try {
