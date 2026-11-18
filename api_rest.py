@@ -851,7 +851,8 @@ def get_rrhh():
             'description': g.description,
             'target_value': g.target_value,
             'current_value': g.current_value,
-            'deadline': g.deadline.isoformat() if g.deadline else None
+            # Goal no tiene fecha límite (solo 'period'): se devuelve null para mantener la forma.
+            'deadline': None
         } for g in goals]
 
         return jsonify({
