@@ -20,6 +20,9 @@ from security import ACCESS_MAP, MANAGED_MODULES, es_ruta_api, get_user_module_a
 
 admin_bp = Blueprint("admin", __name__)
 
+# Nombre para mostrar de cada módulo de administración (tilde y mayúsculas correctas).
+TITULOS_MODULO = {"tesoreria": "Tesorería", "rrhh": "RRHH"}
+
 
 # =============================================================================
 # Decorador de verificación de rol admin
@@ -326,6 +329,7 @@ def admin_modulo(modulo):
     return render_template(
         "admin/admin_modulo.html",
         modulo=modulo,
+        titulo_modulo=TITULOS_MODULO.get(modulo, modulo.capitalize()),
         entidades=data,
         modulos=ADMIN_MODELS,
         locations=locations,
