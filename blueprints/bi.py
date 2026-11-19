@@ -608,7 +608,6 @@ def bi_dashboard():
         return jsonify(
             {
                 "error": "Error interno obteniendo BI dashboard",
-                "detail": str(e),
                 "periodo": {
                     "desde": fecha_desde.isoformat(),
                     "hasta": fecha_hasta.isoformat(),

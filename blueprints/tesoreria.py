@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, time, date
 import io
 from decimal import Decimal
 
-from flask import Blueprint, request, jsonify, render_template, session, send_file
+from flask import Blueprint, current_app, request, jsonify, render_template, session, send_file
 
 from models import (
     ArqueoCaja,
@@ -576,7 +576,8 @@ def arqueos_crear():
         saldo_inicial = Decimal(str(saldo_inicial)) if saldo_inicial else Decimal("0")
         saldo_final = Decimal(str(saldo_final))
     except Exception as e:
-        return jsonify({"error": f"Datos numéricos inválidos: {str(e)}"}), 400
+        current_app.logger.warning("Datos de arqueo inválidos: %s", e)
+        return jsonify({"error": "Datos numéricos inválidos. Revisá los importes y la fecha."}), 400
 
     if ArqueoCaja.query.filter_by(fecha=fecha, turno=turno).first():
         return jsonify({"error": "Ya existe arqueo para esa fecha y turno"}), 400
@@ -669,7 +670,8 @@ def arqueos_crear():
         }), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Error al crear arqueo: {str(e)}"}), 500
+        current_app.logger.exception("Error al crear arqueo de caja")
+        return jsonify({"error": "No se pudo crear el arqueo. Intentá de nuevo."}), 500
 
 
 @tesoreria_bp.route("/api/tesoreria/estado", methods=["GET"])
@@ -807,7 +809,8 @@ def arqueos_editar(id):
         })
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Error al actualizar arqueo: {str(e)}"}), 500
+        current_app.logger.exception("Error al actualizar arqueo de caja")
+        return jsonify({"error": "No se pudo actualizar el arqueo. Intentá de nuevo."}), 500
 
 
 @tesoreria_bp.route("/api/tesoreria/arqueos/<int:id>/logs", methods=["GET"])

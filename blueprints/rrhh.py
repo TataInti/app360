@@ -70,7 +70,8 @@ def rrhh_empleados():
             flash("Empleado creado exitosamente", "success")
         except Exception as e:
             db.session.rollback()
-            flash(f"Error al crear empleado: {str(e)}", "danger")
+            current_app.logger.exception("Error al crear empleado desde RRHH")
+            flash("No se pudo crear el empleado. Revisá los datos e intentá de nuevo.", "danger")
         return redirect(url_for("rrhh.rrhh_empleados"))
     
     # GET: cargar empleados y ubicaciones
