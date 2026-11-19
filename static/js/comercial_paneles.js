@@ -129,14 +129,19 @@
   function readFilterValue(select) {
     return filterInstances.get(select)?.getValue() ?? select.value;
   }
+  // Lo que muestra el control (incluido «Todos los …») lleva su nombre completo en title:
+  // si el texto se corta con puntos suspensivos, el nombre completo sigue disponible.
+  function titularItems(instance) {
+    instance.control.querySelectorAll('.item').forEach(item => { item.title = item.textContent.trim(); });
+  }
   function setFilterValue(select, value) {
     const instance = filterInstances.get(select);
     if (instance) {
       instance.setValue(value || '', true);
-      const item = value ? instance.getItem(value) : null;
-      if (item) item.title = item.textContent.trim();
+      titularItems(instance);
     }
     else select.value = value || '';
+    select.title = select.options[select.selectedIndex]?.text || '';
   }
   function filterSelects(scope, dimension) {
     return document.querySelectorAll(`[data-com-filter-scope="${scope}"][data-com-filter-dimension="${dimension}"]`);
@@ -317,6 +322,41 @@
     extraCharts.set(id, charts.create(canvas, config));
     return true;
   }
+  // Clic en una barra: fija el filtro de la dimensión y recarga la sección; otro clic
+  // sobre la misma barra lo limpia. Usa el mismo camino que el filtro manual (change).
+  // `nombres` es el valor de cada barra en el mismo orden que los datos.
+  function barraConAccion(config, scope, dimension, nombres) {
+    const cursorPuntero = (event, elementos) => {
+      const nombre = elementos.length ? nombres[elementos[0].index] : '';
+      event.native.target.style.cursor = nombre ? 'pointer' : 'default';
+      event.native.target.title = !nombre ? '' : sectionFilters[scope][dimension] === nombre
+        ? 'Clic para quitar el filtro'
+        : `Clic para filtrar por ${nombre}`;
+    };
+    return {
+      ...config,
+      options: {
+        ...config.options,
+        onHover: cursorPuntero,
+        onClick: (event, elementos) => {
+          if (!elementos.length) return;
+          const nombre = nombres[elementos[0].index];
+          if (!nombre) return;
+          const actual = sectionFilters[scope][dimension] || '';
+          fijarFiltroDeSeccion(scope, dimension, actual === nombre ? '' : nombre);
+        },
+      },
+    };
+  }
+  function fijarFiltroDeSeccion(scope, dimension, value) {
+    sectionFilters[scope][dimension] = value;
+    syncFilterScope(scope);
+    const key = `${scope}_${dimension}`;
+    if (value) state.set(key, value); else state.delete(key);
+    const p = params(); state = p;
+    history.replaceState(null, '', location.pathname + '?' + p); transferLink(p);
+    refreshSectionFilters(scope);
+  }
   const chartColors = charts ? charts.palette : ['#234e70','#4f8095','#769b82','#a97c3f','#9b7180','#667b91','#7a8a4f','#bf8065','#7d8fa3','#7f7c55'];
   function analyticsParams(scope) {
     const p = params();
@@ -339,6 +379,28 @@
     return new Date(Number(year), Number(month)-1, 1).toLocaleDateString('es-AR',{month:'short',year:'2-digit'});
   };
   function accessibleTable(id, headers, rows) { $(id).replaceChildren(table(headers, rows)); }
+  // Tabla de datos con control de teclado: cada nombre es un botón que aplica el mismo filtro
+  // que el clic en la barra (Enter o Espacio sobre el botón).
+  function tablaConFiltro(id, headers, rows, scope, dimension) {
+    const nodo = table(headers, rows);
+    if (!scope) return $(id).replaceChildren(nodo);
+    nodo.querySelectorAll('tbody tr').forEach((tr, i) => {
+      const nombre = rows[i]?.[0];
+      const celda = tr.querySelector('td, th');
+      if (!nombre || !celda) return;
+      const boton = elem('button', nombre, 'com-name');
+      boton.type = 'button';
+      boton.title = sectionFilters[scope][dimension] === nombre
+        ? 'Quitar el filtro' : `Filtrar por ${nombre}`;
+      boton.setAttribute('aria-pressed', String(sectionFilters[scope][dimension] === nombre));
+      boton.onclick = () => {
+        const actual = sectionFilters[scope][dimension] || '';
+        fijarFiltroDeSeccion(scope, dimension, actual === nombre ? '' : nombre);
+      };
+      celda.replaceChildren(boton);
+    });
+    $(id).replaceChildren(nodo);
+  }
   async function loadQuantities() {
     const id = ++quantityRequestId, p = analyticsParams('analisis'); p.set('tipo', analysisDimension);
     p.set('medida', $('cantidad-medida').value);
@@ -354,10 +416,11 @@
       const titles = {producto:'Productos',cliente:'Clientes',vendedor:'Vendedores'};
       const labels = {cajas:'cajas',kilos:'kilos',importe:'importe'};
       $('cantidad-ranking-titulo').textContent = `15 principales ${titles[analysisDimension].toLowerCase()} por ${labels[measure]}`;
-      accessibleTable('cantidad-ranking-table', [[titles[analysisDimension]], [labels[measure], true]], top.map(row => [row.nombre, format(value(row))]));
+      const dimensionFiltro = analysisDimension === 'vendedor' ? null : analysisDimension;
+      tablaConFiltro('cantidad-ranking-table', [[titles[analysisDimension]], [labels[measure], true]], top.map(row => [row.nombre, format(value(row))]), dimensionFiltro ? 'analisis' : null, dimensionFiltro);
       const hasTop = top.length > 0;
       $('cantidad-ranking').hidden = !hasTop; $('cantidad-ranking-empty').hidden = hasTop;
-      if (hasTop) drawExtraChart('cantidad-ranking', {type:'bar', data:{labels:top.map(r=>r.nombre), datasets:[{label:labels[measure], data:top.map(value), backgroundColor:top.map((_,i)=>chartColors[i%chartColors.length]), borderRadius:3}]}, options:{indexAxis:'y', plugins:{app360DataLabels:{formatter:value=>chartFormat(value,measure)},legend:{display:false}, tooltip:{callbacks:{label:c=>format(c.parsed.x)}}}, scales:{x:{ticks:{callback:v=>format(v)}}}}});
+      if (hasTop) drawExtraChart('cantidad-ranking', barraConAccion({type:'bar', data:{labels:top.map(r=>r.nombre), datasets:[{label:labels[measure], data:top.map(value), backgroundColor:top.map((_,i)=>chartColors[i%chartColors.length]), borderRadius:3}]}, options:{indexAxis:'y', plugins:{app360DataLabels:{formatter:value=>chartFormat(value,measure)},legend:{display:false}, tooltip:{callbacks:{label:c=>format(c.parsed.x)}}}, scales:{x:{ticks:{callback:v=>format(v)}}}}}, 'analisis', analysisDimension, analysisDimension === 'vendedor' ? top.map(() => '') : top.map(r => r.nombre)));
       const series = result.evo_6m || [];
       const hasEvo = series.length > 0;
       $('cantidad-evolucion').hidden = !hasEvo; $('cantidad-evolucion-empty').hidden = hasEvo;
@@ -378,11 +441,11 @@
       const evolution = result.evo_mix || [], evoProducts = result.top_productos_evo || [];
       const hasProducts=products.length>0, hasDiversity=diversity.length>0, hasClients=clients.length>0&&topProducts.length>0, hasEvolution=evolution.length>0&&evoProducts.length>0;
       for (const [name, available] of [['mix-productos',hasProducts],['mix-variedad',hasDiversity],['mix-clientes',hasClients],['mix-evolucion',hasEvolution]]) {$(name).hidden=!available;$(`${name}-empty`).hidden=available;}
-      accessibleTable('mix-productos-table', [['Producto'],['Cajas',true],['Participación',true]], products.map(r=>[r.producto,number(r.cajas),number(r.pct)+'%']));
+      tablaConFiltro('mix-productos-table', [['Producto'],['Cajas',true],['Participación',true]], products.map(r=>[r.producto,number(r.cajas),number(r.pct)+'%']), 'mix', 'producto');
       accessibleTable('mix-variedad-table', [['Cliente'],['Productos distintos',true],['Cajas',true]], diversity.map(r=>[r.cliente,number(r.n_productos),number(r.cajas)]));
       accessibleTable('mix-clientes-table', [['Cliente'],...topProducts.map(p=>[p,true])], clients.map(c=>[c.cliente,...topProducts.map(p=>number(c.productos?.[p]||0))]));
       accessibleTable('mix-evolucion-table', [['Mes'],...evoProducts.map(p=>[p,true])], evolution.map(r=>[monthLabel(r.periodo),...evoProducts.map(prod=>number(r.productos?.[prod]||0))]));
-      if(hasProducts) drawExtraChart('mix-productos',{type:'doughnut',data:{labels:products.map(r=>r.producto),datasets:[{data:products.map(r=>r.cajas),backgroundColor:products.map((_,i)=>palette[i%palette.length]),borderColor:'#fff',borderWidth:2}]},options:{cutout:'55%',plugins:{app360DataLabels:{formatter:(value,index,dataset,chart)=>{const total=dataset.data.reduce((sum,item,i)=>sum+(chart.getDataVisibility(i)?Number(item)||0:0),0);return total?`${Math.round(Number(value)/total*100)}%`:'';}},tooltip:{callbacks:{label:c=>`${c.label}: ${number(c.parsed)} cajas`}}}}});
+      if(hasProducts) drawExtraChart('mix-productos',barraConAccion({type:'doughnut',data:{labels:products.map(r=>r.producto),datasets:[{data:products.map(r=>r.cajas),backgroundColor:products.map((_,i)=>palette[i%palette.length]),borderColor:'#fff',borderWidth:2}]},options:{cutout:'55%',plugins:{app360DataLabels:{formatter:(value,index,dataset,chart)=>{const total=dataset.data.reduce((sum,item,i)=>sum+(chart.getDataVisibility(i)?Number(item)||0:0),0);return total?`${Math.round(Number(value)/total*100)}%`:'';}},tooltip:{callbacks:{label:c=>`${c.label}: ${number(c.parsed)} cajas`}}}}}, 'mix', 'producto', products.map(r=>r.producto)));
       if(hasDiversity) drawExtraChart('mix-variedad',{type:'bar',data:{labels:diversity.map(r=>r.cliente),datasets:[{label:'Productos distintos',data:diversity.map(r=>r.n_productos),backgroundColor:diversity.map((_,i)=>palette[i%palette.length]),borderRadius:3}]},options:{indexAxis:'y',plugins:{app360DataLabels:{formatter:value=>compactNumber(value)},legend:{display:false}}}});
       if(hasClients) drawExtraChart('mix-clientes',{type:'bar',data:{labels:clients.map(r=>r.cliente),datasets:topProducts.map((product,i)=>({label:product,data:clients.map(c=>c.productos?.[product]||0),backgroundColor:palette[i%palette.length],borderWidth:1}))},options:{indexAxis:'y',scales:{x:{stacked:true,ticks:{callback:v=>number(v)}},y:{stacked:true}},plugins:{app360DataLabels:{formatter:value=>compactNumber(value)},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${number(c.parsed.x)} cajas`}}}}});
       if(hasEvolution) drawExtraChart('mix-evolucion',{type:'line',data:{labels:evolution.map(r=>monthLabel(r.periodo)),datasets:evoProducts.map((product,i)=>({label:product,data:evolution.map(r=>r.productos?.[product]||0),borderColor:palette[i],backgroundColor:palette[i],borderWidth:2,tension:.22,pointRadius:3}))},options:{plugins:{app360DataLabels:{formatter:value=>compactNumber(value)},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${number(c.parsed.y)} cajas`}}},scales:{y:{ticks:{callback:v=>number(v)}}}}});
@@ -441,7 +504,13 @@
       if (!$('mix-body').hidden) return refreshWithoutJump(loadMix);
     }
   }
-  form.addEventListener('submit', event => {event.preventDefault(); state.set('pagina', '1'); load();});
+  // Buscador «Nombre del cliente»: filtra al escribir (300 ms) y también con Enter.
+  let busquedaTimer = 0;
+  form.elements.q?.addEventListener('input', () => {
+    clearTimeout(busquedaTimer);
+    busquedaTimer = setTimeout(() => { state.set('pagina', '1'); load(); }, 300);
+  });
+  form.addEventListener('submit', event => {event.preventDefault(); clearTimeout(busquedaTimer); state.set('pagina', '1'); load();});
   document.querySelectorAll('[data-com-filter-scope][data-com-filter-dimension]').forEach(select => select.addEventListener('change', () => {
     const scope = select.dataset.comFilterScope;
     const dimension = select.dataset.comFilterDimension;

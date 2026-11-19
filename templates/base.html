@@ -2138,33 +2138,33 @@
         <div class="sidebar-section-title">Paneles Estratégicos</div>
         {% if can_access('dashboard') %}
         <a href="/dashboard-financiero"
-           class="{% if current.startswith('/dashboard-financiero') or (current.startswith('/dashboard') and not current.startswith('/dashboard-comercial')) %}active-link{% endif %}">
+           class="{% if current.startswith('/dashboard-financiero') or (current.startswith('/dashboard') and not current.startswith('/dashboard-comercial')) %}active-link{% endif %}" aria-label="Tesorería" title="Tesorería">
             <span class="nav-icon"><i class="bi bi-speedometer2"></i></span>
             <span class="link-text">Tesorería</span>
         </a>
         {% endif %}
         {% if can_access('dashboard_comercial') %}
         <a href="/dashboard-comercial"
-           class="{% if current.startswith('/dashboard-comercial') %}active-link{% endif %}">
+           class="{% if current.startswith('/dashboard-comercial') %}active-link{% endif %}" aria-label="Ventas" title="Ventas">
             <span class="nav-icon"><i class="bi bi-graph-up"></i></span>
             <span class="link-text">Ventas</span>
         </a>
         <a href="/comercial/salon"
-           class="{% if current == '/comercial/salon' %}active-link{% endif %}">
+           class="{% if current == '/comercial/salon' %}active-link{% endif %}" aria-label="Tablero Salón" title="Tablero Salón">
             <span class="nav-icon"><i class="bi bi-receipt"></i></span>
             <span class="link-text">Tablero Salón</span>
         </a>
         {% endif %}
         {% if can_access('panel') %}
         <a href="/panel-ejecutivo"
-           class="{% if current.startswith('/panel-ejecutivo') %}active-link{% endif %}">
+           class="{% if current.startswith('/panel-ejecutivo') %}active-link{% endif %}" aria-label="Ejecutivo" title="Ejecutivo">
             <span class="nav-icon"><i class="bi bi-compass"></i></span>
             <span class="link-text">Ejecutivo</span>
         </a>
         {% endif %}
         {% if can_access('panel') or can_access('bi') %}
         <a href="/bi"
-           class="{% if current.startswith('/bi') %}active-link{% endif %}">
+           class="{% if current.startswith('/bi') %}active-link{% endif %}" aria-label="Rentabilidad" title="Rentabilidad">
             <span class="nav-icon"><i class="bi bi-bar-chart-line"></i></span>
             <span class="link-text">Rentabilidad</span>
         </a>
@@ -2176,34 +2176,34 @@
         <hr class="sidebar-sep">
         <div class="sidebar-section-title">Comercial</div>
         {% if can_access('dashboard_comercial') %}
-        <a href="/comercial/seguimiento-clientes" class="{% if current.startswith('/comercial/seguimiento-clientes') %}active-link{% endif %}">
+        <a href="/comercial/seguimiento-clientes" class="{% if current.startswith('/comercial/seguimiento-clientes') %}active-link{% endif %}" aria-label="Seguimiento de clientes" title="Seguimiento de clientes">
             <span class="nav-icon"><i class="bi bi-people"></i></span>
             <span class="link-text">Seguimiento de clientes</span>
         </a>
         <a href="/comercial/performance-vendedores"
-           class="{% if current.startswith('/comercial/performance-vendedores') %}active-link{% endif %}">
+           class="{% if current.startswith('/comercial/performance-vendedores') %}active-link{% endif %}" aria-label="Performance de vendedores" title="Performance de vendedores">
             <span class="nav-icon"><i class="bi bi-graph-up"></i></span>
             <span class="link-text">Performance de vendedores</span>
         </a>
         <a href="/ventas/criterio-clientes"
-           class="{% if current == '/ventas/criterio-clientes' %}active-link{% endif %}">
+           class="{% if current == '/ventas/criterio-clientes' %}active-link{% endif %}" aria-label="Criterio de clientes" title="Criterio de clientes">
             <span class="nav-icon"><i class="bi bi-people"></i></span>
             <span class="link-text">Criterio de clientes</span>
         </a>
         {% endif %}
         {% if can_access('crm') %}
         <a href="/comercial/objetivos"
-           class="{% if current.startswith('/comercial/objetivos') %}active-link{% endif %}">
+           class="{% if current.startswith('/comercial/objetivos') %}active-link{% endif %}" aria-label="Objetivos" title="Objetivos">
             <span class="nav-icon"><i class="bi bi-bullseye"></i></span>
             <span class="link-text">Objetivos</span>
         </a>
         <a href="/leads"
-           class="{% if current.startswith('/leads') %}active-link{% endif %}">
+           class="{% if current.startswith('/leads') %}active-link{% endif %}" aria-label="Leads" title="Leads">
             <span class="nav-icon"><i class="bi bi-person-lines-fill"></i></span>
             <span class="link-text">Leads</span>
         </a>
         <a href="/campaigns"
-           class="{% if current.startswith('/campaigns') %}active-link{% endif %}">
+           class="{% if current.startswith('/campaigns') %}active-link{% endif %}" aria-label="Campañas" title="Campañas">
             <span class="nav-icon"><i class="bi bi-megaphone"></i></span>
             <span class="link-text">Campañas</span>
         </a>
@@ -2216,31 +2216,31 @@
         <div class="sidebar-section-title">Finanzas</div>
         {% if can_access('tesoreria') %}
         <a href="/tesoreria"
-           class="{% if current == '/tesoreria' %}active-link{% endif %}">
+           class="{% if current == '/tesoreria' %}active-link{% endif %}" aria-label="Tesorería" title="Tesorería">
             <span class="nav-icon"><i class="bi bi-safe"></i></span>
             <span class="link-text">Tesorería</span>
         </a>
         {% endif %}
         {% if can_access('gastos') %}
         <a href="/gastos"
-           class="{% if current.startswith('/gastos') %}active-link{% endif %}">
+           class="{% if current.startswith('/gastos') %}active-link{% endif %}" aria-label="Gastos" title="Gastos">
             <span class="nav-icon"><i class="bi bi-credit-card"></i></span>
             <span class="link-text">Gastos</span>
         </a>
         {% endif %}
         {% if can_access('tesoreria') %}
         <a href="/tesoreria/arqueos"
-           class="{% if current == '/tesoreria/arqueos' %}active-link{% endif %}">
+           class="{% if current == '/tesoreria/arqueos' %}active-link{% endif %}" aria-label="Arqueos" title="Arqueos">
             <span class="nav-icon"><i class="bi bi-calculator"></i></span>
             <span class="link-text">Arqueos</span>
         </a>
         <a href="/tesoreria/movimientos"
-           class="{% if current.startswith('/tesoreria/movimientos') %}active-link{% endif %}">
+           class="{% if current.startswith('/tesoreria/movimientos') %}active-link{% endif %}" aria-label="Movimientos" title="Movimientos">
             <span class="nav-icon"><i class="bi bi-arrow-left-right"></i></span>
             <span class="link-text">Movimientos</span>
         </a>
         <a href="/tesoreria/cta-cte-friar"
-           class="{% if current == '/tesoreria/cta-cte-friar' %}active-link{% endif %}">
+           class="{% if current == '/tesoreria/cta-cte-friar' %}active-link{% endif %}" aria-label="Cta Cte Friar" title="Cta Cte Friar">
             <span class="nav-icon"><i class="bi bi-wallet2"></i></span>
             <span class="link-text">Cta Cte Friar</span>
         </a>
@@ -2252,27 +2252,27 @@
         <hr class="sidebar-sep">
         <div class="sidebar-section-title">RRHH</div>
         <a href="/rrhh"
-           class="{% if current == '/rrhh' %}active-link{% endif %}">
+           class="{% if current == '/rrhh' %}active-link{% endif %}" aria-label="Panel RRHH" title="Panel RRHH">
             <span class="nav-icon"><i class="bi bi-people"></i></span>
             <span class="link-text">Panel RRHH</span>
         </a>
         <a href="/rrhh/empleados"
-           class="{% if current.startswith('/rrhh/empleados') %}active-link{% endif %}">
+           class="{% if current.startswith('/rrhh/empleados') %}active-link{% endif %}" aria-label="Empleados" title="Empleados">
             <span class="nav-icon"><i class="bi bi-person-badge"></i></span>
             <span class="link-text">Empleados</span>
         </a>
         <a href="/rrhh/adelantos"
-           class="{% if current.startswith('/rrhh/adelantos') %}active-link{% endif %}">
+           class="{% if current.startswith('/rrhh/adelantos') %}active-link{% endif %}" aria-label="Adelantos" title="Adelantos">
             <span class="nav-icon"><i class="bi bi-cash-coin"></i></span>
             <span class="link-text">Adelantos</span>
         </a>
         <a href="/rrhh/liquidaciones"
-           class="{% if current.startswith('/rrhh/liquidaciones') %}active-link{% endif %}">
+           class="{% if current.startswith('/rrhh/liquidaciones') %}active-link{% endif %}" aria-label="Liquidaciones" title="Liquidaciones">
             <span class="nav-icon"><i class="bi bi-file-earmark-text"></i></span>
             <span class="link-text">Liquidaciones</span>
         </a>
         <a href="/rrhh/ausentismo"
-           class="{% if current.startswith('/rrhh/ausentismo') %}active-link{% endif %}">
+           class="{% if current.startswith('/rrhh/ausentismo') %}active-link{% endif %}" aria-label="Ausentismo" title="Ausentismo">
             <span class="nav-icon"><i class="bi bi-calendar-x"></i></span>
             <span class="link-text">Ausentismo</span>
         </a>
@@ -2283,12 +2283,12 @@
         <hr class="sidebar-sep">
         <div class="sidebar-section-title">Compras</div>
         <a href="/compras"
-           class="{% if current.startswith('/compras') and current != '/compras/orden-nueva' %}active-link{% endif %}">
+           class="{% if current.startswith('/compras') and current != '/compras/orden-nueva' %}active-link{% endif %}" aria-label="Registros" title="Registros">
             <span class="nav-icon"><i class="bi bi-stack"></i></span>
             <span class="link-text">Registros</span>
         </a>
         <a href="/compras/orden-nueva"
-           class="{% if current == '/compras/orden-nueva' %}active-link{% endif %}">
+           class="{% if current == '/compras/orden-nueva' %}active-link{% endif %}" aria-label="Nuevo Registro" title="Nuevo Registro">
             <span class="nav-icon"><i class="bi bi-file-earmark-plus"></i></span>
             <span class="link-text">Nuevo Registro</span>
         </a>
@@ -2300,35 +2300,35 @@
         <div class="sidebar-section-title">Operaciones</div>
         {% if can_access('crm') %}
         <a href="/ventas"
-           class="{% if current.startswith('/ventas') and current != '/ventas/criterio-clientes' %}active-link{% endif %}">
+           class="{% if current.startswith('/ventas') and current != '/ventas/criterio-clientes' %}active-link{% endif %}" aria-label="Ventas" title="Ventas">
             <span class="nav-icon"><i class="bi bi-receipt"></i></span>
             <span class="link-text">Ventas</span>
         </a>
         {% endif %}
         {% if can_access('crm') %}
         <a href="/ventas/nuevo"
-           class="{% if current == '/ventas/nuevo' %}active-link{% endif %}">
+           class="{% if current == '/ventas/nuevo' %}active-link{% endif %}" aria-label="Nueva Venta" title="Nueva Venta">
             <span class="nav-icon"><i class="bi bi-pencil"></i></span>
             <span class="link-text">Nueva Venta</span>
         </a>
         {% endif %}
         {% if can_access('products') %}
         <a href="/products"
-           class="{% if current.startswith('/products') %}active-link{% endif %}">
+           class="{% if current.startswith('/products') %}active-link{% endif %}" aria-label="Productos" title="Productos">
             <span class="nav-icon"><i class="bi bi-box-seam"></i></span>
             <span class="link-text">Productos</span>
         </a>
         {% endif %}
         {% if can_access('locations') %}
         <a href="/locations"
-           class="{% if current.startswith('/locations') %}active-link{% endif %}">
+           class="{% if current.startswith('/locations') %}active-link{% endif %}" aria-label="Ubicaciones" title="Ubicaciones">
             <span class="nav-icon"><i class="bi bi-geo-alt"></i></span>
             <span class="link-text">Ubicaciones</span>
         </a>
         {% endif %}
         {% if can_access('stock') %}
         <a href="/stock"
-           class="{% if current.startswith('/stock') %}active-link{% endif %}">
+           class="{% if current.startswith('/stock') %}active-link{% endif %}" aria-label="Stock" title="Stock">
             <span class="nav-icon"><i class="bi bi-stack"></i></span>
             <span class="link-text">Stock</span>
         </a>
@@ -2340,19 +2340,19 @@
         <hr class="sidebar-sep">
         <div class="sidebar-section-title">Configuración</div>
         <a href="{% if session.get('role') == 'hr' %}/admin/rrhh{% else %}/admin{% endif %}"
-           class="{% if current == '/admin' or (current.startswith('/admin/') and not current.startswith('/admin/accesos')) %}active-link{% endif %}">
+           class="{% if current == '/admin' or (current.startswith('/admin/') and not current.startswith('/admin/accesos')) %}active-link{% endif %}" aria-label="Administración" title="Administración">
             <span class="nav-icon"><i class="bi bi-gear-fill"></i></span>
             <span class="link-text">Administración</span>
         </a>
         {% if session.get('role') in ['admin', 'manager', 'gerente'] %}
         <a href="/admin/accesos"
-           class="{% if current.startswith('/admin/accesos') %}active-link{% endif %}">
+           class="{% if current.startswith('/admin/accesos') %}active-link{% endif %}" aria-label="Accesos" title="Accesos">
             <span class="nav-icon"><i class="bi bi-shield-lock"></i></span>
             <span class="link-text">Accesos</span>
         </a>
         {% endif %}
         <a href="/sabiogo/admin"
-           class="{% if current.startswith('/sabiogo') %}active-link{% endif %}">
+           class="{% if current.startswith('/sabiogo') %}active-link{% endif %}" aria-label="SabioGo Admin" title="SabioGo Admin">
             <span class="nav-icon"><i class="bi bi-graph-up-arrow"></i></span>
             <span class="link-text">SabioGo Admin</span>
         </a>
@@ -2363,7 +2363,7 @@
         <!-- Footer -->
         <div class="sidebar-foot">
             {% if current_user %}
-            <a href="/logout" class="logout-btn">
+            <a href="/logout" class="logout-btn" aria-label="Cerrar sesión" title="Cerrar sesión">
                 <span class="nav-icon"><i class="bi bi-box-arrow-right"></i></span>
                 <span class="link-text">Cerrar sesión</span>
             </a>

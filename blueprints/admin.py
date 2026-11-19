@@ -16,9 +16,12 @@ from models.core import Location, Product, BusinessUnit
 from models.crm import LeadStage
 from models.core.user import User
 from models.core.user_permission import UserModulePermission
-from security import ACCESS_MAP, MANAGED_MODULES, get_user_module_access
+from security import ACCESS_MAP, MANAGED_MODULES, es_ruta_api, get_user_module_access
 
 admin_bp = Blueprint("admin", __name__)
+
+# Nombre para mostrar de cada módulo de administración (tilde y mayúsculas correctas).
+TITULOS_MODULO = {"tesoreria": "Tesorería", "rrhh": "RRHH"}
 
 
 # =============================================================================
@@ -29,9 +32,13 @@ def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if "user" not in session:
+            if es_ruta_api():
+                return jsonify({"error": "Sesión requerida"}), 401
             flash("Debe iniciar sesión.", "warning")
             return redirect(url_for("auth.login"))
         if session.get("role") not in ["admin", "manager", "gerente"]:
+            if es_ruta_api():
+                return jsonify({"error": "Sin acceso al módulo"}), 403
             flash("Acceso denegado. Se requiere rol de administrador.", "danger")
             return redirect(url_for("dashboard.dashboard"))
         return f(*args, **kwargs)
@@ -46,9 +53,13 @@ def admin_or_hr_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if "user" not in session:
+            if es_ruta_api():
+                return jsonify({"error": "Sesión requerida"}), 401
             flash("Debe iniciar sesión.", "warning")
             return redirect(url_for("auth.login"))
         if session.get("role") not in (*_FULL_ADMIN_ROLES, "hr"):
+            if es_ruta_api():
+                return jsonify({"error": "Sin acceso al módulo"}), 403
             flash("Acceso denegado.", "danger")
             return redirect(url_for("dashboard.dashboard"))
         return f(*args, **kwargs)
@@ -318,6 +329,7 @@ def admin_modulo(modulo):
     return render_template(
         "admin/admin_modulo.html",
         modulo=modulo,
+        titulo_modulo=TITULOS_MODULO.get(modulo, modulo.capitalize()),
         entidades=data,
         modulos=ADMIN_MODELS,
         locations=locations,

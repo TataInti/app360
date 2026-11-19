@@ -609,6 +609,41 @@ def _validar_capacidades_producto(dimension_tipo, dimension_valor, metas):
         raise ValueError("Los kilos están disponibles cuando el producto tiene cantidades en staging")
 
 
+# Nombres de los niveles de objetivo en los mensajes al usuario.
+_ETIQUETA_NIVEL = {
+    "empresa": "empresa",
+    "rubro": "rubro",
+    "subrubro": "subrubro",
+    "marca": "marca",
+    "producto": "producto",
+}
+
+
+def _mensaje_linea_duplicada(dimension_tipo, dimension_valor):
+    nivel = _ETIQUETA_NIVEL.get(dimension_tipo, dimension_tipo)
+    return (
+        f"Ya existe una línea de {nivel} «{dimension_valor}» para ese mes. "
+        "Editala en lugar de crear otra."
+    )
+
+
+def _linea_duplicada(vendedor_id, mes, dimension_tipo, dimension_valor, excluir_id=None):
+    """Línea con el mismo vendedor, mes, nivel y valor (duplicado exacto).
+
+    Control de aplicación dentro de la transacción de la petición; no hay restricción
+    única en la base, por lo que no requiere migración.
+    """
+    consulta = ComercialObjetivo.query.filter_by(
+        vendedor_id=vendedor_id,
+        mes=mes,
+        dimension_tipo=dimension_tipo,
+        dimension_valor=dimension_valor,
+    )
+    if excluir_id is not None:
+        consulta = consulta.filter(ComercialObjetivo.id != excluir_id)
+    return consulta.first()
+
+
 @comercial_bp.route("/api/objetivos-comerciales", methods=["GET"])
 def objetivos_comerciales_listar():
     from models.time_utils import today_local_date
@@ -764,6 +799,13 @@ def objetivos_comerciales_crear():
     if usuario_id is None:
         return jsonify({"error": "Sesión de usuario inválida"}), 401
 
+    # Duplicado exacto dentro de la misma transacción. El bloqueo de la fila del vendedor
+    # serializa las altas concurrentes de un mismo vendedor (SQLite ignora el bloqueo).
+    db.session.query(ComercialVendedor).filter_by(id=vendedor_id).with_for_update().first()
+    if _linea_duplicada(vendedor_id, mes, dimension_tipo, dimension_valor) is not None:
+        db.session.rollback()
+        return jsonify({"error": _mensaje_linea_duplicada(dimension_tipo, dimension_valor)}), 409
+
     legacy_measure = data.get("medida") if data.get("medida") in ("importe", "cajas", "kilos") else None
     legacy_meta = data.get("meta")
     objetivo = ComercialObjetivo(
@@ -825,6 +867,20 @@ def objetivos_comerciales_editar(objetivo_id):
     usuario_id = _usuario_comercial_actual_id()
     if usuario_id is None:
         return jsonify({"error": "Sesión de usuario inválida"}), 401
+
+    # La edición no cambia vendedor, mes ni nivel; el control impide que la línea quede
+    # como duplicado exacto de otra (por ejemplo, una carga anterior sin este control).
+    duplicada = _linea_duplicada(
+        objetivo.vendedor_id,
+        objetivo.mes,
+        objetivo.dimension_tipo,
+        objetivo.dimension_valor,
+        excluir_id=objetivo.id,
+    )
+    if duplicada is not None:
+        return jsonify(
+            {"error": _mensaje_linea_duplicada(objetivo.dimension_tipo, objetivo.dimension_valor)}
+        ), 409
 
     if "meta" in data:
         medida_legacy = str(data.get("medida") or objetivo.medida or "").strip().lower()

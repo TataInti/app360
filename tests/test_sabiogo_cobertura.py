@@ -14,8 +14,8 @@ from models import db as _db
 from models.sabiogo import StgSabiogoVentas, StgSabiogoCompras, LogSabiogoCarga
 from services.sabiogo_service import SabiogoService
 
-# La base de este módulo no tiene tabla users (preexistente): no inyecta sesión admin.
-pytestmark = pytest.mark.sin_sesion_admin
+# El fixture crea las tablas (incluida users), así que el módulo recibe la sesión admin
+# igual que el resto de la suite.
 
 
 @pytest.fixture
@@ -25,6 +25,11 @@ def app():
     app.config['WTF_CSRF_ENABLED'] = False
     app.config['LOGIN_DISABLED'] = True
     app.config['SABIOGO_SYNC_API_KEY'] = 'test-sync-key'
+    with app.app_context():
+        # En SQLite (CI, base en memoria) no existen las tablas de staging ni de log:
+        # se crean desde los modelos importados arriba. En Postgres se usa el esquema real.
+        if _db.engine.dialect.name == 'sqlite':
+            _db.create_all()
     return app
 
 
@@ -306,7 +311,8 @@ class TestDbSyncEndpoint:
             headers={'X-Sync-Key': 'test-sync-key'},
         )
 
-        assert resp.status_code == 302
+        assert resp.status_code == 401
+        assert resp.is_json
 
     def test_requiere_sync_key_aun_con_sesion(self, client):
         resp = client.post('/sabiogo/api/db-sync', json={

@@ -1053,7 +1053,13 @@ def liquidaciones_obtener(periodo):
     liquidaciones = LiquidacionSueldo.query.filter_by(periodo=periodo).all()
     
     if not liquidaciones:
-        return jsonify({"error": f"No se encontraron liquidaciones para {periodo}"}), 404
+        # 200 con lista vacía: un 404 se registra como error en la consola del navegador.
+        # Se conserva el campo error, que leen las pantallas de liquidaciones.
+        return jsonify({
+            "periodo": periodo,
+            "liquidaciones": [],
+            "error": f"No se encontraron liquidaciones para {periodo}",
+        })
     
     return jsonify({
         "periodo": periodo,

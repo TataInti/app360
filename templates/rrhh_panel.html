@@ -331,7 +331,7 @@ async function cargarLiquidaciones() {
         const r = await fetch(`/api/rrhh/liquidaciones/${periodo}`);
         if (r.status === 404) {
             document.getElementById('tabla-liquidaciones').innerHTML =
-                `<tr><td colspan="6" class="text-center p-3 text-muted">Sin liquidaciones para ${periodo}</td></tr>`;
+                `<tr><td colspan="6" class="text-center p-3 text-muted">Todavía no hay liquidaciones para ${periodo}</td></tr>`;
             document.getElementById('pie-liquidaciones').textContent = `Período ${periodo} — sin registros`;
             return;
         }
@@ -341,7 +341,7 @@ async function cargarLiquidaciones() {
 
         if (!items.length) {
             document.getElementById('tabla-liquidaciones').innerHTML =
-                `<tr><td colspan="6" class="text-center p-3 text-muted">Sin liquidaciones para ${periodo}</td></tr>`;
+                `<tr><td colspan="6" class="text-center p-3 text-muted">Todavía no hay liquidaciones para ${periodo}</td></tr>`;
             document.getElementById('pie-liquidaciones').textContent = `Período ${periodo} — sin registros`;
             return;
         }

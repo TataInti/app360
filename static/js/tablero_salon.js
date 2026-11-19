@@ -128,9 +128,28 @@
     }
   }
 
+  // Las fechas aplicadas viajan en la URL (?desde=&hasta=) y se cargan al abrir la página.
+  function leerFechasDeUrl() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('desde')) form.elements.fecha_desde.value = params.get('desde');
+    if (params.get('hasta')) form.elements.fecha_hasta.value = params.get('hasta');
+  }
+  function reflejarFechasEnUrl() {
+    const desde = form.elements.fecha_desde.value, hasta = form.elements.fecha_hasta.value;
+    if (!desde || !hasta) return;
+    const url = new URL(location.href);
+    url.searchParams.set('desde', desde);
+    url.searchParams.set('hasta', hasta);
+    history.replaceState(null, '', url);
+  }
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    if (form.reportValidity()) loadData();
+    if (form.reportValidity()) {
+      reflejarFechasEnUrl();
+      loadData();
+    }
   });
+  leerFechasDeUrl();
+  reflejarFechasEnUrl();
   loadData();
 })();

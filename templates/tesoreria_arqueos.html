@@ -702,7 +702,7 @@ document.getElementById('formArqueo')?.addEventListener('submit', async function
             notify('Arqueo registrado correctamente.', 'success', { title: 'Cierre guardado' });
         } else {
             const err = await resp.json();
-            alert('Error: ' + (err.error || 'No se pudo guardar'));
+            alert(err.error || 'No se pudo guardar el arqueo.');
         }
     } catch(e) {
         alert('Error de conexión');

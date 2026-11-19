@@ -18,6 +18,8 @@
         </div>
     </div>
 
+    <div id="gastosAviso" class="alert alert-warning" role="alert" hidden></div>
+
     <!-- Filtros -->
     <div class="period-bar dim-bar mb-3">
         <select id="selCategoria" style="min-width:130px"><option value="">Categoría</option></select>
@@ -141,6 +143,7 @@
                             <select class="form-select" name="categoria_gasto_id" id="frmCategoria" required>
                                 <option value="">Seleccionar...</option>
                             </select>
+                            <div id="frmCategoriaAviso" class="form-text" hidden><a href="/admin/gastos">Crear categorías en Administración</a></div>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Proveedor *</label>
@@ -185,6 +188,27 @@
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 let chartCat = null, chartProv = null, chartEvo = null;
 let _instrumentos = [];
+
+const MENSAJE_ACCESO = 'Tu sesión terminó o no tenés acceso a esta sección';
+
+function mostrarAviso(texto) {
+    const aviso = document.getElementById('gastosAviso');
+    aviso.textContent = texto;
+    aviso.hidden = false;
+}
+
+// Una respuesta que no es JSON, o un 401/403, se informa en español. Un 401 lleva al login.
+async function pedirJson(url) {
+    const respuesta = await fetch(url, {headers: {'Accept': 'application/json'}});
+    const esJson = (respuesta.headers.get('content-type') || '').includes('application/json');
+    if (respuesta.status === 401 || respuesta.status === 403 || !esJson) {
+        if (respuesta.status === 401) setTimeout(() => { window.location.href = '/'; }, 2500);
+        throw new Error(MENSAJE_ACCESO);
+    }
+    const datos = await respuesta.json();
+    if (!respuesta.ok) throw new Error(datos.error || 'No se pudieron cargar los datos.');
+    return datos;
+}
 
 function fmtAbbr(n) {
     const a = Math.abs(n);
@@ -267,20 +291,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.reset();
                 document.getElementById('portadorGroup').style.display = 'none';
                 load();
+            } else if (r.status === 401 || r.status === 403) {
+                alert(MENSAJE_ACCESO);
+                if (r.status === 401) setTimeout(() => { window.location.href = '/'; }, 2500);
             } else {
-                const err = await r.json();
-                alert('Error: '+(err.error||'No se pudo guardar'));
+                const err = await r.json().catch(() => ({}));
+                alert(err.error || 'No se pudo guardar el gasto.');
             }
         } catch(ex) { alert('Error de conexión'); }
     });
 });
 
 async function cargarRefs() {
-    const [catR, provR, instR] = await Promise.all([
-        fetch('/api/gastos/categorias?naturaleza=egreso,ambos'), fetch('/api/gastos/proveedores'),
-        fetch('/api/tesoreria/instrumentos')
-    ]);
-    const [catD, provD, instD] = await Promise.all([catR.json(), provR.json(), instR.json()]);
+    let catD, provD, instD;
+    try {
+        [catD, provD, instD] = await Promise.all([
+            pedirJson('/api/gastos/categorias?naturaleza=egreso,ambos'),
+            pedirJson('/api/gastos/proveedores'),
+            pedirJson('/api/tesoreria/instrumentos'),
+        ]);
+    } catch (error) {
+        mostrarAviso(error.message);
+        return;
+    }
 
     _instrumentos = instD.instrumentos || [];
 
@@ -296,7 +329,10 @@ async function cargarRefs() {
     const fCat = document.getElementById('frmCategoria');
     const fProv = document.getElementById('frmProveedor');
     const fInst = document.getElementById('frmInstrumento');
-    (catD.categorias||[]).forEach(c => fCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
+    const categorias = catD.categorias || [];
+    if (!categorias.length) fCat.innerHTML = '<option value="" disabled selected>No hay categorías de egreso. Creá una en Administración</option>';
+    categorias.forEach(c => fCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
+    document.getElementById('frmCategoriaAviso').hidden = categorias.length > 0;
     (provD.proveedores||[]).forEach(p => fProv.innerHTML += `<option value="${p.id}">${p.nombre}</option>`);
     _instrumentos.forEach(i => fInst.innerHTML += `<option value="${i.id}">${i.nombre}</option>`);
 }
@@ -344,9 +380,14 @@ async function load(period) {
 
     let urlR = `/api/gastos/resumen?fecha_desde=${desde}&fecha_hasta=${hasta}`;
 
-    const [listR, resR] = await Promise.all([fetch(url), fetch(urlR)]);
-    const listD = await listR.json();
-    const resD = await resR.json();
+    let listD, resD;
+    document.getElementById('gastosAviso').hidden = true;
+    try {
+        [listD, resD] = await Promise.all([pedirJson(url), pedirJson(urlR)]);
+    } catch (error) {
+        mostrarAviso(error.message);
+        return;
+    }
 
     // KPIs
     document.getElementById('kpiTotal').textContent = fmtAbbr(resD.total || 0);
