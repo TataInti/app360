@@ -282,6 +282,8 @@
             border-color: rgba(239,68,68,0.55);
         }
         .sidebar.collapsed .sidebar-foot .logout-btn { justify-content: center; }
+        .sidebar-foot .logout-form { margin: 0; }
+        .sidebar-foot .logout-btn { width: 100%; cursor: pointer; font-family: inherit; }
         .sidebar-foot .toggle-btn {
             display: flex;
             align-items: center;
@@ -2341,7 +2343,7 @@
         <hr class="sidebar-sep">
         <div class="sidebar-section-title">Configuración</div>
         <a href="{% if session.get('role') == 'hr' %}/admin/rrhh{% else %}/admin{% endif %}"
-           class="{% if current == '/admin' or (current.startswith('/admin/') and not current.startswith('/admin/accesos')) %}active-link{% endif %}" aria-label="Administración" title="Administración">
+           class="{% if current == '/admin' or (current.startswith('/admin/') and not current.startswith('/admin/accesos') and not current.startswith('/admin/usuarios')) %}active-link{% endif %}" aria-label="Administración" title="Administración">
             <span class="nav-icon"><i class="bi bi-gear-fill"></i></span>
             <span class="link-text">Administración</span>
         </a>
@@ -2350,6 +2352,11 @@
            class="{% if current.startswith('/admin/accesos') %}active-link{% endif %}" aria-label="Accesos" title="Accesos">
             <span class="nav-icon"><i class="bi bi-shield-lock"></i></span>
             <span class="link-text">Accesos</span>
+        </a>
+        <a href="/admin/usuarios"
+           class="{% if current.startswith('/admin/usuarios') %}active-link{% endif %}" aria-label="Usuarios" title="Usuarios">
+            <span class="nav-icon"><i class="bi bi-people"></i></span>
+            <span class="link-text">Usuarios</span>
         </a>
         {% endif %}
         <a href="/sabiogo/admin"
@@ -2368,10 +2375,13 @@
                 <span class="nav-icon"><i class="bi bi-key"></i></span>
                 <span class="link-text">Cambiar mi clave</span>
             </a>
-            <a href="/logout" class="logout-btn" aria-label="Cerrar sesión" title="Cerrar sesión">
-                <span class="nav-icon"><i class="bi bi-box-arrow-right"></i></span>
-                <span class="link-text">Cerrar sesión</span>
-            </a>
+            <form method="post" action="{{ url_for('auth.logout') }}" class="logout-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="logout-btn" aria-label="Cerrar sesión" title="Cerrar sesión">
+                    <span class="nav-icon"><i class="bi bi-box-arrow-right"></i></span>
+                    <span class="link-text">Cerrar sesión</span>
+                </button>
+            </form>
             {% endif %}
             <button id="sidebar-toggle" type="button" class="toggle-btn" aria-label="Contraer barra lateral">
                 <i class="bi bi-chevron-left"></i>

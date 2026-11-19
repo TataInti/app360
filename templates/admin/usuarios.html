@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid" id="pantallaUsuarios" data-yo="{{ session.get('user_id') }}">
+    <div class="panel-header">
+        <div>
+            <h1><i class="bi bi-people"></i> Usuarios</h1>
+            <span>Altas, activación y desactivación de cuentas. Cada acción queda registrada.</span>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary" id="btnNuevoUsuario" aria-expanded="false" aria-controls="panelAltaUsuario">
+            <i class="bi bi-person-plus"></i> Nuevo usuario
+        </button>
+    </div>
+
+    <div id="avisoUsuarios" class="alert alert-danger d-none" role="alert"></div>
+
+    <div class="table-card mb-3 d-none" id="panelAltaUsuario">
+        <form id="formAltaUsuario" novalidate class="p-3">
+            <h2 class="h5">Nuevo usuario</h2>
+            <p class="text-muted small">Se genera una clave temporal que vence en 72 horas. La persona la cambia al ingresar.</p>
+            <div class="row g-3">
+                <div class="col-md-5">
+                    <label class="form-label" for="altaUsuario">Usuario</label>
+                    <input id="altaUsuario" name="username" class="form-control" maxlength="80" autocomplete="off" aria-describedby="altaUsuarioAyuda">
+                    <div id="altaUsuarioAyuda" class="form-text">De 3 a 80 caracteres: letras sin tilde, números, punto, guion y guion bajo.</div>
+                    <div class="invalid-feedback" id="altaUsuarioError"></div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="altaRol">Rol</label>
+                    <select id="altaRol" name="role" class="form-select">
+                        <option value="">Elegí un rol</option>
+                        {% for codigo, nombre in roles %}
+                        <option value="{{ codigo }}">{{ nombre }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="invalid-feedback" id="altaRolError"></div>
+                </div>
+            </div>
+            <div class="mt-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm" id="btnCrearUsuario">Crear usuario</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnCancelarAlta">Cancelar</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="table-card mb-3 d-none" id="panelClaveTemporal" role="status" aria-live="polite">
+        <div class="p-3">
+            <h2 class="h5">Usuario creado: <span id="claveUsuarioNombre"></span></h2>
+            <p>Entregale esta clave temporal por un canal seguro. Vence el <strong id="claveVence"></strong>. Al ingresar, tiene que cambiarla.</p>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <code id="clave_temporal_nueva" class="fs-5 px-3 py-2 border rounded user-select-all"></code>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btnCopiarClave"><i class="bi bi-clipboard"></i> Copiar</button>
+            </div>
+            <p class="mt-3 fw-semibold text-danger">Guardala ahora: no se vuelve a mostrar.</p>
+            <button type="button" class="btn btn-sm btn-primary" id="btnCerrarClave">Ya la guardé</button>
+        </div>
+    </div>
+
+    <div class="table-card">
+        <div class="d-flex flex-wrap gap-2 p-3 align-items-end">
+            <div>
+                <label class="form-label small mb-1" for="buscarUsuario">Buscar por usuario</label>
+                <input type="search" id="buscarUsuario" class="form-control form-control-sm" placeholder="Ej: ventas" autocomplete="off">
+            </div>
+            <div>
+                <label class="form-label small mb-1" for="filtroEstado">Estado</label>
+                <select id="filtroEstado" class="form-select form-select-sm">
+                    <option value="todos">Todos</option>
+                    <option value="activo">Activos</option>
+                    <option value="desactivado">Desactivados</option>
+                    <option value="cambiar_clave">Debe cambiar la clave</option>
+                </select>
+            </div>
+        </div>
+        <div class="scroll-table">
+            <table class="table table-hover align-middle mb-0" id="tablaUsuarios">
+                <thead>
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Rol</th>
+                        <th>Estado</th>
+                        <th>Último acceso</th>
+                        <th class="text-center">Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpoUsuarios"></tbody>
+            </table>
+        </div>
+        <div id="cargandoUsuarios" class="p-3 text-muted">Cargando usuarios…</div>
+        <div id="estadoVacioUsuarios" class="empty-state d-none">
+            <i class="bi bi-people empty-icon"></i>
+            <div class="empty-title">No hay usuarios con estos criterios</div>
+            <div class="empty-text">Cambiá la búsqueda o el estado. Para sumar una cuenta, usá «Nuevo usuario».</div>
+        </div>
+    </div>
+
+    <div class="table-card mt-3">
+        <div class="p-3">
+            <h2 class="h5">Últimas acciones</h2>
+            <p class="text-muted small mb-0">Las últimas 50 acciones de administración de usuarios.</p>
+        </div>
+        <div class="scroll-table">
+            <table class="table table-sm align-middle mb-0" id="tablaAuditoria">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Quién</th>
+                        <th>Acción</th>
+                        <th>A quién</th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpoAuditoria"></tbody>
+            </table>
+        </div>
+        <div id="estadoVacioAuditoria" class="p-3 text-muted d-none">Todavía no hay acciones registradas.</div>
+    </div>
+</div>
+
+<script src="{{ asset('js/admin_usuarios.js') }}" defer></script>
+{% endblock %}
