@@ -143,6 +143,7 @@
                             <select class="form-select" name="categoria_gasto_id" id="frmCategoria" required>
                                 <option value="">Seleccionar...</option>
                             </select>
+                            <div id="frmCategoriaAviso" class="form-text text-danger" hidden>No hay categorías de egreso. <a href="/admin/gastos">Creá una en Administración</a></div>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Proveedor *</label>
@@ -321,6 +322,7 @@ async function cargarRefs() {
     const sProv = document.getElementById('selProveedor');
     const sInst = document.getElementById('selInstrumento');
     (catD.categorias||[]).forEach(c => sCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
+    document.getElementById('frmCategoriaAviso').hidden = (catD.categorias || []).length > 0;
     (provD.proveedores||[]).forEach(p => sProv.innerHTML += `<option value="${p.id}">${p.nombre}</option>`);
     _instrumentos.forEach(i => sInst.innerHTML += `<option value="${i.id}">${i.nombre}</option>`);
 
