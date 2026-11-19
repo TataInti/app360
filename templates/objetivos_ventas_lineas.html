@@ -85,6 +85,47 @@
     <div id="legacyError" class="com-error" role="alert" hidden></div>
     <div id="legacyGoals" class="com-table-wrap"></div>
   </details>
+  <aside class="com-drawer oc-drawer" id="objetivoPanel" role="dialog" aria-labelledby="objetivoPanelTitulo" aria-describedby="objetivoPanelAyuda" data-goal-drawer hidden>
+    <form class="oc-goal-form" data-goal-form novalidate>
+      <div class="oc-drawer-head">
+        <div>
+          <h2 id="objetivoPanelTitulo">Agregar objetivo</h2>
+          <p class="oc-drawer-sub" data-goal-subtitle></p>
+        </div>
+        <button type="button" class="oc-drawer-close" aria-label="Cerrar panel" data-goal-close>×</button>
+      </div>
+      <div class="oc-goal-grid">
+        <div class="oc-field" data-campo="nivel">
+          <label id="objetivoNivelEtiqueta">Nivel del objetivo</label>
+          <select data-dimension-tipo aria-labelledby="objetivoNivelEtiqueta" required></select>
+        </div>
+        <div class="oc-field" data-campo="valor">
+          <label id="objetivoValorEtiqueta">Valor del catálogo</label>
+          <select data-dimension-valor aria-labelledby="objetivoValorEtiqueta" required></select>
+        </div>
+        <div class="oc-field oc-field-wide">
+          <label for="objetivoImporte">Importe</label>
+          <span class="oc-unit-field"><input id="objetivoImporte" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Meta de Importe" data-meta="importe"><small>ARS</small></span>
+        </div>
+        <div class="oc-field">
+          <label for="objetivoCajas">Cajas</label>
+          <span class="oc-unit-field"><input id="objetivoCajas" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Meta de Cajas" data-meta="cajas"><small>cajas</small></span>
+        </div>
+        <div class="oc-field">
+          <label for="objetivoKilos">Kilos</label>
+          <span class="oc-unit-field"><input id="objetivoKilos" type="text" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Meta de Kilos" data-meta="kilos"><small>kg</small></span>
+        </div>
+        <p class="oc-help" data-product-hint hidden></p>
+        <p class="oc-help" id="objetivoPanelAyuda">Cargá al menos una meta mayor que cero. El realizado se calcula desde PRE.</p>
+      </div>
+      <p class="oc-line-error oc-drawer-error" data-line-error role="alert" hidden></p>
+      <div class="oc-drawer-foot">
+        <button type="button" class="oc-text-action oc-mute" data-cancel-line>Cancelar</button>
+        <button type="button" class="oc-save" data-save-and-add>Guardar y agregar otro</button>
+        <button type="submit" class="oc-save oc-save-primaria">Guardar</button>
+      </div>
+    </form>
+  </aside>
 </main>
 <script src="{{ asset('js/objetivos_comerciales.js') }}" defer></script>
 {% endblock %}

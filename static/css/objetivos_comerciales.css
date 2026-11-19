@@ -1,7 +1,7 @@
 /* Objetivos comerciales: tabla de equipo con filas expandibles, período en una línea y formularios de línea.
    Tokens reales de templates/base.html. --state-dot-size (8px) es nuevo: se declara aquí porque
    base.html no se toca en este corte (informe UX §6). */
-:root{--state-dot-size:8px}
+:root{--state-dot-size:8px;--drawer-width-form:440px}
 .oc-page{--oc-border:var(--color-border,#dce3eb);--oc-muted:var(--color-text-muted,#58677a)}
 .oc-page input,.oc-page select{min-height:40px}
 
@@ -99,3 +99,29 @@
 
 @media(max-width:900px){.oc-line-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.oc-legacy-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.oc-line-meta{grid-template-columns:1fr}.oc-line-guardada .oc-line-meta{grid-template-columns:1fr}.oc-line-footer{align-items:flex-start;flex-direction:column}.oc-line-actions{width:100%;justify-content:flex-end}.oc-legacy-form{grid-template-columns:1fr;min-width:0}}
+
+/* Panel lateral de alta (corte 3): reutiliza .com-drawer de comercial_paneles.css y solo cambia el ancho
+   (--drawer-width-form, 440 px) y el contenido. Grilla de 2 columnas: Nivel y Valor; Importe a fila
+   completa; Cajas y Kilos. Unidades dentro del campo. Una sola primaria en el pie («Guardar»). */
+.com-drawer.oc-drawer{width:min(var(--drawer-width-form,440px),100%);display:flex;flex-direction:column;padding:24px;background:var(--color-surface,#fff)}
+.com-drawer.oc-drawer[hidden]{display:none}
+.oc-goal-form{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+.oc-drawer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:20px}
+.oc-drawer-head h2{margin:0 0 2px;font-size:var(--font-size-section,18px);font-weight:var(--font-weight-strong,650);overflow-wrap:anywhere}
+.oc-drawer-sub{margin:0;color:var(--oc-muted);font-size:var(--font-size-note,13px)}
+.oc-drawer-close{background:none;border:0;padding:2px 6px;min-height:0;font-size:22px;line-height:1;color:var(--oc-muted);cursor:pointer}
+.oc-goal-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px 12px;align-items:start}
+.oc-field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.oc-field-wide{grid-column:1/-1}
+.oc-field > label{font-size:var(--font-size-label,12px);font-weight:var(--font-weight-strong,650);color:var(--oc-muted)}
+.oc-drawer .oc-field input[data-meta]{width:100%;height:var(--control-height,38px);min-height:var(--control-height,38px);box-sizing:border-box}
+.oc-drawer .ts-control{min-height:var(--control-height,38px);box-sizing:border-box}
+.oc-drawer .oc-unit-field input{padding-right:52px}
+.oc-help{grid-column:1/-1;margin:-4px 0 0;color:var(--oc-muted);font-size:var(--font-size-note,13px);line-height:1.45}
+.oc-drawer-error{margin:12px 0 0}
+.oc-drawer-foot{margin-top:auto;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:16px;border-top:1px solid var(--oc-border)}
+.oc-drawer-foot .oc-text-action{margin-right:auto}
+.oc-page .oc-save.oc-save-primaria{background:var(--color-action,#234e70);border-color:var(--color-action,#234e70);color:#fff}
+.oc-page .oc-save.oc-save-primaria:hover:not(:disabled){background:var(--color-action-hover,#1b3d59)}
+/* Con el panel abierto, «Agregar vendedor» de la cabecera pasa a secundaria (una primaria por panel activo). */
+.oc-page.oc-drawer-open #agregarVendedor{background:var(--color-surface,#fff);color:var(--color-text-primary,#25364a);border:1px solid var(--color-border-control,#bcc9d6)}
