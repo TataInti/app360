@@ -71,7 +71,8 @@ def rrhh_empleados():
             flash("Empleado creado exitosamente", "success")
         except Exception as e:
             db.session.rollback()
-            flash(f"Error al crear empleado: {str(e)}", "danger")
+            current_app.logger.exception("Error al crear empleado desde RRHH")
+            flash("No se pudo crear el empleado. Revisá los datos e intentá de nuevo.", "danger")
         return redirect(url_for("rrhh.rrhh_empleados"))
     
     # GET: cargar empleados y ubicaciones
@@ -901,7 +902,32 @@ def liquidaciones_preview(periodo):
     # Validar formato de periodo
     if not periodo or len(periodo) != 7:
         return jsonify({"error": "Formato de periodo inválido (usar YYYY-MM)"}), 400
-    
+
+    # Periodo ya liquidado: se muestran los valores guardados. La fórmula de abajo volvería a
+    # descontar las cuotas de préstamo ya aplicadas en la liquidación (A-011).
+    guardadas = LiquidacionSueldo.query.filter_by(periodo=periodo).all()
+    if guardadas:
+        ids_liquidados = {liq.empleado_id for liq in guardadas}
+        empleados_activos = Employee.query.filter_by(is_active=True).all()
+        return jsonify({
+            "periodo": periodo,
+            "periodo_liquidado": True,
+            "empleados_sin_liquidacion": sum(1 for e in empleados_activos if e.id not in ids_liquidados),
+            "liquidaciones": [{
+                "empleado_id": liq.empleado_id,
+                "empleado_nombre": liq.empleado.name,
+                "sueldo_base": float(liq.sueldo_base or 0),
+                "descuento_adelanto_efectivo": float(liq.descuento_adelanto_efectivo or 0),
+                "descuento_adelanto_mercaderia": float(liq.descuento_adelanto_mercaderia or 0),
+                "descuento_cuota_prestamo": float(liq.descuento_cuota_prestamo or 0),
+                "sueldo_neto": float(liq.sueldo_neto or 0),
+                "adelantos_efectivo_count": None,
+                "adelantos_mercaderia_count": None,
+                "prestamos_count": None,
+                "ya_liquidado": True,
+            } for liq in guardadas],
+        })
+
     empleados = Employee.query.filter_by(is_active=True).all()
     preview = []
 
@@ -914,7 +940,7 @@ def liquidaciones_preview(periodo):
             aprobado=True,
             liquidado=False
         ).all()
-        
+
         adelantos_mercaderia = Adelanto.query.filter_by(
             empleado_id=empleado.id,
             tipo="adelanto_mercaderia",
@@ -922,7 +948,7 @@ def liquidaciones_preview(periodo):
             aprobado=True,
             liquidado=False
         ).all()
-        
+
         # Obtener préstamos activos
         prestamos = Adelanto.query.filter_by(
             empleado_id=empleado.id,
@@ -935,7 +961,7 @@ def liquidaciones_preview(periodo):
         descuento_efectivo = sum(a.monto for a in adelantos_efectivo)
         descuento_mercaderia = sum(a.monto for a in adelantos_mercaderia)
         descuento_cuota = sum(p.calcular_monto_cuota() for p in prestamos)
-        
+
         sueldo_base = empleado.salary or Decimal('0')
         sueldo_neto = sueldo_base - descuento_efectivo - descuento_mercaderia - descuento_cuota
 
@@ -949,10 +975,16 @@ def liquidaciones_preview(periodo):
             "sueldo_neto": float(sueldo_neto),
             "adelantos_efectivo_count": len(adelantos_efectivo),
             "adelantos_mercaderia_count": len(adelantos_mercaderia),
-            "prestamos_count": len(prestamos)
+            "prestamos_count": len(prestamos),
+            "ya_liquidado": False,
         })
-    
-    return jsonify({"periodo": periodo, "liquidaciones": preview})
+
+    return jsonify({
+        "periodo": periodo,
+        "periodo_liquidado": False,
+        "empleados_sin_liquidacion": 0,
+        "liquidaciones": preview,
+    })
 
 
 @rrhh_bp.route("/api/rrhh/liquidaciones", methods=["POST"])
