@@ -111,8 +111,8 @@ def main() -> int:
 
     user = args.user or _env_value("ADMIN_USERNAME") or "admin"
     password = args.password or _env_value("ADMIN_PASSWORD")
-    # El servidor de desarrollo usa admin/admin por defecto (scripts/dev_backend.sh).
-    candidates = [c for c in [password, "admin"] if c]
+    # Sin valor por defecto: la clave llega por --password o por ADMIN_PASSWORD (entorno o .env).
+    candidates = [c for c in [password] if c]
     if not candidates:
         print("ERROR: falta contraseña. Usar --password o definir ADMIN_PASSWORD.")
         return 2

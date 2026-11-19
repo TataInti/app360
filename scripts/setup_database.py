@@ -62,7 +62,7 @@ def setup_database(reset_admin_password=False):
 
     db_url = os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URI")
     if not db_url or not db_url.startswith("postgresql"):
-        print("❌ DATABASE_URL debe apuntar a PostgreSQL (ej: postgresql://user:pass@localhost:5432/app360)")
+        print("❌ DATABASE_URL debe apuntar a PostgreSQL (ej: postgresql://usuario:<clave>@host:5432/base)")
         sys.exit(1)
 
     # Crear aplicación

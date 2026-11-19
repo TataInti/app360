@@ -10,7 +10,9 @@ from sqlalchemy import create_engine, MetaData, Table, select, insert, delete
 
 # Configuración de bases de datos
 SQLITE_URL = "sqlite:///instance/360.db"
-POSTGRES_URL = os.getenv("DATABASE_URL", "postgresql://app360:password@localhost:5432/app360")
+POSTGRES_URL = os.getenv("DATABASE_URL")
+if not POSTGRES_URL:
+    raise SystemExit("Definí DATABASE_URL (ver .env.example) antes de migrar a PostgreSQL.")
 
 def migrate_data():
     """Migra datos de SQLite a PostgreSQL"""

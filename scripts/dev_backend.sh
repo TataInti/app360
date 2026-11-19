@@ -22,10 +22,12 @@ fi
 export FLASK_ENV="${FLASK_ENV:-development}"
 export DEBUG="${DEBUG:-True}"
 
-# Defaults de desarrollo (podés overridearlos exportando env vars antes)
-export DATABASE_URL="${DATABASE_URL:-postgresql://app360:password@localhost:5432/app360}"
-export SECRET_KEY="${SECRET_KEY:-dev-secret}"
-export ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin}"
+# Variables obligatorias, sin valores por defecto. Exportalas o cargá tu .env con:
+#   set -a; . ./.env; set +a      (ver .env.example)
+: "${DATABASE_URL:?definí DATABASE_URL (exportala o cargá tu .env; ver .env.example)}"
+: "${SECRET_KEY:?definí SECRET_KEY (exportala o cargá tu .env; ver .env.example)}"
+: "${ADMIN_PASSWORD:?definí ADMIN_PASSWORD (exportala o cargá tu .env; ver .env.example)}"
+export DATABASE_URL SECRET_KEY ADMIN_PASSWORD
 
 ensure_postgres() {
   if command -v pg_isready >/dev/null 2>&1 && pg_isready -h localhost -p 5432 >/dev/null 2>&1; then
@@ -57,15 +59,14 @@ ensure_app_db() {
     exit 1
   fi
 
-  # Crear rol y DB si no existen. Usamos heredoc quoted para evitar expansión de $$.
-  psql -d postgres -v ON_ERROR_STOP=1 <<'SQL'
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app360') THEN
-    CREATE ROLE app360 LOGIN PASSWORD 'password';
-  END IF;
-END$$;
+  # Crear el rol si falta. Su clave sale de APP360_DB_PASSWORD (no se versiona) y debe
+  # coincidir con la de DATABASE_URL.
+  if ! psql -d postgres -Atc "SELECT 1 FROM pg_roles WHERE rolname = 'app360';" | grep -q 1; then
+    : "${APP360_DB_PASSWORD:?definí APP360_DB_PASSWORD para crear el rol app360 (ver .env.example)}"
+    psql -d postgres -v ON_ERROR_STOP=1 -v app_pw="$APP360_DB_PASSWORD" <<'SQL'
+CREATE ROLE app360 LOGIN PASSWORD :'app_pw';
 SQL
+  fi
 
   if ! psql -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname='app360';" | grep -q 1; then
     createdb -O app360 app360

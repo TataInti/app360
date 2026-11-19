@@ -61,6 +61,7 @@ Thumbs.db
 .env.local
 .env.*.local
 .env.*
+!.env.example
 
 # =============================================================================
 # Database Files (local development only)

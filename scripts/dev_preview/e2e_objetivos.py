@@ -29,6 +29,7 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 RUN_LOCAL = os.path.join(ROOT_DIR, "scripts", "dev_preview", "run_local.sh")
 BASE_URL = os.environ.get("E2E_BASE_URL", "http://127.0.0.1:5055").rstrip("/")
 ADMIN_USER = os.environ.get("E2E_ADMIN_USER", "admin")
+# Clave de prueba SOLO-DEV del entorno E2E local (run_local.sh); no es una credencial real.
 ADMIN_PASSWORD = os.environ.get("E2E_ADMIN_PASSWORD", "e2e-admin-ficticio")
 CHROMIUM = os.environ.get(
     "E2E_CHROMIUM", "/root/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome"

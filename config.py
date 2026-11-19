@@ -6,9 +6,7 @@ class Config:
     DEBUG = os.getenv("DEBUG", "False").lower() == "true"
     _IS_LOCAL = FLASK_ENV.lower() in {"development", "dev", "local"} or DEBUG
     SECRET_KEY = os.getenv("SECRET_KEY")
-    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL") or (
-        "postgresql://app360:password@localhost:5432/app360" if _IS_LOCAL else None
-    )
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # pool_pre_ping evita conexiones SSL/TCP stale tras idle prolongado
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}

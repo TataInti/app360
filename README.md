@@ -104,13 +104,15 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Variables minimas en `.env`:
+Variables minimas en `.env` (copiá `.env.example` como base y reemplazá cada `<...>`):
 
 ```env
-SECRET_KEY=your-secret-key-here
-ADMIN_PASSWORD=admin-password
-DATABASE_URL=postgresql://app360:password@localhost:5432/app360
+SECRET_KEY=<generá-con-openssl-rand-hex-32>
+ADMIN_PASSWORD=<clave-inicial-del-admin>
+DATABASE_URL=postgresql://app360:<clave-de-la-base>@localhost:5432/app360
 ```
+
+`scripts/dev_backend.sh` no lee el `.env`: antes de ejecutarlo cargalo en la shell con `set -a; . ./.env; set +a`. La clave del rol local `app360` (solo si el script lo crea) sale de `APP360_DB_PASSWORD`, que debe coincidir con la de `DATABASE_URL`.
 
 Ejecutar backend (1 comando, incluye: arrancar PostgreSQL local + crear DB/usuario si faltan + crear tablas):
 

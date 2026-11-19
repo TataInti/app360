@@ -32,6 +32,9 @@ PG_HOST="127.0.0.1"
 PG_PORT="55432"
 PG_DB="app360_e2e"
 PG_USER="app360_e2e"
+# Valores de prueba SOLO-DEV del entorno E2E local (127.0.0.1, datos sintéticos).
+# No son credenciales de producción. Para cambiarlos, exportá E2E_PG_PASSWORD,
+# E2E_SECRET_KEY o E2E_ADMIN_PASSWORD antes de correr el script.
 PG_PASSWORD="${E2E_PG_PASSWORD:-app360_e2e_local_ficticia}"
 DATABASE_URL="postgresql://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DB}"
 

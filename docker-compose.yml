@@ -6,10 +6,10 @@ services:
     ports:
       - "127.0.0.1:5000:5000"
     environment:
-      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      - SECRET_KEY=${SECRET_KEY:?definí SECRET_KEY en tu .env (ver .env.example)}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-${SECRET_KEY}}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
-      - DATABASE_URL=postgresql://app360:${DB_PASSWORD:-password}@db:5432/app360
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?definí ADMIN_PASSWORD en tu .env (ver .env.example)}
+      - DATABASE_URL=postgresql://app360:${DB_PASSWORD:?definí DB_PASSWORD en tu .env (ver .env.example)}@db:5432/app360
       - REDIS_URL=redis://redis:6379/0
       - FLASK_ENV=${FLASK_ENV:-production}
       - RATELIMIT_ENABLED=True
@@ -34,7 +34,7 @@ services:
     environment:
       - POSTGRES_DB=app360
       - POSTGRES_USER=app360
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:?definí DB_PASSWORD en tu .env (ver .env.example)}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
