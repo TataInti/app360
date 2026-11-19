@@ -2364,6 +2364,10 @@
         <!-- Footer -->
         <div class="sidebar-foot">
             {% if current_user %}
+            <a href="{{ url_for('auth.cambiar_clave') }}" class="cambiar-clave-btn" aria-label="Cambiar mi clave" title="Cambiar mi clave">
+                <span class="nav-icon"><i class="bi bi-key"></i></span>
+                <span class="link-text">Cambiar mi clave</span>
+            </a>
             <a href="/logout" class="logout-btn" aria-label="Cerrar sesión" title="Cerrar sesión">
                 <span class="nav-icon"><i class="bi bi-box-arrow-right"></i></span>
                 <span class="link-text">Cerrar sesión</span>

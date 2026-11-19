@@ -3,7 +3,10 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 import logging
+import secrets
+
 import jwt
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from flask import (
     flash,
@@ -152,6 +155,73 @@ ENDPOINTS_SIN_REVALIDACION = frozenset({
 })
 
 
+# =============================================================================
+# Clave temporal y cambio de clave (C1 de administración de usuarios)
+# =============================================================================
+# Endpoints que sirven aunque el usuario deba cambiar su clave. Todo lo demás se bloquea.
+ENDPOINTS_CON_CLAVE_TEMPORAL = frozenset({
+    "auth.cambiar_clave",
+    "auth.logout",
+    "static",
+    "api_rest.health_check",
+})
+CODIGO_CAMBIO_CLAVE = "cambio_clave_obligatorio"
+MENSAJE_CAMBIO_CLAVE = "Tenés que cambiar tu clave para continuar"
+
+# Hash ficticio para igualar el tiempo del login cuando no hay usuario que verificar (M4).
+HASH_FICTICIO = generate_password_hash(secrets.token_urlsafe(24))
+
+
+def verificar_clave_login(usuario, clave):
+    """Verifica la clave del login. Sin usuario o sin hash, hace el mismo trabajo de hash."""
+    clave = clave if isinstance(clave, str) else ""
+    if usuario is None or not usuario.password_hash:
+        check_password_hash(HASH_FICTICIO, clave)
+        return False
+    return usuario.check_password(clave)
+
+
+def registrar_ultimo_acceso(usuario):
+    """Guarda la fecha del último login correcto (web o API)."""
+    from models import db
+
+    usuario.last_login_at = datetime.now(timezone.utc)
+    db.session.commit()
+
+
+def espera_json():
+    """True si la petición espera JSON: rutas /api/, fetch o Accept: application/json."""
+    return (
+        "/api/" in request.path
+        or request.is_json
+        or request.headers.get("Sec-Fetch-Dest") == "empty"
+        or request.accept_mimetypes.best == "application/json"
+    )
+
+
+def respuesta_cambio_clave_obligatorio():
+    """Respuesta de una petición bloqueada por clave temporal: 403 JSON o redirección."""
+    if espera_json():
+        return jsonify({"error": MENSAJE_CAMBIO_CLAVE, "codigo": CODIGO_CAMBIO_CLAVE}), 403
+    flash("Primero cambiá tu clave temporal.", "warning")
+    return redirect(url_for("auth.cambiar_clave"))
+
+
+def token_anterior_al_cambio_de_clave(usuario, payload):
+    """True si el token JWT (access o refresh) se emitió antes del último cambio de clave.
+
+    Compara iat con password_changed_at, sin token_version. Sin fecha de cambio o sin iat,
+    no aplica. Si el token se emitió en el mismo segundo del cambio, cuenta como anterior.
+    """
+    cambio = usuario.password_changed_at
+    emitido = payload.get("iat")
+    if cambio is None or emitido is None:
+        return False
+    if cambio.tzinfo is None:
+        cambio = cambio.replace(tzinfo=timezone.utc)
+    return emitido < cambio.timestamp()
+
+
 def huella_sesion(usuario):
     """HMAC-SHA256 del password_hash vigente, con SECRET_KEY como clave.
 
@@ -261,12 +331,15 @@ def revalidar_sesion_web():
     g.pop("usuario_sesion", None)
     if request.endpoint in ENDPOINTS_SIN_REVALIDACION or not hay_sesion_web():
         return None
-    if sesion_web_vigente():
-        return None
-    if "/api/" in request.path:
-        return jsonify({"error": "Sesión requerida"}), 401
-    flash("Tu sesión ya no es válida. Inicia sesión nuevamente.", "warning")
-    return redirect(url_for("auth.login"))
+    if not sesion_web_vigente():
+        if "/api/" in request.path:
+            return jsonify({"error": "Sesión requerida"}), 401
+        flash("Tu sesión ya no es válida. Inicia sesión nuevamente.", "warning")
+        return redirect(url_for("auth.login"))
+    # Clave temporal pendiente (M2): solo las rutas exentas responden; el resto se bloquea.
+    if g.usuario_sesion.must_change_password and request.endpoint not in ENDPOINTS_CON_CLAVE_TEMPORAL:
+        return respuesta_cambio_clave_obligatorio()
+    return None
 
 
 # =============================================================================
@@ -337,6 +410,15 @@ def jwt_required(f):
         if usuario is None:
             log_security_event('JWT_REVOKED', 'Usuario inexistente o inactivo', user=payload.get('username'))
             return jsonify({'error': 'Token is invalid or expired'}), 401
+
+        # Token emitido antes del último cambio de clave: ya no vale (C1, D9).
+        if token_anterior_al_cambio_de_clave(usuario, payload):
+            log_security_event('JWT_REVOKED', 'Token anterior al cambio de clave', user=payload.get('username'))
+            return jsonify({'error': 'Token is invalid or expired'}), 401
+
+        # Clave temporal pendiente (M2): el token no sirve hasta que el usuario cambie su clave.
+        if usuario.must_change_password:
+            return jsonify({'error': MENSAJE_CAMBIO_CLAVE, 'codigo': CODIGO_CAMBIO_CLAVE}), 403
         
         # El rol vigente se lee de la base; el claim del token puede haber quedado desactualizado.
         request.current_user = {

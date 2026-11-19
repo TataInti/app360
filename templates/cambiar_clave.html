@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="panel-header">
+        <div>
+            <h1><i class="bi bi-key"></i>
+                {% if obligatorio %}Cambiá tu clave temporal{% else %}Cambiar mi clave{% endif %}</h1>
+            <span>
+                {% if obligatorio %}
+                Por seguridad, elegí una clave propia para seguir usando la aplicación.
+                {% else %}
+                La nueva clave reemplaza a la actual. Tus otras sesiones abiertas se cierran.
+                {% endif %}
+            </span>
+        </div>
+    </div>
+
+    <div class="table-card">
+        <form method="post" action="{{ url_for('auth.cambiar_clave') }}" novalidate
+              class="p-4" style="max-width: 440px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="mb-3">
+                <label for="clave_actual" class="form-label">Clave actual</label>
+                <input type="password" id="clave_actual" name="clave_actual"
+                       class="form-control{% if errores.clave_actual %} is-invalid{% endif %}"
+                       autocomplete="current-password"
+                       {% if errores.clave_actual %}aria-invalid="true" aria-describedby="error-clave-actual"{% endif %}>
+                {% if errores.clave_actual %}
+                <div id="error-clave-actual" class="invalid-feedback d-block">{{ errores.clave_actual }}</div>
+                {% endif %}
+            </div>
+
+            <div class="mb-3">
+                <label for="clave_nueva" class="form-label">Clave nueva</label>
+                <input type="password" id="clave_nueva" name="clave_nueva"
+                       class="form-control{% if errores.clave_nueva %} is-invalid{% endif %}"
+                       autocomplete="new-password" aria-describedby="ayuda-clave-nueva{% if errores.clave_nueva %} error-clave-nueva{% endif %}"
+                       {% if errores.clave_nueva %}aria-invalid="true"{% endif %}>
+                <div id="ayuda-clave-nueva" class="form-text">
+                    Mínimo 12 caracteres. No uses tu nombre de usuario ni una clave común.
+                </div>
+                {% if errores.clave_nueva %}
+                <div id="error-clave-nueva" class="invalid-feedback d-block">{{ errores.clave_nueva }}</div>
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <label for="repetir_clave" class="form-label">Repetir clave nueva</label>
+                <input type="password" id="repetir_clave" name="repetir_clave"
+                       class="form-control{% if errores.repetir_clave %} is-invalid{% endif %}"
+                       autocomplete="new-password"
+                       {% if errores.repetir_clave %}aria-invalid="true" aria-describedby="error-repetir-clave"{% endif %}>
+                {% if errores.repetir_clave %}
+                <div id="error-repetir-clave" class="invalid-feedback d-block">{{ errores.repetir_clave }}</div>
+                {% endif %}
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check2"></i> Guardar clave
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
