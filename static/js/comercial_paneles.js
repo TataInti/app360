@@ -504,7 +504,13 @@
       if (!$('mix-body').hidden) return refreshWithoutJump(loadMix);
     }
   }
-  form.addEventListener('submit', event => {event.preventDefault(); state.set('pagina', '1'); load();});
+  // Buscador «Nombre del cliente»: filtra al escribir (300 ms) y también con Enter.
+  let busquedaTimer = 0;
+  form.elements.q?.addEventListener('input', () => {
+    clearTimeout(busquedaTimer);
+    busquedaTimer = setTimeout(() => { state.set('pagina', '1'); load(); }, 300);
+  });
+  form.addEventListener('submit', event => {event.preventDefault(); clearTimeout(busquedaTimer); state.set('pagina', '1'); load();});
   document.querySelectorAll('[data-com-filter-scope][data-com-filter-dimension]').forEach(select => select.addEventListener('change', () => {
     const scope = select.dataset.comFilterScope;
     const dimension = select.dataset.comFilterDimension;
