@@ -988,10 +988,13 @@ def api_panel_ejecutivo_v2():
             "sabiogo_costos": k["compras"],
             "sabiogo_margen": k["diferencia_facturacion_compras"],
             "sabiogo_margen_pct": (
-                k["diferencia_facturacion_compras"] / k["facturacion"] * 100
+                None
+                if k["datos_insuficientes"]
+                else k["diferencia_facturacion_compras"] / k["facturacion"] * 100
                 if k["facturacion"]
                 else 0.0
             ),
+            "datos_insuficientes": k["datos_insuficientes"],
             "cta_cte_friar_saldo_actual": 0.0,
             "cta_cte_friar_total": 0.0,
         },

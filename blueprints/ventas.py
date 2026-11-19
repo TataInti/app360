@@ -17,6 +17,7 @@ from models import (
     db,
 )
 from security import protect_blueprint
+from services.importes import MAXIMO_NUMERIC_12_2, ImporteInvalido, parse_importe
 
 ventas_bp = Blueprint("ventas", __name__)
 
@@ -30,13 +31,6 @@ def parse_int(value, default=1):
         return max(int(value), 1)
     except (TypeError, ValueError):
         return default
-
-
-def parse_decimal(value, default=0):
-    try:
-        return Decimal(value.replace(",", "."))
-    except (AttributeError, InvalidOperation):
-        return Decimal(default)
 
 
 def parse_datetime(value):
@@ -69,7 +63,20 @@ def ventas_new():
         product_id = request.form.get("product_id")
         location_id = request.form.get("location_id")
         quantity = parse_int(request.form.get("quantity"))
-        unit_price = parse_decimal(request.form.get("unit_price"))
+        try:
+            unit_price = parse_importe(request.form.get("unit_price"), maximo=MAXIMO_NUMERIC_12_2)
+        except ImporteInvalido as error:
+            return (
+                render_template(
+                    "ventas_form.html",
+                    leads=leads,
+                    products=products,
+                    locations=locations,
+                    statuses=SALE_STATUSES,
+                    error_precio=error.mensaje,
+                ),
+                400,
+            )
         status = request.form.get("status") or "reserva"
         scheduled = parse_datetime(request.form.get("scheduled_delivery"))
 
@@ -203,8 +210,8 @@ def ventas_importar():
                 # Parsear números
                 try:
                     cantidad = int(cantidad_str)
-                    precio_contrato = Decimal(precio_contrato_str.replace(",", "."))
-                    precio_efectivo = Decimal(precio_efectivo_str.replace(",", "."))
+                    precio_contrato = parse_importe(precio_contrato_str, maximo=MAXIMO_NUMERIC_12_2)
+                    precio_efectivo = parse_importe(precio_efectivo_str, maximo=MAXIMO_NUMERIC_12_2)
                 except (ValueError, InvalidOperation):
                     errores.append(f"Fila {row_num}: Valores numéricos inválidos")
                     continue

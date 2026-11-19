@@ -191,10 +191,13 @@ def bi_dashboard():
             "costos_sabiogo": kpis["compras"],
             "margen_bruto_sabiogo": kpis["diferencia_facturacion_compras"],
             "margen_porcentual_sabiogo": (
-                kpis["diferencia_facturacion_compras"] / kpis["facturacion"] * 100
+                None
+                if kpis["datos_insuficientes"]
+                else kpis["diferencia_facturacion_compras"] / kpis["facturacion"] * 100
                 if kpis["facturacion"]
                 else 0.0
             ),
+            "datos_insuficientes": kpis["datos_insuficientes"],
             "productos_activos_sabiogo": 0,
             "gastos_finanzas": kpis["egresos_incluidos"],
             "pre_acumulado": float(pre_fac_resumen.get("pre_acumulado", 0)),
@@ -608,7 +611,6 @@ def bi_dashboard():
         return jsonify(
             {
                 "error": "Error interno obteniendo BI dashboard",
-                "detail": str(e),
                 "periodo": {
                     "desde": fecha_desde.isoformat(),
                     "hasta": fecha_hasta.isoformat(),
@@ -742,7 +744,8 @@ def bi_rentabilidad():
     fecha_desde, fecha_hasta, prev_desde, prev_hasta = _parse_range(rango)
 
     # Margen global
-    ventas_total = (
+    # float: _gastos_sum devuelve float y restar un Decimal daba TypeError con ventas cargadas.
+    ventas_total = float(
         db.session.query(func.sum(Venta.precio_efectivo * Venta.cantidad))
         .filter(Venta.fecha.between(fecha_desde, fecha_hasta))
         .scalar()
@@ -754,10 +757,13 @@ def bi_rentabilidad():
     net_margin = gross_margin  # no tenemos impuestos/costos financieros separados
     ebitda_margin = gross_margin  # aproximación
 
+    # Sin ventas o sin gastos del período no hay margen que medir: null, no 0 % ni 100 %.
+    datos_insuficientes = not ventas_total or not gastos_total
     kpis = {
-        "gross_margin": float(gross_margin),
-        "net_margin": float(net_margin),
-        "ebitda_margin": float(ebitda_margin),
+        "gross_margin": None if datos_insuficientes else float(gross_margin),
+        "net_margin": None if datos_insuficientes else float(net_margin),
+        "ebitda_margin": None if datos_insuficientes else float(ebitda_margin),
+        "datos_insuficientes": datos_insuficientes,
         "ltv_cac": 0,
         "deltas": {
             "gross_margin": 0,
@@ -856,6 +862,14 @@ def bi_rentabilidad():
     for idx, name in enumerate(labels):
         if neto_list[idx] < 20:  # alerta si margen neto < 20%
             alertas.append({"unidad": name, "margen": neto_list[idx] / 100, "objetivo": 0.25})
+
+    if datos_insuficientes:
+        # Sin base de margen: series y alertas se devuelven vacías o en null.
+        bruto_list = [None] * len(labels)
+        neto_list = [None] * len(labels)
+        bruto_serie = [None] * len(bruto_serie)
+        neto_serie = [None] * len(neto_serie)
+        alertas = []
 
     return jsonify({
         "periodo": {"desde": fecha_desde.isoformat(), "hasta": fecha_hasta.isoformat()},

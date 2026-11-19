@@ -106,6 +106,7 @@
             <form id="formEditarArqueo">
                 <input type="hidden" name="arqueo_id" id="editArqueoId">
                 <div class="modal-body">
+                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
                     <div class="app-modal__notice app-modal__notice--warning mb-3">
                         <i class="bi bi-exclamation-triangle"></i>
                         <div>Solo se pueden editar arqueos del dia actual. La justificacion queda guardada en el historial.</div>
@@ -188,6 +189,7 @@
             </div>
             <form id="formArqueo">
                 <div class="modal-body">
+                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Fecha *</label>
@@ -209,14 +211,17 @@
                             <input type="number" class="form-control" name="saldo_inicial" step="0.01" data-money-input data-money-calc="saldo_inicial" required>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Ingresos del Turno</label>
-                            <input type="number" class="form-control" name="ingresos" step="0.01" data-money-input data-money-calc="ingresos">
+                            <label class="form-label">Ingresos del turno (sistema)</label>
+                            <input type="text" class="form-control" id="ingresosTurnoSistema" readonly>
+                            <div class="form-text">Se toman de los movimientos del turno.</div>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Egresos del Turno</label>
-                            <input type="number" class="form-control" name="egresos" step="0.01" data-money-input data-money-calc="egresos">
+                            <label class="form-label">Egresos del turno (sistema)</label>
+                            <input type="text" class="form-control" id="egresosTurnoSistema" readonly>
+                            <div class="form-text">Se toman de los movimientos del turno.</div>
                         </div>
                     </div>
+                    <div id="avisoTotalesTurno" class="small text-danger mb-2" style="display: none;"></div>
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
@@ -286,6 +291,17 @@ function notify(message, variant = 'info', options = {}) {
         return;
     }
     window.alert(message);
+}
+
+// Avisos ligados al formulario: el error se muestra dentro del modal, sin prefijo técnico.
+function mostrarErrorFormulario(form, mensaje) {
+    const aviso = form?.querySelector('[data-form-error]');
+    if (!aviso) { alert(mensaje); return; }
+    aviso.textContent = mensaje;
+    aviso.classList.remove('d-none');
+}
+function ocultarErrorFormulario(form) {
+    form?.querySelector('[data-form-error]')?.classList.add('d-none');
 }
 
 function showModal(modalId) {
@@ -375,6 +391,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Calcular diferencia automáticamente
     const form = document.getElementById('formArqueo');
     form.querySelectorAll('[data-money-calc]').forEach(input => input.addEventListener('input', calcularDiferencia));
+    form.querySelector('input[name="fecha"]').addEventListener('change', cargarTotalesTurno);
+    form.querySelector('select[name="turno"]').addEventListener('change', cargarTotalesTurno);
+    document.getElementById('modalNuevoArqueo').addEventListener('show.bs.modal', cargarTotalesTurno);
 });
 
 let instrumentosList = [];
@@ -477,19 +496,62 @@ async function cargarInstrumentosArqueo() {
     }
 }
 
+// Ingresos y egresos del turno tal como los toma el servidor al guardar (misma fórmula:
+// diferencia = saldo final − (saldo inicial + ingresos − egresos)).
+let totalesTurno = null;
+
 function calcularDiferencia() {
     const form = document.getElementById('formArqueo');
     const inicial = getMoneyValue(form.querySelector('[data-money-calc="saldo_inicial"]'));
-    const ingresos = getMoneyValue(form.querySelector('[data-money-calc="ingresos"]'));
-    const egresos = getMoneyValue(form.querySelector('[data-money-calc="egresos"]'));
     const real = getMoneyValue(form.querySelector('[data-money-calc="saldo_real"]'));
-    
-    const esperado = inicial + ingresos - egresos;
-    const diferencia = real - esperado;
-    
     const diferenciaEl = document.getElementById('diferenciaCalc');
+    if (!totalesTurno) {
+        diferenciaEl.value = '';
+        diferenciaEl.className = 'form-control';
+        return;
+    }
+
+    const esperado = inicial + totalesTurno.ingresos - totalesTurno.egresos;
+    const diferencia = real - esperado;
+
     diferenciaEl.value = formatMoneyValue(diferencia);
     diferenciaEl.className = 'form-control ' + (diferencia < 0 ? 'text-danger' : diferencia > 0 ? 'text-warning' : 'text-success');
+}
+
+async function cargarTotalesTurno() {
+    const form = document.getElementById('formArqueo');
+    const fecha = form.querySelector('input[name="fecha"]').value;
+    const turno = form.querySelector('select[name="turno"]').value;
+    const aviso = document.getElementById('avisoTotalesTurno');
+    totalesTurno = null;
+    document.getElementById('ingresosTurnoSistema').value = '';
+    document.getElementById('egresosTurnoSistema').value = '';
+    aviso.style.display = 'none';
+    if (!fecha || !turno) {
+        calcularDiferencia();
+        return;
+    }
+    try {
+        const params = new URLSearchParams({ fecha, turno });
+        const resp = await fetch(`/api/tesoreria/arqueos/totales?${params}`);
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'No se pudieron cargar los movimientos del turno.');
+        // Si el operador cambió fecha o turno mientras llegaba la respuesta, se descarta.
+        if (form.querySelector('input[name="fecha"]').value !== fecha ||
+            form.querySelector('select[name="turno"]').value !== turno) {
+            return;
+        }
+        totalesTurno = {
+            ingresos: Number(data.ingresos_total) || 0,
+            egresos: Number(data.egresos_total) || 0,
+        };
+        document.getElementById('ingresosTurnoSistema').value = formatMoneyValue(totalesTurno.ingresos);
+        document.getElementById('egresosTurnoSistema').value = formatMoneyValue(totalesTurno.egresos);
+    } catch (e) {
+        aviso.textContent = e.message || 'No se pudieron cargar los movimientos del turno.';
+        aviso.style.display = '';
+    }
+    calcularDiferencia();
 }
 
 async function cargarArqueos() {
@@ -554,7 +616,7 @@ async function cargarArqueos() {
     } catch(e) {
         console.error('Error:', e);
         document.getElementById('tablaArqueos').innerHTML = 
-            '<tr><td colspan="10" class="text-center text-danger">Error al cargar datos</td></tr>';
+            '<tr><td colspan="10" class="text-center text-danger">No se pudieron cargar los datos. Intentá de nuevo.</td></tr>';
     }
 }
 
@@ -580,7 +642,7 @@ async function editarArqueo(id) {
         // Mostrar modal
         showModal('modalEditarArqueo');
     } catch(e) {
-        alert('Error al cargar datos del arqueo');
+        alert('No se pudieron cargar los datos del arqueo. Intentá de nuevo.');
         console.error(e);
     }
 }
@@ -627,7 +689,7 @@ async function verHistorial(id) {
         
         showModal('modalHistorialArqueo');
     } catch(e) {
-        alert('Error al cargar historial');
+        alert('No se pudo cargar el historial. Intentá de nuevo.');
         console.error(e);
     }
 }
@@ -659,22 +721,24 @@ function compararCambios(anterior, nuevo) {
 
 document.getElementById('formArqueo')?.addEventListener('submit', async function(e) {
     e.preventDefault();
+    ocultarErrorFormulario(this);
     const formData = new FormData(this);
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     
+    if (!totalesTurno) {
+        alert('No se pudieron cargar los movimientos del turno. Revisá fecha y turno antes de guardar.');
+        return;
+    }
+
     const inicial = parseFloat(formData.get('saldo_inicial')) || 0;
-    const ingresos = parseFloat(formData.get('ingresos')) || 0;
-    const egresos = parseFloat(formData.get('egresos')) || 0;
     const real = parseFloat(formData.get('saldo_real')) || 0;
-    
+
+    // Ingresos y egresos los toma el servidor de los movimientos: no se envían ni se editan aquí.
     const data = {
         fecha: formData.get('fecha'),
         turno: formData.get('turno'),
         saldo_inicial: inicial,
-        ingresos: ingresos,
-        egresos: egresos,
         saldo_final: real,
-        diferencia: real - (inicial + ingresos - egresos),
         observaciones: formData.get('observaciones'),
         detalles: []
     };
@@ -702,15 +766,16 @@ document.getElementById('formArqueo')?.addEventListener('submit', async function
             notify('Arqueo registrado correctamente.', 'success', { title: 'Cierre guardado' });
         } else {
             const err = await resp.json();
-            alert(err.error || 'No se pudo guardar el arqueo.');
+            mostrarErrorFormulario(this, err.error || 'No se pudo guardar el arqueo. Revisá los datos e intentá de nuevo.');
         }
     } catch(e) {
-        alert('Error de conexión');
+        mostrarErrorFormulario(this, 'No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
     }
 });
 
 document.getElementById('formEditarArqueo')?.addEventListener('submit', async function(e) {
     e.preventDefault();
+    ocultarErrorFormulario(this);
     const formData = new FormData(this);
     const arqueoId = formData.get('arqueo_id');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
@@ -737,10 +802,10 @@ document.getElementById('formEditarArqueo')?.addEventListener('submit', async fu
             alert('Arqueo actualizado correctamente');
             cargarArqueos();
         } else {
-            alert('Error: ' + (result.error || 'No se pudo actualizar'));
+            mostrarErrorFormulario(this, result.error || 'No se pudo actualizar el arqueo. Revisá los datos e intentá de nuevo.');
         }
     } catch(e) {
-        alert('Error de conexión');
+        mostrarErrorFormulario(this, 'No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
         console.error(e);
     }
 });
@@ -752,7 +817,7 @@ async function descargarExcel(url, fallbackName) {
 
         if (!resp.ok || contentType.includes('application/json')) {
             const data = contentType.includes('application/json') ? await resp.json() : { error: await resp.text() };
-            alert('Error: ' + (data.error || 'No se pudo exportar'));
+            alert(data.error || 'No se pudo exportar el archivo. Intentá de nuevo.');
             return;
         }
 
@@ -770,7 +835,7 @@ async function descargarExcel(url, fallbackName) {
         link.remove();
         window.URL.revokeObjectURL(blobUrl);
     } catch (e) {
-        alert('Error de conexión');
+        alert('No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
     }
 }
 
@@ -805,7 +870,7 @@ async function verDetalleInstrumentos(id) {
         document.getElementById('detalleArqueoContent').innerHTML = html;
         showModal('modalDetalleArqueo');
     } catch(e) {
-        alert('Error al cargar detalle');
+        alert('No se pudo cargar el detalle. Intentá de nuevo.');
     }
 }
 

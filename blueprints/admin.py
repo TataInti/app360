@@ -3,9 +3,10 @@ Blueprint de Administración de Variables/Catálogos
 Solo accesible para usuarios con rol 'admin'
 """
 from functools import wraps
-from decimal import Decimal
+import re
+from decimal import Decimal, InvalidOperation
 from sqlalchemy.exc import IntegrityError
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 from models import db
 from models.gastos import CategoriaGasto, CategoriaMovimientoAudit, Proveedor
@@ -301,13 +302,14 @@ def admin_modulo(modulo):
                 "fields": config["fields"],
                 "required": config["required"],
             }
-        except Exception as e:
+        except Exception:
+            current_app.logger.exception("No se pudieron listar los registros de %s.%s", modulo, entidad)
             data[entidad] = {
                 "registros": [],
                 "name": config["name"],
                 "fields": config["fields"],
                 "required": config["required"],
-                "error": str(e),
+                "error": MENSAJE_ERROR_GENERICO,
             }
     
     locations = []
@@ -340,7 +342,85 @@ def admin_modulo(modulo):
     )
 
 
+# Importes en formato argentino. Parser local de este módulo: el corte D1 crea otro para
+# formularios y se unifica en la fusión.
+MENSAJE_IMPORTE_INVALIDO = "Ingresá un importe válido, por ejemplo 1.234,56"
+MENSAJE_ERROR_GENERICO = "No se pudo completar la operación. Intentá de nuevo."
+# Campos que se convierten con parsear_importe_es_ar y nunca con el coerce genérico.
+CAMPOS_IMPORTE = frozenset({"saldo_inicial"})
+_LIMITE_IMPORTE = Decimal("10000000000")  # Numeric(12, 2): hasta 10 dígitos enteros
+
+
+def _agrupacion_de_miles_valida(entero, separador):
+    grupos = entero.split(separador)
+    if len(grupos) == 1:
+        return True
+    return 1 <= len(grupos[0]) <= 3 and all(len(g) == 3 for g in grupos[1:])
+
+
+def _decimal_desde_texto(valor):
+    texto = valor.strip()
+    signo = "-" if texto.startswith("-") else ""
+    cuerpo = texto[1:] if signo else texto
+    if not re.fullmatch(r"\d+(?:[.,]\d+)*", cuerpo):
+        raise ValueError(MENSAJE_IMPORTE_INVALIDO)
+    if "," in cuerpo and "." in cuerpo:
+        decimal = "," if cuerpo.rfind(",") > cuerpo.rfind(".") else "."
+    elif "," in cuerpo:
+        decimal = ","
+    elif cuerpo.count(".") == 1 and len(cuerpo.split(".")[1]) in (1, 2):
+        decimal = "."
+    else:
+        decimal = None
+    if decimal is None:
+        entero, fraccion = cuerpo, ""
+    else:
+        entero, _, fraccion = cuerpo.rpartition(decimal)
+        if decimal in entero or len(fraccion) > 2:
+            raise ValueError(MENSAJE_IMPORTE_INVALIDO)
+    miles = "," if decimal == "." else "."
+    if not _agrupacion_de_miles_valida(entero, miles):
+        raise ValueError(MENSAJE_IMPORTE_INVALIDO)
+    digitos = entero.replace(miles, "")
+    return Decimal(f"{signo}{digitos}.{fraccion.ljust(2, '0')}")
+
+
+def _decimal_numerico(valor):
+    # Número de JSON: ya trae «.» como decimal y no lleva miles; no se aplican las reglas de texto.
+    try:
+        cantidad = Decimal(str(valor))
+    except InvalidOperation:
+        raise ValueError(MENSAJE_IMPORTE_INVALIDO)
+    if cantidad.is_finite() and cantidad.as_tuple().exponent < -2:
+        raise ValueError(MENSAJE_IMPORTE_INVALIDO)
+    return cantidad
+
+
+def parsear_importe_es_ar(valor):
+    """Importe en formato argentino como Decimal con dos decimales.
+
+    «.» separa miles y «,» separa decimales. Si aparecen ambos, el último es el decimal.
+    Con un único «.», uno o dos dígitos finales son decimal («1000.00» = 1000,00) y tres
+    son miles («1.234» = 1234). Un «,» seguido de más de dos dígitos se rechaza («1,234»)
+    porque es ambiguo. Vacío o inválido: ValueError con MENSAJE_IMPORTE_INVALIDO. Nunca
+    devuelve 0 en silencio.
+    """
+    if isinstance(valor, bool):
+        raise ValueError(MENSAJE_IMPORTE_INVALIDO)
+    if isinstance(valor, (int, float, Decimal)):
+        cantidad = _decimal_numerico(valor)
+    elif isinstance(valor, str):
+        cantidad = _decimal_desde_texto(valor)
+    else:
+        raise ValueError(MENSAJE_IMPORTE_INVALIDO)
+    if not cantidad.is_finite() or abs(cantidad) >= _LIMITE_IMPORTE:
+        raise ValueError(MENSAJE_IMPORTE_INVALIDO)
+    return cantidad.quantize(Decimal("0.01"))
+
+
 def coerce_field_value(field, val):
+    if field in CAMPOS_IMPORTE:
+        return parsear_importe_es_ar(val)
     if val is None:
         return None
     if isinstance(val, str) and val.strip() == "":
@@ -398,6 +478,10 @@ def _humanize_integrity_error(modulo, entidad, error):
     message = str(getattr(error, "orig", error)).lower()
     if modulo == "rrhh" and entidad == "empleados" and "clock_id" in message:
         return "El ID Reloj ya está asignado a otro empleado."
+    if entidad == "unidades" and "unique" in message:
+        return "Ya existe una unidad con ese nombre."
+    if entidad == "productos" and "sku" in message:
+        return "El SKU ya existe."
     return "No se pudo guardar por una restricción de integridad."
 
 
@@ -462,7 +546,8 @@ def api_listar(modulo, entidad):
             result.append(row)
         return jsonify({"items": result, "total": len(result)})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        current_app.logger.exception("Error en API de administración (%s)", request.endpoint)
+        return jsonify({"error": MENSAJE_ERROR_GENERICO}), 500
 
 
 @admin_bp.route("/api/admin/<modulo>/<entidad>", methods=["POST"])
@@ -482,6 +567,11 @@ def api_crear(modulo, entidad):
     
     # Validar campos requeridos
     for field in config["required"]:
+        if field in CAMPOS_IMPORTE:
+            # El importe obligatorio se valida al convertirlo: vacío o inválido da el mismo mensaje.
+            if field not in data:
+                return jsonify({"error": MENSAJE_IMPORTE_INVALIDO}), 400
+            continue
         if not data.get(field):
             return jsonify({"error": f"Campo requerido: {field}"}), 400
     
@@ -528,7 +618,8 @@ def api_crear(modulo, entidad):
         return jsonify({"error": _humanize_integrity_error(modulo, entidad, e)}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        current_app.logger.exception("Error en API de administración (%s)", request.endpoint)
+        return jsonify({"error": MENSAJE_ERROR_GENERICO}), 500
 
 
 @admin_bp.route("/api/admin/<modulo>/<entidad>/<int:id>", methods=["PUT"])
@@ -588,7 +679,8 @@ def api_actualizar(modulo, entidad, id):
         return jsonify({"error": _humanize_integrity_error(modulo, entidad, e)}), 400
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        current_app.logger.exception("Error en API de administración (%s)", request.endpoint)
+        return jsonify({"error": MENSAJE_ERROR_GENERICO}), 500
 
 
 @admin_bp.route("/api/admin/<modulo>/<entidad>/<int:id>", methods=["DELETE"])
@@ -636,7 +728,8 @@ def api_eliminar(modulo, entidad, id):
         return jsonify({"success": True})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        current_app.logger.exception("Error en API de administración (%s)", request.endpoint)
+        return jsonify({"error": MENSAJE_ERROR_GENERICO}), 500
 
 
 @admin_bp.route("/api/admin/<modulo>/<entidad>/<int:id>/toggle", methods=["PATCH"])
@@ -678,7 +771,8 @@ def api_toggle(modulo, entidad, id):
         return jsonify({"success": True, "activo": item.activo})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        current_app.logger.exception("Error en API de administración (%s)", request.endpoint)
+        return jsonify({"error": MENSAJE_ERROR_GENERICO}), 500
 
 
 # =============================================================================
@@ -724,7 +818,8 @@ def api_instrumento_portadores_set(instrumento_id):
         return jsonify({"success": True, "count": len(portadores)})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        current_app.logger.exception("Error en API de administración (%s)", request.endpoint)
+        return jsonify({"error": MENSAJE_ERROR_GENERICO}), 500
 
 
 # =============================================================================
@@ -807,4 +902,5 @@ def api_guardar_accesos(user_id):
         return jsonify({"success": True})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+        current_app.logger.exception("Error en API de administración (%s)", request.endpoint)
+        return jsonify({"error": MENSAJE_ERROR_GENERICO}), 500

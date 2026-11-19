@@ -266,7 +266,7 @@ async function cargarEmpleados() {
         }).join('');
     } catch (e) {
         document.getElementById('tabla-empleados').innerHTML =
-            '<tr><td colspan="5" class="text-center text-danger p-3">Error al cargar</td></tr>';
+            '<tr><td colspan="5" class="text-center text-danger p-3">No se pudieron cargar los datos. Intentá de nuevo.</td></tr>';
         console.error('Empleados error:', e);
     }
 }
@@ -318,7 +318,7 @@ async function cargarAdelantos() {
         </tr>`).join('');
     } catch (e) {
         document.getElementById('tabla-adelantos').innerHTML =
-            '<tr><td colspan="6" class="text-center text-danger p-3">Error al cargar</td></tr>';
+            '<tr><td colspan="6" class="text-center text-danger p-3">No se pudieron cargar los datos. Intentá de nuevo.</td></tr>';
         console.error('Adelantos error:', e);
     }
 }
@@ -368,7 +368,7 @@ async function cargarLiquidaciones() {
         }).join('');
     } catch (e) {
         document.getElementById('tabla-liquidaciones').innerHTML =
-            '<tr><td colspan="6" class="text-center text-danger p-3">Error al cargar</td></tr>';
+            '<tr><td colspan="6" class="text-center text-danger p-3">No se pudieron cargar los datos. Intentá de nuevo.</td></tr>';
         console.error('Liquidaciones error:', e);
     }
 }

@@ -35,9 +35,7 @@ SAFE_HTML_EXCEPTIONS = {
         "color": "A CSS class selected only from fixed enum branches in verDetalleEmpleado.",
     },
     "templates/rrhh_liquidaciones.html": {
-        "l.adelantos_efectivo_count > 0 ?": "Fixed <br> markup; the numeric count is escaped inside the nested template.",
-        "l.adelantos_mercaderia_count > 0 ?": "Fixed <br> markup; the numeric count is escaped inside the nested template.",
-        "l.prestamos_count > 0 ?": "Fixed wording; the numeric count is escaped inside the nested template.",
+        "detalleLiquidacion(": "The helper escapes numeric counts and inserts only fixed <br> markup.",
     },
     "templates/rrhh_panel.html": {
         "badgeTipoAdelanto(": "The helper returns fixed badge markup and escapes the unknown type fallback.",

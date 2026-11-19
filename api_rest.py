@@ -187,7 +187,7 @@ def get_current_user():
 # PRODUCTS ENDPOINTS
 # -----------------------------------------------------------------------------
 @api_rest.route('/products', methods=['GET'])
-@jwt_required
+@jwt_modulo('products', 'view')
 def get_products():
     """Get all products with their business unit information"""
     try:
@@ -309,7 +309,7 @@ def delete_product(product_id):
 CAMPOS_UBICACION = ("name", "address", "city", "country", "phone", "email")
 
 @api_rest.route('/locations', methods=['GET'])
-@jwt_required
+@jwt_modulo('locations', 'view')
 def get_locations():
     """Get all locations"""
     try:
@@ -399,7 +399,7 @@ def delete_location(location_id):
 # LEADS ENDPOINTS
 # -----------------------------------------------------------------------------
 @api_rest.route('/leads', methods=['GET'])
-@jwt_required
+@jwt_modulo('crm', 'view')
 def get_leads():
     """Get all leads with related information"""
     try:
@@ -533,7 +533,7 @@ def delete_lead(lead_id):
 # STOCK ENDPOINTS
 # -----------------------------------------------------------------------------
 @api_rest.route('/stock', methods=['GET'])
-@jwt_required
+@jwt_modulo('stock', 'view')
 def get_stock():
     """Get all stock records with product and location information"""
     try:
@@ -905,7 +905,7 @@ def get_rrhh():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/rrhh/dotacion', methods=['GET'])
-@jwt_required
+@jwt_modulo('rrhh', 'view')
 def get_rrhh_dotacion():
     """Get employee staffing data"""
     try:
@@ -1083,7 +1083,7 @@ def delete_employee(id):
 # BUSINESS UNITS ENDPOINT (helper for forms)
 # -----------------------------------------------------------------------------
 @api_rest.route('/business-units', methods=['GET'])
-@jwt_required
+@jwt_modulo('stock', 'view')
 def get_business_units():
     """Get all business units"""
     try:

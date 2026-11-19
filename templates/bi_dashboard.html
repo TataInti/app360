@@ -531,7 +531,9 @@
     document.getElementById('financial-coverage').textContent = coverage == null
       ? 'Sin base'
       : `${Number(coverage).toLocaleString('es-AR', { maximumFractionDigits: 1 })} %`;
-    document.getElementById('financial-gap').textContent = money(gap);
+    document.getElementById('financial-gap').textContent = relation.brecha_caja_menos_resultado == null
+      ? 'Sin datos de costo'
+      : money(gap);
     setSignedClass(document.getElementById('financial-gap'), gap);
     document.getElementById('financial-months').textContent = `${Number(trend.meses_flujo_positivo || 0)} de ${months}`;
     document.getElementById('financial-months-sub').textContent = cash.meses_sin_movimiento
@@ -626,7 +628,9 @@
         ['kpi-suman', kpis.ingresos_incluidos],
         ['kpi-restan', kpis.egresos_incluidos]
       ].forEach(([id, value]) => { document.getElementById(id).textContent = money(value); });
-      document.getElementById('kpi-resultado-pct').textContent = `Resultado del período: ${percent(kpis.resultado_sobre_facturacion_pct)} de la facturación`;
+      document.getElementById('kpi-resultado-pct').textContent = kpis.datos_insuficientes
+        ? 'Sin datos de costo para calcular el margen'
+        : `Resultado del período: ${percent(kpis.resultado_sobre_facturacion_pct)} de la facturación`;
       setSignedClass(document.getElementById('kpi-resultado'), kpis.resultado_gestion);
       setSignedClass(document.getElementById('kpi-caja'), kpis.caja_neta);
       setSignedClass(document.getElementById('kpi-diferencia'), kpis.diferencia_facturacion_compras);

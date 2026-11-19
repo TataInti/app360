@@ -26,7 +26,7 @@ from urllib.parse import urlparse
 from playwright.sync_api import expect, sync_playwright
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-RUN_LOCAL = os.path.join(ROOT_DIR, "scripts", "dev_preview", "run_local.sh")
+RUN_LOCAL = os.environ.get("E2E_RUN_LOCAL") or os.path.join(ROOT_DIR, "scripts", "dev_preview", "run_local.sh")
 BASE_URL = os.environ.get("E2E_BASE_URL", "http://127.0.0.1:5055").rstrip("/")
 ADMIN_USER = os.environ.get("E2E_ADMIN_USER", "admin")
 # Clave de prueba SOLO-DEV del entorno E2E local (run_local.sh); no es una credencial real.
@@ -264,7 +264,8 @@ def recorrido_admin(page, informe, carpeta):
     print("== Pantalla de objetivos (admin)", flush=True)
     page.goto(BASE_URL + "/comercial/objetivos", wait_until="domcontentloaded")
     esperar_carga(page)
-    page.fill("#periodoObjetivos", MES)
+    page.locator("#periodoMes").select_option(MES[5:7])
+    page.locator("#periodoAnio").select_option(MES[:4])
     page.dispatch_event("#periodoObjetivos", "change")
     esperar_carga(page)
     page.wait_for_timeout(400)
@@ -442,8 +443,9 @@ def recorrido_admin(page, informe, carpeta):
 
     fila_q4 = page.locator("#legacyGoals tbody tr").filter(has_text="2026-Q4").first
     form_q4 = fila_q4.locator("form[data-convert-form]")
-    if fila_q4.locator("input[data-month]").count():
-        fila_q4.locator("input[data-month]").fill(MES)
+    if fila_q4.locator("select[data-month-mes]").count():
+        fila_q4.locator("select[data-month-mes]").select_option(MES[5:7])
+        fila_q4.locator("select[data-month-anio]").select_option(MES[:4])
     abrir_control(page, form_q4)
     page.keyboard.type(DIEGO)
     expect(page.locator(".ts-dropdown:visible .option", has_text=DIEGO).first).to_be_visible(

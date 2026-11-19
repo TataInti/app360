@@ -126,6 +126,7 @@
             </div>
             <form id="formMovimiento">
                 <div class="modal-body">
+                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
                     <div class="mb-3">
                         <label class="form-label">Concepto *</label>
                         <select class="form-select" name="categoria_gasto_id" id="select-concepto-rapido" required>
@@ -178,6 +179,7 @@
             </div>
             <form id="formArqueo">
                 <div class="modal-body">
+                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Fecha *</label>
@@ -542,9 +544,21 @@
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
+    // Avisos ligados al formulario: el error se muestra dentro del modal, sin prefijo técnico.
+    function mostrarErrorFormulario(form, mensaje) {
+        const aviso = form?.querySelector('[data-form-error]');
+        if (!aviso) { alert(mensaje); return; }
+        aviso.textContent = mensaje;
+        aviso.classList.remove('d-none');
+    }
+    function ocultarErrorFormulario(form) {
+        form?.querySelector('[data-form-error]')?.classList.add('d-none');
+    }
+
     // Enviar formulario de movimiento
     document.getElementById('formMovimiento')?.addEventListener('submit', function(e) {
         e.preventDefault();
+        ocultarErrorFormulario(this);
         const formData = new FormData(this);
         const data = {
             tipo: formData.get('tipo'),
@@ -567,15 +581,19 @@
                 sincronizarTipoRapido();
                 cargarDatos();
             } else {
-                alert('Error: ' + (d.error || 'No se pudo guardar'));
+                mostrarErrorFormulario(this, d.error || 'No se pudo guardar el movimiento. Revisá los datos e intentá de nuevo.');
             }
         })
-        .catch(e => console.error('Error:', e));
+        .catch(e => {
+            console.error('Error:', e);
+            mostrarErrorFormulario(this, 'No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
+        });
     });
 
     // Enviar formulario de arqueo
     document.getElementById('formArqueo')?.addEventListener('submit', function(e) {
         e.preventDefault();
+        ocultarErrorFormulario(this);
         const formData = new FormData(this);
         
         const inicial = parseFloat(formData.get('saldo_inicial')) || 0;
@@ -607,10 +625,13 @@
                 document.getElementById('arqueoFecha').value = new Date().toISOString().split('T')[0];
                 cargarDatos();
             } else {
-                alert('Error: ' + (d.error || 'No se pudo guardar'));
+                mostrarErrorFormulario(this, d.error || 'No se pudo guardar el arqueo. Revisá los datos e intentá de nuevo.');
             }
         })
-        .catch(e => console.error('Error:', e));
+        .catch(e => {
+            console.error('Error:', e);
+            mostrarErrorFormulario(this, 'No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
+        });
     });
 </script>
 

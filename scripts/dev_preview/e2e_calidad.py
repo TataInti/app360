@@ -25,7 +25,7 @@ from urllib.parse import urlparse
 from playwright.sync_api import expect, sync_playwright
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-RUN_LOCAL = os.path.join(ROOT_DIR, "scripts", "dev_preview", "run_local.sh")
+RUN_LOCAL = os.environ.get("E2E_RUN_LOCAL") or os.path.join(ROOT_DIR, "scripts", "dev_preview", "run_local.sh")
 LOCK = "/root/.hermes/cache/scratch/heavy.lock"
 BASE_URL = os.environ.get("E2E_BASE_URL", "http://127.0.0.1:5055").rstrip("/")
 ADMIN_USER = os.environ.get("E2E_ADMIN_USER", "admin")
@@ -914,7 +914,8 @@ def escenario_accesibilidad(navegador, informe, carpeta):
 
 
 def resetear_datos():
-    subprocess.run(["flock", LOCK, RUN_LOCAL, "reset"], check=True, capture_output=True)
+    # -o: el daemon de la app no debe heredar el lock pesado.
+    subprocess.run(["flock", "-o", LOCK, RUN_LOCAL, "reset"], check=True, capture_output=True)
 
 
 def main():

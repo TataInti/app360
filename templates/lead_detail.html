@@ -50,12 +50,13 @@
             <div class="card-body">
                 <h5 class="card-title">Actualizar pipeline</h5>
                 <form action="{{ url_for('crm.lead_update', lead_id=lead.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label>Etapa</label>
                         <select name="stage" class="form-control">
                             {% for stage in stages %}
-                            <option value="{{ stage }}" {% if lead.stage == stage %}selected{% endif %}>
-                                {{ stage }}
+                            <option value="{{ stage.name }}" {% if lead.stage == stage.name %}selected{% endif %}>
+                                {{ stage.name|capitalize }}
                             </option>
                             {% endfor %}
                         </select>
@@ -105,6 +106,7 @@
             <div class="card-body">
                 <h5 class="card-title">Interacciones</h5>
                 <form action="{{ url_for('crm.lead_interactions_new', lead_id=lead.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-2">
                         <label>Fecha</label>
                         <input type="datetime-local" name="contact_date" class="form-control">
@@ -163,6 +165,7 @@
             <div class="card-body">
                 <h5 class="card-title">Test drives / Demos</h5>
                 <form action="{{ url_for('crm.lead_demos_new', lead_id=lead.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-2">
                         <label>Producto</label>
                         <select name="product_id" class="form-control" required>
@@ -232,6 +235,7 @@
             <div class="card-body">
                 <h5 class="card-title">Cotizaciones</h5>
                 <form action="{{ url_for('crm.lead_quotations_new', lead_id=lead.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-2">
                         <label>Producto</label>
                         <select name="product_id" class="form-control" required>

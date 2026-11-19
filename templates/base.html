@@ -2671,6 +2671,7 @@
                 }
 
                 normalized = normalized.replace(/(?!^)-/g, "");
+                if (!/\d/.test(normalized)) return NaN;
 
                 const amount = Number(normalized);
                 return Number.isFinite(amount) ? amount : NaN;

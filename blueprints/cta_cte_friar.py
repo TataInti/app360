@@ -2,7 +2,7 @@ from datetime import datetime, date
 import io
 from decimal import Decimal
 
-from flask import Blueprint, request, jsonify, render_template, session, send_file
+from flask import Blueprint, current_app, request, jsonify, render_template, session, send_file
 
 from models import db, User
 from models.tesoreria import CuentaCorrienteFriar, PagoFriar, LiquidacionFriar, LogCuentaCorrienteFriar, InstrumentoPago
@@ -105,7 +105,8 @@ def cuenta_corriente_crear():
         }), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Error al crear cuenta: {str(e)}"}), 500
+        current_app.logger.exception("Cta Cte Friar: crear cuenta")
+        return jsonify({"error": "No se pudo crear la cuenta. Revisá los datos e intentá de nuevo."}), 500
 
 
 def require_admin():
@@ -179,7 +180,8 @@ def cuenta_corriente_editar(id):
         })
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Error al actualizar cuenta: {str(e)}"}), 500
+        current_app.logger.exception("Cta Cte Friar: actualizar cuenta")
+        return jsonify({"error": "No se pudo actualizar la cuenta. Intentá de nuevo."}), 500
 
 
 @cta_cte_friar_bp.route("/api/tesoreria/cta-cte-friar/<int:id>/logs", methods=["GET"])
@@ -296,7 +298,8 @@ def liquidaciones_crear():
         }), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Error al registrar liquidación: {str(e)}"}), 500
+        current_app.logger.exception("Cta Cte Friar: registrar liquidación")
+        return jsonify({"error": "No se pudo registrar la liquidación. Intentá de nuevo."}), 500
 
 
 @cta_cte_friar_bp.route("/api/tesoreria/cta-cte-friar/liquidaciones/<int:id>", methods=["DELETE"])
@@ -313,7 +316,8 @@ def liquidaciones_eliminar(id):
         return jsonify({"success": True, "message": "Liquidación eliminada"})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Error al eliminar: {str(e)}"}), 500
+        current_app.logger.exception("Cta Cte Friar: eliminar liquidación")
+        return jsonify({"error": "No se pudo eliminar la liquidación. Intentá de nuevo."}), 500
 
 
 # =============================================================================
@@ -468,7 +472,8 @@ def pagos_crear():
         }), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Error al registrar pago: {str(e)}"}), 500
+        current_app.logger.exception("Cta Cte Friar: registrar pago")
+        return jsonify({"error": "No se pudo registrar el pago. Intentá de nuevo."}), 500
 
 
 @cta_cte_friar_bp.route("/api/tesoreria/cta-cte-friar/pagos/<int:id>", methods=["DELETE"])
@@ -486,4 +491,5 @@ def pagos_eliminar(id):
         return jsonify({"success": True, "message": "Pago eliminado"})
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Error al eliminar pago: {str(e)}"}), 500
+        current_app.logger.exception("Cta Cte Friar: eliminar pago")
+        return jsonify({"error": "No se pudo eliminar el pago. Intentá de nuevo."}), 500

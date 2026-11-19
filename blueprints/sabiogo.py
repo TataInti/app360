@@ -1425,7 +1425,7 @@ def refresh_facts():
         return jsonify({'success': True, **result})
     except Exception as e:
         current_app.logger.error(f"Error refrescando facts: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'No se pudo completar la operación. Intentá de nuevo.'}), 500
 
 
 @sabiogo_bp.route("/api/autogenerar-mapeos", methods=["POST"])
@@ -1437,7 +1437,7 @@ def autogenerar_mapeos():
         return jsonify({'success': True, 'stats': stats})
     except Exception as e:
         current_app.logger.error(f"Error autogenerando mapeos SabioGo: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'No se pudo completar la operación. Intentá de nuevo.'}), 500
 
 
 # ============================================================================
@@ -1495,7 +1495,7 @@ def rentabilidad_producto(product_id):
         return jsonify(dto.to_dict())
     except Exception as e:
         current_app.logger.error(f"Error obteniendo rentabilidad: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'No se pudo completar la operación. Intentá de nuevo.'}), 500
 
 
 @sabiogo_bp.route("/api/rentabilidad/categoria/<categoria>")
@@ -1541,7 +1541,7 @@ def rentabilidad_categoria(categoria):
         return jsonify(dto.to_dict())
     except Exception as e:
         current_app.logger.error(f"Error obteniendo rentabilidad por categoría: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'No se pudo completar la operación. Intentá de nuevo.'}), 500
 
 
 @sabiogo_bp.route("/api/rentabilidad/top")
@@ -1594,7 +1594,7 @@ def rentabilidad_top():
         })
     except Exception as e:
         current_app.logger.error(f"Error obteniendo top productos: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'No se pudo completar la operación. Intentá de nuevo.'}), 500
 
 
 @sabiogo_bp.route("/api/rentabilidad/resumen")
@@ -1637,7 +1637,7 @@ def rentabilidad_resumen():
         return jsonify(dto.to_dict())
     except Exception as e:
         current_app.logger.error(f"Error obteniendo resumen: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'No se pudo completar la operación. Intentá de nuevo.'}), 500
 
 
 @sabiogo_bp.route("/api/rentabilidad/exportar")
@@ -1727,4 +1727,4 @@ def exportar_rentabilidad():
         
     except Exception as e:
         current_app.logger.error(f"Error exportando rentabilidad: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'No se pudo completar la operación. Intentá de nuevo.'}), 500
