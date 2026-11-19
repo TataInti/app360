@@ -431,9 +431,38 @@
   });
   $('legacyGoals').addEventListener('submit', convertirLegacy);
   $('agregarVendedor').addEventListener('click', addVendorCard);
+  // Período en español: selectores de mes y año que mantienen el valor YYYY-MM en
+  // #periodoObjetivos y en ?mes=, así un enlace reproduce el mismo período.
+  const MESES_PERIODO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+    'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  function periodoDesdeUrl() {
+    const mes = new URLSearchParams(location.search).get('mes');
+    return /^\d{4}-(0[1-9]|1[0-2])$/.test(mes || '') ? mes : null;
+  }
+  function fijarPeriodo(valor) {
+    const [anio, mes] = valor.split('-');
+    const actual = new Date().getFullYear();
+    const anios = [];
+    for (let y = Math.min(Number(anio), actual - 2); y <= Math.max(Number(anio), actual + 1); y++) anios.push(y);
+    $('periodoAnio').replaceChildren(...anios.map(y => new Option(String(y), String(y))));
+    $('periodoMes').replaceChildren(...MESES_PERIODO.map((nombre, i) => new Option(nombre, String(i + 1).padStart(2, '0'))));
+    $('periodoAnio').value = anio;
+    $('periodoMes').value = mes;
+    $('periodoObjetivos').value = valor;
+  }
+  function cambiarPeriodoDesdeSelectores() {
+    const valor = `${$('periodoAnio').value}-${$('periodoMes').value}`;
+    $('periodoObjetivos').value = valor;
+    const url = new URL(location.href);
+    url.searchParams.set('mes', valor);
+    history.replaceState(null, '', url);
+    $('periodoObjetivos').dispatchEvent(new Event('change'));
+  }
+  $('periodoMes').addEventListener('change', cambiarPeriodoDesdeSelectores);
+  $('periodoAnio').addEventListener('change', cambiarPeriodoDesdeSelectores);
   $('periodoObjetivos').addEventListener('change', cargarDatos);
   document.addEventListener('DOMContentLoaded', () => {
-    $('periodoObjetivos').value = currentMonth();
+    fijarPeriodo(periodoDesdeUrl() || currentMonth());
     void cargarDatos();
     void cargarLegacy();
   });

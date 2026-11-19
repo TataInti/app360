@@ -16,8 +16,12 @@
   </header>
 
   <section class="oc-period-bar" aria-label="Período de objetivos">
-    <label for="periodoObjetivos">Período mensual</label>
-    <input type="month" id="periodoObjetivos" required>
+    <span class="fw-semibold" id="periodoObjetivosEtiqueta">Período mensual</span>
+    <div class="d-flex gap-2" role="group" aria-labelledby="periodoObjetivosEtiqueta">
+      <select class="form-select" id="periodoMes" aria-label="Mes"></select>
+      <select class="form-select" id="periodoAnio" aria-label="Año"></select>
+    </div>
+    <input type="hidden" id="periodoObjetivos" value="">
     <p class="com-note">Cada línea define un corte de ventas y sus metas. Las líneas que se superponen suman por separado; el avance del vendedor es la suma de realizados dividida por la suma de metas.</p>
   </section>
 
