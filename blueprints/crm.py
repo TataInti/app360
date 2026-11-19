@@ -57,6 +57,16 @@ def parse_date(value):
         return None
 
 
+def _id_opcional(valor):
+    """ID de una fila relacionada: None si el campo viene vacío; ValueError si no es un entero positivo."""
+    texto = (valor or "").strip()
+    if not texto:
+        return None
+    if not texto.isdigit() or int(texto) <= 0:
+        raise ValueError("id inválido")
+    return int(texto)
+
+
 def load_pipeline_stages():
     stages = (
         LeadStage.query.filter_by(activo=True)
@@ -114,19 +124,55 @@ def leads_new():
     active_stage_names = stage_names(stages)
 
     if request.method == "POST":
+        try:
+            business_unit_id = _id_opcional(request.form.get("business_unit_id"))
+            product_id = _id_opcional(request.form.get("product_id"))
+            location_id = _id_opcional(request.form.get("location_id"))
+            campaign_id = _id_opcional(request.form.get("campaign_id"))
+        except ValueError:
+            flash("Revisá los selectores del lead: alguno no tiene un valor válido.", "warning")
+            return (
+                render_template(
+                    "lead_form.html",
+                    units=units,
+                    products=products,
+                    locations=locations,
+                    campaigns=campaigns,
+                    stages=stages,
+                ),
+                400,
+            )
+        if business_unit_id is None:
+            flash("Elegí una unidad de negocio para el lead.", "warning")
+            return (
+                render_template(
+                    "lead_form.html",
+                    units=units,
+                    products=products,
+                    locations=locations,
+                    campaigns=campaigns,
+                    stages=stages,
+                ),
+                400,
+            )
+
+        etapa = request.form.get("stage")
+        if etapa not in active_stage_names:
+            etapa = active_stage_names[0] if active_stage_names else "nuevo"
+
         lead = Lead(
             name=request.form["name"],
             phone=request.form.get("phone"),
             email=request.form.get("email"),
             source=request.form.get("source", "no especificado"),
             status=request.form.get("status", "nuevo"),
-            stage=request.form.get("stage", active_stage_names[0] if active_stage_names else "nuevo"),
+            stage=etapa,
             owner_name=request.form.get("owner_name"),
             last_contacted_at=parse_datetime(request.form.get("last_contacted_at")),
-            business_unit_id=request.form["business_unit_id"],
-            product_id=request.form.get("product_id"),
-            location_id=request.form.get("location_id"),
-            campaign_id=request.form.get("campaign_id") or None,
+            business_unit_id=business_unit_id,
+            product_id=product_id,
+            location_id=location_id,
+            campaign_id=campaign_id,
         )
         db.session.add(lead)
         db.session.commit()
@@ -221,12 +267,18 @@ def lead_detail(lead_id):
 def lead_update(lead_id):
     lead = Lead.query.get_or_404(lead_id)
     previous_stage = lead.stage
-    lead.stage = request.form.get("stage", lead.stage)
+    try:
+        campaign_id = _id_opcional(request.form.get("campaign_id"))
+    except ValueError:
+        flash("La campaña elegida no es válida.", "warning")
+        return redirect(url_for("crm.lead_detail", lead_id=lead.id))
+    etapa = request.form.get("stage")
+    if etapa in stage_names(load_pipeline_stages()):
+        lead.stage = etapa
     lead.owner_name = request.form.get("owner_name")
     lead.status = request.form.get("status", lead.status)
     lead.last_contacted_at = parse_datetime(request.form.get("last_contacted_at"))
-    campaign_id = request.form.get("campaign_id")
-    lead.campaign_id = campaign_id if campaign_id else None
+    lead.campaign_id = campaign_id
 
     if lead.stage != previous_stage:
         history_entry = LeadStageHistory(

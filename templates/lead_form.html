@@ -10,9 +10,9 @@
         <label>Etapa del pipeline</label>
         <select name="stage" class="form-control">
             {% for s in stages %}
-            <option value="{{ s }}"
-                {% if lead and lead.stage == s %}selected{% endif %}>
-                {{ s }}
+            <option value="{{ s.name }}"
+                {% if lead and lead.stage == s.name %}selected{% endif %}>
+                {{ s.name|capitalize }}
             </option>
             {% endfor %}
         </select>

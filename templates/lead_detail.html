@@ -55,8 +55,8 @@
                         <label>Etapa</label>
                         <select name="stage" class="form-control">
                             {% for stage in stages %}
-                            <option value="{{ stage }}" {% if lead.stage == stage %}selected{% endif %}>
-                                {{ stage }}
+                            <option value="{{ stage.name }}" {% if lead.stage == stage.name %}selected{% endif %}>
+                                {{ stage.name|capitalize }}
                             </option>
                             {% endfor %}
                         </select>
