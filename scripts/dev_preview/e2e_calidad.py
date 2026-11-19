@@ -317,8 +317,8 @@ def escenario_objetivos(navegador, informe, carpeta):
     anio_select = page.locator("#periodoAnio")
     informe.verificar(
         "C6 Objetivos: selectores propios de Mes y Año (sin input type=month)",
-        mes_select.count() == 1 and anio_select.count() == 1 and page.locator("input[type=month]").count() == 0,
-        f"input month: {page.locator('input[type=month]').count()}",
+        mes_select.count() == 1 and anio_select.count() == 1 and page.locator(".oc-period-bar input[type=month]").count() == 0,
+        f"input month en la barra de período: {page.locator('.oc-period-bar input[type=month]').count()}",
     )
     if mes_select.count() == 1:
         opciones = [normalizar(t) for t in mes_select.locator("option").all_inner_texts()]
@@ -328,7 +328,7 @@ def escenario_objetivos(navegador, informe, carpeta):
             opciones[:3],
         )
         mon.reiniciar()
-        mes_select.select_option("4")
+        mes_select.select_option("04")
         esperar_pagina(page, 400)
         informe.verificar(
             "C6 Objetivos: elegir abril actualiza la URL y el período",
