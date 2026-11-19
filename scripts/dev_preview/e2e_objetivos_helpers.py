@@ -2,8 +2,9 @@
 
 La pantalla es una tabla de equipo. Cada vendedor son dos filas hermanas dentro de #listaVendedores:
 la fila de resumen ([data-seller-row]; [data-seller-draft] si es borrador) con sus datos, y la fila
-siguiente (tr.oc-details), su zona expandible con el botón «Agregar objetivo» ([data-add-line]) y los
-formularios de línea (form.oc-line).
+siguiente (tr.oc-details), su zona expandible con el botón «Agregar objetivo» ([data-add-line]) y las
+líneas guardadas (form.oc-line). La línea nueva se carga en el panel lateral de alta ([data-goal-drawer]),
+con el formulario [data-goal-form] y los campos [data-campo="nivel"] y [data-campo="valor"].
 """
 import re
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
@@ -83,10 +84,17 @@ class ObjetivosDOM:
                 return exacta
         return self.lineas_de(ref).nth(index)
 
+    def panel(self):
+        """Panel lateral de alta (dialog con data-goal-drawer)."""
+        return self.page.locator("[data-goal-drawer]")
+
     def formulario_alta(self, ref=None):
-        """Formulario de la última línea de la zona del vendedor (la línea nueva)."""
-        zona = self.zona_de(self.borrador_vendedor() if ref is None else ref)
-        return zona.locator("form.oc-line").last
+        """Formulario del panel de alta. Hay uno solo; ref solo identifica la fila de origen."""
+        return self.page.locator("[data-goal-form]")
+
+    def campo_alta(self, nombre):
+        """Campo del panel por data-campo: «nivel» o «valor» (TomSelect con su desplegable)."""
+        return self.page.locator(f'[data-goal-form] [data-campo="{nombre}"]')
 
     def resumen_de(self, ref):
         """Fila de resumen del vendedor: meta, realizado, avance, cajas, kilos y estado."""

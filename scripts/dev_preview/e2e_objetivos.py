@@ -291,10 +291,11 @@ def recorrido_admin(page, informe, carpeta, contexto):
         tarjeta = ui.tarjeta_activa(DIEGO)
         tarjeta.locator("[data-add-line]").click()
         linea = ui.formulario_alta(DIEGO)
-        linea.locator("select[data-dimension-tipo]").select_option(nivel)
+        valor = ui.campo_alta("valor")
+        elegir_nivel(page, nivel)
         page.wait_for_timeout(300)
-        abrir_control(page, linea)
-        dropdown = linea.locator(".ts-dropdown").first
+        abrir_control(page, valor)
+        dropdown = valor.locator(".ts-dropdown").first
         estado = esperar_opciones(dropdown)
         informe.verificar(
             f"[{nivel}] abrir sin escribir muestra opciones", estado == "opciones", estado
@@ -313,7 +314,7 @@ def recorrido_admin(page, informe, carpeta, contexto):
         if hallada:
             dropdown.locator(".option", has_text=caso["esperada"]).first.click()
             page.wait_for_timeout(300)
-        seleccion = item_seleccionado(linea)
+        seleccion = item_seleccionado(valor)
         informe.verificar(
             f"[{nivel}] la selección queda elegida", seleccion == caso["esperada"], seleccion
         )
@@ -343,21 +344,21 @@ def recorrido_admin(page, informe, carpeta, contexto):
                 linea.locator('[data-meta="cajas"]').is_enabled()
                 and linea.locator('[data-meta="kilos"]').is_enabled(),
             )
-            abrir_control(page, linea)
+            abrir_control(page, valor)
             page.keyboard.type("Ricota")
-            expect(opcion(linea, "Ricota")).to_be_visible(timeout=8000)
-            opcion(linea, "Ricota").click()
+            expect(opcion(valor, "Ricota")).to_be_visible(timeout=8000)
+            opcion(valor, "Ricota").click()
             page.wait_for_timeout(300)
             informe.verificar(
                 "producto sin cantidades: cajas y kilos deshabilitados",
                 linea.locator('[data-meta="cajas"]').is_disabled()
                 and linea.locator('[data-meta="kilos"]').is_disabled(),
-                item_seleccionado(linea),
+                item_seleccionado(valor),
             )
-            abrir_control(page, linea)
+            abrir_control(page, valor)
             page.keyboard.type(caso["consulta"])
-            expect(opcion(linea, caso["esperada"])).to_be_visible(timeout=8000)
-            opcion(linea, caso["esperada"]).click()
+            expect(opcion(valor, caso["esperada"])).to_be_visible(timeout=8000)
+            opcion(valor, caso["esperada"]).click()
             page.wait_for_timeout(300)
             linea.locator('[data-meta="cajas"]').fill("10")
             linea.locator('[data-meta="kilos"]').fill("20")
@@ -566,12 +567,12 @@ def recorrido_admin(page, informe, carpeta, contexto):
     )
     ui.zona_de(ui.borrador_vendedor()).locator("[data-add-line]").click()
     linea_nueva = ui.formulario_alta(NUEVA)
-    linea_nueva.locator("select[data-dimension-tipo]").select_option("marca")
+    elegir_nivel(page, "marca")
     page.wait_for_timeout(300)
-    abrir_control(page, linea_nueva)
+    abrir_control(page, ui.campo_alta("valor"))
     page.keyboard.type("Campo")
-    expect(opcion(linea_nueva, "Campo Demo")).to_be_visible(timeout=8000)
-    opcion(linea_nueva, "Campo Demo").click()
+    expect(opcion(ui.campo_alta("valor"), "Campo Demo")).to_be_visible(timeout=8000)
+    opcion(ui.campo_alta("valor"), "Campo Demo").click()
     page.wait_for_timeout(300)
     linea_nueva.locator('[data-meta="importe"]').fill("80000")
     datos_nueva_antes = leer_objetivos(contexto, BASE_URL, MES)
@@ -858,12 +859,12 @@ def recorrido_tabla_equipo(page, informe, carpeta, contexto):
     page.wait_for_timeout(400)
     ui.zona_de(ui.borrador_vendedor()).locator("[data-add-line]").click()
     linea_escape = ui.formulario_alta()
-    linea_escape.locator("select[data-dimension-tipo]").select_option("marca")
+    elegir_nivel(page, "marca")
     page.wait_for_timeout(300)
-    abrir_control(page, linea_escape)
+    abrir_control(page, ui.campo_alta("valor"))
     page.keyboard.type("Norte")
-    expect(opcion(linea_escape, "Marca Norte")).to_be_visible(timeout=8000)
-    opcion(linea_escape, "Marca Norte").click()
+    expect(opcion(ui.campo_alta("valor"), "Marca Norte")).to_be_visible(timeout=8000)
+    opcion(ui.campo_alta("valor"), "Marca Norte").click()
     page.wait_for_timeout(300)
     linea_escape.locator('[data-meta="importe"]').fill("50000")
     respuesta = enviar_linea(page, linea_escape, "POST", "/api/objetivos-comerciales")
@@ -907,6 +908,471 @@ def recorrido_tabla_equipo(page, informe, carpeta, contexto):
     )
 
 
+# ---------------------------------------------------------------------------
+# Panel lateral de alta (corte 3). Disparador con vendedor fijado, TomSelect dentro del panel,
+# Guardar, Guardar y agregar otro, Cancelar, Escape, clic fuera, validación con texto, escapes del nombre
+# y medidas. Los datos se leen del GET de objetivos; el DOM aporta foco, geometría y textos visibles.
+# ---------------------------------------------------------------------------
+MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+            "septiembre", "octubre", "noviembre", "diciembre"]
+BORRADOR_CONSERVADO = "Vendedora Borrador Conservado"
+NOMBRE_ESCAPES = "Vendedora Borrador & <i>'Q' \"R\""
+
+JS_PANEL_MEDIDAS = """(vendedorId) => {
+  const panel = document.querySelector('[data-goal-drawer]');
+  const caja = panel.getBoundingClientRect();
+  const grilla = panel.querySelector('.oc-goal-grid');
+  const columnas = getComputedStyle(grilla).gridTemplateColumns.trim().split(/\\s+/).length;
+  const arriba = sel => { const el = panel.querySelector(sel); return el ? el.getBoundingClientRect().top : NaN; };
+  const fila = document.querySelector(`tr[data-seller-row][data-vendedor-id="${vendedorId}"]`);
+  const derechas = fila ? [...fila.children].slice(0, 5).map(celda => celda.getBoundingClientRect().right) : [];
+  return {
+    x: Math.round(caja.x), ancho: Math.round(caja.width), alto: Math.round(caja.height),
+    dentro: caja.x >= 0 && caja.right <= innerWidth && caja.y >= 0 && caja.bottom <= innerHeight,
+    sin_scroll_horizontal: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    columnas: columnas,
+    importe_debajo: arriba('label[for="objetivoImporte"]') > arriba('[data-campo="nivel"] label'),
+    etiquetas_nivel_valor: Math.abs(arriba('[data-campo="nivel"] label') - arriba('[data-campo="valor"] label')) <= 1,
+    etiquetas_cajas_kilos: Math.abs(arriba('label[for="objetivoCajas"]') - arriba('label[for="objetivoKilos"]')) <= 1,
+    controles_nivel_valor: Math.abs(arriba('[data-campo="nivel"] .ts-control') - arriba('[data-campo="valor"] .ts-control')) <= 1,
+    controles_cajas_kilos: Math.abs(arriba('[data-meta="cajas"]') - arriba('[data-meta="kilos"]')) <= 1,
+    fila_visible: derechas.length === 5 && derechas.every(x => x <= caja.x + 0.5),
+    fila_derechas: derechas.map(x => Math.round(x)),
+  };
+}"""
+
+
+def etiqueta_periodo(mes):
+    anio, _, numero = mes.partition("-")
+    return f"{MESES_ES[int(numero) - 1]} {anio}"
+
+
+def visible_en(locator, segundos=5):
+    try:
+        expect(locator).to_be_visible(timeout=segundos * 1000)
+        return True
+    except AssertionError:
+        return False
+
+
+def oculto_en(locator, segundos=5):
+    try:
+        expect(locator).to_be_hidden(timeout=segundos * 1000)
+        return True
+    except AssertionError:
+        return False
+
+
+def foco_en_campo(page, campo):
+    """True si el foco está dentro del campo del panel indicado por data-campo («nivel» o «valor»)."""
+    return page.evaluate(
+        "nombre => { const a = document.activeElement;"
+        " return !!(a && a.closest(`[data-goal-drawer] [data-campo=\"${nombre}\"]`)); }",
+        campo,
+    )
+
+
+def enfocado(page, locator):
+    return page.evaluate("el => document.activeElement === el", locator.element_handle())
+
+
+def elegir_nivel(page, nivel):
+    campo = ObjetivosDOM(page).campo_alta("nivel")
+    abrir_control(page, campo)
+    campo.locator(f'.ts-dropdown .option[data-value="{nivel}"]').click()
+    page.wait_for_timeout(250)
+
+
+def elegir_valor(page, consulta, texto):
+    campo = ObjetivosDOM(page).campo_alta("valor")
+    abrir_control(page, campo)
+    page.keyboard.type(consulta)
+    expect(opcion(campo, texto)).to_be_visible(timeout=8000)
+    opcion(campo, texto).click()
+    page.wait_for_timeout(250)
+
+
+def posts_de_objetivos(informe):
+    return sum(
+        1
+        for r in informe.respuestas
+        if r["metodo"] == "POST" and r["ruta"].startswith("/api/objetivos-comerciales")
+    )
+
+
+def panel_limpio(page):
+    ui = ObjetivosDOM(page)
+    return (
+        ui.campo_alta("nivel").locator(".ts-control .item").count() == 0
+        and ui.campo_alta("valor").locator(".ts-control .item").count() == 0
+        and all(
+            page.locator(f'[data-goal-form] [data-meta="{medida}"]').input_value() == ""
+            for medida in ("importe", "cajas", "kilos")
+        )
+    )
+
+
+def esperar_confirmacion_y_responder(page, aceptar):
+    """Modal de la app (#app360ConfirmModal): acepta o mantiene. Devuelve si el modal apareció."""
+    if not visible_en(page.locator("#app360ConfirmAccept")):
+        return False
+    page.locator("#app360ConfirmAccept" if aceptar else "#app360ConfirmCancel").click()
+    return True
+
+
+def capturar_panel(page, carpeta, nombre):
+    """Captura del viewport: el panel es fijo y en página completa aparece desplazado."""
+    os.makedirs(carpeta, exist_ok=True)
+    page.screenshot(path=os.path.join(carpeta, nombre + ".png"), full_page=False)
+
+
+def recorrido_panel_alta(page, informe, carpeta, contexto):
+    print("== Panel lateral de alta", flush=True)
+    ui = ObjetivosDOM(page)
+    panel = page.locator("[data-goal-drawer]")
+    subtitulo = page.locator("[data-goal-subtitle]")
+    campo_valor = ui.campo_alta("valor")
+    esperado_sub = f"{ANA} · {etiqueta_periodo(MES)}"
+
+    page.goto(f"{BASE_URL}/comercial/objetivos?mes={MES}", wait_until="domcontentloaded")
+    esperar_carga(page)
+    page.wait_for_timeout(300)
+    ui.expandir(ANA)
+    fila = ui.fila_vendedor(ANA)
+    vid = fila.get_attribute("data-vendedor-id")
+    disparador = ui.zona_de(fila).locator("[data-add-line]")
+
+    # Disparador de una fila guardada: vendedor fijado, subtítulo y foco en Nivel.
+    disparador.click()
+    expect(panel).to_be_visible(timeout=5000)
+    informe.verificar(
+        "panel: abre desde la fila de Ana con el vendedor fijado (igual data-vendedor-id de la fila)",
+        vid is not None and panel.get_attribute("data-vendedor-id") == vid,
+        {"fila": vid, "panel": panel.get_attribute("data-vendedor-id")},
+    )
+    sub = normalizar(subtitulo.inner_text())
+    informe.verificar("panel: subtítulo «<vendedor> · <mes año>»", sub == esperado_sub, sub)
+    informe.verificar("panel: el foco llega a Nivel al abrir", foco_en_campo(page, "nivel"))
+
+    # TomSelect dentro del panel: el desplegable de Valor queda contenido en el panel, filtra y selecciona.
+    elegir_nivel(page, "producto")
+    abrir_control(page, campo_valor)
+    desplegable = campo_valor.locator(".ts-dropdown").first
+    caja_panel = panel.bounding_box()
+    caja_desplegable = desplegable.bounding_box()
+    contenido = bool(caja_panel and caja_desplegable) and (
+        caja_desplegable["x"] >= caja_panel["x"] - 1
+        and caja_desplegable["x"] + caja_desplegable["width"] <= caja_panel["x"] + caja_panel["width"] + 1
+    )
+    informe.verificar("TomSelect de Valor: el desplegable queda contenido en el panel", contenido)
+    with page.expect_response(
+        lambda r: "/api/objetivos-comerciales/opciones" in r.url and "q=Sardo" in r.url, timeout=10000
+    ) as info:
+        page.keyboard.type("Sardo")
+    api = [o.get("value") for o in info.value.json().get("opciones", [])]
+    textos = esperar_filtro(desplegable, "Sardo")
+    informe.verificar(
+        "TomSelect de Valor: «Sardo» filtra y las opciones visibles coinciden con /opciones",
+        bool(textos) and set(textos) <= set(api) and "Queso Sardo Demo 1kg" in textos,
+        {"visibles": textos[:5], "en_api": len(api)},
+    )
+    opcion(campo_valor, "Queso Sardo Demo 1kg").click()
+    page.wait_for_timeout(250)
+    informe.verificar(
+        "TomSelect de Valor: la opción elegida queda seleccionada",
+        item_seleccionado(campo_valor) == "Queso Sardo Demo 1kg",
+        item_seleccionado(campo_valor),
+    )
+
+    # Cancelar con datos sin guardar: pide confirmación; al descartar, el GET de objetivos no cambia.
+    antes = leer_objetivos(contexto, BASE_URL, MES)
+    page.locator("[data-goal-form] [data-cancel-line]").click()
+    informe.verificar(
+        "Cancelar con datos sin guardar: pide confirmación (modal de la app) y el panel sigue abierto",
+        visible_en(page.locator("#app360ConfirmAccept")) and panel.is_visible(),
+    )
+    page.locator("#app360ConfirmAccept").click()
+    informe.verificar("Cancelar: el panel se cierra al descartar", oculto_en(panel))
+    despues = leer_objetivos(contexto, BASE_URL, MES)
+    informe.verificar(
+        "Cancelar: snapshot del GET antes = después (no se creó ni cambió ninguna línea)",
+        json.dumps(antes["objetivos"], sort_keys=True) == json.dumps(despues["objetivos"], sort_keys=True),
+    )
+    informe.verificar("Cancelar: el foco vuelve al disparador «Agregar objetivo»", enfocado(page, disparador))
+
+    # Escape con el panel sin datos: cierra y devuelve el foco al disparador.
+    disparador.click()
+    expect(panel).to_be_visible(timeout=5000)
+    page.keyboard.press("Escape")
+    informe.verificar("Escape con el panel sin datos: cierra", oculto_en(panel))
+    informe.verificar("Escape: el foco vuelve al disparador", enfocado(page, disparador))
+
+    # Escape con datos sin guardar: pide confirmación; «Seguir editando» conserva el panel.
+    disparador.click()
+    expect(panel).to_be_visible(timeout=5000)
+    page.locator('[data-goal-form] [data-meta="importe"]').fill("1000")
+    page.keyboard.press("Escape")
+    pidio = esperar_confirmacion_y_responder(page, aceptar=False)
+    informe.verificar(
+        "Escape con datos sin guardar: pide confirmación y «Seguir editando» conserva el panel",
+        pidio and panel.is_visible(),
+    )
+
+    # Clic fuera con datos sin guardar: pide confirmación; «Descartar» cierra.
+    page.locator("h1").first.click()
+    pidio = esperar_confirmacion_y_responder(page, aceptar=True)
+    informe.verificar(
+        "clic fuera con datos sin guardar: pide confirmación y «Descartar» cierra el panel",
+        pidio and oculto_en(panel),
+    )
+
+    # Validación con texto y sin envío: Valor sin elegir.
+    disparador.click()
+    expect(panel).to_be_visible(timeout=5000)
+    elegir_nivel(page, "rubro")
+    page.locator('[data-goal-form] [data-meta="importe"]').fill("50000")
+    posts_antes = posts_de_objetivos(informe)
+    page.locator('[data-goal-form] button[type="submit"]').click()
+    aviso = page.locator("[data-goal-form] [data-line-error]")
+    mostrado = visible_en(aviso)
+    texto_aviso = normalizar(aviso.inner_text()) if mostrado else ""
+    informe.verificar(
+        "validación: sin Valor elegido, el aviso aparece en texto y no se envía nada",
+        mostrado and "valor" in texto_aviso.lower() and posts_de_objetivos(informe) == posts_antes,
+        texto_aviso,
+    )
+    capturar_panel(page, carpeta, "panel-validacion-sin-valor")
+    page.keyboard.press("Escape")
+    esperar_confirmacion_y_responder(page, aceptar=True)
+    informe.verificar("validación: el panel se cierra al descartar", oculto_en(panel))
+
+    # Guardar y agregar otro: POST 201 + readback; el panel queda abierto, limpio, con foco en Nivel.
+    disparador.click()
+    expect(panel).to_be_visible(timeout=5000)
+    elegir_nivel(page, "rubro")
+    elegir_valor(page, "teos", "Lácteos")
+    page.locator('[data-goal-form] [data-meta="importe"]').fill("100000")
+    lineas_antes = cantidad_lineas(leer_objetivos(contexto, BASE_URL, MES), vendedor_id=vid)
+    with page.expect_response(
+        lambda r: r.request.method == "POST" and "/api/objetivos-comerciales" in r.url and "/convertir" not in r.url,
+        timeout=15000,
+    ) as info:
+        page.locator("[data-goal-form] [data-save-and-add]").click()
+    respuesta = info.value
+    informe.verificar("Guardar y agregar otro responde 201", respuesta.status == 201, respuesta.status)
+    esperar_carga(page)
+    page.wait_for_timeout(300)
+    datos = leer_objetivos(contexto, BASE_URL, MES)
+    ok, detalle = comparar_linea_readback(
+        datos,
+        objetivo_devuelto(respuesta).get("id"),
+        {"importe": 100000, "cajas": 0, "kilos": 0},
+        lineas_antes + 1,
+        vendedor_id=vid,
+    )
+    informe.verificar("Guardar y agregar otro: readback de la API confirma id, metas y cantidad de líneas", ok, detalle)
+    informe.verificar(
+        "Guardar y agregar otro: el panel queda abierto con el mismo vendedor",
+        panel.is_visible()
+        and panel.get_attribute("data-vendedor-id") == vid
+        and normalizar(subtitulo.inner_text()) == esperado_sub,
+    )
+    informe.verificar("Guardar y agregar otro: formulario limpio (Nivel, Valor e importe vacíos)", panel_limpio(page))
+    informe.verificar("Guardar y agregar otro: el foco queda en Nivel", foco_en_campo(page, "nivel"))
+    celdas = fila.evaluate(JS_CELDAS)
+    informe.verificar(
+        "fila de Ana detrás del panel: cantidad de líneas = la de la API",
+        numero_visible(celdas[1]) == lineas_antes + 1,
+        celdas[1],
+    )
+
+    # Error del servidor dentro del panel: un duplicado exacto (mismo vendedor, mes, nivel y valor) responde 409.
+    elegir_nivel(page, "rubro")
+    elegir_valor(page, "teos", "Lácteos")
+    page.locator('[data-goal-form] [data-meta="importe"]').fill("50000")
+    with page.expect_response(
+        lambda r: r.request.method == "POST" and "/api/objetivos-comerciales" in r.url and "/convertir" not in r.url,
+        timeout=15000,
+    ) as info:
+        page.locator('[data-goal-form] button[type="submit"]').click()
+    aviso_servidor = page.locator("[data-goal-form] [data-line-error]")
+    mostrado = visible_en(aviso_servidor)
+    texto_servidor = normalizar(aviso_servidor.inner_text()) if mostrado else ""
+    informe.verificar(
+        "error del servidor (duplicado, 409): el mensaje de la API aparece dentro del panel y el panel sigue abierto",
+        info.value.status == 409 and mostrado and bool(texto_servidor) and panel.is_visible(),
+        f"{info.value.status} {texto_servidor[:90]}",
+    )
+
+    # Guardar: POST 201 + readback; el panel se cierra y el foco vuelve al disparador.
+    elegir_nivel(page, "marca")
+    elegir_valor(page, "Norte", "Marca Norte")
+    page.locator('[data-goal-form] [data-meta="importe"]').fill("90000")
+    lineas_antes = cantidad_lineas(leer_objetivos(contexto, BASE_URL, MES), vendedor_id=vid)
+    with page.expect_response(
+        lambda r: r.request.method == "POST" and "/api/objetivos-comerciales" in r.url and "/convertir" not in r.url,
+        timeout=15000,
+    ) as info:
+        page.locator('[data-goal-form] button[type="submit"]').click()
+    respuesta = info.value
+    informe.verificar("Guardar responde 201", respuesta.status == 201, respuesta.status)
+    esperar_carga(page)
+    page.wait_for_timeout(300)
+    datos = leer_objetivos(contexto, BASE_URL, MES)
+    ok, detalle = comparar_linea_readback(
+        datos,
+        objetivo_devuelto(respuesta).get("id"),
+        {"importe": 90000, "cajas": 0, "kilos": 0},
+        lineas_antes + 1,
+        vendedor_id=vid,
+    )
+    informe.verificar("Guardar: readback de la API confirma id, metas y cantidad de líneas", ok, detalle)
+    informe.verificar("Guardar: el panel se cierra", oculto_en(panel))
+    informe.verificar("Guardar: el foco vuelve al disparador «Agregar objetivo»", enfocado(page, disparador))
+    celdas = fila.evaluate(JS_CELDAS)
+    informe.verificar(
+        "Guardar: la fila de Ana muestra la cantidad de líneas de la API",
+        numero_visible(celdas[1]) == lineas_antes + 1,
+        celdas[1],
+    )
+
+    # Borrador de otro vendedor: al guardar una línea de Ana, el borrador abierto conserva su vendedor.
+    page.click("#agregarVendedor")
+    abrir_control(page, ui.borrador_vendedor())
+    page.keyboard.type(BORRADOR_CONSERVADO)
+    page.wait_for_timeout(400)
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(400)
+    ref_borrador = ui.borrador_vendedor(BORRADOR_CONSERVADO).evaluate("e => e.dataset.vendedorRef || ''")
+    disparador.click()
+    expect(panel).to_be_visible(timeout=5000)
+    elegir_nivel(page, "marca")
+    elegir_valor(page, "Frigo", "Frigo Demo")
+    page.locator('[data-goal-form] [data-meta="importe"]').fill("70000")
+    with page.expect_response(
+        lambda r: r.request.method == "POST" and "/api/objetivos-comerciales" in r.url and "/convertir" not in r.url,
+        timeout=15000,
+    ) as info:
+        page.locator('[data-goal-form] button[type="submit"]').click()
+    informe.verificar("alta de Ana con un borrador abierto: responde 201", info.value.status == 201, info.value.status)
+    esperar_carga(page)
+    page.wait_for_timeout(300)
+    borrador = ui.borrador_vendedor(BORRADOR_CONSERVADO)
+    informe.verificar(
+        "borrador de otro vendedor conservado con su mismo vendedor tras guardar en Ana",
+        ref_borrador.startswith("nombre:")
+        and borrador.count() == 1
+        and borrador.evaluate("e => e.dataset.vendedorRef || ''") == ref_borrador,
+        ref_borrador,
+    )
+
+    # Nombre con &, <, comillas simples y dobles: el subtítulo y el panel lo muestran como texto.
+    page.click("#agregarVendedor")
+    abrir_control(page, ui.borrador_vendedor())
+    page.keyboard.type(NOMBRE_ESCAPES)
+    page.wait_for_timeout(400)
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(400)
+    ui.zona_de(ui.borrador_vendedor(NOMBRE_ESCAPES)).locator("[data-add-line]").click()
+    expect(panel).to_be_visible(timeout=5000)
+    texto_sub = subtitulo.inner_text()
+    informe.verificar(
+        "nombre con &, <, comillas simples y dobles: el subtítulo muestra el texto literal, sin markup",
+        normalizar(texto_sub).startswith(NOMBRE_ESCAPES)
+        and subtitulo.locator("i, b, img, script").count() == 0
+        and panel.get_attribute("data-vendedor-ref") == f"nombre:{NOMBRE_ESCAPES}",
+        texto_sub,
+    )
+    page.keyboard.press("Escape")
+    informe.verificar("cierre con Escape tras el chequeo de escapes", oculto_en(panel))
+
+    # Medidas: 1440×900 y 1366×768. Cada viewport guarda una línea sintética de Ana con «Guardar y agregar otro».
+    medidas = []
+    for ancho, alto, marca, consulta in ((1440, 900, "Sierra Demo", "Sierra"), (1366, 768, "Estancia Sur", "Estancia")):
+        page.set_viewport_size({"width": ancho, "height": alto})
+        page.goto(f"{BASE_URL}/comercial/objetivos?mes={MES}", wait_until="domcontentloaded")
+        esperar_carga(page)
+        page.wait_for_timeout(300)
+        ui.expandir(ANA)
+        fila_v = ui.fila_vendedor(ANA)
+        disparador_v = ui.zona_de(fila_v).locator("[data-add-line]")
+        cabecera = page.locator("#agregarVendedor")
+        color_cerrado = cabecera.evaluate("el => getComputedStyle(el).backgroundColor")
+        disparador_v.click()
+        expect(panel).to_be_visible(timeout=5000)
+        capturar_panel(page, carpeta, f"panel-vacio-{ancho}x{alto}")
+        elegir_nivel(page, "marca")
+        medida = page.evaluate(JS_PANEL_MEDIDAS, vid)
+        medida["viewport"] = f"{ancho}x{alto}"
+        medida["cabecera_cerrada"] = color_cerrado
+        medida["cabecera_abierta"] = cabecera.evaluate("el => getComputedStyle(el).backgroundColor")
+        abrir_control(page, campo_valor)
+        page.keyboard.type(consulta)
+        expect(opcion(campo_valor, marca)).to_be_visible(timeout=8000)
+        capturar_panel(page, carpeta, f"valor-abierto-{ancho}x{alto}")
+        opcion(campo_valor, marca).click()
+        page.wait_for_timeout(250)
+        page.locator('[data-goal-form] [data-meta="importe"]').fill("")
+        page.locator('[data-goal-form] button[type="submit"]').click()
+        visible_en(page.locator("[data-goal-form] [data-line-error]"))
+        medida["error_visible"] = normalizar(page.locator("[data-goal-form] [data-line-error]").inner_text())
+        capturar_panel(page, carpeta, f"panel-error-{ancho}x{alto}")
+        page.locator('[data-goal-form] [data-meta="importe"]').fill("60000")
+        with page.expect_response(
+            lambda r: r.request.method == "POST" and "/api/objetivos-comerciales" in r.url and "/convertir" not in r.url,
+            timeout=15000,
+        ) as info:
+            page.locator("[data-goal-form] [data-save-and-add]").click()
+        medida["post"] = info.value.status
+        esperar_carga(page)
+        page.wait_for_timeout(300)
+        capturar_panel(page, carpeta, f"tras-guardar-y-agregar-otro-{ancho}x{alto}")
+        page.keyboard.press("Escape")
+        medidas.append(medida)
+        page.goto(f"{BASE_URL}/comercial/objetivos?mes={MES}", wait_until="domcontentloaded")
+        esperar_carga(page)
+
+    informe.verificar(
+        "medidas: el panel queda dentro del viewport y sin scroll horizontal (1440×900 y 1366×768)",
+        all(m["dentro"] and m["sin_scroll_horizontal"] for m in medidas),
+        [(m["viewport"], m["dentro"], m["sin_scroll_horizontal"]) for m in medidas],
+    )
+    informe.verificar(
+        "medidas: grilla de dos columnas; Importe a fila completa debajo de Nivel y Valor",
+        all(m["columnas"] == 2 and m["importe_debajo"] for m in medidas),
+        [(m["viewport"], m["columnas"], m["importe_debajo"]) for m in medidas],
+    )
+    informe.verificar(
+        "medidas: etiquetas y controles de cada fila a la misma altura (≤ 1 px)",
+        all(
+            m["etiquetas_nivel_valor"] and m["etiquetas_cajas_kilos"]
+            and m["controles_nivel_valor"] and m["controles_cajas_kilos"]
+            for m in medidas
+        ),
+        [(m["viewport"], m["etiquetas_nivel_valor"], m["etiquetas_cajas_kilos"]) for m in medidas],
+    )
+    informe.verificar(
+        "medidas: con el panel abierto, «Agregar vendedor» pasa a secundaria",
+        all(m["cabecera_abierta"] != m["cabecera_cerrada"] for m in medidas),
+        [(m["cabecera_cerrada"], m["cabecera_abierta"]) for m in medidas],
+    )
+    informe.verificar(
+        "medidas: la fila del vendedor activo (Vendedor, Líneas, Meta, Realizado, Avance) queda visible junto al panel",
+        all(m["fila_visible"] for m in medidas),
+        [(m["viewport"], m["fila_derechas"], m["x"]) for m in medidas],
+    )
+    informe.verificar(
+        "medidas: «Guardar y agregar otro» responde 201 en ambos viewports",
+        all(m["post"] == 201 for m in medidas),
+        [(m["viewport"], m["post"]) for m in medidas],
+    )
+    informe.verificar(
+        "validación: el aviso de meta en el panel se ve en ambos viewports",
+        all("meta mayor que cero" in m["error_visible"] for m in medidas),
+        [(m["viewport"], m["error_visible"][:60]) for m in medidas],
+    )
+
+
 def sembrar_si_corresponde(sin_reset):
     if not sin_reset:
         subprocess.run([RUN_LOCAL, "reset"], check=True, stdout=subprocess.DEVNULL)
@@ -942,6 +1408,7 @@ def main():
             if ingreso:
                 recorrido_admin(page, informe, SHOTS_DIR, contexto)
                 recorrido_tabla_equipo(page, informe, SHOTS_DIR, contexto)
+                recorrido_panel_alta(page, informe, SHOTS_DIR, contexto)
             contexto.close()
         finally:
             navegador.close()
