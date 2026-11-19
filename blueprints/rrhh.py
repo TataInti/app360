@@ -82,8 +82,9 @@ def rrhh_empleados():
 
 @rrhh_bp.route("/rrhh/dotacion", methods=["GET"])
 def rrhh_dotacion():
-    """Vista de dotación"""
-    return render_template("rrhh_dotacion.html")
+    """La dotación todavía no tiene vista propia: se consulta desde el panel de RRHH."""
+    flash("La dotación todavía no tiene datos cargados. Podés seguir desde el panel de RRHH.", "info")
+    return redirect(url_for("rrhh.rrhh_panel"))
 
 
 @rrhh_bp.route("/rrhh/adelantos", methods=["GET"])

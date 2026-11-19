@@ -398,6 +398,10 @@ def _humanize_integrity_error(modulo, entidad, error):
     message = str(getattr(error, "orig", error)).lower()
     if modulo == "rrhh" and entidad == "empleados" and "clock_id" in message:
         return "El ID Reloj ya está asignado a otro empleado."
+    if entidad == "unidades" and "unique" in message:
+        return "Ya existe una unidad con ese nombre."
+    if entidad == "productos" and "sku" in message:
+        return "El SKU ya existe."
     return "No se pudo guardar por una restricción de integridad."
 
 

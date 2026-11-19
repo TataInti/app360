@@ -1,6 +1,8 @@
-from flask import Blueprint, render_template, request, redirect, url_for
+from flask import Blueprint, flash, render_template, request, redirect, url_for
 
-from models import BusinessUnit
+from sqlalchemy.exc import IntegrityError
+
+from models import BusinessUnit, db
 from services.product_service import ProductService
 from security import protect_blueprint
 from .base_crud import BaseCRUD
@@ -27,7 +29,15 @@ def new_product():
     units = BusinessUnit.query.all()
     if request.method == "POST":
         kwargs = {key: value for key, value in request.form.items() if key != "csrf_token"}
-        crud.service.create(**kwargs)
+        try:
+            crud.service.create(**kwargs)
+        except ValueError as error:
+            flash(str(error), "warning")
+            return render_template("product_form.html", units=units), 400
+        except IntegrityError:
+            db.session.rollback()
+            flash("No se pudo guardar el producto. Revisá el SKU y la unidad de negocio.", "warning")
+            return render_template("product_form.html", units=units), 400
         return redirect(url_for("products.list_products"))
     return render_template("product_form.html", units=units)
 
@@ -42,7 +52,15 @@ def edit_product(item_id):
     
     if request.method == "POST":
         kwargs = {key: value for key, value in request.form.items() if key != "csrf_token"}
-        crud.service.update(item_id, **kwargs)
+        try:
+            crud.service.update(item_id, **kwargs)
+        except ValueError as error:
+            flash(str(error), "warning")
+            return render_template("product_form.html", product=product, units=units), 400
+        except IntegrityError:
+            db.session.rollback()
+            flash("No se pudo guardar el producto. Revisá el SKU y la unidad de negocio.", "warning")
+            return render_template("product_form.html", product=product, units=units), 400
         return redirect(url_for("products.list_products"))
     
     return render_template("product_form.html", product=product, units=units)
