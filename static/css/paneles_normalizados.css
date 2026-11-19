@@ -409,7 +409,9 @@
 
 .com-panel[data-mode] .com-filter.com-filter-compact .com-filter-company { flex-basis: 145px; }
 .com-panel[data-mode] .com-filter.com-filter-compact .com-filter-seller { flex-basis: 155px; }
-.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-dimension { flex-basis: 180px; }
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-dimension { flex-basis: 260px; min-width: 260px; }
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-dimension .ts-wrapper { flex: 1 1 200px; }
+.com-panel[data-mode] .com-filter.com-filter-compact .com-filter-dimension .ts-control > .item { max-width: none; }
 .com-panel[data-mode] .com-filter.com-filter-compact .com-filter-date { flex-basis: 154px; min-width: 154px; }
 
 .com-panel[data-mode] .com-filter.com-filter-compact .com-search {
