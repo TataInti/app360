@@ -87,6 +87,13 @@ ALTAS_CON_MODULO = [
 
 
 def _cabecera(rol, user_id=2, username="PROBE-usuario"):
+    # jwt_required ahora usa el rol de la base; alinear la fila sintética con el rol del caso.
+    usuario = db.session.get(User, user_id)
+    assert usuario is not None
+    if usuario.role != rol or usuario.active is not True:
+        usuario.role = rol
+        usuario.active = True
+        db.session.commit()
     return {"Authorization": f"Bearer {generate_access_token(user_id, username, rol)}"}
 
 
@@ -254,11 +261,12 @@ def test_escrituras_no_aceptan_sesion_web(app_seguridad):
     assert cliente.post("/api/products", json={"name": "PROBE"}).status_code == 401
 
 
-def test_token_sin_rol_no_se_completa_con_la_sesion(app_seguridad):
+def test_token_sin_claim_role_usa_rol_vigente_de_la_base(app_seguridad):
     cliente = app_seguridad.test_client()
     marcar_sesion(cliente, 1)
     cabecera = {"Authorization": f"Bearer {generate_access_token(1, 'PROBE-sin-rol', None)}"}
-    assert cliente.post("/api/products", json={"name": "PROBE"}, headers=cabecera).status_code == 403
+    respuesta = cliente.post("/api/products", json={"name": "PROBE claim ausente"}, headers=cabecera)
+    assert respuesta.status_code == 201
 
 
 def test_nivel_debe_ser_view_o_edit():

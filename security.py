@@ -333,15 +333,16 @@ def jwt_required(f):
 
         # Revocación inmediata (R-04): el usuario del token debe existir y estar activo.
         # jwt_o_sesion y jwt_modulo pasan por esta misma comprobación.
-        if usuario_vigente(payload.get('user_id')) is None:
+        usuario = usuario_vigente(payload.get('user_id'))
+        if usuario is None:
             log_security_event('JWT_REVOKED', 'Usuario inexistente o inactivo', user=payload.get('username'))
             return jsonify({'error': 'Token is invalid or expired'}), 401
         
-        # Add user info to request context
+        # El rol vigente se lee de la base; el claim del token puede haber quedado desactualizado.
         request.current_user = {
             'user_id': payload.get('user_id'),
             'username': payload.get('username'),
-            'role': payload.get('role'),
+            'role': usuario.role,
         }
         
         return f(*args, **kwargs)
@@ -386,7 +387,8 @@ def jwt_modulo(modulo, nivel='view'):
 
     Pensado para las escrituras de api_rest. Sin token o con token inválido responde
     401 (jwt_required). Con token válido pero sin el módulo, o sin edición en una
-    escritura, responde 403 JSON. Rol e id salen solo del token: no usa la sesión web.
+    escritura, responde 403 JSON. El id sale del token y el rol vigente de la base;
+    no usa la sesión web.
 
     nivel='view': en lecturas basta con acceso de solo lectura o de edición.
     nivel='edit': exige edición también en lecturas.
