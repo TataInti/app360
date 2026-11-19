@@ -1111,7 +1111,6 @@ def get_business_units():
         items = [{
             'id': u.id,
             'name': u.name,
-            'description': u.description
         } for u in result.items]
         return jsonify({
             "items": items,
