@@ -129,6 +129,7 @@
             </div>
             <form id="formMovimiento">
                 <div class="modal-body">
+                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
                     <div class="mb-3">
                         <label class="form-label">Concepto *</label>
                         <select class="form-select" name="categoria_gasto_id" id="selectCategoriaGasto" required>
@@ -205,6 +206,17 @@ function notify(message, variant = 'info', options = {}) {
         return;
     }
     window.alert(message);
+}
+
+// Avisos ligados al formulario: el error se muestra dentro del modal, sin prefijo técnico.
+function mostrarErrorFormulario(form, mensaje) {
+    const aviso = form?.querySelector('[data-form-error]');
+    if (!aviso) { alert(mensaje); return; }
+    aviso.textContent = mensaje;
+    aviso.classList.remove('d-none');
+}
+function ocultarErrorFormulario(form) {
+    form?.querySelector('[data-form-error]')?.classList.add('d-none');
 }
 
 function showModal(modalId) {
@@ -543,7 +555,7 @@ async function cargarMovimientos() {
     } catch(e) {
         console.error('Error:', e);
         document.getElementById('tablaMovimientos').innerHTML = 
-            '<tr><td colspan="11" class="text-center text-danger">Error al cargar datos</td></tr>';
+            '<tr><td colspan="11" class="text-center text-danger">No se pudieron cargar los datos. Intentá de nuevo.</td></tr>';
         notify(e.message || 'No se pudieron cargar los movimientos.', 'danger', { title: 'Error de consulta' });
     }
 }
@@ -555,7 +567,7 @@ async function descargarExcel(url, fallbackName) {
 
         if (!resp.ok || contentType.includes('application/json')) {
             const data = contentType.includes('application/json') ? await resp.json() : { error: await resp.text() };
-            alert('Error: ' + (data.error || 'No se pudo exportar'));
+            alert(data.error || 'No se pudo exportar el archivo. Intentá de nuevo.');
             return;
         }
 
@@ -573,7 +585,7 @@ async function descargarExcel(url, fallbackName) {
         link.remove();
         window.URL.revokeObjectURL(blobUrl);
     } catch (e) {
-        alert('Error de conexión');
+        alert('No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
     }
 }
 
@@ -601,6 +613,7 @@ function exportarMovimientos() {
 
 document.getElementById('formMovimiento')?.addEventListener('submit', async function(e) {
     e.preventDefault();
+    ocultarErrorFormulario(this);
     const formData = new FormData(this);
     const catValue = formData.get('categoria_gasto_id');
     const provValue = formData.get('proveedor_id');
@@ -631,10 +644,10 @@ document.getElementById('formMovimiento')?.addEventListener('submit', async func
             notify('Movimiento registrado correctamente.', 'success', { title: 'Caja actualizada' });
         } else {
             const err = await resp.json();
-            alert('Error: ' + (err.error || 'No se pudo guardar'));
+            mostrarErrorFormulario(this, err.error || 'No se pudo guardar el movimiento. Revisá los datos e intentá de nuevo.');
         }
     } catch(e) {
-        alert('Error de conexión');
+        mostrarErrorFormulario(this, 'No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
     }
 });
 
@@ -662,10 +675,10 @@ async function solicitarAnulacion(id) {
             alert(data.message);
             cargarMovimientos();
         } else {
-            alert(data.error || 'Error');
+            alert(data.error || 'No se pudo completar la acción. Intentá de nuevo.');
         }
     } catch (e) {
-        alert('Error de conexión');
+        alert('No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
     }
 }
 
@@ -689,10 +702,10 @@ async function autorizarAnulacion(id) {
             cargarMovimientos();
         } else {
             const data = await resp.json();
-            alert(data.error || 'Error');
+            alert(data.error || 'No se pudo completar la acción. Intentá de nuevo.');
         }
     } catch (e) {
-        alert('Error de conexión');
+        alert('No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
     }
 }
 
@@ -716,10 +729,10 @@ async function rechazarAnulacion(id) {
             cargarMovimientos();
         } else {
             const data = await resp.json();
-            alert(data.error || 'Error');
+            alert(data.error || 'No se pudo completar la acción. Intentá de nuevo.');
         }
     } catch (e) {
-        alert('Error de conexión');
+        alert('No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
     }
 }
 
@@ -734,7 +747,7 @@ async function cargarPortadoresPorInstrumento(instrumentoId) {
             select.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
         });
     } catch(e) {
-        select.innerHTML = '<option value="">Error al cargar</option>';
+        select.innerHTML = '<option value="">No se pudo cargar la lista</option>';
         console.error('Error cargando portadores:', e);
     }
 }
@@ -769,9 +782,9 @@ async function crearPortadorInline() {
             notify('Portador creado y seleccionado.', 'success', { title: 'Dato actualizado' });
         } else {
             const err = await resp.json();
-            alert('Error: ' + (err.error || 'No se pudo crear'));
+            alert(err.error || 'No se pudo crear el portador. Intentá de nuevo.');
         }
-    } catch(e) { alert('Error de conexión'); }
+    } catch(e) { alert('No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.'); }
 }
 </script>
 {% endblock %}

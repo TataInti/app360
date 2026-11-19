@@ -177,7 +177,7 @@
             .then(r => r.json())
             .then(data => {
                 if (data.error) {
-                    alert('Error: ' + data.error);
+                    alert(data.error);
                     return;
                 }
                 previewData = data.liquidaciones;
@@ -186,7 +186,7 @@
             })
             .catch(e => {
                 console.error('Error:', e);
-                alert('Error al cargar preview');
+                alert('No se pudo cargar la vista previa. Intentá de nuevo.');
             });
     }
 
@@ -252,7 +252,7 @@
         .then(r => r.json())
         .then(data => {
             if (data.error) {
-                alert('Error: ' + data.error);
+                alert(data.error);
                 return;
             }
             alert(data.message);
@@ -261,7 +261,7 @@
         })
         .catch(e => {
             console.error('Error:', e);
-            alert('Error al generar liquidaciones');
+            alert('No se pudieron generar las liquidaciones. Intentá de nuevo.');
         });
     }
 

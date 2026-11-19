@@ -105,6 +105,7 @@
             </div>
             <form id="formAdelanto">
                 <div class="modal-body">
+                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
                     <div class="mb-3">
                         <label class="form-label">Empleado</label>
                         <select class="form-select" name="empleado_id" required id="select-empleado">
@@ -320,7 +321,7 @@
             })
             .catch(() => {
                 const select = document.getElementById('select-empleado');
-                select.innerHTML = '<option value="">Error al cargar empleados</option>';
+                select.innerHTML = '<option value="">No se pudieron cargar los empleados</option>';
             });
     }
 
@@ -347,8 +348,20 @@
         .catch(e => console.error('Error:', e));
     }
 
+    // Avisos ligados al formulario: el error se muestra dentro del modal, sin prefijo técnico.
+    function mostrarErrorFormulario(form, mensaje) {
+        const aviso = form?.querySelector('[data-form-error]');
+        if (!aviso) { alert(mensaje); return; }
+        aviso.textContent = mensaje;
+        aviso.classList.remove('d-none');
+    }
+    function ocultarErrorFormulario(form) {
+        form?.querySelector('[data-form-error]')?.classList.add('d-none');
+    }
+
     document.getElementById('formAdelanto').addEventListener('submit', (e) => {
         e.preventDefault();
+        ocultarErrorFormulario(e.target);
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData);
 
@@ -366,10 +379,13 @@
                 bootstrap.Modal.getInstance(document.getElementById('modalNuevoAdelanto')).hide();
                 cargarAdelantos();
             } else if (data.error) {
-                alert('Error: ' + data.error);
+                mostrarErrorFormulario(e.target, data.error);
             }
         })
-        .catch(e => console.error('Error:', e));
+        .catch(err => {
+            console.error('Error:', err);
+            mostrarErrorFormulario(e.target, 'No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
+        });
     });
 
     // Inicializar
