@@ -353,11 +353,11 @@ def jwt_o_sesion(modulo):
 
     Para los GET de api_rest que también consumen pantallas: el navegador los
     llama con la cookie de sesión y sin token. Si llega un Bearer, debe ser
-    válido (no cae a la sesión). Sin credencial responde 401; con sesión sin
-    el módulo, 403.
+    válido y tener el módulo (jwt_modulo; no cae a la sesión). Sin credencial
+    responde 401; con sesión o Bearer sin el módulo, 403.
     """
     def decorator(f):
-        con_jwt = jwt_required(f)
+        con_jwt = jwt_modulo(modulo, 'view')(f)
 
         @wraps(f)
         def decorated(*args, **kwargs):
