@@ -274,11 +274,14 @@ def asegurar_tarjeta(page, nombre):
 def nueva_linea(page, nombre, nivel, consulta, esperada, importe):
     asegurar_tarjeta(page, nombre)
     tarjeta_activa(page, nombre).locator("[data-add-line]").click()
-    linea = tarjeta_activa(page, nombre).locator("form.oc-line").last
-    linea.locator("select[data-dimension-tipo]").select_option(nivel)
+    linea = page.locator("[data-goal-form]")
+    campo_nivel = linea.locator('[data-campo="nivel"]')
+    abrir_control(page, campo_nivel)
+    campo_nivel.locator(f'.ts-dropdown .option[data-value="{nivel}"]').click()
     page.wait_for_timeout(300)
-    abrir_control(page, linea)
-    dropdown = linea.locator(".ts-dropdown").first
+    campo_valor = linea.locator('[data-campo="valor"]')
+    abrir_control(page, campo_valor)
+    dropdown = campo_valor.locator(".ts-dropdown").first
     page.keyboard.type(consulta)
     esperar_filtro(dropdown, consulta)
     dropdown.locator(".option", has_text=esperada).first.click()
