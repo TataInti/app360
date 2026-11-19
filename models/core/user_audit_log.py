@@ -13,6 +13,7 @@ class UserAuditLog(db.Model):
     __table_args__ = (
         db.Index("ix_user_audit_log_created_at", "created_at"),
         db.Index("ix_user_audit_log_target", "target_user_id", "created_at"),
+        db.Index("ix_user_audit_log_actor", "actor_user_id"),
     )
 
     id = db.Column(db.Integer, primary_key=True)

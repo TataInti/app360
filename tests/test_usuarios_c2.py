@@ -253,6 +253,48 @@ def test_usuario_repetido_sin_distinguir_mayusculas_responde_409(app_seguridad):
         assert "username" in cuerpo["campos"]
 
 
+def test_alta_con_fila_concurrente_sin_mayusculas_responde_409_y_deja_una_fila(app_seguridad, monkeypatch):
+    """a4: otra transacción confirma «PROBE.Carrera» después de la comprobación del alta."""
+    app = app_seguridad
+    admin = _cliente(app, _crear(app, "probe-admin", "admin"))
+    clave_temporal = ua.generar_clave_temporal
+
+    def con_carrera():
+        db.session.execute(
+            sa.text(
+                "INSERT INTO users (username, role, active, must_change_password, token_version) "
+                "VALUES ('PROBE.Carrera', 'sales', 1, 0, 0)"
+            )
+        )
+        db.session.commit()
+        return clave_temporal()
+
+    monkeypatch.setattr(ua, "generar_clave_temporal", con_carrera)
+    respuesta = _alta(admin, "probe.carrera", "sales")
+
+    assert respuesta.status_code == 409
+    cuerpo = respuesta.get_json()
+    assert cuerpo["codigo"] == "USERNAME_TAKEN" and "username" in cuerpo["campos"]
+    assert cuerpo["error"] == "Ese nombre de usuario ya existe. No distingue mayúsculas de minúsculas."
+    with app.app_context():
+        assert User.query.filter(db.func.lower(User.username) == "probe.carrera").count() == 1
+
+
+def test_indice_unico_sin_mayusculas_rechaza_el_duplicado_en_la_base(app_seguridad):
+    app = app_seguridad
+    _crear(app, "probe.unico", "sales")
+    with app.app_context():
+        with pytest.raises(sa.exc.IntegrityError):
+            db.session.execute(
+                sa.text(
+                    "INSERT INTO users (username, role, active, must_change_password, token_version) "
+                    "VALUES ('PROBE.UNICO', 'sales', 1, 0, 0)"
+                )
+            )
+            db.session.commit()
+        db.session.rollback()
+
+
 # -----------------------------------------------------------------------------
 # Clave temporal: entrada única, cambio obligatorio y vencimiento (P-06, D1)
 # -----------------------------------------------------------------------------
@@ -746,6 +788,35 @@ def _fotografia(motor):
     return [tuple(fila) for fila in filas]
 
 
+def _indices_de(motor, tabla):
+    # SQLAlchemy no reflecta los índices por expresión en SQLite: se leen de sqlite_master.
+    with motor.connect() as conexion:
+        filas = conexion.execute(
+            sa.text("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = :tabla"),
+            {"tabla": tabla},
+        ).all()
+    return {fila[0] for fila in filas}
+
+
+def _base_previa(tmp_path, nombre, usuarios):
+    """Base con el esquema de antes de C2 y los usuarios dados: (username, role, active, hash)."""
+    motor = sa.create_engine(f"sqlite:///{tmp_path / nombre}")
+    with motor.begin() as conexion:
+        conexion.execute(
+            sa.text(
+                "CREATE TABLE users (id INTEGER PRIMARY KEY, username VARCHAR(80) NOT NULL UNIQUE, "
+                "password_hash VARCHAR(255), role VARCHAR(40) NOT NULL, active BOOLEAN DEFAULT 1, "
+                "must_change_password BOOLEAN NOT NULL DEFAULT 0, password_changed_at DATETIME, "
+                "last_login_at DATETIME)"
+            )
+        )
+        conexion.execute(
+            sa.text("INSERT INTO users (username, role, active, password_hash) VALUES (:u, :r, :a, :h)"),
+            [{"u": u, "r": r, "a": a, "h": h} for u, r, a, h in usuarios],
+        )
+    return motor
+
+
 def test_migracion_c2_upgrade_downgrade_upgrade_con_usuarios_existentes(tmp_path):
     motor = sa.create_engine(f"sqlite:///{tmp_path / 'usuarios_c2.db'}")
     with motor.begin() as conexion:
@@ -769,7 +840,8 @@ def test_migracion_c2_upgrade_downgrade_upgrade_con_usuarios_existentes(tmp_path
     assert NUEVAS_COLUMNAS <= _columnas(motor)
     assert "user_audit_log" in sa.inspect(motor).get_table_names()
     indices = {i["name"] for i in sa.inspect(motor).get_indexes("user_audit_log")}
-    assert {"ix_user_audit_log_created_at", "ix_user_audit_log_target"} <= indices
+    assert {"ix_user_audit_log_created_at", "ix_user_audit_log_target", "ix_user_audit_log_actor"} <= indices
+    assert "ix_users_username_lower" in _indices_de(motor, "users")
     with motor.connect() as conexion:
         valores = conexion.execute(
             sa.text("SELECT token_version, temp_password_expires_at, deactivated_at FROM users")
@@ -780,8 +852,35 @@ def test_migracion_c2_upgrade_downgrade_upgrade_con_usuarios_existentes(tmp_path
     _ejecutar(motor, modulo.downgrade)
     assert not (NUEVAS_COLUMNAS & _columnas(motor))
     assert "user_audit_log" not in sa.inspect(motor).get_table_names()
+    assert "ix_users_username_lower" not in _indices_de(motor, "users")
     assert _fotografia(motor) == antes
 
     _ejecutar(motor, modulo.upgrade)
     assert NUEVAS_COLUMNAS <= _columnas(motor)
+    assert "ix_users_username_lower" in _indices_de(motor, "users")
     assert _fotografia(motor) == antes
+
+
+def test_migracion_c2_aborta_con_duplicados_sin_mayusculas_y_no_cambia_el_esquema(tmp_path):
+    motor = _base_previa(
+        tmp_path,
+        "duplicados_c2.db",
+        [
+            ("Probe.Dup", "sales", True, "hash-sintetico-1"),
+            ("probe.dup", "sales", True, "hash-sintetico-2"),
+            ("probe.otro", "sales", True, "hash-sintetico-3"),
+        ],
+    )
+    antes = _fotografia(motor)
+    modulo = _modulo_migracion()
+
+    with pytest.raises(RuntimeError) as error:
+        _ejecutar(motor, modulo.upgrade)
+
+    mensaje = str(error.value)
+    assert "Probe.Dup" in mensaje and "probe.dup" in mensaje and "probe.otro" not in mensaje
+    assert not (NUEVAS_COLUMNAS & _columnas(motor))
+    assert "user_audit_log" not in sa.inspect(motor).get_table_names()
+    assert "ix_users_username_lower" not in _indices_de(motor, "users")
+    assert _fotografia(motor) == antes, "el aborto no borra ni cambia filas"
+

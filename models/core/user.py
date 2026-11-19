@@ -9,6 +9,11 @@ from .. import db
 
 class User(db.Model):
     __tablename__ = "users"
+    __table_args__ = (
+        # Unicidad sin distinguir mayúsculas (A4): la base la garantiza además de la aplicación.
+        # Migración 20261119_usuarios_c2_admin.
+        db.Index("ix_users_username_lower", db.func.lower(db.literal_column("username")), unique=True),
+    )
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=True)

@@ -199,7 +199,7 @@ def registrar_auditoria(actor, accion, target=None, detalle=None):
 def _error_usuario_existente():
     return ErrorUsuarios(
         "USERNAME_TAKEN",
-        "Ya existe un usuario con ese nombre. No distingue mayúsculas de minúsculas.",
+        "Ese nombre de usuario ya existe. No distingue mayúsculas de minúsculas.",
         409,
         {"username": "Ese nombre ya está en uso."},
     )

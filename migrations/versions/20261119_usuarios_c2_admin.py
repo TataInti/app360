@@ -5,10 +5,15 @@ Revises: 20261119_usuarios_c1_clave
 Create Date: 2026-11-19
 
 Aditiva. users gana token_version (NOT NULL, default 0), temp_password_expires_at y deactivated_at
-(NULL). Se crea user_audit_log, de solo inserción desde la aplicación, con dos índices. Los
+(NULL). Se crea user_audit_log, de solo inserción desde la aplicación, con tres índices. Los
 usuarios existentes no cambian: versión 0, sin vencimiento y sin baja. No hay UPDATE masivos y no
 se tocan password_hash, role ni active. La versión anterior de la aplicación no lee estas columnas,
 así que puede aplicarse antes de reiniciar.
+
+Unicidad sin distinguir mayúsculas (A4): se crea el índice único ix_users_username_lower sobre
+lower(username). Antes, la migración verifica que no haya nombres duplicados sin distinguir
+mayúsculas. Si los hay, aborta y lista esos nombres: no borra ni cambia filas, y el esquema queda
+como estaba.
 """
 
 import sqlalchemy as sa
@@ -26,8 +31,38 @@ def _espera_acotada():
         op.execute("SET LOCAL lock_timeout = '10s'")
 
 
+def _verificar_sin_duplicados_sin_mayusculas():
+    """Aborta si hay nombres que solo difieren en mayúsculas. Corre antes de tocar el esquema."""
+    conexion = op.get_bind()
+    claves = [
+        fila[0]
+        for fila in conexion.execute(
+            sa.text(
+                "SELECT lower(username) FROM users GROUP BY lower(username) "
+                "HAVING COUNT(*) > 1 ORDER BY 1"
+            )
+        ).fetchall()
+    ]
+    if not claves:
+        return
+    nombres = []
+    for clave in claves:
+        filas = conexion.execute(
+            sa.text("SELECT username FROM users WHERE lower(username) = :clave ORDER BY username"),
+            {"clave": clave},
+        ).fetchall()
+        nombres.extend(fila[0] for fila in filas)
+    listado = ", ".join(f"«{nombre}»" for nombre in nombres)
+    raise RuntimeError(
+        "No se crea el índice ix_users_username_lower: hay nombres de usuario duplicados sin "
+        f"distinguir mayúsculas: {listado}. La migración no borró ni cambió nada. Resolvé los "
+        "duplicados a mano y volvé a correr la migración."
+    )
+
+
 def upgrade():
     _espera_acotada()
+    _verificar_sin_duplicados_sin_mayusculas()
     op.add_column(
         "users",
         sa.Column("token_version", sa.Integer(), nullable=False, server_default="0"),
@@ -69,10 +104,14 @@ def upgrade():
     )
     op.create_index("ix_user_audit_log_created_at", "user_audit_log", ["created_at"])
     op.create_index("ix_user_audit_log_target", "user_audit_log", ["target_user_id", "created_at"])
+    op.create_index("ix_user_audit_log_actor", "user_audit_log", ["actor_user_id"])
+    op.execute("CREATE UNIQUE INDEX ix_users_username_lower ON users (lower(username))")
 
 
 def downgrade():
     _espera_acotada()
+    op.drop_index("ix_users_username_lower", table_name="users")
+    op.drop_index("ix_user_audit_log_actor", table_name="user_audit_log")
     op.drop_index("ix_user_audit_log_target", table_name="user_audit_log")
     op.drop_index("ix_user_audit_log_created_at", table_name="user_audit_log")
     op.drop_table("user_audit_log")
