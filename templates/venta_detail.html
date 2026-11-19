@@ -51,6 +51,7 @@
             <div class="card-body">
                 <h5 class="card-title">Cambiar estado</h5>
                 <form action="{{ url_for('ventas.ventas_update_status', sale_id=sale.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label>Estado</label>
                         <select name="status" class="form-control">
@@ -72,6 +73,7 @@
             <div class="card-body">
                 <h5 class="card-title">Nueva reserva de stock</h5>
                 <form action="{{ url_for('ventas.ventas_reservation_new', sale_id=sale.id) }}" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label>Cantidad</label>
                         <input type="number" name="quantity" class="form-control" value="1" min="1" required>
