@@ -172,13 +172,35 @@ MENSAJE_CAMBIO_CLAVE = "Tenés que cambiar tu clave para continuar"
 HASH_FICTICIO = generate_password_hash(secrets.token_urlsafe(24))
 
 
+def ahora():
+    """Instante actual en UTC. Único reloj de la administración de usuarios: las pruebas lo fijan."""
+    return datetime.now(timezone.utc)
+
+
+def clave_temporal_vencida(usuario):
+    """True si la clave temporal venció (D1: 72 h desde el alta). Sin fecha cargada, no vence.
+
+    El cambio de clave borra la fecha: solo una clave temporal sin cambiar puede vencer.
+    """
+    vence = usuario.temp_password_expires_at
+    if vence is None:
+        return False
+    if vence.tzinfo is None:
+        vence = vence.replace(tzinfo=timezone.utc)
+    return ahora() >= vence
+
+
 def verificar_clave_login(usuario, clave):
-    """Verifica la clave del login. Sin usuario o sin hash, hace el mismo trabajo de hash."""
+    """Verifica la clave del login. Sin usuario o sin hash, hace el mismo trabajo de hash.
+
+    Una clave temporal vencida no sirve: el login la trata como una clave incorrecta (C2, D1).
+    """
     clave = clave if isinstance(clave, str) else ""
     if usuario is None or not usuario.password_hash:
         check_password_hash(HASH_FICTICIO, clave)
         return False
-    return usuario.check_password(clave)
+    valida = usuario.check_password(clave)
+    return valida and not clave_temporal_vencida(usuario)
 
 
 def registrar_ultimo_acceso(usuario):
@@ -288,6 +310,8 @@ def _usuario_de_sesion_o_motivo():
         return None, "usuario_inexistente"
     if usuario.active is not True:
         return None, "usuario_inactivo"
+    if clave_temporal_vencida(usuario):
+        return None, "clave_temporal_vencida"
     huella_actual = huella_sesion(usuario)
     if not huella_actual or not hmac.compare_digest(huella_actual, str(huella_guardada)):
         return None, "huella_no_coincide"
@@ -345,25 +369,27 @@ def revalidar_sesion_web():
 # =============================================================================
 # JWT Token Management
 # =============================================================================
-def generate_access_token(user_id, username, role):
-    """Generate a JWT access token"""
+def generate_access_token(user_id, username, role, token_version=0):
+    """Generate a JWT access token. El claim tv lleva la versión de token del usuario (C2)."""
     payload = {
         'user_id': user_id,
         'username': username,
         'role': role,
         'type': 'access',
+        'tv': token_version,
         'exp': datetime.now(timezone.utc) + timedelta(seconds=current_app.config['JWT_ACCESS_TOKEN_EXPIRES']),
         'iat': datetime.now(timezone.utc),
     }
     return jwt.encode(payload, current_app.config['JWT_SECRET_KEY'], algorithm='HS256')
 
 
-def generate_refresh_token(user_id, username):
-    """Generate a JWT refresh token"""
+def generate_refresh_token(user_id, username, token_version=0):
+    """Generate a JWT refresh token. El claim tv lleva la versión de token del usuario (C2)."""
     payload = {
         'user_id': user_id,
         'username': username,
         'type': 'refresh',
+        'tv': token_version,
         'exp': datetime.now(timezone.utc) + timedelta(seconds=current_app.config['JWT_REFRESH_TOKEN_EXPIRES']),
         'iat': datetime.now(timezone.utc),
     }
@@ -409,6 +435,15 @@ def jwt_required(f):
         usuario = usuario_vigente(payload.get('user_id'))
         if usuario is None:
             log_security_event('JWT_REVOKED', 'Usuario inexistente o inactivo', user=payload.get('username'))
+            return jsonify({'error': 'Token is invalid or expired'}), 401
+
+        # Versión de token (C2): cada desactivación la sube y corta los JWT emitidos antes.
+        # Un token sin claim tv cuenta como versión 0 (tokens anteriores a este corte).
+        if payload.get('tv', 0) != (usuario.token_version or 0):
+            log_security_event('JWT_REVOKED', 'Token de una versión anterior', user=payload.get('username'))
+            return jsonify({'error': 'Token is invalid or expired'}), 401
+        if clave_temporal_vencida(usuario):
+            log_security_event('JWT_REVOKED', 'Clave temporal vencida', user=payload.get('username'))
             return jsonify({'error': 'Token is invalid or expired'}), 401
 
         # Token emitido antes del último cambio de clave: ya no vale (C1, D9).

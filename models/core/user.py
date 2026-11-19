@@ -22,6 +22,11 @@ class User(db.Model):
     )
     password_changed_at = db.Column(db.DateTime(timezone=True), nullable=True)
     last_login_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    # Administración de usuarios (C2, migración 20261119_usuarios_c2_admin): versión de token para
+    # los JWT, vencimiento de la clave temporal (D1) y fecha de desactivación.
+    token_version = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    temp_password_expires_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    deactivated_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     def __init__(self, **kwargs):
         if not kwargs.get("role"):

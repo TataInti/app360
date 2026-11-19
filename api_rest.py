@@ -15,6 +15,7 @@ from security import (
     generate_access_token, generate_refresh_token, decode_token,
     jwt_required, jwt_modulo, jwt_o_sesion, log_login_attempt, log_security_event,
     registrar_ultimo_acceso, token_anterior_al_cambio_de_clave, verificar_clave_login,
+    clave_temporal_vencida,
     MENSAJE_CAMBIO_CLAVE, CODIGO_CAMBIO_CLAVE
 )
 from extensions import limiter
@@ -133,8 +134,8 @@ def login():
             return jsonify({'error': MENSAJE_CAMBIO_CLAVE, 'codigo': CODIGO_CAMBIO_CLAVE}), 403
         registrar_ultimo_acceso(user)
         # Generate JWT tokens
-        access_token = generate_access_token(user.id, user.username, user.role)
-        refresh_token = generate_refresh_token(user.id, user.username)
+        access_token = generate_access_token(user.id, user.username, user.role, user.token_version or 0)
+        refresh_token = generate_refresh_token(user.id, user.username, user.token_version or 0)
         
         log_login_attempt(username, success=True, ip=request.remote_addr)
         
@@ -173,6 +174,10 @@ def refresh_token():
     user = User.query.filter_by(username=payload['username'], active=True).first()
     if not user:
         return error_response(401, "User not found or inactive")
+    # Versión de token (C2): el refresh también cae con la desactivación y con la clave temporal vencida.
+    if payload.get('tv', 0) != (user.token_version or 0) or clave_temporal_vencida(user):
+        log_security_event('REFRESH_TOKEN_REVOKED', 'Refresh token de otra versión o clave temporal vencida', user=user.username)
+        return error_response(401, "Invalid or expired refresh token")
     if token_anterior_al_cambio_de_clave(user, payload):
         log_security_event('REFRESH_TOKEN_REVOKED', 'Refresh token anterior al cambio de clave', user=user.username)
         return error_response(401, "Invalid or expired refresh token")
@@ -181,7 +186,7 @@ def refresh_token():
         return jsonify({'error': MENSAJE_CAMBIO_CLAVE, 'codigo': CODIGO_CAMBIO_CLAVE}), 403
     
     # Generate new access token
-    access_token = generate_access_token(user.id, user.username, user.role)
+    access_token = generate_access_token(user.id, user.username, user.role, user.token_version or 0)
     
     return jsonify({
         'access_token': access_token,
