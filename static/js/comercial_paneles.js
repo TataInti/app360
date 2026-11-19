@@ -129,14 +129,19 @@
   function readFilterValue(select) {
     return filterInstances.get(select)?.getValue() ?? select.value;
   }
+  // Lo que muestra el control (incluido «Todos los …») lleva su nombre completo en title:
+  // si el texto se corta con puntos suspensivos, el nombre completo sigue disponible.
+  function titularItems(instance) {
+    instance.control.querySelectorAll('.item').forEach(item => { item.title = item.textContent.trim(); });
+  }
   function setFilterValue(select, value) {
     const instance = filterInstances.get(select);
     if (instance) {
       instance.setValue(value || '', true);
-      const item = value ? instance.getItem(value) : null;
-      if (item) item.title = item.textContent.trim();
+      titularItems(instance);
     }
     else select.value = value || '';
+    select.title = select.options[select.selectedIndex]?.text || '';
   }
   function filterSelects(scope, dimension) {
     return document.querySelectorAll(`[data-com-filter-scope="${scope}"][data-com-filter-dimension="${dimension}"]`);
