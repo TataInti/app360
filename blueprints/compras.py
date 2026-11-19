@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, session, url_for
 
-from models.time_utils import now_local
+from models.time_utils import LOCAL_TZ, now_local
 from models import (
     InstrumentoPago,
     Location,
@@ -193,9 +193,16 @@ def _nuevo_token_recepcion():
     """Token del formulario de recepción. Solo vale si la orden no recibió nada después de emitirlo."""
     token = uuid.uuid4().hex
     emitidos = _tokens_recepcion()
-    emitidos[token] = now_local().replace(tzinfo=None).isoformat()
+    emitidos[token] = now_local().isoformat()
     session["recepciones_pendientes"] = dict(list(emitidos.items())[-20:])
     return token
+
+
+def _epoch(valor):
+    """Instante de un datetime para comparar. Un valor sin zona horaria es hora local (la de now_local)."""
+    if valor.tzinfo is None:
+        valor = valor.replace(tzinfo=LOCAL_TZ)
+    return valor.timestamp()
 
 
 def _pendiente_por_producto(order):
@@ -252,8 +259,8 @@ def compras_add_receipt(order_id):
     emitido = datetime.fromisoformat(emitidos[token])
 
     # Formulario viejo: si la orden recibió algo después de emitirlo, hay que recargar el detalle.
-    ultima = max((r.received_at for r in order.receipts if r.received_at is not None), default=None)
-    if ultima is not None and ultima.replace(tzinfo=None) >= emitido:
+    ultima = max((_epoch(r.received_at) for r in order.receipts if r.received_at is not None), default=None)
+    if ultima is not None and ultima >= _epoch(emitido):
         emitidos.pop(token, None)
         session["recepciones_pendientes"] = emitidos
         flash("La orden cambió desde que abriste el formulario. Revisá el detalle antes de cargar la recepción.", "warning")
