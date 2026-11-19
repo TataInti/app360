@@ -27,6 +27,7 @@
                     <i class="bi bi-calendar"></i> Historial
                 </button>
             </div>
+            <div class="col-12"><small id="aviso-generar" class="text-muted"></small></div>
         </div>
     </div>
 
@@ -41,7 +42,7 @@
     <!-- Tabla de Prevsualización -->
     <div class="table-card" id="tabla-preview-container" style="display: none;">
         <div class="table-card-head">
-            <h3>Detalle de Liquidaciones</h3>
+            <h3>Detalle de Liquidaciones <span id="etiqueta-periodo-liquidado" class="badge bg-secondary ms-2" style="display: none;">Período ya liquidado</span></h3>
         </div>
         <div class="scroll-table">
             <table class="table table-hover mb-0">
@@ -181,8 +182,7 @@
                     return;
                 }
                 previewData = data.liquidaciones;
-                mostrarPreview(data.liquidaciones);
-                document.getElementById('btn-generar').disabled = false;
+                mostrarPreview(data.liquidaciones, data);
             })
             .catch(e => {
                 console.error('Error:', e);
@@ -190,7 +190,19 @@
             });
     }
 
-    function mostrarPreview(liquidaciones) {
+    function mostrarPreview(liquidaciones, meta = {}) {
+        // Período ya liquidado: Generar queda deshabilitado y el motivo se muestra en pantalla.
+        const liquidado = !!meta.periodo_liquidado;
+        const sinLiquidacion = Number(meta.empleados_sin_liquidacion || 0);
+        document.getElementById('etiqueta-periodo-liquidado').style.display = liquidado ? '' : 'none';
+        document.getElementById('btn-generar').disabled = liquidado;
+        let aviso = liquidado
+            ? 'El período ya está liquidado: se muestran los valores guardados y no se puede generar de nuevo.'
+            : '';
+        if (sinLiquidacion > 0) {
+            aviso += ` ${sinLiquidacion} empleado(s) activo(s) no tienen liquidación guardada en este período.`;
+        }
+        document.getElementById('aviso-generar').textContent = aviso.trim();
         // Mostrar resumen
         document.getElementById('resumen-liquidacion').style.display = '';
         document.getElementById('tabla-preview-container').style.display = '';
@@ -219,14 +231,19 @@
                 <td>$${l.descuento_cuota_prestamo.toFixed(2)}</td>
                 <td><strong>$${l.sueldo_neto.toFixed(2)}</strong></td>
                 <td>
-                    <small>
-                        ${l.adelantos_efectivo_count > 0 ? `${l.adelantos_efectivo_count} adel. efectivo<br>` : ''}
-                        ${l.adelantos_mercaderia_count > 0 ? `${l.adelantos_mercaderia_count} adel. mercadería<br>` : ''}
-                        ${l.prestamos_count > 0 ? `${l.prestamos_count} préstamo(s)` : ''}
-                    </small>
+                    <small>${detalleLiquidacion(l)}</small>
                 </td>
             </tr>
         `).join('');
+    }
+
+    function detalleLiquidacion(l) {
+        if (l.ya_liquidado) return 'Liquidado: valores guardados';
+        const partes = [];
+        if (l.adelantos_efectivo_count > 0) partes.push(`${l.adelantos_efectivo_count} adel. efectivo`);
+        if (l.adelantos_mercaderia_count > 0) partes.push(`${l.adelantos_mercaderia_count} adel. mercadería`);
+        if (l.prestamos_count > 0) partes.push(`${l.prestamos_count} préstamo(s)`);
+        return partes.join('<br>');
     }
 
     async function generarLiquidaciones() {
