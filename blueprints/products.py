@@ -10,7 +10,7 @@ from .base_crud import BaseCRUD
 products_bp = Blueprint("products", __name__)
 
 # Create CRUD instance
-crud = BaseCRUD("products", None, ProductService, "products")
+crud = BaseCRUD("products", None, ProductService, "products", ruta_alta="products.new_product")
 products_bp = crud.bp
 # Incluye las rutas de BaseCRUD (/, /new, /edit/<id>) además de las propias.
 protect_blueprint(products_bp, "products")
