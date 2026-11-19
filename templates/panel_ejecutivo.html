@@ -386,7 +386,9 @@
         ['summary-restan', kpis.egresos_incluidos],
         ['summary-resultado', kpis.resultado_gestion]
       ].forEach(([id, value]) => { document.getElementById(id).textContent = money(value); });
-      document.getElementById('kpi-resultado-pct').textContent = `Resultado del período: ${percent(kpis.resultado_sobre_facturacion_pct)} de la facturación`;
+      document.getElementById('kpi-resultado-pct').textContent = kpis.datos_insuficientes
+        ? 'Sin datos de costo para calcular el margen'
+        : `Resultado del período: ${percent(kpis.resultado_sobre_facturacion_pct)} de la facturación`;
       setSignedClass(document.getElementById('kpi-diferencia'), kpis.diferencia_facturacion_compras);
       setSignedClass(document.getElementById('kpi-resultado'), kpis.resultado_gestion);
       setSignedClass(document.getElementById('kpi-caja'), kpis.caja_neta);

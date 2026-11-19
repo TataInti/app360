@@ -209,14 +209,17 @@
                             <input type="number" class="form-control" name="saldo_inicial" step="0.01" data-money-input data-money-calc="saldo_inicial" required>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Ingresos del Turno</label>
-                            <input type="number" class="form-control" name="ingresos" step="0.01" data-money-input data-money-calc="ingresos">
+                            <label class="form-label">Ingresos del turno (sistema)</label>
+                            <input type="text" class="form-control" id="ingresosTurnoSistema" readonly>
+                            <div class="form-text">Se toman de los movimientos del turno.</div>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Egresos del Turno</label>
-                            <input type="number" class="form-control" name="egresos" step="0.01" data-money-input data-money-calc="egresos">
+                            <label class="form-label">Egresos del turno (sistema)</label>
+                            <input type="text" class="form-control" id="egresosTurnoSistema" readonly>
+                            <div class="form-text">Se toman de los movimientos del turno.</div>
                         </div>
                     </div>
+                    <div id="avisoTotalesTurno" class="small text-danger mb-2" style="display: none;"></div>
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
@@ -375,6 +378,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Calcular diferencia automáticamente
     const form = document.getElementById('formArqueo');
     form.querySelectorAll('[data-money-calc]').forEach(input => input.addEventListener('input', calcularDiferencia));
+    form.querySelector('input[name="fecha"]').addEventListener('change', cargarTotalesTurno);
+    form.querySelector('select[name="turno"]').addEventListener('change', cargarTotalesTurno);
+    document.getElementById('modalNuevoArqueo').addEventListener('show.bs.modal', cargarTotalesTurno);
 });
 
 let instrumentosList = [];
@@ -477,19 +483,62 @@ async function cargarInstrumentosArqueo() {
     }
 }
 
+// Ingresos y egresos del turno tal como los toma el servidor al guardar (misma fórmula:
+// diferencia = saldo final − (saldo inicial + ingresos − egresos)).
+let totalesTurno = null;
+
 function calcularDiferencia() {
     const form = document.getElementById('formArqueo');
     const inicial = getMoneyValue(form.querySelector('[data-money-calc="saldo_inicial"]'));
-    const ingresos = getMoneyValue(form.querySelector('[data-money-calc="ingresos"]'));
-    const egresos = getMoneyValue(form.querySelector('[data-money-calc="egresos"]'));
     const real = getMoneyValue(form.querySelector('[data-money-calc="saldo_real"]'));
-    
-    const esperado = inicial + ingresos - egresos;
-    const diferencia = real - esperado;
-    
     const diferenciaEl = document.getElementById('diferenciaCalc');
+    if (!totalesTurno) {
+        diferenciaEl.value = '';
+        diferenciaEl.className = 'form-control';
+        return;
+    }
+
+    const esperado = inicial + totalesTurno.ingresos - totalesTurno.egresos;
+    const diferencia = real - esperado;
+
     diferenciaEl.value = formatMoneyValue(diferencia);
     diferenciaEl.className = 'form-control ' + (diferencia < 0 ? 'text-danger' : diferencia > 0 ? 'text-warning' : 'text-success');
+}
+
+async function cargarTotalesTurno() {
+    const form = document.getElementById('formArqueo');
+    const fecha = form.querySelector('input[name="fecha"]').value;
+    const turno = form.querySelector('select[name="turno"]').value;
+    const aviso = document.getElementById('avisoTotalesTurno');
+    totalesTurno = null;
+    document.getElementById('ingresosTurnoSistema').value = '';
+    document.getElementById('egresosTurnoSistema').value = '';
+    aviso.style.display = 'none';
+    if (!fecha || !turno) {
+        calcularDiferencia();
+        return;
+    }
+    try {
+        const params = new URLSearchParams({ fecha, turno });
+        const resp = await fetch(`/api/tesoreria/arqueos/totales?${params}`);
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'No se pudieron cargar los movimientos del turno.');
+        // Si el operador cambió fecha o turno mientras llegaba la respuesta, se descarta.
+        if (form.querySelector('input[name="fecha"]').value !== fecha ||
+            form.querySelector('select[name="turno"]').value !== turno) {
+            return;
+        }
+        totalesTurno = {
+            ingresos: Number(data.ingresos_total) || 0,
+            egresos: Number(data.egresos_total) || 0,
+        };
+        document.getElementById('ingresosTurnoSistema').value = formatMoneyValue(totalesTurno.ingresos);
+        document.getElementById('egresosTurnoSistema').value = formatMoneyValue(totalesTurno.egresos);
+    } catch (e) {
+        aviso.textContent = e.message || 'No se pudieron cargar los movimientos del turno.';
+        aviso.style.display = '';
+    }
+    calcularDiferencia();
 }
 
 async function cargarArqueos() {
@@ -662,19 +711,20 @@ document.getElementById('formArqueo')?.addEventListener('submit', async function
     const formData = new FormData(this);
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     
+    if (!totalesTurno) {
+        alert('No se pudieron cargar los movimientos del turno. Revisá fecha y turno antes de guardar.');
+        return;
+    }
+
     const inicial = parseFloat(formData.get('saldo_inicial')) || 0;
-    const ingresos = parseFloat(formData.get('ingresos')) || 0;
-    const egresos = parseFloat(formData.get('egresos')) || 0;
     const real = parseFloat(formData.get('saldo_real')) || 0;
-    
+
+    // Ingresos y egresos los toma el servidor de los movimientos: no se envían ni se editan aquí.
     const data = {
         fecha: formData.get('fecha'),
         turno: formData.get('turno'),
         saldo_inicial: inicial,
-        ingresos: ingresos,
-        egresos: egresos,
         saldo_final: real,
-        diferencia: real - (inicial + ingresos - egresos),
         observaciones: formData.get('observaciones'),
         detalles: []
     };

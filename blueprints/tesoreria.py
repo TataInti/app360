@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, time, date
 import io
 from decimal import Decimal
 
-from flask import Blueprint, request, jsonify, render_template, session, send_file
+from flask import Blueprint, current_app, request, jsonify, render_template, session, send_file
 
 from models import (
     ArqueoCaja,
@@ -576,7 +576,8 @@ def arqueos_crear():
         saldo_inicial = Decimal(str(saldo_inicial)) if saldo_inicial else Decimal("0")
         saldo_final = Decimal(str(saldo_final))
     except Exception as e:
-        return jsonify({"error": f"Datos numéricos inválidos: {str(e)}"}), 400
+        current_app.logger.warning("Datos de arqueo inválidos: %s", e)
+        return jsonify({"error": "Datos numéricos inválidos. Revisá los importes y la fecha."}), 400
 
     if ArqueoCaja.query.filter_by(fecha=fecha, turno=turno).first():
         return jsonify({"error": "Ya existe arqueo para esa fecha y turno"}), 400
@@ -586,23 +587,8 @@ def arqueos_crear():
         return jsonify({"error": "Usuario no encontrado"}), 404
 
     try:
-        # Rango horario según turno
-        fecha_inicio = datetime.combine(fecha, time(0, 0, 0))
-        if turno == "mañana":
-            fecha_fin = datetime.combine(fecha, time(13, 59, 59))
-        elif turno == "tarde":
-            fecha_inicio = datetime.combine(fecha, time(14, 0, 0))
-            fecha_fin = datetime.combine(fecha, time(21, 59, 59))
-        else:  # noche
-            fecha_inicio = datetime.combine(fecha, time(22, 0, 0))
-            fecha_fin = datetime.combine(fecha + timedelta(days=1), time(5, 59, 59))
-
-        # Filtro base: solo movimientos activos (excluir anulados/pendientes)
-        base_filter = [
-            MovimientoCaja.fecha_hora >= fecha_inicio,
-            MovimientoCaja.fecha_hora <= fecha_fin,
-            MovimientoCaja.estado == "activo",
-        ]
+        # Filtro base: solo movimientos activos del turno (excluir anulados/pendientes)
+        base_filter = _filtro_turno(fecha, turno)
 
         ingresos = db.session.query(db.func.sum(MovimientoCaja.monto)).filter(
             *base_filter, MovimientoCaja.tipo == "ingreso"
@@ -669,7 +655,56 @@ def arqueos_crear():
         }), 201
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Error al crear arqueo: {str(e)}"}), 500
+        current_app.logger.exception("Error al crear arqueo de caja")
+        return jsonify({"error": "No se pudo crear el arqueo. Intentá de nuevo."}), 500
+
+
+TURNOS_ARQUEO = ("mañana", "tarde", "noche")
+
+
+def _filtro_turno(fecha, turno):
+    """Movimientos activos del turno de caja. Lo usan el arqueo al guardar y su vista previa."""
+    fecha_inicio = datetime.combine(fecha, time(0, 0, 0))
+    if turno == "mañana":
+        fecha_fin = datetime.combine(fecha, time(13, 59, 59))
+    elif turno == "tarde":
+        fecha_inicio = datetime.combine(fecha, time(14, 0, 0))
+        fecha_fin = datetime.combine(fecha, time(21, 59, 59))
+    else:  # noche
+        fecha_inicio = datetime.combine(fecha, time(22, 0, 0))
+        fecha_fin = datetime.combine(fecha + timedelta(days=1), time(5, 59, 59))
+    return [
+        MovimientoCaja.fecha_hora >= fecha_inicio,
+        MovimientoCaja.fecha_hora <= fecha_fin,
+        MovimientoCaja.estado == "activo",
+    ]
+
+
+@tesoreria_bp.route("/api/tesoreria/arqueos/totales", methods=["GET"])
+def arqueos_totales_turno():
+    """Ingresos y egresos del turno tal como los toma el arqueo al guardar (solo lectura)."""
+    fecha_raw = request.args.get("fecha")
+    turno = request.args.get("turno")
+    if not fecha_raw or turno not in TURNOS_ARQUEO:
+        return jsonify({"error": "Fecha y turno requeridos"}), 400
+    try:
+        fecha = datetime.strptime(fecha_raw, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"error": "Fecha inválida"}), 400
+
+    filtro = _filtro_turno(fecha, turno)
+    ingresos = db.session.query(db.func.sum(MovimientoCaja.monto)).filter(
+        *filtro, MovimientoCaja.tipo == "ingreso"
+    ).scalar() or 0
+    egresos = db.session.query(db.func.sum(MovimientoCaja.monto)).filter(
+        *filtro, MovimientoCaja.tipo == "egreso"
+    ).scalar() or 0
+    return jsonify({
+        "fecha": fecha.isoformat(),
+        "turno": turno,
+        "ingresos_total": round(float(ingresos), 2),
+        "egresos_total": round(float(egresos), 2),
+    })
 
 
 @tesoreria_bp.route("/api/tesoreria/estado", methods=["GET"])
@@ -807,7 +842,8 @@ def arqueos_editar(id):
         })
     except Exception as e:
         db.session.rollback()
-        return jsonify({"error": f"Error al actualizar arqueo: {str(e)}"}), 500
+        current_app.logger.exception("Error al actualizar arqueo de caja")
+        return jsonify({"error": "No se pudo actualizar el arqueo. Intentá de nuevo."}), 500
 
 
 @tesoreria_bp.route("/api/tesoreria/arqueos/<int:id>/logs", methods=["GET"])
