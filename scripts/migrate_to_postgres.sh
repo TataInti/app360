@@ -19,7 +19,8 @@ echo "📋 Verificando conexión a PostgreSQL..."
 python -c "
 import os
 from sqlalchemy import create_engine
-url = os.getenv('DATABASE_URL', 'postgresql://app360:password@localhost:5432/app360')
+url = os.getenv('DATABASE_URL')
+if not url: raise SystemExit('Definí DATABASE_URL (ver .env.example).')
 engine = create_engine(url)
 engine.execute('SELECT 1')
 print('✅ PostgreSQL disponible')

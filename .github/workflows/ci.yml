@@ -28,6 +28,19 @@ jobs:
       - name: Descargar el código
         uses: actions/checkout@v4
 
+      - name: Sin secretos en el repo
+        # Falla si un archivo versionado trae credenciales con formato real. Imprime solo
+        # archivo y linea, nunca el contenido: el repositorio y sus logs son publicos.
+        run: |
+          patron='github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|postgres(ql)?://[^:[:space:]]+:[^@[:space:]<$]+@'
+          hallazgos=$(git grep -nIE "$patron" -- . ':(exclude).github/workflows/ci.yml' ':(exclude).env.example' || true)
+          if [ -n "$hallazgos" ]; then
+            echo "::error::Posible credencial versionada (solo archivo y linea):"
+            printf '%s\n' "$hallazgos" | cut -d: -f1,2
+            exit 1
+          fi
+          echo "OK: ningun archivo versionado trae credenciales con formato real."
+
       - name: Preparar Python 3.12 con caché de pip
         uses: actions/setup-python@v5
         with:
