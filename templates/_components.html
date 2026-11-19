@@ -1,0 +1,70 @@
+{#
+  Componentes comunes SIS-0B/App360. autoescape de Jinja queda activo.
+
+  form_field(label, input_html_or_name, unidad=None, ayuda=None, error=None):
+    etiqueta y textos se escapan automáticamente. Un nombre genera un input de texto;
+    markup de control confiable se pasa como Markup (por ejemplo, |safe en una plantilla).
+  form_grid(columnas=2): caller block de campos; admite 2 o 3 columnas.
+  status(estado): punto accesible como decorativo, texto visible y variante conocida o neutra.
+  page_head(titulo, subtitulo=None): caller block para las acciones de cabecera.
+#}
+{% macro form_field(label, input_html_or_name, unidad=None, ayuda=None, error=None) -%}
+  {% set nombre_campo = input_html_or_name if input_html_or_name is not escaped else none %}
+  <div class="app-field">
+    <label class="app-field__label"{% if nombre_campo is not none %} for="{{ nombre_campo }}"{% endif %}>{{ label }}</label>
+    {% if unidad %}
+      <div class="app-input-unit">
+        {% if input_html_or_name is escaped %}
+          {{ input_html_or_name }}
+        {% else %}
+          <input class="app-input" id="{{ nombre_campo }}" name="{{ nombre_campo }}" type="text">
+        {% endif %}
+        <span class="app-input-unit__text">{{ unidad }}</span>
+      </div>
+    {% elif input_html_or_name is escaped %}
+      {{ input_html_or_name }}
+    {% else %}
+      <input class="app-input" id="{{ nombre_campo }}" name="{{ nombre_campo }}" type="text">
+    {% endif %}
+    {% if ayuda %}<small class="app-field__help">{{ ayuda }}</small>{% endif %}
+    {% if error %}<small class="app-field__error" role="alert">{{ error }}</small>{% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro form_grid(columnas=2) -%}
+  {% set cantidad_columnas = columnas if columnas in [2, 3] else 2 %}
+  <div class="app-form-grid app-form-grid--{{ cantidad_columnas }}" data-columns="{{ cantidad_columnas }}">
+    {{ caller() }}
+  </div>
+{%- endmacro %}
+
+{% macro status(estado) -%}
+  {% set tonos = {
+    'Cumplido': 'ok', 'En ritmo': 'ok', 'Por debajo del ritmo esperado': 'warn',
+    'No cumplido': 'warn', 'No iniciado': 'neutral', 'Sin meta': 'neutral',
+    'Activo': 'ok', 'Activo a 30 días': 'ok', 'Inactivo': 'neutral',
+    'Pendiente': 'warn', 'Pendiente aprobación': 'warn', 'Pend. anulación': 'warn',
+    'Pendiente de anulación': 'warn', 'Anulado': 'neutral', 'Aprobado': 'ok',
+    'Pagado': 'ok', 'Liquidado': 'neutral', 'Período ya liquidado': 'neutral',
+    'Falta': 'error', 'Tarde': 'warn', 'Fichada falt.': 'warn',
+    'Fichada faltante': 'warn', 'Justificado': 'neutral', 'OK': 'ok',
+    'Ingreso': 'ok', 'Egreso': 'neutral', 'No participa': 'neutral',
+    'Rechazado': 'error', 'Rechazada': 'error'
+  } %}
+  {% set etiqueta = estado|default('—', true) %}
+  {% set variante = tonos.get(etiqueta, 'neutral') %}
+  <span class="app-status app-status--{{ variante }}">
+    <span class="app-status__dot" aria-hidden="true"></span>
+    <span class="app-status__text">{{ etiqueta }}</span>
+  </span>
+{%- endmacro %}
+
+{% macro page_head(titulo, subtitulo=None) -%}
+  <header class="app-page-head">
+    <div class="app-page-head__content">
+      <h1 class="app-page-head__title">{{ titulo }}</h1>
+      {% if subtitulo %}<p class="app-page-head__subtitle">{{ subtitulo }}</p>{% endif %}
+    </div>
+    <div class="app-page-head__actions">{{ caller() if caller is defined else '' }}</div>
+  </header>
+{%- endmacro %}
