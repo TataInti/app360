@@ -264,7 +264,8 @@ def recorrido_admin(page, informe, carpeta):
     print("== Pantalla de objetivos (admin)", flush=True)
     page.goto(BASE_URL + "/comercial/objetivos", wait_until="domcontentloaded")
     esperar_carga(page)
-    page.fill("#periodoObjetivos", MES)
+    page.locator("#periodoMes").select_option(MES[5:7])
+    page.locator("#periodoAnio").select_option(MES[:4])
     page.dispatch_event("#periodoObjetivos", "change")
     esperar_carga(page)
     page.wait_for_timeout(400)
@@ -442,8 +443,9 @@ def recorrido_admin(page, informe, carpeta):
 
     fila_q4 = page.locator("#legacyGoals tbody tr").filter(has_text="2026-Q4").first
     form_q4 = fila_q4.locator("form[data-convert-form]")
-    if fila_q4.locator("input[data-month]").count():
-        fila_q4.locator("input[data-month]").fill(MES)
+    if fila_q4.locator("select[data-month-mes]").count():
+        fila_q4.locator("select[data-month-mes]").select_option(MES[5:7])
+        fila_q4.locator("select[data-month-anio]").select_option(MES[:4])
     abrir_control(page, form_q4)
     page.keyboard.type(DIEGO)
     expect(page.locator(".ts-dropdown:visible .option", has_text=DIEGO).first).to_be_visible(

@@ -363,13 +363,22 @@
         return;
       }
       const rows = pending.map(goal => {
+        const anioOrigen = (String(goal.periodo || '').match(/\b(?:19|20)\d{2}\b/) || [])[0] || '';
         const monthField = goal.mes_sugerido
           ? `<span>${esc(goal.mes_sugerido)}</span>`
-          : `<input type="month" data-month required aria-label="Período mensual">`;
+          : `<span class="oc-periodo-pareja"><select data-month-mes required aria-label="Mes"></select><select data-month-anio required aria-label="Año"></select></span>`;
         const sellerOptions = state.vendedores.map(v => `<option value="${esc(v.id)}">${esc(v.nombre_visible)}</option>`).join('');
-        return `<tr data-goal-id="${esc(goal.goal_id)}" data-month-suggested="${esc(goal.mes_sugerido || '')}"><td data-label="Empleado">${esc(goal.empleado || 'Sin empleado')}</td><td data-label="Período original">${esc(goal.periodo || 'Sin período')}</td><td data-label="Descripción">${esc(goal.descripcion || '')}</td><td data-label="Meta" class="num">${number(goal.meta)}</td><td data-label="Conversión"><form class="oc-legacy-form" data-convert-form novalidate><label>Vendedor comercial<select data-seller required><option value="">Buscar vendedor…</option>${sellerOptions}</select></label><label>Empresa<select data-company required><option value="">Elegir…</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option></select></label><label>Medida<select data-measure required><option value="">Elegir…</option><option value="importe">Importe</option><option value="cajas">Cajas</option><option value="kilos">Kilos</option></select></label><label>Mes ${monthField}</label><button class="com-primary" type="submit">Convertir a línea</button></form></td></tr>`;
+        return `<tr data-goal-id="${esc(goal.goal_id)}" data-month-suggested="${esc(goal.mes_sugerido || '')}" data-anio-origen="${esc(anioOrigen)}"><td data-label="Empleado">${esc(goal.empleado || 'Sin empleado')}</td><td data-label="Período original">${esc(goal.periodo || 'Sin período')}</td><td data-label="Descripción">${esc(goal.descripcion || '')}</td><td data-label="Meta" class="num">${number(goal.meta)}</td><td data-label="Conversión"><form class="oc-legacy-form" data-convert-form novalidate><label>Vendedor comercial<select data-seller required><option value="">Buscar vendedor…</option>${sellerOptions}</select></label><label>Empresa<select data-company required><option value="">Elegir…</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option></select></label><label>Medida<select data-measure required><option value="">Elegir…</option><option value="importe">Importe</option><option value="cajas">Cajas</option><option value="kilos">Kilos</option></select></label><label>Mes ${monthField}</label><button class="com-primary" type="submit">Convertir a línea</button></form></td></tr>`;
       }).join('');
       $('legacyGoals').innerHTML = `<table><thead><tr><th>Empleado</th><th>Período original</th><th>Descripción</th><th>Meta</th><th>Vinculación comercial</th></tr></thead><tbody>${rows}</tbody></table>`;
+      $('legacyGoals').querySelectorAll('tr[data-goal-id]').forEach(row => {
+        const mesSelect = row.querySelector('[data-month-mes]');
+        if (!mesSelect) return;
+        llenarSelectoresPeriodo(mesSelect, row.querySelector('[data-month-anio]'), {
+          anioOrigen: Number(row.dataset.anioOrigen) || null,
+          vacio: true,
+        });
+      });
       $('legacyGoals').querySelectorAll('[data-seller]').forEach(select => tomSelect(select, {
         allowEmptyOption: true,
         maxOptions: 100,
@@ -388,7 +397,8 @@
     if (!form) return;
     event.preventDefault();
     const row = form.closest('tr');
-    const monthInput = row.querySelector('[data-month]');
+    const mesSelect = row.querySelector('[data-month-mes]');
+    const anioSelect = row.querySelector('[data-month-anio]');
     const payload = {
       goal_id: Number(row.dataset.goalId),
       vendedor_id: Number(form.querySelector('[data-seller]').value),
@@ -400,7 +410,7 @@
     if (!payload.empresa) faltantes.push('empresa');
     if (!payload.medida) faltantes.push('medida');
     if (row.dataset.monthSuggested) payload.mes = row.dataset.monthSuggested;
-    else if (monthInput?.value) payload.mes = monthInput.value;
+    else if (mesSelect?.value && anioSelect?.value) payload.mes = `${anioSelect.value}-${mesSelect.value}`;
     else faltantes.push('mes');
     if (faltantes.length) {
       setError('legacyError', `Para convertir este objetivo falta: ${faltantes.join(', ')}.`);
@@ -439,15 +449,28 @@
     const mes = new URLSearchParams(location.search).get('mes');
     return /^\d{4}-(0[1-9]|1[0-2])$/.test(mes || '') ? mes : null;
   }
-  function fijarPeriodo(valor) {
-    const [anio, mes] = valor.split('-');
+  // Mes y año en español, con valor YYYY-MM. La barra de período y la conversión de
+  // objetivos históricos usan este mismo helper. Sin valor, deja «Mes…» y «Año…» vacíos.
+  function llenarSelectoresPeriodo(selectMes, selectAnio, {valor = '', anioOrigen = null, vacio = false} = {}) {
+    const [anio = '', mes = ''] = valor ? valor.split('-') : [];
     const actual = new Date().getFullYear();
+    const referencia = Number(anio) || actual;
+    const desde = Math.min(referencia, anioOrigen || referencia, actual - 2);
+    const hasta = Math.max(referencia, actual + 1);
     const anios = [];
-    for (let y = Math.min(Number(anio), actual - 2); y <= Math.max(Number(anio), actual + 1); y++) anios.push(y);
-    $('periodoAnio').replaceChildren(...anios.map(y => new Option(String(y), String(y))));
-    $('periodoMes').replaceChildren(...MESES_PERIODO.map((nombre, i) => new Option(nombre, String(i + 1).padStart(2, '0'))));
-    $('periodoAnio').value = anio;
-    $('periodoMes').value = mes;
+    for (let y = desde; y <= hasta; y++) anios.push(new Option(String(y), String(y)));
+    const meses = MESES_PERIODO.map((nombre, i) => new Option(nombre, String(i + 1).padStart(2, '0')));
+    if (vacio) {
+      anios.unshift(new Option('Año…', ''));
+      meses.unshift(new Option('Mes…', ''));
+    }
+    selectAnio.replaceChildren(...anios);
+    selectMes.replaceChildren(...meses);
+    selectAnio.value = anio;
+    selectMes.value = mes;
+  }
+  function fijarPeriodo(valor) {
+    llenarSelectoresPeriodo($('periodoMes'), $('periodoAnio'), {valor});
     $('periodoObjetivos').value = valor;
   }
   function cambiarPeriodoDesdeSelectores() {
