@@ -4,26 +4,14 @@ Reproduce lo que hace el E2E en un navegador: recibir parcial, reintentar un sob
 con el formulario recargado. Datos sintéticos PROBE; SQLite en memoria.
 """
 
-from datetime import datetime, timezone
 import re
 
 import pytest
 
 from models import BusinessUnit, Location, Product, PurchaseOrder, PurchaseReceipt, StockLevel, db
-from models.time_utils import LOCAL_TZ
 from sesion_de_prueba import asegurar_usuario, marcar_sesion
 
 PATRON_TOKEN = re.compile(r'name="recepcion_token" value="([0-9a-f]+)"')
-
-
-def test_los_instantes_con_y_sin_zona_horaria_se_comparan_bien():
-    from blueprints.compras import _epoch
-
-    utc = datetime(2026, 11, 19, 4, 59, 16, tzinfo=timezone.utc)
-    local = datetime(2026, 11, 19, 1, 59, 16, tzinfo=LOCAL_TZ)
-    assert _epoch(utc) == _epoch(local)
-    assert _epoch(datetime(2026, 11, 19, 1, 59, 16)) == _epoch(local)
-    assert _epoch(local.replace(second=17)) > _epoch(utc)
 
 
 def _cliente_admin(app):

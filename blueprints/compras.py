@@ -5,7 +5,6 @@ from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, session, url_for
 
-from models.time_utils import LOCAL_TZ, now_local
 from models import (
     InstrumentoPago,
     Location,
@@ -184,25 +183,18 @@ def compras_nueva():
 
 
 def _tokens_recepcion():
-    """Tokens del formulario de recepción en la sesión: {token: fecha de emisión ISO}."""
+    """Tokens del formulario de recepción en la sesión: {token: id de la última recepción al emitirlo}."""
     valor = session.get("recepciones_pendientes")
     return dict(valor) if isinstance(valor, dict) else {}
 
 
-def _nuevo_token_recepcion():
+def _nuevo_token_recepcion(order):
     """Token del formulario de recepción. Solo vale si la orden no recibió nada después de emitirlo."""
     token = uuid.uuid4().hex
     emitidos = _tokens_recepcion()
-    emitidos[token] = now_local().isoformat()
+    emitidos[token] = max((r.id for r in order.receipts), default=0)
     session["recepciones_pendientes"] = dict(list(emitidos.items())[-20:])
     return token
-
-
-def _epoch(valor):
-    """Instante de un datetime para comparar. Un valor sin zona horaria es hora local (la de now_local)."""
-    if valor.tzinfo is None:
-        valor = valor.replace(tzinfo=LOCAL_TZ)
-    return valor.timestamp()
 
 
 def _pendiente_por_producto(order):
@@ -224,7 +216,7 @@ def compras_detail(order_id):
         order=order,
         statuses=ORDER_STATUSES,
         pendientes=_pendiente_por_producto(order),
-        recepcion_token=_nuevo_token_recepcion(),
+        recepcion_token=_nuevo_token_recepcion(order),
     )
 
 
@@ -253,14 +245,13 @@ def compras_add_receipt(order_id):
 
     token = request.form.get("recepcion_token", "")
     emitidos = _tokens_recepcion()
-    if not token or token not in emitidos:
+    marca = emitidos.get(token) if token else None
+    if not isinstance(marca, int):
         flash("Esa recepción ya se registró. Revisá el detalle de la orden antes de cargarla de nuevo.", "warning")
         return redirect(destino)
-    emitido = datetime.fromisoformat(emitidos[token])
 
     # Formulario viejo: si la orden recibió algo después de emitirlo, hay que recargar el detalle.
-    ultima = max((_epoch(r.received_at) for r in order.receipts if r.received_at is not None), default=None)
-    if ultima is not None and ultima >= _epoch(emitido):
+    if max((r.id for r in order.receipts), default=0) > marca:
         emitidos.pop(token, None)
         session["recepciones_pendientes"] = emitidos
         flash("La orden cambió desde que abriste el formulario. Revisá el detalle antes de cargar la recepción.", "warning")
