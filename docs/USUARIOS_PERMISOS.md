@@ -149,4 +149,4 @@ Las cuentas existentes conservan su clave en cada corrida: solo `--reset` la cam
 Para crear un usuario con rol distinto, editar `USERS` en [scripts/setup_users.py](../scripts/setup_users.py) o usar directamente el modelo `User` en un contexto de app.
 
 > La gestión de permisos por módulo está disponible en `/admin/accesos` (roles `admin`, `manager`, `gerente`).
-> Alta/baja de usuarios y cambios de rol se hacen por script (`setup_users.py`) o directamente en BD — no hay UI de creación de usuarios.
+> Alta, desactivación y reactivación de usuarios: pantalla **Administración > Usuarios** (`/admin/usuarios`), solo para `admin`, `manager` y `gerente`. La clave temporal vence a las 72 horas y se muestra una sola vez. Cada acción queda en la tabla `user_audit_log`. Cambio de rol y restablecimiento de clave: pendientes (C3). `setup_users.py` sigue disponible para cargas por consola.

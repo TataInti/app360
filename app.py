@@ -287,6 +287,10 @@ def create_app():
 
     app.register_blueprint(admin_bp)
 
+    from blueprints.admin_usuarios import admin_usuarios_bp
+
+    app.register_blueprint(admin_usuarios_bp)
+
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     # Register error handlers

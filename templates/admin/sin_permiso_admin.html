@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="panel-header">
+        <div>
+            <h1><i class="bi bi-shield-lock"></i> Sin permiso</h1>
+            <span>La administración de usuarios es solo para administradores.</span>
+        </div>
+    </div>
+
+    <div class="table-card">
+        <div class="empty-state">
+            <i class="bi bi-lock empty-icon"></i>
+            <div class="empty-title">Esta pantalla no está disponible para tu rol</div>
+            <div class="empty-text">Si necesitás dar de alta o activar una cuenta, pedíselo a un administrador.</div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -78,8 +78,8 @@ def verificar(nombre, condicion, detalle=""):
 def preparar_datos():
     """Fija clave, rol, activo y bandera de los usuarios sintéticos. Solo base app360_c1 local."""
     url = urlsplit(os.environ.get("DATABASE_URL", ""))
-    if url.hostname not in ("127.0.0.1", "localhost") or url.path.lstrip("/") != "app360_c1":
-        raise SystemExit("El E2E C1 solo corre sobre la base app360_c1 en 127.0.0.1.")
+    if url.hostname not in ("127.0.0.1", "localhost") or url.path.lstrip("/") not in ("app360_c1", "app360_c2"):
+        raise SystemExit("El E2E de usuarios solo corre sobre app360_c1 o app360_c2 en 127.0.0.1.")
     sys.path.insert(0, RAIZ)
     os.chdir(RAIZ)
     from app import create_app
