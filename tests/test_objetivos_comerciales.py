@@ -1,5 +1,6 @@
 import importlib.util
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -168,12 +169,25 @@ def test_medidas_del_mismo_mes_son_independientes(client, app):
     vendedor_id = _vendedor_id(app, "Walter Medina")
     mes = "2025-05"
 
-    importe = _post_meta(client, vendedor_id, "CARNES", mes, "importe", 5000)
-    cajas = _post_meta(client, vendedor_id, "CARNES", mes, "cajas", 75)
-
-    assert importe.status_code == 201
-    assert cajas.status_code == 201
+    # Una línea guarda sus metas por medida: importe y cajas no se pisan.
+    linea = client.post(
+        "/api/objetivos-comerciales",
+        json={
+            "vendedor_id": vendedor_id,
+            "mes": mes,
+            "dimension_tipo": "empresa",
+            "dimension_valor": "CARNES",
+            "meta_importe": 5000,
+            "meta_cajas": 75,
+        },
+    )
+    assert linea.status_code == 201
     assert _get_objetivo(client, mes, "CARNES", "importe", vendedor_id)["meta"] == 5000.0
+    assert _get_objetivo(client, mes, "CARNES", "cajas", vendedor_id)["meta"] == 75.0
+
+    # Otra línea con el mismo vendedor, mes, nivel y valor es un duplicado exacto: se bloquea.
+    duplicada = _post_meta(client, vendedor_id, "CARNES", mes, "cajas", 90)
+    assert duplicada.status_code == 409
     assert _get_objetivo(client, mes, "CARNES", "cajas", vendedor_id)["meta"] == 75.0
 
 
@@ -210,7 +224,7 @@ def test_get_recalcula_realizado_despues_de_insertar_pre(client, app):
     assert objetivo["nota_ritmo"] == "El avance esperado es una referencia lineal, no un pronóstico."
 
 
-def test_post_rechaza_realizado_y_permite_lineas_superpuestas(client, app):
+def test_post_rechaza_realizado_y_bloquea_duplicado_exacto(client, app):
     vendedor_id = _vendedor_id(app, "Benjamín Kalja")
     base = {
         "vendedor_id": vendedor_id,
@@ -228,10 +242,39 @@ def test_post_rechaza_realizado_y_permite_lineas_superpuestas(client, app):
 
     assert client.post("/api/objetivos-comerciales", json=base).status_code == 201
     duplicate = client.post("/api/objetivos-comerciales", json=base)
-    assert duplicate.status_code == 201
+    assert duplicate.status_code == 409
     objetivo = _get_objetivo(client, "2025-06", "TODAS", "importe", vendedor_id)
+    assert objetivo["cantidad_lineas"] == 1
+    assert objetivo["meta"] == 100.0
+
+
+def test_lineas_de_otro_nivel_se_superponen_y_suman(client, app):
+    vendedor_id = _vendedor_id(app, "Benjamín Kalja")
+    mes = "2025-06"
+    _agregar_pre(
+        app,
+        "KALJA BENJAMIN",
+        "CARNES",
+        date(2025, 6, 10),
+        "PRE-SUPERPUESTO",
+        50,
+        producto="Producto superpuesto",
+    )
+    assert _post_meta(client, vendedor_id, "CARNES", mes, "importe", 100).status_code == 201
+    producto = client.post(
+        "/api/objetivos-comerciales",
+        json={
+            "vendedor_id": vendedor_id,
+            "mes": mes,
+            "dimension_tipo": "producto",
+            "dimension_valor": "Producto superpuesto",
+            "meta_importe": 40,
+        },
+    )
+    assert producto.status_code == 201
+    objetivo = _get_objetivo(client, mes, "TODAS", "importe", vendedor_id)
     assert objetivo["cantidad_lineas"] == 2
-    assert objetivo["meta"] == 200.0
+    assert objetivo["meta"] == 140.0
 
 
 def test_vendedor_sin_meta_aparece_sin_meta(client, app):
@@ -744,9 +787,126 @@ def test_pagina_objetivos_muestra_seccion_de_vinculacion(client, app):
     assert "Convertir objetivos históricos de RRHH" in page
 
 
+def _linea(vendedor_id, mes, dimension_tipo, dimension_valor, importe=100):
+    return {
+        "vendedor_id": vendedor_id,
+        "mes": mes,
+        "dimension_tipo": dimension_tipo,
+        "dimension_valor": dimension_valor,
+        "meta_importe": importe,
+    }
+
+
+MENSAJE_DUPLICADO = (
+    "Ya existe una línea de empresa «LACTEOS» para ese mes. Editala en lugar de crear otra."
+)
+
+
+def test_alta_bloquea_linea_duplicada_exacta_sin_guardar_otra(client, app):
+    vendedor_id = _vendedor_id(app, "Walter Medina")
+    _agregar_pre(app, "MEDINA WALTER", "LACTEOS", date(2025, 12, 12), "PRE-DUP-1", 75)
+    mes = "2025-12"
+
+    primera = client.post(
+        "/api/objetivos-comerciales", json=_linea(vendedor_id, mes, "empresa", "LACTEOS", 1600000)
+    )
+    assert primera.status_code == 201
+
+    duplicada = client.post(
+        "/api/objetivos-comerciales", json=_linea(vendedor_id, mes, "empresa", "LACTEOS", 50000)
+    )
+    assert duplicada.status_code == 409
+    assert duplicada.get_json() == {"error": MENSAJE_DUPLICADO}
+
+    with app.app_context():
+        filas = ComercialObjetivo.query.filter_by(
+            vendedor_id=vendedor_id, mes=mes, dimension_valor="LACTEOS"
+        ).all()
+        assert len(filas) == 1
+        assert float(filas[0].meta_importe) == 1600000.0
+
+
+def test_mismo_valor_en_otro_nivel_o_mes_no_es_duplicado(client, app):
+    vendedor_id = _vendedor_id(app, "Walter Medina")
+    _agregar_pre(
+        app,
+        "MEDINA WALTER",
+        "LACTEOS",
+        date(2025, 12, 12),
+        "PRE-DUP-2",
+        75,
+        rubro="LACTEOS",
+    )
+
+    assert client.post(
+        "/api/objetivos-comerciales", json=_linea(vendedor_id, "2025-12", "empresa", "LACTEOS")
+    ).status_code == 201
+    # Otro mes con el mismo nivel y valor: no es duplicado.
+    assert client.post(
+        "/api/objetivos-comerciales", json=_linea(vendedor_id, "2025-11", "empresa", "LACTEOS")
+    ).status_code == 201
+    # Mismo mes y valor en otro nivel: se suma por separado, como indica el brief.
+    assert client.post(
+        "/api/objetivos-comerciales", json=_linea(vendedor_id, "2025-12", "rubro", "LACTEOS")
+    ).status_code == 201
+
+
+def test_edicion_no_deja_una_linea_como_duplicado_exacto(client, app):
+    vendedor_id = _vendedor_id(app, "Walter Medina")
+    _agregar_pre(app, "MEDINA WALTER", "LACTEOS", date(2025, 12, 12), "PRE-DUP-3", 75)
+    mes = "2025-12"
+    original = client.post(
+        "/api/objetivos-comerciales", json=_linea(vendedor_id, mes, "empresa", "LACTEOS", 100)
+    )
+    assert original.status_code == 201
+    objetivo_id = original.get_json()["objetivo"]["id"]
+
+    # Duplicado heredado de una carga anterior al control: se inserta directo en la base.
+    with app.app_context():
+        copia = ComercialObjetivo(
+            vendedor_id=vendedor_id,
+            mes=mes,
+            dimension_tipo="empresa",
+            dimension_valor="LACTEOS",
+            meta_importe=Decimal("10"),
+            meta_cajas=Decimal("0"),
+            meta_kilos=Decimal("0"),
+        )
+        db.session.add(copia)
+        db.session.commit()
+        copia_id = copia.id
+
+    for linea_id in (objetivo_id, copia_id):
+        respuesta = client.patch(
+            f"/api/objetivos-comerciales/{linea_id}", json={"meta": 30, "medida": "importe"}
+        )
+        assert respuesta.status_code == 409
+        assert respuesta.get_json() == {"error": MENSAJE_DUPLICADO}
+
+    with app.app_context():
+        assert float(db.session.get(ComercialObjetivo, copia_id).meta_importe) == 10.0
+        assert float(db.session.get(ComercialObjetivo, objetivo_id).meta_importe) == 100.0
+
+
+def test_edicion_de_linea_sin_duplicado_sigue_funcionando(client, app):
+    vendedor_id = _vendedor_id(app, "Walter Medina")
+    _agregar_pre(app, "MEDINA WALTER", "LACTEOS", date(2025, 12, 12), "PRE-DUP-4", 75)
+    alta = client.post(
+        "/api/objetivos-comerciales", json=_linea(vendedor_id, "2025-12", "empresa", "LACTEOS")
+    )
+    assert alta.status_code == 201
+    objetivo_id = alta.get_json()["objetivo"]["id"]
+    edicion = client.patch(
+        f"/api/objetivos-comerciales/{objetivo_id}", json={"meta_importe": 250}
+    )
+    assert edicion.status_code == 200
+    assert edicion.get_json()["objetivo"]["metas"]["importe"] == 250
+
+
 def test_legacy_sales_goal_sync_and_manual_realizado_are_retired(client):
     assert client.post("/api/comercial/objetivos/sincronizar-pre").status_code == 410
     assert client.put(
         "/api/comercial/objetivos/1",
         json={"current_value": 125},
     ).status_code == 410
+
