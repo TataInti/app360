@@ -234,6 +234,15 @@ def comisiones_listar():
     periodo = request.args.get("periodo")  # YYYY-MM
     usuario_id = request.args.get("usuario_id")
     pagada = request.args.get("pagada")
+    if usuario_id:
+        try:
+            usuario_id = int(usuario_id)
+            if usuario_id < 1:
+                raise ValueError
+        except (TypeError, ValueError):
+            return jsonify({"error": "El parámetro usuario_id debe ser un entero positivo"}), 400
+    if pagada is not None and pagada.lower() not in ("true", "false"):
+        return jsonify({"error": "El parámetro pagada debe ser true o false"}), 400
 
     query = Comision.query
 

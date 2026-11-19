@@ -1,8 +1,10 @@
 # api_rest.py - REST API endpoints for frontend integration
 from flask import Blueprint, jsonify, request, current_app
 from datetime import datetime, date, timedelta
+import math
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
+from werkzeug.exceptions import NotFound
 from models import db
 from models import (
     Product, Location, StockLevel, Lead, BusinessUnit,
@@ -223,11 +225,28 @@ def create_product():
         data = get_json_payload()
         if not data:
             return error_response(400, "Invalid request body")
-        missing = require_fields(data, ["name"])
-        if missing:
-            return missing
+        name = data.get('name')
+        if not isinstance(name, str) or not name.strip():
+            return error_response(400, "El nombre debe ser un texto no vacío")
+        if data.get('sku') is not None and not isinstance(data['sku'], str):
+            return error_response(400, "El SKU debe ser un texto")
+        if data.get('description') is not None and not isinstance(data['description'], str):
+            return error_response(400, "La descripción debe ser un texto")
+        for field in ('price',):
+            value = data.get(field)
+            if value is not None and (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+            ):
+                return error_response(400, f"{field} debe ser numérico")
+        for field in ('business_unit_id', 'location_id'):
+            value = data.get(field)
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
+                return error_response(400, f"{field} debe ser un entero")
         product = Product(
-            name=data['name'],
+            name=name,
+            sku=data.get('sku'),
             description=data.get('description'),
             price=data.get('price'),
             business_unit_id=data.get('business_unit_id'),
@@ -257,6 +276,9 @@ def update_product(product_id):
         product.location_id = data.get('location_id', product.location_id)
         db.session.commit()
         return jsonify({'message': 'Product updated successfully'})
+    except NotFound:
+        db.session.rollback()
+        return error_response(404, "No encontrado")
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Failed to update product")
@@ -271,6 +293,9 @@ def delete_product(product_id):
         db.session.delete(product)
         db.session.commit()
         return jsonify({'message': 'Product deleted successfully'})
+    except NotFound:
+        db.session.rollback()
+        return error_response(404, "No encontrado")
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Failed to delete product")
@@ -345,6 +370,9 @@ def update_location(location_id):
                 setattr(location, campo, data[campo])
         db.session.commit()
         return jsonify({'message': 'Location updated successfully'})
+    except NotFound:
+        db.session.rollback()
+        return error_response(404, "No encontrado")
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Failed to update location")
@@ -359,6 +387,9 @@ def delete_location(location_id):
         db.session.delete(location)
         db.session.commit()
         return jsonify({'message': 'Location deleted successfully'})
+    except NotFound:
+        db.session.rollback()
+        return error_response(404, "No encontrado")
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Failed to delete location")
@@ -473,6 +504,9 @@ def update_lead(lead_id):
         lead.campaign_id = data.get('campaign_id', lead.campaign_id)
         db.session.commit()
         return jsonify({'message': 'Lead updated successfully'})
+    except NotFound:
+        db.session.rollback()
+        return error_response(404, "No encontrado")
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Failed to update lead")
@@ -487,6 +521,9 @@ def delete_lead(lead_id):
         db.session.delete(lead)
         db.session.commit()
         return jsonify({'message': 'Lead deleted successfully'})
+    except NotFound:
+        db.session.rollback()
+        return error_response(404, "No encontrado")
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Failed to delete lead")
@@ -579,6 +616,9 @@ def update_stock(stock_id):
         return jsonify({'message': 'Stock record updated successfully'})
     except ValueError as e:
         return error_response(400, str(e))
+    except NotFound:
+        db.session.rollback()
+        return error_response(404, "No encontrado")
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Failed to update stock record")
@@ -593,6 +633,9 @@ def delete_stock(stock_id):
         db.session.delete(stock)
         db.session.commit()
         return jsonify({'message': 'Stock record deleted successfully'})
+    except NotFound:
+        db.session.rollback()
+        return error_response(404, "No encontrado")
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Failed to delete stock record")
@@ -798,6 +841,9 @@ def update_compra(order_id):
         })
     except ValueError as e:
         return error_response(400, str(e))
+    except NotFound:
+        db.session.rollback()
+        return error_response(404, "No encontrado")
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Failed to update purchase order")
@@ -812,6 +858,9 @@ def delete_compra(order_id):
         db.session.delete(order)
         db.session.commit()
         return jsonify({'message': 'Purchase order deleted successfully'})
+    except NotFound:
+        db.session.rollback()
+        return error_response(404, "No encontrado")
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Failed to delete purchase order")
@@ -1005,6 +1054,9 @@ def update_employee(id):
         })
     except ValueError as e:
         return error_response(400, str(e))
+    except NotFound:
+        db.session.rollback()
+        return error_response(404, "No encontrado")
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Failed to update employee")
@@ -1019,6 +1071,9 @@ def delete_employee(id):
         db.session.delete(employee)
         db.session.commit()
         return jsonify({'message': 'Employee deleted successfully'})
+    except NotFound:
+        db.session.rollback()
+        return error_response(404, "No encontrado")
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Failed to delete employee")
