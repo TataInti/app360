@@ -419,7 +419,7 @@ def test_rol_sin_modulos_no_entra_en_bucle(app_test, cliente_anonimo):
     assert pagina.status_code == 200
     html = pagina.get_data(as_text=True)
     assert "Sin acceso" in html
-    assert 'href="/logout"' in html
+    assert 'action="/logout"' in html and 'method="post"' in html
 
 
 def test_sin_sesion_sin_acceso_redirige_al_login(cliente_anonimo):

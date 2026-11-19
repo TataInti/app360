@@ -253,15 +253,15 @@ def test_lista_de_excepciones_coincide_con_la_matriz_sin_sesion():
 # -----------------------------------------------------------------------------
 # (j) Logout: vacía la sesión completa, en GET y en POST
 # -----------------------------------------------------------------------------
-def test_logout_vacia_la_sesion_en_get_y_en_post(app_seguridad):
+def test_logout_por_post_cierra_la_sesion_y_get_no_la_toca(app_seguridad):
     uid = _crear(app_seguridad, "PROBE-admin", "admin")
     cliente = app_seguridad.test_client()
     marcar_sesion(cliente, uid)
 
+    # GET /logout ya no cierra la sesión (D15): redirige y la sesión sigue viva.
     assert cliente.get("/logout").status_code == 302
-    assert _claves_de_sesion(cliente) <= {"_flashes"}
+    assert "user" in _claves_de_sesion(cliente)
 
-    marcar_sesion(cliente, uid)
     assert cliente.post("/logout").status_code == 302
     assert _claves_de_sesion(cliente) <= {"_flashes"}
 
