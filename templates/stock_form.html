@@ -7,7 +7,8 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="mb-3">
         <label>Producto</label>
-        <select name="product_id" class="form-control" required>
+        {% if not products %}<div class="alert alert-warning mb-2">Todavía no hay productos. <a href="/products/new">Creá uno en Productos</a>.</div>{% endif %}
+        <select name="product_id" class="form-control" required {% if not products %}disabled{% endif %}>
             {% for p in products %}
                 <option value="{{ p.id }}"
                     {% if stock and stock.product_id == p.id %}selected{% endif %}>
@@ -19,7 +20,8 @@
 
     <div class="mb-3">
         <label>Ubicación</label>
-        <select name="location_id" class="form-control" required>
+        {% if not locations %}<div class="alert alert-warning mb-2">Todavía no hay ubicaciones. <a href="/locations/new">Creá una en Ubicaciones</a>.</div>{% endif %}
+        <select name="location_id" class="form-control" required {% if not locations %}disabled{% endif %}>
             {% for l in locations %}
                 <option value="{{ l.id }}"
                     {% if stock and stock.location_id == l.id %}selected{% endif %}>
@@ -31,11 +33,11 @@
 
     <div class="mb-3">
         <label>Cantidad</label>
-        <input type="number" name="quantity" class="form-control"
+        <input type="number" name="quantity" class="form-control" min="0" step="1"
                value="{{ stock.quantity if stock else 0 }}" required>
     </div>
 
-    <button type="submit" class="btn btn-primary">Guardar</button>
+    <button type="submit" class="btn btn-primary" {% if not products or not locations %}disabled{% endif %}>Guardar</button>
     <a href="/stock" class="btn btn-secondary">Volver</a>
 </form>
 {% endblock %}

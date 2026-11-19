@@ -325,7 +325,7 @@ async function cargarResumen() {
     } catch (e) {
         console.error('Error resumen:', e);
         document.getElementById('tabla-registros').innerHTML =
-            '<tr><td colspan="11" class="text-center text-danger p-3">Error al cargar datos</td></tr>';
+            '<tr><td colspan="11" class="text-center text-danger p-3">No se pudieron cargar los datos. Intentá de nuevo.</td></tr>';
     }
 }
 
@@ -576,7 +576,7 @@ async function subirArchivo() {
     } catch (e) {
         document.getElementById('cargaProgreso').style.display = 'none';
         document.getElementById('cargaResultado').className = 'alert alert-danger mb-0';
-        document.getElementById('cargaResultado').textContent = 'Error de conexión';
+        document.getElementById('cargaResultado').textContent = 'No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.';
         document.getElementById('cargaResultado').style.display = '';
     } finally {
         document.getElementById('btnCargar').disabled = false;
@@ -594,7 +594,7 @@ async function asociarFichadas() {
         alert(construirMensajeAsociacion(d));
         cargarResumen();
     } catch (e) {
-        alert('Error al intentar asociar fichadas');
+        alert('No se pudieron asociar las fichadas. Intentá de nuevo.');
     }
 }
 
@@ -610,11 +610,11 @@ async function procesarTodas() {
         if (r.ok) {
             alert(`Procesado: ${d.procesados} días — Faltas: ${d.faltas} — Tardanzas: ${d.tardanzas} — Fichadas faltantes: ${d.fichadas_faltantes}`);
         } else {
-            alert(d.error || 'Error al procesar');
+            alert(d.error || 'No se pudieron procesar las fichadas. Intentá de nuevo.');
         }
         cargarResumen();
     } catch (e) {
-        alert('Error de conexión al procesar');
+        alert('No hay conexión con el servidor. No se procesaron las fichadas. Intentá de nuevo.');
     }
 }
 
@@ -640,9 +640,9 @@ async function justificar() {
             cargarResumen();
         } else {
             const d = await r.json();
-            alert(d.error || 'Error');
+            alert(d.error || 'No se pudo guardar la justificación. Intentá de nuevo.');
         }
-    } catch (e) { alert('Error de conexión'); }
+    } catch (e) { alert('No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.'); }
 }
 </script>
 {% endblock %}

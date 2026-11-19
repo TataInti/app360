@@ -152,10 +152,23 @@
     return select;
   }
 
+  // Metas en formato de importe (es-AR), con el binding de dinero de App360UI: «1.234,56».
+  function activarCampoMeta(input, valor) {
+    const money = window.App360UI?.money;
+    if (!input || !money) return;
+    money.bindInput(input);
+    if (valor !== undefined && valor !== null && Number(valor) !== 0) money.setValue(input, valor);
+  }
+  // Devuelve el importe de la meta, 0 si está vacía o NaN si el texto no es un importe.
+  function leerMeta(input) {
+    if (!String(input?.value ?? '').trim()) return 0;
+    const valor = window.App360UI?.money?.getValue(input);
+    return Number.isFinite(valor) ? valor : NaN;
+  }
   function crearInputMeta(measure, value = 0) {
     const label = document.createElement('label');
     label.className = 'oc-line-target';
-    label.innerHTML = `<span>${MEDIDAS[measure].label}</span><input type="number" min="0" step="0.01" value="${esc(value)}" placeholder="0" data-meta="${measure}" aria-label="Meta de ${MEDIDAS[measure].label}"><small>${MEDIDAS[measure].unidad}</small>`;
+    label.innerHTML = `<span>${MEDIDAS[measure].label}</span><input type="text" inputmode="decimal" autocomplete="off" placeholder="0" data-money-input data-meta="${measure}" aria-label="Meta de ${MEDIDAS[measure].label}"><small>${MEDIDAS[measure].unidad}</small>`;
     return label;
   }
 
@@ -171,7 +184,7 @@
         const supported = !product || Boolean(option?.[`supports_${measure}`]);
         input.disabled = !supported;
         input.title = supported ? '' : `${MEDIDAS[measure].label} se habilita cuando hay cantidades del producto en staging.`;
-        if (!supported) input.value = '0';
+        if (!supported) window.App360UI?.money?.setValue(input, 0);
       }
       const hint = form.querySelector('[data-product-hint]');
       hint.hidden = !product;
@@ -242,6 +255,7 @@
       typeSelect.replaceWith(crearSelectDimension());
       const targets = form.querySelector('[data-targets]');
       targets.replaceWith(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, '')));
+      form.querySelectorAll('[data-meta]').forEach(input => activarCampoMeta(input, null));
       const lineHeader = form.querySelector('.oc-line-head');
       lineHeader.querySelector('[data-cancel-line]').addEventListener('click', () => {
         form.remove();
@@ -252,6 +266,7 @@
       form.innerHTML = `<div class="oc-line-head"><h3>${esc(DIMENSIONES[linea.dimension_tipo] || linea.dimension_tipo)} · ${esc(linea.dimension_valor)}</h3><button type="button" class="com-goal-delete" data-delete-line>Eliminar línea</button></div><div class="oc-line-meta" data-targets></div><div class="oc-line-footer"><span class="oc-line-realizado">Realizado leído desde PRE: ${esc(MEDIDAS.importe.format(linea.realizado_importe))} · ${esc(MEDIDAS.cajas.format(linea.realizado_cajas))} · ${esc(MEDIDAS.kilos.format(linea.realizado_kilos))}</span><div class="oc-line-actions"><button type="submit" class="com-primary">Guardar cambios</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
       const targets = form.querySelector('[data-targets]');
       targets.replaceWith(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, linea[`meta_${measure}`])));
+      for (const measure of Object.keys(MEDIDAS)) activarCampoMeta(form.querySelector(`[data-meta="${measure}"]`), linea[`meta_${measure}`]);
       if (linea.dimension_tipo === 'producto') {
         const caps = linea.capacidades || {};
         for (const measure of ['cajas', 'kilos']) {
@@ -273,10 +288,10 @@
   }
 
   function metasDelFormulario(form) {
-    const metas = {importe: Number(form.querySelector('[data-meta="importe"]').value || 0)};
+    const metas = {importe: leerMeta(form.querySelector('[data-meta="importe"]'))};
     for (const measure of ['cajas', 'kilos']) {
       const input = form.querySelector(`[data-meta="${measure}"]`);
-      if (!input.disabled) metas[measure] = Number(input.value || 0);
+      if (!input.disabled) metas[measure] = leerMeta(input);
     }
     return metas;
   }
@@ -290,6 +305,9 @@
     form.classList.add('oc-line-saving');
     try {
       const metas = metasDelFormulario(form);
+      if (Object.values(metas).some(valor => Number.isNaN(valor))) {
+        throw new Error('Ingresá un importe válido, por ejemplo 1.234,56.');
+      }
       if (!Object.values(metas).some(valor => valor > 0)) {
         throw new Error('Cargá una meta mayor que cero en importe, cajas o kilos para guardar la línea.');
       }
@@ -363,13 +381,22 @@
         return;
       }
       const rows = pending.map(goal => {
+        const anioOrigen = (String(goal.periodo || '').match(/\b(?:19|20)\d{2}\b/) || [])[0] || '';
         const monthField = goal.mes_sugerido
           ? `<span>${esc(goal.mes_sugerido)}</span>`
-          : `<input type="month" data-month required aria-label="Período mensual">`;
+          : `<span class="oc-periodo-pareja"><select data-month-mes required aria-label="Mes"></select><select data-month-anio required aria-label="Año"></select></span>`;
         const sellerOptions = state.vendedores.map(v => `<option value="${esc(v.id)}">${esc(v.nombre_visible)}</option>`).join('');
-        return `<tr data-goal-id="${esc(goal.goal_id)}" data-month-suggested="${esc(goal.mes_sugerido || '')}"><td data-label="Empleado">${esc(goal.empleado || 'Sin empleado')}</td><td data-label="Período original">${esc(goal.periodo || 'Sin período')}</td><td data-label="Descripción">${esc(goal.descripcion || '')}</td><td data-label="Meta" class="num">${number(goal.meta)}</td><td data-label="Conversión"><form class="oc-legacy-form" data-convert-form novalidate><label>Vendedor comercial<select data-seller required><option value="">Buscar vendedor…</option>${sellerOptions}</select></label><label>Empresa<select data-company required><option value="">Elegir…</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option></select></label><label>Medida<select data-measure required><option value="">Elegir…</option><option value="importe">Importe</option><option value="cajas">Cajas</option><option value="kilos">Kilos</option></select></label><label>Mes ${monthField}</label><button class="com-primary" type="submit">Convertir a línea</button></form></td></tr>`;
+        return `<tr data-goal-id="${esc(goal.goal_id)}" data-month-suggested="${esc(goal.mes_sugerido || '')}" data-anio-origen="${esc(anioOrigen)}"><td data-label="Empleado">${esc(goal.empleado || 'Sin empleado')}</td><td data-label="Período original">${esc(goal.periodo || 'Sin período')}</td><td data-label="Descripción">${esc(goal.descripcion || '')}</td><td data-label="Meta" class="num">${number(goal.meta)}</td><td data-label="Conversión"><form class="oc-legacy-form" data-convert-form novalidate><label>Vendedor comercial<select data-seller required><option value="">Buscar vendedor…</option>${sellerOptions}</select></label><label>Empresa<select data-company required><option value="">Elegir…</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option></select></label><label>Medida<select data-measure required><option value="">Elegir…</option><option value="importe">Importe</option><option value="cajas">Cajas</option><option value="kilos">Kilos</option></select></label><label>Mes ${monthField}</label><button class="com-primary" type="submit">Convertir a línea</button></form></td></tr>`;
       }).join('');
       $('legacyGoals').innerHTML = `<table><thead><tr><th>Empleado</th><th>Período original</th><th>Descripción</th><th>Meta</th><th>Vinculación comercial</th></tr></thead><tbody>${rows}</tbody></table>`;
+      $('legacyGoals').querySelectorAll('tr[data-goal-id]').forEach(row => {
+        const mesSelect = row.querySelector('[data-month-mes]');
+        if (!mesSelect) return;
+        llenarSelectoresPeriodo(mesSelect, row.querySelector('[data-month-anio]'), {
+          anioOrigen: Number(row.dataset.anioOrigen) || null,
+          vacio: true,
+        });
+      });
       $('legacyGoals').querySelectorAll('[data-seller]').forEach(select => tomSelect(select, {
         allowEmptyOption: true,
         maxOptions: 100,
@@ -388,7 +415,8 @@
     if (!form) return;
     event.preventDefault();
     const row = form.closest('tr');
-    const monthInput = row.querySelector('[data-month]');
+    const mesSelect = row.querySelector('[data-month-mes]');
+    const anioSelect = row.querySelector('[data-month-anio]');
     const payload = {
       goal_id: Number(row.dataset.goalId),
       vendedor_id: Number(form.querySelector('[data-seller]').value),
@@ -400,7 +428,7 @@
     if (!payload.empresa) faltantes.push('empresa');
     if (!payload.medida) faltantes.push('medida');
     if (row.dataset.monthSuggested) payload.mes = row.dataset.monthSuggested;
-    else if (monthInput?.value) payload.mes = monthInput.value;
+    else if (mesSelect?.value && anioSelect?.value) payload.mes = `${anioSelect.value}-${mesSelect.value}`;
     else faltantes.push('mes');
     if (faltantes.length) {
       setError('legacyError', `Para convertir este objetivo falta: ${faltantes.join(', ')}.`);
@@ -439,15 +467,28 @@
     const mes = new URLSearchParams(location.search).get('mes');
     return /^\d{4}-(0[1-9]|1[0-2])$/.test(mes || '') ? mes : null;
   }
-  function fijarPeriodo(valor) {
-    const [anio, mes] = valor.split('-');
+  // Mes y año en español, con valor YYYY-MM. La barra de período y la conversión de
+  // objetivos históricos usan este mismo helper. Sin valor, deja «Mes…» y «Año…» vacíos.
+  function llenarSelectoresPeriodo(selectMes, selectAnio, {valor = '', anioOrigen = null, vacio = false} = {}) {
+    const [anio = '', mes = ''] = valor ? valor.split('-') : [];
     const actual = new Date().getFullYear();
+    const referencia = Number(anio) || actual;
+    const desde = Math.min(referencia, anioOrigen || referencia, actual - 2);
+    const hasta = Math.max(referencia, actual + 1);
     const anios = [];
-    for (let y = Math.min(Number(anio), actual - 2); y <= Math.max(Number(anio), actual + 1); y++) anios.push(y);
-    $('periodoAnio').replaceChildren(...anios.map(y => new Option(String(y), String(y))));
-    $('periodoMes').replaceChildren(...MESES_PERIODO.map((nombre, i) => new Option(nombre, String(i + 1).padStart(2, '0'))));
-    $('periodoAnio').value = anio;
-    $('periodoMes').value = mes;
+    for (let y = desde; y <= hasta; y++) anios.push(new Option(String(y), String(y)));
+    const meses = MESES_PERIODO.map((nombre, i) => new Option(nombre, String(i + 1).padStart(2, '0')));
+    if (vacio) {
+      anios.unshift(new Option('Año…', ''));
+      meses.unshift(new Option('Mes…', ''));
+    }
+    selectAnio.replaceChildren(...anios);
+    selectMes.replaceChildren(...meses);
+    selectAnio.value = anio;
+    selectMes.value = mes;
+  }
+  function fijarPeriodo(valor) {
+    llenarSelectoresPeriodo($('periodoMes'), $('periodoAnio'), {valor});
     $('periodoObjetivos').value = valor;
   }
   function cambiarPeriodoDesdeSelectores() {

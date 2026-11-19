@@ -106,6 +106,7 @@
             <form id="formEditarArqueo">
                 <input type="hidden" name="arqueo_id" id="editArqueoId">
                 <div class="modal-body">
+                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
                     <div class="app-modal__notice app-modal__notice--warning mb-3">
                         <i class="bi bi-exclamation-triangle"></i>
                         <div>Solo se pueden editar arqueos del dia actual. La justificacion queda guardada en el historial.</div>
@@ -188,6 +189,7 @@
             </div>
             <form id="formArqueo">
                 <div class="modal-body">
+                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Fecha *</label>
@@ -289,6 +291,17 @@ function notify(message, variant = 'info', options = {}) {
         return;
     }
     window.alert(message);
+}
+
+// Avisos ligados al formulario: el error se muestra dentro del modal, sin prefijo técnico.
+function mostrarErrorFormulario(form, mensaje) {
+    const aviso = form?.querySelector('[data-form-error]');
+    if (!aviso) { alert(mensaje); return; }
+    aviso.textContent = mensaje;
+    aviso.classList.remove('d-none');
+}
+function ocultarErrorFormulario(form) {
+    form?.querySelector('[data-form-error]')?.classList.add('d-none');
 }
 
 function showModal(modalId) {
@@ -603,7 +616,7 @@ async function cargarArqueos() {
     } catch(e) {
         console.error('Error:', e);
         document.getElementById('tablaArqueos').innerHTML = 
-            '<tr><td colspan="10" class="text-center text-danger">Error al cargar datos</td></tr>';
+            '<tr><td colspan="10" class="text-center text-danger">No se pudieron cargar los datos. Intentá de nuevo.</td></tr>';
     }
 }
 
@@ -629,7 +642,7 @@ async function editarArqueo(id) {
         // Mostrar modal
         showModal('modalEditarArqueo');
     } catch(e) {
-        alert('Error al cargar datos del arqueo');
+        alert('No se pudieron cargar los datos del arqueo. Intentá de nuevo.');
         console.error(e);
     }
 }
@@ -676,7 +689,7 @@ async function verHistorial(id) {
         
         showModal('modalHistorialArqueo');
     } catch(e) {
-        alert('Error al cargar historial');
+        alert('No se pudo cargar el historial. Intentá de nuevo.');
         console.error(e);
     }
 }
@@ -708,6 +721,7 @@ function compararCambios(anterior, nuevo) {
 
 document.getElementById('formArqueo')?.addEventListener('submit', async function(e) {
     e.preventDefault();
+    ocultarErrorFormulario(this);
     const formData = new FormData(this);
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     
@@ -752,15 +766,16 @@ document.getElementById('formArqueo')?.addEventListener('submit', async function
             notify('Arqueo registrado correctamente.', 'success', { title: 'Cierre guardado' });
         } else {
             const err = await resp.json();
-            alert(err.error || 'No se pudo guardar el arqueo.');
+            mostrarErrorFormulario(this, err.error || 'No se pudo guardar el arqueo. Revisá los datos e intentá de nuevo.');
         }
     } catch(e) {
-        alert('Error de conexión');
+        mostrarErrorFormulario(this, 'No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
     }
 });
 
 document.getElementById('formEditarArqueo')?.addEventListener('submit', async function(e) {
     e.preventDefault();
+    ocultarErrorFormulario(this);
     const formData = new FormData(this);
     const arqueoId = formData.get('arqueo_id');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
@@ -787,10 +802,10 @@ document.getElementById('formEditarArqueo')?.addEventListener('submit', async fu
             alert('Arqueo actualizado correctamente');
             cargarArqueos();
         } else {
-            alert('Error: ' + (result.error || 'No se pudo actualizar'));
+            mostrarErrorFormulario(this, result.error || 'No se pudo actualizar el arqueo. Revisá los datos e intentá de nuevo.');
         }
     } catch(e) {
-        alert('Error de conexión');
+        mostrarErrorFormulario(this, 'No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
         console.error(e);
     }
 });
@@ -802,7 +817,7 @@ async function descargarExcel(url, fallbackName) {
 
         if (!resp.ok || contentType.includes('application/json')) {
             const data = contentType.includes('application/json') ? await resp.json() : { error: await resp.text() };
-            alert('Error: ' + (data.error || 'No se pudo exportar'));
+            alert(data.error || 'No se pudo exportar el archivo. Intentá de nuevo.');
             return;
         }
 
@@ -820,7 +835,7 @@ async function descargarExcel(url, fallbackName) {
         link.remove();
         window.URL.revokeObjectURL(blobUrl);
     } catch (e) {
-        alert('Error de conexión');
+        alert('No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
     }
 }
 
@@ -855,7 +870,7 @@ async function verDetalleInstrumentos(id) {
         document.getElementById('detalleArqueoContent').innerHTML = html;
         showModal('modalDetalleArqueo');
     } catch(e) {
-        alert('Error al cargar detalle');
+        alert('No se pudo cargar el detalle. Intentá de nuevo.');
     }
 }
 

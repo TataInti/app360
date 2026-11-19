@@ -1,8 +1,9 @@
 from datetime import datetime
 import io
+import uuid
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, flash, redirect, render_template, request, send_file, session, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, session, url_for
 
 from models import (
     InstrumentoPago,
@@ -19,6 +20,7 @@ from models import (
 )
 from models.time_utils import today_local_date
 from security import protect_blueprint
+from services.importes import MAXIMO_NUMERIC_12_2, ImporteInvalido, parse_importe
 
 compras_bp = Blueprint("compras", __name__)
 
@@ -87,9 +89,9 @@ def compras_nueva():
         monto_total = None
         if monto_total_raw:
             try:
-                monto_total = Decimal(monto_total_raw)
-            except InvalidOperation:
-                flash("Monto inválido.", "warning")
+                monto_total = parse_importe(monto_total_raw, maximo=MAXIMO_NUMERIC_12_2)
+            except ImporteInvalido as error:
+                flash(error.mensaje, "warning")
                 return render_template(
                     "compras_orden_nueva.html",
                     products=products,
@@ -180,6 +182,32 @@ def compras_nueva():
     )
 
 
+def _tokens_recepcion():
+    """Tokens del formulario de recepción en la sesión: {token: id de la última recepción al emitirlo}."""
+    valor = session.get("recepciones_pendientes")
+    return dict(valor) if isinstance(valor, dict) else {}
+
+
+def _nuevo_token_recepcion(order):
+    """Token del formulario de recepción. Solo vale si la orden no recibió nada después de emitirlo."""
+    token = uuid.uuid4().hex
+    emitidos = _tokens_recepcion()
+    emitidos[token] = max((r.id for r in order.receipts), default=0)
+    session["recepciones_pendientes"] = dict(list(emitidos.items())[-20:])
+    return token
+
+
+def _pendiente_por_producto(order):
+    """Unidades pedidas menos unidades ya recibidas, por producto de la orden."""
+    recibido = {}
+    for receipt in order.receipts:
+        recibido[receipt.product_id] = recibido.get(receipt.product_id, 0) + receipt.quantity_received
+    return {
+        item.product_id: max(item.quantity - recibido.get(item.product_id, 0), 0)
+        for item in order.items
+    }
+
+
 @compras_bp.route("/compras/<int:order_id>")
 def compras_detail(order_id):
     order = PurchaseOrder.query.get_or_404(order_id)
@@ -187,6 +215,8 @@ def compras_detail(order_id):
         "compras_detail.html",
         order=order,
         statuses=ORDER_STATUSES,
+        pendientes=_pendiente_por_producto(order),
+        recepcion_token=_nuevo_token_recepcion(order),
     )
 
 
@@ -207,36 +237,78 @@ def compras_change_status(order_id):
 
 @compras_bp.route("/compras/<int:order_id>/recepciones", methods=["POST"])
 def compras_add_receipt(order_id):
-    order = PurchaseOrder.query.get_or_404(order_id)
-    quantity = int(request.form.get("quantity", 0))
+    # La fila de la orden queda bloqueada hasta el commit: dos envíos simultáneos van en serie.
+    order = db.session.query(PurchaseOrder).with_for_update().filter_by(id=order_id).first()
+    if order is None:
+        abort(404)
+    destino = url_for("compras.compras_detail", order_id=order_id)
 
+    token = request.form.get("recepcion_token", "")
+    emitidos = _tokens_recepcion()
+    marca = emitidos.get(token) if token else None
+    if not isinstance(marca, int):
+        flash("Esa recepción ya se registró. Revisá el detalle de la orden antes de cargarla de nuevo.", "warning")
+        return redirect(destino)
+
+    # Formulario viejo: si la orden recibió algo después de emitirlo, hay que recargar el detalle.
+    if max((r.id for r in order.receipts), default=0) > marca:
+        emitidos.pop(token, None)
+        session["recepciones_pendientes"] = emitidos
+        flash("La orden cambió desde que abriste el formulario. Revisá el detalle antes de cargar la recepción.", "warning")
+        return redirect(destino)
+
+    try:
+        quantity = int(request.form.get("quantity", "0"))
+    except ValueError:
+        quantity = 0
     if quantity <= 0:
-        flash("Cantidad inválida.", "warning")
-        return redirect(url_for("compras.compras_detail", order_id=order_id))
+        flash("Cantidad inválida. Ingresá un número entero mayor que cero.", "warning")
+        return redirect(destino)
 
-    receipt = PurchaseReceipt(
-        order=order,
-        product_id=(
-            request.form.get("product_id") or order.items[0].product_id if order.items else None
-        ),
-        location_id=order.location_id,
-        quantity_received=quantity,
-    )
-    db.session.add(receipt)
+    producto_pedido = request.form.get("product_id") or (order.items[0].product_id if order.items else 0)
+    try:
+        product_id = int(producto_pedido)
+    except (TypeError, ValueError):
+        product_id = 0
+    pendientes = _pendiente_por_producto(order)
+    if product_id not in pendientes:
+        flash("El producto elegido no pertenece a esta orden.", "warning")
+        return redirect(destino)
+    if order.location_id is None:
+        flash("La orden no tiene una ubicación de destino para recibir la mercadería.", "warning")
+        return redirect(destino)
 
-    stock = StockLevel.query.filter_by(
-        product_id=receipt.product_id, location_id=receipt.location_id
-    ).first()
-    if not stock:
-        stock = StockLevel(
-            product_id=receipt.product_id, location_id=receipt.location_id, quantity=0
+    pendiente = pendientes[product_id]
+    if quantity > pendiente:
+        flash(f"No se puede recibir más de lo pendiente: quedan {pendiente} unidades de este producto.", "warning")
+        return redirect(destino)
+
+    db.session.add(
+        PurchaseReceipt(
+            order=order,
+            product_id=product_id,
+            location_id=order.location_id,
+            quantity_received=quantity,
         )
+    )
+    stock = StockLevel.query.filter_by(product_id=product_id, location_id=order.location_id).first()
+    if stock is None:
+        stock = StockLevel(product_id=product_id, location_id=order.location_id, quantity=0)
         db.session.add(stock)
+    stock.quantity = (stock.quantity or 0) + quantity
 
-    stock.quantity += receipt.quantity_received
+    quedan = sum(restante - (quantity if producto == product_id else 0) for producto, restante in pendientes.items())
+    if quedan == 0 and order.status in ("borrador", "enviada"):
+        order.status = "recibida"
+    emitidos.pop(token, None)
+    session["recepciones_pendientes"] = emitidos
     db.session.commit()
-    flash("Recepción registrada y stock actualizado.", "success")
-    return redirect(url_for("compras.compras_detail", order_id=order_id))
+
+    if quedan == 0:
+        flash("Recepción registrada. La orden quedó recibida y el stock se actualizó.", "success")
+    else:
+        flash(f"Recepción registrada y stock actualizado. Quedan {quedan} unidades pendientes.", "success")
+    return redirect(destino)
 
 
 @compras_bp.route("/compras/exportar", methods=["GET"])
