@@ -233,7 +233,8 @@ def token_anterior_al_cambio_de_clave(usuario, payload):
     """True si el token JWT (access o refresh) se emitió antes del último cambio de clave.
 
     Compara iat con password_changed_at, sin token_version. Sin fecha de cambio o sin iat,
-    no aplica. Si el token se emitió en el mismo segundo del cambio, cuenta como anterior.
+    no aplica. Los tokens nuevos traen iat con fracción de segundo: uno emitido después del
+    cambio vale aunque sea del mismo segundo; uno emitido antes queda revocado.
     """
     cambio = usuario.password_changed_at
     emitido = payload.get("iat")
@@ -369,6 +370,15 @@ def revalidar_sesion_web():
 # =============================================================================
 # JWT Token Management
 # =============================================================================
+def _iat_con_fraccion():
+    """Hora de emisión de un JWT con fracción de segundo (NumericDate admite decimales, RFC 7519).
+
+    PyJWT trunca un datetime a segundos. Con la fracción, un token emitido después de un cambio
+    de clave vale aunque sea del mismo segundo, y uno emitido antes queda revocado.
+    """
+    return datetime.now(timezone.utc).timestamp()
+
+
 def generate_access_token(user_id, username, role, token_version=0):
     """Generate a JWT access token. El claim tv lleva la versión de token del usuario (C2)."""
     payload = {
@@ -378,7 +388,7 @@ def generate_access_token(user_id, username, role, token_version=0):
         'type': 'access',
         'tv': token_version,
         'exp': datetime.now(timezone.utc) + timedelta(seconds=current_app.config['JWT_ACCESS_TOKEN_EXPIRES']),
-        'iat': datetime.now(timezone.utc),
+        'iat': _iat_con_fraccion(),
     }
     return jwt.encode(payload, current_app.config['JWT_SECRET_KEY'], algorithm='HS256')
 
@@ -391,7 +401,7 @@ def generate_refresh_token(user_id, username, token_version=0):
         'type': 'refresh',
         'tv': token_version,
         'exp': datetime.now(timezone.utc) + timedelta(seconds=current_app.config['JWT_REFRESH_TOKEN_EXPIRES']),
-        'iat': datetime.now(timezone.utc),
+        'iat': _iat_con_fraccion(),
     }
     return jwt.encode(payload, current_app.config['JWT_SECRET_KEY'], algorithm='HS256')
 

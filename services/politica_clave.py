@@ -1,7 +1,8 @@
 """Política de la clave nueva al cambiarla (C1 usuarios, decisión D11).
 
-Reglas: mínimo 12 caracteres y máximo 200; distinta de la clave actual; distinta del nombre
-de usuario; fuera de la lista corta de claves comunes. Sin reglas de complejidad.
+Reglas: mínimo 12 caracteres y máximo 200; sin caracteres de control (códigos menores que 32
+y 127) ni solo espacios; distinta de la clave actual; distinta del nombre de usuario; fuera de
+la lista corta de claves comunes. Sin reglas de complejidad.
 La clave actual se verifica antes, en la vista. No hay historial de claves: «distinta de la
 anterior» se resuelve como distinta de la clave que se reemplaza.
 
@@ -42,6 +43,10 @@ def errores_clave_nueva(clave_nueva, clave_repetida, nombre_usuario, clave_actua
     nueva = clave_nueva or ""
     if not nueva:
         errores["clave_nueva"] = "Ingresá la clave nueva."
+    elif any(ord(caracter) < 32 or ord(caracter) == 127 for caracter in nueva):
+        errores["clave_nueva"] = "La clave no puede tener caracteres de control."
+    elif nueva.isspace():
+        errores["clave_nueva"] = "La clave no puede ser solo espacios."
     elif len(nueva) < MINIMO_CARACTERES:
         errores["clave_nueva"] = f"La clave nueva debe tener al menos {MINIMO_CARACTERES} caracteres."
     elif len(nueva) > MAXIMO_CARACTERES:

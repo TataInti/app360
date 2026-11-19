@@ -75,10 +75,12 @@ def _crear(app, username, role, *, clave=CLAVE, must_change=False, active=True, 
         usuario.role = role
         usuario.active = active
         usuario.must_change_password = must_change
-        usuario.password_changed_at = None
         usuario.temp_password_expires_at = vence
         usuario.deactivated_at = None
         usuario.set_password(clave)
+        # Igual que crear_usuario: set_password fija password_changed_at (C1) y la cuenta de prueba
+        # queda sin fecha de cambio. El orden importa: el None va después del set_password.
+        usuario.password_changed_at = None
         db.session.commit()
         return usuario.id
 

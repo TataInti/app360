@@ -15,7 +15,7 @@
     cajas: { label: 'Cajas', unidad: 'cajas', format: value => `${number(value)} cajas` },
     kilos: { label: 'Kilos', unidad: 'kg', format: value => `${number(value)} kg` },
   };
-  const state = {vendedores: [], requestId: 0};
+  const state = {vendedores: [], requestId: 0, cargas: 0};
 
   function number(value) {
     return Number(value || 0).toLocaleString('es-AR', {maximumFractionDigits: 2});
@@ -39,6 +39,12 @@
     element.hidden = !message;
   }
 
+  // Indicador «Cargando…» del período: visible mientras haya una operación pendiente.
+  function marcarCarga(delta) {
+    state.cargas = Math.max(0, state.cargas + delta);
+    $('objetivosCarga').hidden = state.cargas === 0;
+  }
+
   function tomSelect(select, options = {}) {
     if (!window.TomSelect) return null;
     return new TomSelect(select, options);
@@ -48,7 +54,7 @@
     const mes = $('periodoObjetivos').value;
     if (!mes) return;
     const requestId = ++state.requestId;
-    $('objetivosCarga').hidden = false;
+    marcarCarga(1);
     $('listaVendedores').replaceChildren();
     setError('objetivosError');
     try {
@@ -66,7 +72,7 @@
       setError('objetivosError', error.message || 'No se pudieron cargar los objetivos del período.');
       $('objetivosVacio').hidden = true;
     } finally {
-      if (requestId === state.requestId) $('objetivosCarga').hidden = true;
+      marcarCarga(-1);
     }
   }
 
@@ -88,11 +94,34 @@
     const title = draft
       ? '<label class="oc-seller-select">Vendedor comercial<select data-vendedor><option value="">Buscar o agregar vendedor…</option></select></label>'
       : `<div><h2>${escapeHtml(nombre)}</h2><p>Objetivos y avance calculados para ${escapeHtml($('periodoObjetivos').value)}.</p></div>`;
-    card.innerHTML = `<div class="oc-seller-head"><div class="oc-seller-title">${title}</div><button type="button" class="oc-add-line" data-add-line>＋ Agregar objetivo</button></div><div class="oc-seller-summary" data-summary></div><div class="oc-lines" data-lines></div><p class="oc-line-error" data-card-error hidden></p>`;
-    if (draft) configurarSelectorVendedor(card.querySelector('[data-vendedor]'), card);
+    card.innerHTML = `<div class="oc-seller-head"><div class="oc-seller-title">${title}</div><div class="oc-seller-actions"></div></div><div class="oc-seller-summary" data-summary></div><div class="oc-lines" data-lines></div><p class="oc-line-error" data-card-error hidden></p>`;
+    card.querySelector('.oc-seller-actions').append(...botonesEncabezado(draft));
+    if (draft) {
+      configurarSelectorVendedor(card.querySelector('[data-vendedor]'), card);
+      card.querySelector('[data-cancel-draft]').addEventListener('click', () => quitarTarjeta(card));
+    }
     $('listaVendedores').append(card);
     $('objetivosVacio').hidden = true;
     return card;
+  }
+
+  // Botones del encabezado: «Cancelar» solo en el borrador; «Agregar objetivo» en todas las tarjetas.
+  function botonesEncabezado(draft) {
+    const botones = [];
+    if (draft) {
+      const cancelar = document.createElement('button');
+      cancelar.type = 'button';
+      cancelar.dataset.cancelDraft = '';
+      cancelar.textContent = 'Cancelar';
+      botones.push(cancelar);
+    }
+    const agregar = document.createElement('button');
+    agregar.type = 'button';
+    agregar.className = 'oc-add-line';
+    agregar.dataset.addLine = '';
+    agregar.textContent = '＋ Agregar objetivo';
+    botones.push(agregar);
+    return botones;
   }
 
   function configurarSelectorVendedor(select, card) {
@@ -115,6 +144,7 @@
         card.querySelector('[data-add-line]').disabled = !value;
       },
     });
+    card._vendedorSelect = instance;
     if (!instance) {
       select.replaceChildren(new Option('Seleccionar vendedor…', ''));
       opts.forEach(item => select.add(new Option(item.text, item.value)));
@@ -147,23 +177,34 @@
     return select;
   }
 
-  // Metas en formato de importe (es-AR), con el binding de dinero de App360UI: «1.234,56».
-  function activarCampoMeta(input, valor) {
-    const money = window.App360UI?.money;
-    if (!input || !money) return;
-    money.bindInput(input);
-    if (valor !== undefined && valor !== null && Number(valor) !== 0) money.setValue(input, valor);
+  // Importe: formato de dinero de App360UI («$ 1.234,56»). Cajas y kilos: número es-AR sin «$».
+  function activarCampoMeta(input, measure, valor) {
+    const tieneValor = valor !== undefined && valor !== null && Number(valor) !== 0;
+    if (measure === 'importe') {
+      const money = window.App360UI?.money;
+      if (!input || !money) return;
+      money.bindInput(input);
+      if (tieneValor) money.setValue(input, valor);
+      return;
+    }
+    input.addEventListener('blur', () => {
+      const numero = leerMeta(input);
+      if (Number.isFinite(numero) && input.value.trim()) input.value = number(numero);
+    });
+    if (tieneValor) input.value = number(valor);
   }
-  // Devuelve el importe de la meta, 0 si está vacía o NaN si el texto no es un importe.
+  // Devuelve el importe de la meta, 0 si está vacía o NaN si el texto no es un número.
   function leerMeta(input) {
     if (!String(input?.value ?? '').trim()) return 0;
     const valor = window.App360UI?.money?.getValue(input);
     return Number.isFinite(valor) ? valor : NaN;
   }
+  // Campo de meta con su unidad dentro del campo (ARS, cajas, kg) y la etiqueta en la misma grilla.
   function crearInputMeta(measure, value = 0) {
     const label = document.createElement('label');
     label.className = 'oc-line-target';
-    label.innerHTML = `<span>${escapeHtml(MEDIDAS[measure].label)}</span><input type="text" inputmode="decimal" autocomplete="off" placeholder="0" data-money-input data-meta="${escapeHtml(measure)}" aria-label="Meta de ${escapeHtml(MEDIDAS[measure].label)}"><small>${escapeHtml(MEDIDAS[measure].unidad)}</small>`;
+    label.innerHTML = `<span>${escapeHtml(MEDIDAS[measure].label)}</span><span class="oc-unit-field"><input type="text" inputmode="decimal" autocomplete="off" placeholder="0" data-meta="${escapeHtml(measure)}" aria-label="Meta de ${escapeHtml(MEDIDAS[measure].label)}"><small>${escapeHtml(MEDIDAS[measure].unidad)}</small></span>`;
+    activarCampoMeta(label.querySelector('[data-meta]'), measure, value);
     return label;
   }
 
@@ -179,7 +220,7 @@
         const supported = !product || Boolean(option?.[`supports_${measure}`]);
         input.disabled = !supported;
         input.title = supported ? '' : `${MEDIDAS[measure].label} se habilita cuando hay cantidades del producto en staging.`;
-        if (!supported) window.App360UI?.money?.setValue(input, 0);
+        if (!supported) input.value = '';
       }
       const hint = form.querySelector('[data-product-hint]');
       hint.hidden = !product;
@@ -245,23 +286,20 @@
     form.dataset.lineId = linea?.id ? String(linea.id) : '';
     const isNew = !linea;
     if (isNew) {
-      form.innerHTML = `<div class="oc-line-head"><h3>Nueva línea de objetivo</h3><button type="button" data-cancel-line>Quitar línea</button></div><div class="oc-line-meta"><label>Nivel del objetivo<select data-dimension-tipo required></select></label><label>Valor del catálogo<select data-dimension-valor required></select></label><div data-targets></div></div><p class="com-note" data-product-hint hidden></p><div class="oc-line-footer"><span class="oc-line-realizado">El realizado se calculará desde PRE al guardar.</span><div class="oc-line-actions"><button type="submit" class="com-primary">Guardar línea</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
+      form.innerHTML = `<div class="oc-line-head"><h3>Nueva línea de objetivo</h3><button type="button" data-cancel-line>Quitar línea</button></div><p class="com-note oc-product-hint" data-product-hint hidden></p><div class="oc-line-meta"><label>Nivel del objetivo<select data-dimension-tipo required></select></label><label>Valor del catálogo<select data-dimension-valor required></select></label></div><div class="oc-line-footer"><span class="oc-line-realizado">El realizado se calculará desde PRE al guardar.</span><div class="oc-line-actions"><button type="submit" class="com-primary">Guardar línea</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
       const typeSelect = form.querySelector('[data-dimension-tipo]');
       typeSelect.replaceWith(crearSelectDimension());
-      const targets = form.querySelector('[data-targets]');
-      targets.replaceWith(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, '')));
-      form.querySelectorAll('[data-meta]').forEach(input => activarCampoMeta(input, null));
+      form.querySelector('.oc-line-meta').append(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, '')));
       const lineHeader = form.querySelector('.oc-line-head');
       lineHeader.querySelector('[data-cancel-line]').addEventListener('click', () => {
         form.remove();
-        if (!card.querySelector('.oc-line')) card.remove();
+        if (!card.querySelector('.oc-line')) quitarTarjeta(card);
       });
       form._dimensionControls = configurarCatalogoDimension(form);
     } else {
-      form.innerHTML = `<div class="oc-line-head"><h3>${escapeHtml(DIMENSIONES[linea.dimension_tipo] || linea.dimension_tipo)} · ${escapeHtml(linea.dimension_valor)}</h3><button type="button" class="com-goal-delete" data-delete-line>Eliminar línea</button></div><div class="oc-line-meta" data-targets></div><div class="oc-line-footer"><span class="oc-line-realizado">Realizado leído desde PRE: ${escapeHtml(MEDIDAS.importe.format(linea.realizado_importe))} · ${escapeHtml(MEDIDAS.cajas.format(linea.realizado_cajas))} · ${escapeHtml(MEDIDAS.kilos.format(linea.realizado_kilos))}</span><div class="oc-line-actions"><button type="submit" class="com-primary">Guardar cambios</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
-      const targets = form.querySelector('[data-targets]');
-      targets.replaceWith(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, linea[`meta_${measure}`])));
-      for (const measure of Object.keys(MEDIDAS)) activarCampoMeta(form.querySelector(`[data-meta="${measure}"]`), linea[`meta_${measure}`]);
+      form.classList.add('oc-line-guardada');
+      form.innerHTML = `<div class="oc-line-head"><h3>${escapeHtml(DIMENSIONES[linea.dimension_tipo] || linea.dimension_tipo)} · ${escapeHtml(linea.dimension_valor)}</h3><button type="button" class="com-goal-delete" data-delete-line>Eliminar línea</button></div><div class="oc-line-meta"></div><div class="oc-line-footer"><span class="oc-line-realizado">Realizado leído desde PRE: ${escapeHtml(MEDIDAS.importe.format(linea.realizado_importe))} · ${escapeHtml(MEDIDAS.cajas.format(linea.realizado_cajas))} · ${escapeHtml(MEDIDAS.kilos.format(linea.realizado_kilos))}</span><div class="oc-line-actions"><button type="submit" class="com-primary">Guardar cambios</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
+      form.querySelector('.oc-line-meta').append(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, linea[`meta_${measure}`])));
       if (linea.dimension_tipo === 'producto') {
         const caps = linea.capacidades || {};
         for (const measure of ['cajas', 'kilos']) {
@@ -272,14 +310,20 @@
         }
       }
       form.querySelector('[data-delete-line]').addEventListener('click', () => eliminarLinea(linea.id, form));
+      // Lo guardado sirve de referencia para habilitar «Guardar cambios» solo con cambios reales.
+      form._metasGuardadas = metasDelFormulario(form);
+      form.addEventListener('input', () => sincronizarGuardar(form));
+      sincronizarGuardar(form);
     }
-    form.addEventListener('submit', event => guardarLinea(event, card, form, linea));
+    form.addEventListener('submit', event => guardarLinea(event, form, linea));
     card.querySelector('[data-lines]').append(form);
     return form;
   }
 
   function addVendorCard() {
-    return crearTarjeta('', '', true);
+    const card = crearTarjeta('', '', true);
+    card.scrollIntoView({block: 'start'});
+    return card;
   }
 
   function metasDelFormulario(form) {
@@ -291,17 +335,19 @@
     return metas;
   }
 
-  async function guardarLinea(event, card, form, linea) {
+  async function guardarLinea(event, form, linea) {
     event.preventDefault();
+    const card = form.closest('.oc-seller-card');
     const error = form.querySelector('[data-line-error]');
     error.hidden = true;
     const button = form.querySelector('button[type="submit"]');
     button.disabled = true;
     form.classList.add('oc-line-saving');
+    marcarCarga(1);
     try {
       const metas = metasDelFormulario(form);
       if (Object.values(metas).some(valor => Number.isNaN(valor))) {
-        throw new Error('Ingresá un importe válido, por ejemplo 1.234,56.');
+        throw new Error('Ingresá un valor numérico válido, por ejemplo 1.234,56.');
       }
       if (!Object.values(metas).some(valor => valor > 0)) {
         throw new Error('Cargá una meta mayor que cero en importe, cajas o kilos para guardar la línea.');
@@ -315,6 +361,7 @@
           headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
           body: JSON.stringify(payload),
         });
+        form._metasGuardadas = metas;
       } else {
         const dimensionType = form.querySelector('[data-dimension-tipo]').value;
         const dimensionValue = form._dimensionControls?.getValue() || form.querySelector('[data-dimension-valor]').value;
@@ -326,19 +373,23 @@
         payload.dimension_valor = dimensionValue;
         if (ref.startsWith('id:')) payload.vendedor_id = Number(ref.slice(3));
         else payload.vendedor_nombre = ref.slice(7);
-        await requestJson('/api/objetivos-comerciales', {
+        const {objetivo} = await requestJson('/api/objetivos-comerciales', {
           method: 'POST',
           headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
           body: JSON.stringify(payload),
         });
+        convertirBorrador(card, objetivo);
+        form.replaceWith(agregarFormularioLinea(card, objetivo));
       }
-      await cargarDatos();
+      await actualizarResumen(card);
     } catch (errorValue) {
       error.textContent = errorValue.message || 'No se pudo guardar la línea.';
       error.hidden = false;
     } finally {
       button.disabled = false;
       form.classList.remove('oc-line-saving');
+      sincronizarGuardar(form);
+      marcarCarga(-1);
     }
   }
 
@@ -347,17 +398,64 @@
       ? await window.App360UI.confirm({title: 'Eliminar línea', message: 'Se eliminará esta línea del período.', confirmText: 'Eliminar', variant: 'danger'})
       : window.confirm('¿Eliminar esta línea del período?');
     if (!confirmed) return;
+    const card = form.closest('.oc-seller-card');
+    marcarCarga(1);
     try {
       await requestJson(`/api/objetivos-comerciales/${encodeURIComponent(id)}`, {
         method: 'DELETE',
         headers: {'X-CSRFToken': csrfToken},
       });
-      await cargarDatos();
+      form.remove();
+      if (card.querySelector('.oc-line')) await actualizarResumen(card);
+      else quitarTarjeta(card);
     } catch (error) {
       const message = form.querySelector('[data-line-error]');
       message.textContent = error.message || 'No se pudo eliminar la línea.';
       message.hidden = false;
+    } finally {
+      marcarCarga(-1);
     }
+  }
+
+  // Vuelve a leer el resumen de una sola tarjeta; las demás tarjetas y los borradores no cambian.
+  async function actualizarResumen(card) {
+    const requestId = state.requestId;
+    try {
+      const params = new URLSearchParams({mes: $('periodoObjetivos').value, medida: 'importe'});
+      const data = await requestJson(`/api/objetivos-comerciales?${params}`);
+      if (requestId !== state.requestId || !card.isConnected) return;
+      const vendedor = (data.objetivos || []).find(item => String(item.vendedor_id) === card.dataset.vendedorId);
+      card.querySelector('[data-summary]').innerHTML = vendedor ? resumenMedidas(vendedor) : '';
+    } catch (error) {
+      if (requestId === state.requestId) setError('objetivosError', error.message || 'No se pudo actualizar el resumen del vendedor.');
+    }
+  }
+
+  // Un borrador pasa a tarjeta guardada al guardar su primera línea: cambia el título y se quita «Cancelar».
+  function convertirBorrador(card, objetivo) {
+    if (!card.classList.contains('oc-seller-draft')) return;
+    card._vendedorSelect?.destroy();
+    card.classList.remove('oc-seller-draft');
+    card.dataset.vendedorId = String(objetivo.vendedor_id);
+    card.dataset.vendedorRef = `id:${objetivo.vendedor_id}`;
+    card.querySelector('.oc-seller-title').innerHTML = `<div><h2>${escapeHtml(objetivo.nombre_visible)}</h2><p>Objetivos y avance calculados para ${escapeHtml($('periodoObjetivos').value)}.</p></div>`;
+    card.querySelector('[data-cancel-draft]')?.remove();
+  }
+
+  // Quita una tarjeta (borrador descartado o vendedor sin líneas) y muestra el aviso si la lista queda vacía.
+  function quitarTarjeta(card) {
+    card._vendedorSelect?.destroy();
+    card.remove();
+    $('objetivosVacio').hidden = $('listaVendedores').children.length > 0;
+  }
+
+  // «Guardar cambios» solo se habilita cuando alguna meta de la línea cambió respecto de lo guardado.
+  function sincronizarGuardar(form) {
+    const boton = form.querySelector('button[type="submit"]');
+    const guardadas = form._metasGuardadas;
+    if (!boton || !guardadas || form.classList.contains('oc-line-saving')) return;
+    const actuales = metasDelFormulario(form);
+    boton.disabled = Object.keys(actuales).every(measure => actuales[measure] === guardadas[measure]);
   }
 
   async function cargarLegacy() {
