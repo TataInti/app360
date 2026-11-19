@@ -7,7 +7,8 @@ Reglas que cumple el servidor (la pantalla solo las refleja):
 - Desactivar: no se desactiva al último administrador activo (las filas de administradores se
   bloquean con FOR UPDATE), no se desactiva a uno mismo (D5), se suma token_version (corta los
   JWT) y se registra deactivated_at.
-- Reactivar: limpia deactivated_at. No restablece la clave.
+- Reactivar: limpia deactivated_at y suma token_version: la sesión web y los JWT de antes de la
+  baja quedan revocados. No restablece la clave.
 - Cada acción escribe su fila en user_audit_log dentro de la misma transacción: si la auditoría
   falla, la acción no se aplica.
 """
@@ -274,6 +275,8 @@ def reactivar_usuario(actor, usuario):
         raise ErrorUsuarios("YA_ACTIVO", "Ese usuario ya está activo.", 409)
     usuario.active = True
     usuario.deactivated_at = None
+    # Suma la versión de token: la huella de sesión y los JWT de antes de la baja no vuelven a valer.
+    usuario.token_version = (usuario.token_version or 0) + 1
     registrar_auditoria(actor, "user_reactivated", usuario, {"rol": usuario.role})
     db.session.commit()
     return usuario

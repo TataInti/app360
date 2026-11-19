@@ -246,18 +246,25 @@ def token_anterior_al_cambio_de_clave(usuario, payload):
 
 
 def huella_sesion(usuario):
-    """HMAC-SHA256 del password_hash vigente, con SECRET_KEY como clave.
+    """HMAC-SHA256 del password_hash vigente y de token_version, con SECRET_KEY como clave.
 
     Cambiar la clave de un usuario, o la SECRET_KEY, cambia la huella y cierra las
-    sesiones previas. El hash nunca entra en la sesión. Sin hash no hay huella: esa
-    cuenta no puede tener sesión.
+    sesiones previas. Desactivar y reactivar suman token_version: la huella cambia otra
+    vez, así que la cookie copiada antes de la baja no vuelve a valer al reactivar.
+    Con token_version 0 (todas las cuentas antes de C2) el mensaje es solo el password_hash:
+    la huella no cambia y las sesiones abiertas al desplegar siguen válidas. El hash nunca
+    entra en la sesión. Sin hash no hay huella: esa cuenta no puede tener sesión.
     """
     if not usuario.password_hash:
         return None
     clave = current_app.secret_key
     if isinstance(clave, str):
         clave = clave.encode("utf-8")
-    return hmac.new(clave, usuario.password_hash.encode("utf-8"), hashlib.sha256).hexdigest()
+    mensaje = usuario.password_hash
+    version = usuario.token_version or 0
+    if version:
+        mensaje = f"{mensaje}|tv={version}"
+    return hmac.new(clave, mensaje.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def datos_de_sesion_web(usuario):

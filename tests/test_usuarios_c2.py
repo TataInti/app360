@@ -6,6 +6,8 @@ P-23, P-33 y P-34 en SQLite) y las pruebas propias del corte. Datos sintéticos 
 ninguna prueba apunta a una base real.
 """
 
+import hashlib
+import hmac
 import importlib.util
 import logging
 import re
@@ -23,7 +25,13 @@ import security
 from models import db
 from models.core.user import User
 from models.core.user_audit_log import UserAuditLog
-from security import SIN_ACCESO_ROUTE, generate_access_token, generate_refresh_token
+from security import (
+    SESION_HUELLA_CLAVE,
+    SIN_ACCESO_ROUTE,
+    generate_access_token,
+    generate_refresh_token,
+    huella_sesion,
+)
 from services import usuarios_admin as ua
 from sesion_de_prueba import marcar_sesion
 
@@ -156,6 +164,11 @@ def _jwt_sin_tv(app, usuario_id, username, role):
 
 def _bearer(token):
     return {"Authorization": f"Bearer {token}"}
+
+
+def _reenviar_cookie(app, valor, ruta):
+    """Petición con la cookie de sesión copiada. Sin jar: el cliente no la reemplaza ni la actualiza."""
+    return app.test_client(use_cookies=False).get(ruta, headers={"Cookie": f"session={valor}"})
 
 
 # -----------------------------------------------------------------------------
@@ -382,6 +395,8 @@ def test_reactivar_limpia_la_baja_y_no_restablece_la_clave(app_seguridad):
 
     despues = _estado(app, obj)
     assert despues["active"] is True and despues["desactivado"] is None
+    # Desactivar y reactivar suman la versión de token: la huella de antes de la baja no vuelve.
+    assert despues["tv"] == antes["tv"] + 2
     assert despues["hash"] == antes["hash"]
     assert despues["vence"] == antes["vence"]
     assert despues["must"] is True
@@ -440,6 +455,51 @@ def test_token_con_otra_version_se_rechaza(app_seguridad):
         vigente = generate_access_token(uid, "probe.tv2", "sales", 2)
     assert app.test_client().get("/api/me", headers=_bearer(viejo)).status_code == 401
     assert app.test_client().get("/api/me", headers=_bearer(vigente)).status_code == 200
+
+
+# -----------------------------------------------------------------------------
+# E10: la sesión web copiada antes de la baja no vuelve al reactivar
+# -----------------------------------------------------------------------------
+def test_cookie_copiada_antes_de_la_baja_no_vuelve_al_reactivar(app_seguridad):
+    app = app_seguridad
+    admin = _cliente(app, _crear(app, "probe-admin", "admin"))
+    obj = _crear(app, "probe.cookie", "sales")
+    sesion = app.test_client()
+    ingreso_previo = _login(sesion, "probe.cookie", CLAVE)
+    assert ingreso_previo.status_code == 302 and _ruta(ingreso_previo) != "/"
+    # La cookie se toma de la respuesta del login real y se guarda antes de la baja.
+    copia = next(
+        valor.split(";")[0].split("=", 1)[1]
+        for valor in ingreso_previo.headers.getlist("Set-Cookie")
+        if valor.startswith("session=")
+    )
+    assert _reenviar_cookie(app, copia, "/leads").status_code == 200
+
+    assert _desactivar(admin, obj).status_code == 200
+    assert _reactivar(admin, obj).status_code == 200
+
+    # La misma cookie, reenviada después de reactivar, debe caer al login (E10).
+    assert _ruta(_reenviar_cookie(app, copia, "/leads")) == "/"
+    nuevo = app.test_client()
+    ingreso = _login(nuevo, "probe.cookie", CLAVE)
+    assert ingreso.status_code == 302 and _ruta(ingreso) != "/"
+    assert nuevo.get("/leads").status_code == 200
+
+
+def test_huella_con_version_cero_es_la_de_antes_de_C2(app_seguridad):
+    """Las sesiones abiertas al desplegar C2 se firmaron solo con el hash: con version 0 siguen iguales."""
+    app = app_seguridad
+    uid = _crear(app, "probe.legado", "sales")
+    with app.app_context():
+        usuario = db.session.get(User, uid)
+        clave = app.secret_key.encode("utf-8") if isinstance(app.secret_key, str) else app.secret_key
+        antigua = hmac.new(clave, usuario.password_hash.encode("utf-8"), hashlib.sha256).hexdigest()
+        assert (usuario.token_version or 0) == 0
+        assert huella_sesion(usuario) == antigua
+    cliente = app.test_client()
+    with cliente.session_transaction() as sesion:
+        sesion.update({"user": "probe.legado", "user_id": uid, "role": "sales", SESION_HUELLA_CLAVE: antigua})
+    assert cliente.get("/leads").status_code == 200
 
 
 # -----------------------------------------------------------------------------
