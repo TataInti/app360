@@ -200,16 +200,22 @@ def esperar_lista(pagina):
 
 
 def accion(pagina, usuario, verbo):
-    """Pulsa Desactivar o Reactivar en la fila del usuario y confirma en el modal de la app."""
+    """Pulsa Desactivar o Reactivar en la fila del usuario, confirma en el modal de la app y espera la
+    respuesta del POST (no el aviso anterior). Devuelve el texto del aviso que dejó la acción."""
     boton = f"#cuerpoUsuarios button[data-usuario='{usuario}'][data-accion='{verbo}']"
     pagina.wait_for_selector(boton, timeout=10000)
+    pagina.evaluate("() => { const a = document.getElementById('avisoUsuarios'); if (a) { a.textContent = ''; } }")
     pagina.click(boton)
     pagina.wait_for_selector("#app360ConfirmModal.show", timeout=5000)
-    pagina.click("#app360ConfirmAccept")
+    with pagina.expect_response(
+        lambda respuesta: respuesta.request.method == "POST" and "/api/admin/usuarios/" in respuesta.url,
+        timeout=15000,
+    ):
+        pagina.click("#app360ConfirmAccept")
     for _ in range(80):
-        texto = pagina.inner_text("#avisoUsuarios") if pagina.locator("#avisoUsuarios").count() else ""
-        if texto.strip():
-            return texto.strip()
+        texto = pagina.inner_text("#avisoUsuarios").strip()
+        if texto:
+            return texto
         pagina.wait_for_timeout(100)
     return ""
 
