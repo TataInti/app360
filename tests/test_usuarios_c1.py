@@ -33,6 +33,22 @@ NUEVA = "PROBE-clave-nueva-2026"
 RUTA_CAMBIO = "/cambiar-clave"
 
 
+@pytest.fixture(autouse=True)
+def _limitador_reiniciado(monkeypatch):
+    """Los límites de tasa guardan contadores en memoria, compartidos por toda la suite.
+
+    Cada prueba de este archivo arranca con los contadores en cero y con el limitador apagado.
+    El límite de intentos de /cambiar-clave y de /api/login se verificó con la suite completa,
+    donde aparecieron respuestas 429 por esos límites.
+    """
+    from extensions import limiter
+
+    limiter.reset()
+    monkeypatch.setattr(limiter, "enabled", False, raising=False)
+    yield
+    limiter.reset()
+
+
 # -----------------------------------------------------------------------------
 # Montaje
 # -----------------------------------------------------------------------------
