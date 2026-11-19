@@ -90,13 +90,14 @@
         <div class="card mb-4">
             <div class="card-body">
                 <h5 class="card-title">Registrar recepción</h5>
-                <form action="{{ url_for('compras.compras_add_receipt', order_id=order.id) }}" method="POST">
+                <form id="formRecepcion" action="{{ url_for('compras.compras_add_receipt', order_id=order.id) }}" method="POST">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="recepcion_token" value="{{ recepcion_token }}">
                     <div class="mb-3">
                         <label>Producto</label>
                         <select name="product_id" class="form-control">
                             {% for item in order.items %}
-                            <option value="{{ item.product.id }}">{{ item.product.name }}</option>
+                            <option value="{{ item.product.id }}">{{ item.product.name }} · pendiente {{ pendientes.get(item.product_id, 0) }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -104,7 +105,12 @@
                         <label>Cantidad recibida</label>
                         <input type="number" name="quantity" class="form-control" value="1" min="1" required>
                     </div>
-                    <button class="btn btn-outline-success w-100">Registrar recepción</button>
+                    <button type="submit" id="btnRegistrarRecepcion" class="btn btn-outline-success w-100">Registrar recepción</button>
+                    <script>
+                        document.getElementById('formRecepcion')?.addEventListener('submit', function () {
+                            document.getElementById('btnRegistrarRecepcion').disabled = true;
+                        });
+                    </script>
                 </form>
             </div>
         </div>
