@@ -217,6 +217,9 @@ class ResultadoComercialService:
 
         diferencia = facturacion - compras
         resultado = diferencia + ingresos_incluidos - egresos_incluidos
+        # Sin compras en el período no hay costo para medir el margen: el porcentaje y la
+        # brecha caja-resultado (que nace de ese margen) quedan sin valor (A-013).
+        datos_insuficientes = not compras
         resultado_pct = (resultado / facturacion * 100) if facturacion else 0.0
         sueldos_pagados = self._sueldos_pagados(desde, hasta, diferencia)
 
@@ -241,6 +244,7 @@ class ResultadoComercialService:
                 "ingresos_caja": ingresos_caja,
                 "egresos_caja": egresos_caja,
                 "caja_neta": ingresos_caja - egresos_caja,
+                "datos_insuficientes": datos_insuficientes,
             },
             actividad_mensual=actividad_mensual,
             caja_mensual=caja_mensual,
@@ -259,7 +263,8 @@ class ResultadoComercialService:
                 "ingresos_incluidos": ingresos_incluidos,
                 "egresos_incluidos": egresos_incluidos,
                 "resultado_gestion": resultado,
-                "resultado_sobre_facturacion_pct": resultado_pct,
+                "resultado_sobre_facturacion_pct": None if datos_insuficientes else resultado_pct,
+                "datos_insuficientes": datos_insuficientes,
                 "ingresos_caja": ingresos_caja,
                 "egresos_caja": egresos_caja,
                 "caja_neta": ingresos_caja - egresos_caja,
@@ -542,7 +547,8 @@ class ResultadoComercialService:
         egresos_caja = _float(kpis["egresos_caja"])
         ingresos_incluidos = _float(kpis["ingresos_incluidos"])
         egresos_incluidos = _float(kpis["egresos_incluidos"])
-        brecha = flujo_neto - resultado
+        # Sin datos de costo, la brecha caja-resultado no se calcula a partir del margen (A-013).
+        brecha = None if kpis.get("datos_insuficientes") else flujo_neto - resultado
         cobertura = self._pct(ingresos_caja, egresos_caja)
         cobertura_incluidos = self._pct(ingresos_incluidos, egresos_incluidos)
         meses_positivos = sum(item["neto"] > 0 for item in flujo_mensual)
