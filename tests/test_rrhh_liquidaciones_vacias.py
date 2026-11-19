@@ -53,5 +53,5 @@ def test_panel_muestra_estado_vacio_en_espanol(app):
 
     plantilla = (Path(app.root_path) / "templates" / "rrhh_panel.html").read_text(encoding="utf-8")
 
-    assert "Todavía no hay liquidaciones para ${periodo}" in plantilla
-    assert "Sin liquidaciones para ${periodo}" not in plantilla
+    assert "Todavía no hay liquidaciones para ${escapeHtml(periodo)}" in plantilla
+    assert "Sin liquidaciones para ${escapeHtml(periodo)}" not in plantilla

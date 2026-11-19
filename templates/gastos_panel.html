@@ -321,9 +321,9 @@ async function cargarRefs() {
     const sCat = document.getElementById('selCategoria');
     const sProv = document.getElementById('selProveedor');
     const sInst = document.getElementById('selInstrumento');
-    (catD.categorias||[]).forEach(c => sCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
-    (provD.proveedores||[]).forEach(p => sProv.innerHTML += `<option value="${p.id}">${p.nombre}</option>`);
-    _instrumentos.forEach(i => sInst.innerHTML += `<option value="${i.id}">${i.nombre}</option>`);
+    (catD.categorias||[]).forEach(c => sCat.innerHTML += `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nombre)}</option>`);
+    (provD.proveedores||[]).forEach(p => sProv.innerHTML += `<option value="${escapeHtml(p.id)}">${escapeHtml(p.nombre)}</option>`);
+    _instrumentos.forEach(i => sInst.innerHTML += `<option value="${escapeHtml(i.id)}">${escapeHtml(i.nombre)}</option>`);
 
     // Modal selects
     const fCat = document.getElementById('frmCategoria');
@@ -331,10 +331,10 @@ async function cargarRefs() {
     const fInst = document.getElementById('frmInstrumento');
     const categorias = catD.categorias || [];
     if (!categorias.length) fCat.innerHTML = '<option value="" disabled selected>No hay categorías de egreso. Creá una en Administración</option>';
-    categorias.forEach(c => fCat.innerHTML += `<option value="${c.id}">${c.nombre}</option>`);
+    categorias.forEach(c => fCat.innerHTML += `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nombre)}</option>`);
     document.getElementById('frmCategoriaAviso').hidden = categorias.length > 0;
-    (provD.proveedores||[]).forEach(p => fProv.innerHTML += `<option value="${p.id}">${p.nombre}</option>`);
-    _instrumentos.forEach(i => fInst.innerHTML += `<option value="${i.id}">${i.nombre}</option>`);
+    (provD.proveedores||[]).forEach(p => fProv.innerHTML += `<option value="${escapeHtml(p.id)}">${escapeHtml(p.nombre)}</option>`);
+    _instrumentos.forEach(i => fInst.innerHTML += `<option value="${escapeHtml(i.id)}">${escapeHtml(i.nombre)}</option>`);
 }
 
 async function cargarPortadoresPorInstrumento(instrumentoId, selectId) {
@@ -345,7 +345,7 @@ async function cargarPortadoresPorInstrumento(instrumentoId, selectId) {
         const data = await resp.json();
         select.innerHTML = '<option value="">Seleccionar...</option>';
         (data.portadores || []).forEach(p => {
-            select.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
+            select.innerHTML += `<option value="${escapeHtml(p.id)}">${escapeHtml(p.nombre)}</option>`;
         });
     } catch(e) {
         select.innerHTML = '<option value="">Error al cargar</option>';
@@ -415,14 +415,14 @@ async function load(period) {
         </div></td></tr>`;
     } else {
         tbody.innerHTML = gastos.map(g => `<tr>
-            <td>${g.fecha}</td>
-            <td>${g.descripcion}</td>
-            <td>${g.categoria_nombre}</td>
-            <td>${g.proveedor_nombre}</td>
-            <td>${g.instrumento}</td>
-            <td>${g.portador || '-'}</td>
-            <td class="text-end">$${parseFloat(g.monto).toLocaleString('es-AR')}</td>
-            <td>${g.usuario || '-'}</td>
+            <td>${escapeHtml(g.fecha)}</td>
+            <td>${escapeHtml(g.descripcion)}</td>
+            <td>${escapeHtml(g.categoria_nombre)}</td>
+            <td>${escapeHtml(g.proveedor_nombre)}</td>
+            <td>${escapeHtml(g.instrumento)}</td>
+            <td>${escapeHtml(g.portador || '-')}</td>
+            <td class="text-end">$${escapeHtml(parseFloat(g.monto).toLocaleString('es-AR'))}</td>
+            <td>${escapeHtml(g.usuario || '-')}</td>
         </tr>`).join('');
     }
 

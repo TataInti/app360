@@ -553,6 +553,9 @@ def main():
     os.makedirs(SHOTS_DIR, exist_ok=True)
     with sync_playwright() as p:
         lanzar = {"headless": True, "args": ["--no-sandbox"]}
+        port = urlparse(BASE_URL).port
+        if port:
+            lanzar["args"].append(f"--explicitly-allowed-ports={port}")
         if os.path.exists(CHROMIUM):
             lanzar["executable_path"] = CHROMIUM
         navegador = p.chromium.launch(**lanzar)

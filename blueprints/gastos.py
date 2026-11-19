@@ -2,7 +2,7 @@
 Blueprint de Gastos — vista filtrada de MovimientoCaja con categoria_gasto_id.
 Todos los gastos son MovimientoCaja tipo 'egreso' con categoria_gasto obligatoria.
 """
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 import io
 
@@ -24,6 +24,33 @@ from security import protect_blueprint
 gastos_bp = Blueprint("gastos", __name__)
 
 protect_blueprint(gastos_bp, "gastos")
+
+
+FECHA_FILTRO_INVALIDA = "Fecha inválida; usá el formato AAAA-MM-DD"
+
+
+def _parse_fecha_filtro(value):
+    if not value:
+        return None, False
+    try:
+        parsed = date.fromisoformat(value)
+        if parsed.isoformat() != value:
+            raise ValueError(value)
+        return parsed, False
+    except (TypeError, ValueError):
+        return None, True
+
+
+def _parse_entero_filtro(value):
+    if value in (None, ""):
+        return None, False
+    try:
+        parsed = int(value)
+        if parsed < 1:
+            raise ValueError(value)
+        return parsed, False
+    except (TypeError, ValueError):
+        return None, True
 
 
 def _gastos_query():
@@ -205,21 +232,26 @@ def proveedores_crear():
 @gastos_bp.route("/api/gastos/listar", methods=["GET"])
 def gastos_listar():
     """Listar gastos (movimientos con categoría de gasto) con filtros"""
-    fecha_desde = request.args.get("fecha_desde")
-    fecha_hasta = request.args.get("fecha_hasta")
-    categoria_id = request.args.get("categoria_id")
-    proveedor_id = request.args.get("proveedor_id")
-    instrumento_id = request.args.get("instrumento_id")
-    limite = request.args.get("limite", 200, type=int)
+    fecha_desde, fecha_desde_invalida = _parse_fecha_filtro(request.args.get("fecha_desde"))
+    fecha_hasta, fecha_hasta_invalida = _parse_fecha_filtro(request.args.get("fecha_hasta"))
+    categoria_id, categoria_invalida = _parse_entero_filtro(request.args.get("categoria_id"))
+    proveedor_id, proveedor_invalido = _parse_entero_filtro(request.args.get("proveedor_id"))
+    instrumento_id, instrumento_invalido = _parse_entero_filtro(request.args.get("instrumento_id"))
+    limite_raw = request.args.get("limite")
+    limite, limite_invalido = _parse_entero_filtro(limite_raw)
+    if fecha_desde_invalida or fecha_hasta_invalida:
+        return jsonify({"error": FECHA_FILTRO_INVALIDA}), 400
+    if categoria_invalida or proveedor_invalido or instrumento_invalido or limite_invalido:
+        return jsonify({"error": "Los filtros numéricos deben ser enteros positivos"}), 400
+    if limite is None:
+        limite = 200
 
     query = _gastos_query()
 
     if fecha_desde:
-        query = query.filter(MovimientoCaja.fecha_hora >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
+        query = query.filter(MovimientoCaja.fecha_hora >= datetime.combine(fecha_desde, datetime.min.time()))
     if fecha_hasta:
-        query = query.filter(
-            MovimientoCaja.fecha_hora <= datetime.strptime(fecha_hasta + " 23:59:59", "%Y-%m-%d %H:%M:%S")
-        )
+        query = query.filter(MovimientoCaja.fecha_hora <= datetime.combine(fecha_hasta, datetime.max.time()))
     if categoria_id:
         query = query.filter(MovimientoCaja.categoria_gasto_id == categoria_id)
     if proveedor_id:
@@ -345,8 +377,12 @@ def gastos_resumen():
         fecha_desde = fecha_desde or hoy.replace(day=1).isoformat()
         fecha_hasta = fecha_hasta or hoy.isoformat()
 
-    dt_desde = datetime.strptime(fecha_desde, "%Y-%m-%d")
-    dt_hasta = datetime.strptime(fecha_hasta + " 23:59:59", "%Y-%m-%d %H:%M:%S")
+    fecha_desde, invalida_desde = _parse_fecha_filtro(fecha_desde)
+    fecha_hasta, invalida_hasta = _parse_fecha_filtro(fecha_hasta)
+    if invalida_desde or invalida_hasta:
+        return jsonify({"error": FECHA_FILTRO_INVALIDA}), 400
+    dt_desde = datetime.combine(fecha_desde, datetime.min.time())
+    dt_hasta = datetime.combine(fecha_hasta, datetime.max.time())
 
     gastos = _gastos_query().filter(
         MovimientoCaja.fecha_hora >= dt_desde,
@@ -395,18 +431,20 @@ def gastos_exportar():
     except ImportError:
         return jsonify({"error": "Pandas no instalado"}), 500
 
-    fecha_desde = request.args.get("fecha_desde")
-    fecha_hasta = request.args.get("fecha_hasta")
-    categoria_id = request.args.get("categoria_id")
-    proveedor_id = request.args.get("proveedor_id")
+    fecha_desde, invalida_desde = _parse_fecha_filtro(request.args.get("fecha_desde"))
+    fecha_hasta, invalida_hasta = _parse_fecha_filtro(request.args.get("fecha_hasta"))
+    categoria_id, categoria_invalida = _parse_entero_filtro(request.args.get("categoria_id"))
+    proveedor_id, proveedor_invalido = _parse_entero_filtro(request.args.get("proveedor_id"))
+    if invalida_desde or invalida_hasta:
+        return jsonify({"error": FECHA_FILTRO_INVALIDA}), 400
+    if categoria_invalida or proveedor_invalido:
+        return jsonify({"error": "Los filtros numéricos deben ser enteros positivos"}), 400
 
     query = _gastos_query()
     if fecha_desde:
-        query = query.filter(MovimientoCaja.fecha_hora >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
+        query = query.filter(MovimientoCaja.fecha_hora >= datetime.combine(fecha_desde, datetime.min.time()))
     if fecha_hasta:
-        query = query.filter(
-            MovimientoCaja.fecha_hora <= datetime.strptime(fecha_hasta + " 23:59:59", "%Y-%m-%d %H:%M:%S")
-        )
+        query = query.filter(MovimientoCaja.fecha_hora <= datetime.combine(fecha_hasta, datetime.max.time()))
     if categoria_id:
         query = query.filter(MovimientoCaja.categoria_gasto_id == categoria_id)
     if proveedor_id:

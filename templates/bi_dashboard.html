@@ -287,9 +287,6 @@
     minimumFractionDigits: 1,
     maximumFractionDigits: 1
   })} %`;
-  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
-  })[character]);
   const shortMoney = value => {
     const number = Number(value || 0);
     if (Math.abs(number) >= 1000000) return `$${(number / 1000000).toFixed(1)}M`;
@@ -361,7 +358,7 @@
         : item.severity === 'info' ? ' alert-item--info' : '';
       const icon = item.severity === 'danger' ? 'bi-x-octagon'
         : item.severity === 'info' ? 'bi-info-circle' : 'bi-exclamation-triangle';
-      return `<div class="alert-item${severity}"><i class="bi ${icon}" aria-hidden="true"></i><span>${escapeHtml(item.message)}</span></div>`;
+      return `<div class="alert-item${escapeHtml(severity)}"><i class="bi ${escapeHtml(icon)}" aria-hidden="true"></i><span>${escapeHtml(item.message)}</span></div>`;
     }).join('');
     container.classList.remove('d-none');
   }
@@ -379,7 +376,7 @@
   function renderConceptGroup(rows, effect) {
     const body = document.getElementById(`conceptos-${effect === 'suma' ? 'suman' : 'restan'}-body`);
     if (!rows.length) {
-      body.innerHTML = `<tr><td colspan="4" class="empty-table">No hay conceptos configurados que ${effect === 'suma' ? 'sumen' : 'resten'}.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="4" class="empty-table">No hay conceptos configurados que ${escapeHtml(effect === 'suma' ? 'sumen' : 'resten')}.</td></tr>`;
       return;
     }
     body.innerHTML = rows.map(({ participant, values }) => {
@@ -390,11 +387,11 @@
       return `<tr>
         <td>
           <div class="fw-semibold">${escapeHtml(participant.concepto)}</div>
-          <div class="concept-status">${naturaleza} · ${estado}</div>
+          <div class="concept-status">${escapeHtml(naturaleza)} · ${escapeHtml(estado)}</div>
         </td>
-        <td class="text-end">${Number(values.cantidad || 0).toLocaleString('es-AR')}</td>
-        <td class="text-end fw-semibold">${money(values.monto)}</td>
-        <td class="text-end"><a class="concept-link" href="${movementLink(participant.concepto_id, effect === 'suma' ? 'ingreso' : 'egreso')}">Ver movimientos</a></td>
+        <td class="text-end">${escapeHtml(Number(values.cantidad || 0).toLocaleString('es-AR'))}</td>
+        <td class="text-end fw-semibold">${escapeHtml(money(values.monto))}</td>
+        <td class="text-end"><a class="concept-link" href="${escapeHtml(movementLink(participant.concepto_id, effect === 'suma' ? 'ingreso' : 'egreso'))}">Ver movimientos</a></td>
       </tr>`;
     }).join('');
   }
@@ -551,7 +548,7 @@
       const allowedSeverities = new Set(['danger', 'warning', 'positive', 'info']);
       insightsContainer.innerHTML = insights.map(item => {
         const severity = allowedSeverities.has(item.severity) ? item.severity : 'info';
-        return `<li class="financial-insight financial-insight--${severity}">
+        return `<li class="financial-insight financial-insight--${escapeHtml(severity)}">
           <span class="financial-insight__title">${escapeHtml(item.title)}</span>
           <span class="financial-insight__message">${escapeHtml(item.message)}</span>
         </li>`;

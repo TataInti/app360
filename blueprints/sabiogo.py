@@ -1163,7 +1163,13 @@ def cobertura_fechas():
 @login_required
 def historial_cargas():
     """Últimas cargas registradas en LogSabiogoCarga."""
-    limit = min(int(request.args.get('limit', 10)), 50)
+    limit_raw = request.args.get('limit')
+    try:
+        limit = min(int(limit_raw) if limit_raw is not None else 10, 50)
+        if limit < 1:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({'error': 'El parámetro limit debe ser un entero positivo'}), 400
     logs = LogSabiogoCarga.query.order_by(
         LogSabiogoCarga.fecha_carga.desc()
     ).limit(limit).all()

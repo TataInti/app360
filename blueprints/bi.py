@@ -1177,16 +1177,25 @@ def bi_ranking():
     fecha_desde = request.args.get("fecha_desde")
     fecha_hasta = request.args.get("fecha_hasta")
 
-    # Si no se especifican fechas, usar último mes
-    if not fecha_desde:
-        fecha_desde = (date.today() - timedelta(days=30))
-    else:
-        fecha_desde = datetime.fromisoformat(fecha_desde).date()
+    # Si no se especifican fechas, usar último mes. Aceptar solo AAAA-MM-DD.
+    try:
+        if not fecha_desde:
+            fecha_desde = date.today() - timedelta(days=30)
+        else:
+            fecha_desde_original = fecha_desde
+            fecha_desde = date.fromisoformat(fecha_desde)
+            if fecha_desde.isoformat() != fecha_desde_original:
+                raise ValueError("fecha_desde")
 
-    if not fecha_hasta:
-        fecha_hasta = date.today()
-    else:
-        fecha_hasta = datetime.fromisoformat(fecha_hasta).date()
+        if not fecha_hasta:
+            fecha_hasta = date.today()
+        else:
+            fecha_hasta_original = fecha_hasta
+            fecha_hasta = date.fromisoformat(fecha_hasta)
+            if fecha_hasta.isoformat() != fecha_hasta_original:
+                raise ValueError("fecha_hasta")
+    except (TypeError, ValueError):
+        return jsonify({"error": "Fecha inválida; usá el formato AAAA-MM-DD"}), 400
 
     if tipo == "productos":
         # Productos más vendidos

@@ -275,11 +275,11 @@
             }[a.tipo] || a.tipo;
 
             const cuotasInfo = a.tipo === 'prestamo' 
-                ? `${a.cuotas_pagadas}/${a.cantidad_cuotas}` 
+                ? `${escapeHtml(a.cuotas_pagadas)}/${escapeHtml(a.cantidad_cuotas)}`
                 : '-';
 
             const concepto = (a.concepto || '').length > 40
-                ? `${a.concepto.substring(0, 40)}...`
+                ? (a.concepto || '').substring(0, 40) + '...'
                 : (a.concepto || '-');
 
             const estadoBadge = a.liquidado 
@@ -290,16 +290,16 @@
 
             return `
                 <tr>
-                    <td>${a.empleado.nombre}</td>
-                    <td><span class="badge bg-info">${tipoLabel}</span></td>
-                    <td>${fmtMonto(a.monto)}</td>
-                    <td>${concepto}</td>
-                    <td>${a.mes_aplicacion || '-'}</td>
-                    <td>${cuotasInfo}</td>
-                    <td>${fmtMonto(a.saldo_pendiente)}</td>
+                    <td>${escapeHtml(a.empleado.nombre)}</td>
+                    <td><span class="badge bg-info">${escapeHtml(tipoLabel)}</span></td>
+                    <td>${escapeHtml(fmtMonto(a.monto))}</td>
+                    <td>${escapeHtml(concepto)}</td>
+                    <td>${escapeHtml(a.mes_aplicacion || '-')}</td>
+                    <td>${escapeHtml(cuotasInfo)}</td>
+                    <td>${escapeHtml(fmtMonto(a.saldo_pendiente))}</td>
                     <td>${estadoBadge}</td>
                     <td>
-                        ${!a.aprobado ? `<button class="btn btn-sm btn-warning" onclick="abrirAprobar(${a.id})">Aprobar</button>` : ''}
+                        ${!a.aprobado ? `<button class="btn btn-sm btn-warning" onclick="abrirAprobar(${escapeHtml(a.id)})">Aprobar</button>` : ''}
                     </td>
                 </tr>
             `;
@@ -317,7 +317,7 @@
                     return;
                 }
                 select.innerHTML = '<option value="">Seleccionar...</option>' +
-                    empleados.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+                    empleados.map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.name)}</option>`).join('');
             })
             .catch(() => {
                 const select = document.getElementById('select-empleado');

@@ -224,12 +224,12 @@
         const tbody = document.getElementById('tabla-preview');
         tbody.innerHTML = liquidaciones.map(l => `
             <tr>
-                <td>${l.empleado_nombre}</td>
-                <td>$${l.sueldo_base.toFixed(2)}</td>
-                <td>$${l.descuento_adelanto_efectivo.toFixed(2)}</td>
-                <td>$${l.descuento_adelanto_mercaderia.toFixed(2)}</td>
-                <td>$${l.descuento_cuota_prestamo.toFixed(2)}</td>
-                <td><strong>$${l.sueldo_neto.toFixed(2)}</strong></td>
+                <td>${escapeHtml(l.empleado_nombre)}</td>
+                <td>$${escapeHtml(l.sueldo_base.toFixed(2))}</td>
+                <td>$${escapeHtml(l.descuento_adelanto_efectivo.toFixed(2))}</td>
+                <td>$${escapeHtml(l.descuento_adelanto_mercaderia.toFixed(2))}</td>
+                <td>$${escapeHtml(l.descuento_cuota_prestamo.toFixed(2))}</td>
+                <td><strong>$${escapeHtml(l.sueldo_neto.toFixed(2))}</strong></td>
                 <td>
                     <small>${detalleLiquidacion(l)}</small>
                 </td>
@@ -240,9 +240,9 @@
     function detalleLiquidacion(l) {
         if (l.ya_liquidado) return 'Liquidado: valores guardados';
         const partes = [];
-        if (l.adelantos_efectivo_count > 0) partes.push(`${l.adelantos_efectivo_count} adel. efectivo`);
-        if (l.adelantos_mercaderia_count > 0) partes.push(`${l.adelantos_mercaderia_count} adel. mercadería`);
-        if (l.prestamos_count > 0) partes.push(`${l.prestamos_count} préstamo(s)`);
+        if (l.adelantos_efectivo_count > 0) partes.push(`${escapeHtml(l.adelantos_efectivo_count)} adel. efectivo`);
+        if (l.adelantos_mercaderia_count > 0) partes.push(`${escapeHtml(l.adelantos_mercaderia_count)} adel. mercadería`);
+        if (l.prestamos_count > 0) partes.push(`${escapeHtml(l.prestamos_count)} préstamo(s)`);
         return partes.join('<br>');
     }
 
@@ -295,17 +295,17 @@
                 const tbody = document.getElementById('tabla-generadas');
                 tbody.innerHTML = data.liquidaciones.map(l => `
                     <tr>
-                        <td>${l.empleado.nombre}</td>
-                        <td>$${l.sueldo_base.toFixed(2)}</td>
+                        <td>${escapeHtml(l.empleado.nombre)}</td>
+                        <td>$${escapeHtml(l.sueldo_base.toFixed(2))}</td>
                         <td>
                             <small>
-                                Efectivo: $${l.descuento_adelanto_efectivo.toFixed(2)}<br>
-                                Mercadería: $${l.descuento_adelanto_mercaderia.toFixed(2)}<br>
-                                Préstamos: $${l.descuento_cuota_prestamo.toFixed(2)}
+                                Efectivo: $${escapeHtml(l.descuento_adelanto_efectivo.toFixed(2))}<br>
+                                Mercadería: $${escapeHtml(l.descuento_adelanto_mercaderia.toFixed(2))}<br>
+                                Préstamos: $${escapeHtml(l.descuento_cuota_prestamo.toFixed(2))}
                             </small>
                         </td>
-                        <td><strong>$${l.sueldo_neto.toFixed(2)}</strong></td>
-                        <td>${new Date(l.fecha_liquidacion).toLocaleString()}</td>
+                        <td><strong>$${escapeHtml(l.sueldo_neto.toFixed(2))}</strong></td>
+                        <td>${escapeHtml(new Date(l.fecha_liquidacion).toLocaleString())}</td>
                     </tr>
                 `).join('');
             });
@@ -327,7 +327,7 @@
             .then(data => {
                 if (data.error) {
                     document.getElementById('resultado-historial').innerHTML = 
-                        `<div class="empty-state"><i class="bi bi-calendar-x empty-icon"></i><div class="empty-title">Periodo sin liquidaciones</div><div class="empty-text">${data.error}</div></div>`;
+                        `<div class="empty-state"><i class="bi bi-calendar-x empty-icon"></i><div class="empty-title">Periodo sin liquidaciones</div><div class="empty-text">${escapeHtml(data.error)}</div></div>`;
                     return;
                 }
 
@@ -345,10 +345,10 @@
                         <tbody>
                             ${data.liquidaciones.map(l => `
                                 <tr>
-                                    <td>${l.empleado.nombre}</td>
-                                    <td>$${l.sueldo_base.toFixed(2)}</td>
-                                    <td>$${(l.descuento_adelanto_efectivo + l.descuento_adelanto_mercaderia + l.descuento_cuota_prestamo).toFixed(2)}</td>
-                                    <td>$${l.sueldo_neto.toFixed(2)}</td>
+                                    <td>${escapeHtml(l.empleado.nombre)}</td>
+                                    <td>$${escapeHtml(l.sueldo_base.toFixed(2))}</td>
+                                    <td>$${escapeHtml((l.descuento_adelanto_efectivo + l.descuento_adelanto_mercaderia + l.descuento_cuota_prestamo).toFixed(2))}</td>
+                                    <td>$${escapeHtml(l.sueldo_neto.toFixed(2))}</td>
                                 </tr>
                             `).join('')}
                         </tbody>

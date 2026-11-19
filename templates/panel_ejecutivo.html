@@ -193,9 +193,6 @@
     if (Math.abs(number) >= 1000) return `$${Math.round(number / 1000)}K`;
     return money(number);
   };
-  const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, character => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
-  })[character]);
 
   function isoLocal(date) {
     const year = date.getFullYear();
@@ -261,7 +258,7 @@
         : item.severity === 'info' ? ' alert-item--info' : '';
       const icon = item.severity === 'danger' ? 'bi-x-octagon'
         : item.severity === 'info' ? 'bi-info-circle' : 'bi-exclamation-triangle';
-      return `<div class="alert-item${severity}"><i class="bi ${icon}" aria-hidden="true"></i><span>${escapeHtml(item.message)}</span></div>`;
+      return `<div class="alert-item${escapeHtml(severity)}"><i class="bi ${escapeHtml(icon)}" aria-hidden="true"></i><span>${escapeHtml(item.message)}</span></div>`;
     }).join('');
     container.classList.remove('d-none');
   }
@@ -282,8 +279,8 @@
       container.innerHTML = rows.map(({ participant, values }) => `
         <div class="concept-summary__row">
           <span class="concept-summary__name" title="${escapeHtml(participant.concepto)}">${escapeHtml(participant.concepto)}</span>
-          <span class="concept-summary__count">${Number(values.cantidad || 0).toLocaleString('es-AR')} mov.</span>
-          <span class="concept-summary__amount">${money(values.monto)}</span>
+          <span class="concept-summary__count">${escapeHtml(Number(values.cantidad || 0).toLocaleString('es-AR'))} mov.</span>
+          <span class="concept-summary__amount">${escapeHtml(money(values.monto))}</span>
         </div>
       `).join('');
     };
@@ -303,8 +300,8 @@
     }
     body.innerHTML = rows.map(row => `<tr>
       <td class="fw-semibold">${escapeHtml(row.cliente)}</td>
-      <td class="text-end">${percent(row.participacion_pct)}</td>
-      <td class="text-end">${money(row.monto)}</td>
+      <td class="text-end">${escapeHtml(percent(row.participacion_pct))}</td>
+      <td class="text-end">${escapeHtml(money(row.monto))}</td>
     </tr>`).join('');
   }
 
@@ -314,10 +311,10 @@
       accountContainer.innerHTML = '<div class="empty-state"><i class="bi bi-journal-x empty-icon" aria-hidden="true"></i><div class="empty-title">Sin cuenta configurada</div><div class="empty-text">No hay información de cuenta corriente Friar disponible.</div></div>';
     } else {
       accountContainer.innerHTML = `<div class="metric-inline">
-        <div class="metric-inline__item"><span class="metric-inline__label">Saldo inicial</span><span class="metric-inline__value">${money(account.saldo_inicial)}</span></div>
-        <div class="metric-inline__item"><span class="metric-inline__label">Liquidaciones</span><span class="metric-inline__value">${money(account.total_liquidaciones)}</span></div>
-        <div class="metric-inline__item"><span class="metric-inline__label">Pagos</span><span class="metric-inline__value">${money(account.total_pagos)}</span></div>
-        <div class="metric-inline__item"><span class="metric-inline__label">Saldo actual</span><span class="metric-inline__value">${money(account.saldo_actual)}</span></div>
+        <div class="metric-inline__item"><span class="metric-inline__label">Saldo inicial</span><span class="metric-inline__value">${escapeHtml(money(account.saldo_inicial))}</span></div>
+        <div class="metric-inline__item"><span class="metric-inline__label">Liquidaciones</span><span class="metric-inline__value">${escapeHtml(money(account.total_liquidaciones))}</span></div>
+        <div class="metric-inline__item"><span class="metric-inline__label">Pagos</span><span class="metric-inline__value">${escapeHtml(money(account.total_pagos))}</span></div>
+        <div class="metric-inline__item"><span class="metric-inline__label">Saldo actual</span><span class="metric-inline__value">${escapeHtml(money(account.saldo_actual))}</span></div>
       </div>`;
     }
     const paymentsBody = document.getElementById('pagos-body');
@@ -326,9 +323,9 @@
       return;
     }
     paymentsBody.innerHTML = payments.map(payment => `<tr>
-      <td>${payment.fecha ? new Date(`${payment.fecha}T00:00:00`).toLocaleDateString('es-AR') : '–'}</td>
+      <td>${escapeHtml(payment.fecha ? new Date(`${payment.fecha}T00:00:00`).toLocaleDateString('es-AR') : '–')}</td>
       <td>${escapeHtml(payment.instrumento || 'Sin instrumento')}</td>
-      <td class="text-end">${money(payment.monto)}</td>
+      <td class="text-end">${escapeHtml(money(payment.monto))}</td>
     </tr>`).join('');
   }
 

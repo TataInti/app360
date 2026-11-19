@@ -21,11 +21,6 @@
     return Number(value || 0).toLocaleString('es-AR', {maximumFractionDigits: 2});
   }
 
-  function esc(value) {
-    const entities = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
-    return String(value ?? '').replace(/[&<>"']/g, character => entities[character]);
-  }
-
   function currentMonth() {
     const date = new Date();
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -82,7 +77,7 @@
       const meta = metas[measure];
       const avance = meta == null ? 'Sin meta' : `${number(realizados[measure] / meta * 100)}%`;
       const target = meta == null ? 'Sin meta' : MEDIDAS[measure].format(meta);
-      return `<div class="oc-summary-measure"><strong>${MEDIDAS[measure].label} · ${esc(avance)}</strong><span>Meta: ${esc(target)}</span><span>Realizado de líneas: ${esc(MEDIDAS[measure].format(realizados[measure]))}</span></div>`;
+      return `<div class="oc-summary-measure"><strong>${escapeHtml(MEDIDAS[measure].label)} · ${escapeHtml(avance)}</strong><span>Meta: ${escapeHtml(target)}</span><span>Realizado de líneas: ${escapeHtml(MEDIDAS[measure].format(realizados[measure]))}</span></div>`;
     }).join('');
   }
 
@@ -92,7 +87,7 @@
     if (ref) card.dataset.vendedorRef = ref;
     const title = draft
       ? '<label class="oc-seller-select">Vendedor comercial<select data-vendedor><option value="">Buscar o agregar vendedor…</option></select></label>'
-      : `<div><h2>${esc(nombre)}</h2><p>Objetivos y avance calculados para ${esc($('periodoObjetivos').value)}.</p></div>`;
+      : `<div><h2>${escapeHtml(nombre)}</h2><p>Objetivos y avance calculados para ${escapeHtml($('periodoObjetivos').value)}.</p></div>`;
     card.innerHTML = `<div class="oc-seller-head"><div class="oc-seller-title">${title}</div><button type="button" class="oc-add-line" data-add-line>＋ Agregar objetivo</button></div><div class="oc-seller-summary" data-summary></div><div class="oc-lines" data-lines></div><p class="oc-line-error" data-card-error hidden></p>`;
     if (draft) configurarSelectorVendedor(card.querySelector('[data-vendedor]'), card);
     $('listaVendedores').append(card);
@@ -168,7 +163,7 @@
   function crearInputMeta(measure, value = 0) {
     const label = document.createElement('label');
     label.className = 'oc-line-target';
-    label.innerHTML = `<span>${MEDIDAS[measure].label}</span><input type="text" inputmode="decimal" autocomplete="off" placeholder="0" data-money-input data-meta="${measure}" aria-label="Meta de ${MEDIDAS[measure].label}"><small>${MEDIDAS[measure].unidad}</small>`;
+    label.innerHTML = `<span>${escapeHtml(MEDIDAS[measure].label)}</span><input type="text" inputmode="decimal" autocomplete="off" placeholder="0" data-money-input data-meta="${escapeHtml(measure)}" aria-label="Meta de ${escapeHtml(MEDIDAS[measure].label)}"><small>${escapeHtml(MEDIDAS[measure].unidad)}</small>`;
     return label;
   }
 
@@ -263,7 +258,7 @@
       });
       form._dimensionControls = configurarCatalogoDimension(form);
     } else {
-      form.innerHTML = `<div class="oc-line-head"><h3>${esc(DIMENSIONES[linea.dimension_tipo] || linea.dimension_tipo)} · ${esc(linea.dimension_valor)}</h3><button type="button" class="com-goal-delete" data-delete-line>Eliminar línea</button></div><div class="oc-line-meta" data-targets></div><div class="oc-line-footer"><span class="oc-line-realizado">Realizado leído desde PRE: ${esc(MEDIDAS.importe.format(linea.realizado_importe))} · ${esc(MEDIDAS.cajas.format(linea.realizado_cajas))} · ${esc(MEDIDAS.kilos.format(linea.realizado_kilos))}</span><div class="oc-line-actions"><button type="submit" class="com-primary">Guardar cambios</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
+      form.innerHTML = `<div class="oc-line-head"><h3>${escapeHtml(DIMENSIONES[linea.dimension_tipo] || linea.dimension_tipo)} · ${escapeHtml(linea.dimension_valor)}</h3><button type="button" class="com-goal-delete" data-delete-line>Eliminar línea</button></div><div class="oc-line-meta" data-targets></div><div class="oc-line-footer"><span class="oc-line-realizado">Realizado leído desde PRE: ${escapeHtml(MEDIDAS.importe.format(linea.realizado_importe))} · ${escapeHtml(MEDIDAS.cajas.format(linea.realizado_cajas))} · ${escapeHtml(MEDIDAS.kilos.format(linea.realizado_kilos))}</span><div class="oc-line-actions"><button type="submit" class="com-primary">Guardar cambios</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
       const targets = form.querySelector('[data-targets]');
       targets.replaceWith(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, linea[`meta_${measure}`])));
       for (const measure of Object.keys(MEDIDAS)) activarCampoMeta(form.querySelector(`[data-meta="${measure}"]`), linea[`meta_${measure}`]);
@@ -383,10 +378,10 @@
       const rows = pending.map(goal => {
         const anioOrigen = (String(goal.periodo || '').match(/\b(?:19|20)\d{2}\b/) || [])[0] || '';
         const monthField = goal.mes_sugerido
-          ? `<span>${esc(goal.mes_sugerido)}</span>`
+          ? `<span>${escapeHtml(goal.mes_sugerido)}</span>`
           : `<span class="oc-periodo-pareja"><select data-month-mes required aria-label="Mes"></select><select data-month-anio required aria-label="Año"></select></span>`;
-        const sellerOptions = state.vendedores.map(v => `<option value="${esc(v.id)}">${esc(v.nombre_visible)}</option>`).join('');
-        return `<tr data-goal-id="${esc(goal.goal_id)}" data-month-suggested="${esc(goal.mes_sugerido || '')}" data-anio-origen="${esc(anioOrigen)}"><td data-label="Empleado">${esc(goal.empleado || 'Sin empleado')}</td><td data-label="Período original">${esc(goal.periodo || 'Sin período')}</td><td data-label="Descripción">${esc(goal.descripcion || '')}</td><td data-label="Meta" class="num">${number(goal.meta)}</td><td data-label="Conversión"><form class="oc-legacy-form" data-convert-form novalidate><label>Vendedor comercial<select data-seller required><option value="">Buscar vendedor…</option>${sellerOptions}</select></label><label>Empresa<select data-company required><option value="">Elegir…</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option></select></label><label>Medida<select data-measure required><option value="">Elegir…</option><option value="importe">Importe</option><option value="cajas">Cajas</option><option value="kilos">Kilos</option></select></label><label>Mes ${monthField}</label><button class="com-primary" type="submit">Convertir a línea</button></form></td></tr>`;
+        const sellerOptions = state.vendedores.map(v => `<option value="${escapeHtml(v.id)}">${escapeHtml(v.nombre_visible)}</option>`).join('');
+        return `<tr data-goal-id="${escapeHtml(goal.goal_id)}" data-month-suggested="${escapeHtml(goal.mes_sugerido || '')}" data-anio-origen="${escapeHtml(anioOrigen)}"><td data-label="Empleado">${escapeHtml(goal.empleado || 'Sin empleado')}</td><td data-label="Período original">${escapeHtml(goal.periodo || 'Sin período')}</td><td data-label="Descripción">${escapeHtml(goal.descripcion || '')}</td><td data-label="Meta" class="num">${escapeHtml(number(goal.meta))}</td><td data-label="Conversión"><form class="oc-legacy-form" data-convert-form novalidate><label>Vendedor comercial<select data-seller required><option value="">Buscar vendedor…</option>${sellerOptions}</select></label><label>Empresa<select data-company required><option value="">Elegir…</option><option value="CARNES">Carnes</option><option value="LACTEOS">Lácteos</option></select></label><label>Medida<select data-measure required><option value="">Elegir…</option><option value="importe">Importe</option><option value="cajas">Cajas</option><option value="kilos">Kilos</option></select></label><label>Mes ${monthField}</label><button class="com-primary" type="submit">Convertir a línea</button></form></td></tr>`;
       }).join('');
       $('legacyGoals').innerHTML = `<table><thead><tr><th>Empleado</th><th>Período original</th><th>Descripción</th><th>Meta</th><th>Vinculación comercial</th></tr></thead><tbody>${rows}</tbody></table>`;
       $('legacyGoals').querySelectorAll('tr[data-goal-id]').forEach(row => {

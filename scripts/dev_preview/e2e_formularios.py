@@ -32,6 +32,7 @@ import os
 import re
 import sys
 from datetime import datetime
+from urllib.parse import urlparse
 
 import psycopg2
 from playwright.sync_api import sync_playwright
@@ -415,7 +416,10 @@ def main():
     capturas = Capturas(argumentos.etiqueta)
     estado = {}
     with sync_playwright() as p:
-        navegador = p.chromium.launch(executable_path=CHROMIUM, args=["--no-sandbox"])
+        chromium_args = ["--no-sandbox"]
+        if urlparse(BASE_URL).port:
+            chromium_args.append(f"--explicitly-allowed-ports={urlparse(BASE_URL).port}")
+        navegador = p.chromium.launch(executable_path=CHROMIUM, args=chromium_args)
         contexto = navegador.new_context(
             locale="es-AR", timezone_id="America/Argentina/Buenos_Aires", viewport={"width": 1280, "height": 900}
         )

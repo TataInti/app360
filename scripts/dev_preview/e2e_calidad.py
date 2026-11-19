@@ -947,7 +947,10 @@ def main():
     }
     elegidos = [s.strip() for s in args.solo.split(",") if s.strip()] or list(escenarios)
     with sync_playwright() as pw:
-        navegador = pw.chromium.launch(executable_path=CHROMIUM, args=["--no-sandbox"])
+        chromium_args = ["--no-sandbox"]
+        if urlparse(BASE_URL).port:
+            chromium_args.append(f"--explicitly-allowed-ports={urlparse(BASE_URL).port}")
+        navegador = pw.chromium.launch(executable_path=CHROMIUM, args=chromium_args)
         try:
             for nombre in elegidos:
                 if nombre == "api":

@@ -306,15 +306,6 @@ async function parseJsonResponse(response) {
     throw new Error(`Respuesta no JSON (${response.status}): ${text.substring(0, 120)}`);
 }
 
-function escapeHtml(value) {
-    return String(value ?? '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
-}
-
 document.getElementById('formCargaGlobal').addEventListener('submit', async function(e) {
     e.preventDefault();
 
@@ -390,7 +381,7 @@ document.getElementById('formCargaGlobal').addEventListener('submit', async func
         });
 
         Object.entries(errores).forEach(([key, error]) => {
-            html += `<div class="alert alert-danger py-2"><strong>${key}</strong>: ${escapeHtml(error)}</div>`;
+            html += `<div class="alert alert-danger py-2"><strong>${escapeHtml(key)}</strong>: ${escapeHtml(error)}</div>`;
         });
 
         resultadoDiv.innerHTML = html;
@@ -435,10 +426,10 @@ async function filtrarProductos(estado) {
                 : '<span class="badge bg-warning">Sin mapear</span>';
             
             html += `<tr>
-                <td>${item.codigo}</td>
-                <td>${item.producto_descripcion || '-'}</td>
-                <td>${item.marca || '-'}</td>
-                <td>${item.product_name || '-'}</td>
+                <td>${escapeHtml(item.codigo)}</td>
+                <td>${escapeHtml(item.producto_descripcion || '-')}</td>
+                <td>${escapeHtml(item.marca || '-')}</td>
+                <td>${escapeHtml(item.product_name || '-')}</td>
                 <td>${badge}</td>
             </tr>`;
         });
@@ -447,7 +438,7 @@ async function filtrarProductos(estado) {
         listaDiv.innerHTML = html;
         
     } catch (error) {
-        listaDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        listaDiv.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(error.message)}</div>`;
     }
 }
 
@@ -474,7 +465,7 @@ async function purgarDuplicados() {
         const purgados = data.purgados || {};
         div.innerHTML = `
             <div class="alert alert-success py-2 mb-0">
-                ✓ Duplicados heredados purgados · Ventas: ${Number(purgados.ventas || 0).toLocaleString('es-AR')} · Compras: ${Number(purgados.compras || 0).toLocaleString('es-AR')} · Total: ${Number(purgados.total || 0).toLocaleString('es-AR')}
+                ✓ Duplicados heredados purgados · Ventas: ${escapeHtml(Number(purgados.ventas || 0).toLocaleString('es-AR'))} · Compras: ${escapeHtml(Number(purgados.compras || 0).toLocaleString('es-AR'))} · Total: ${escapeHtml(Number(purgados.total || 0).toLocaleString('es-AR'))}
             </div>
         `;
 
@@ -518,10 +509,10 @@ document.getElementById('clientes-tab').addEventListener('shown.bs.tab', async f
                 : '<span class="badge bg-warning">Sin mapear</span>';
             
             html += `<tr>
-                <td>${item.cliente}</td>
-                <td>${item.condicion_iva || '-'}</td>
-                <td>${item.zona || '-'}</td>
-                <td>${item.client_name || '-'}</td>
+                <td>${escapeHtml(item.cliente)}</td>
+                <td>${escapeHtml(item.condicion_iva || '-')}</td>
+                <td>${escapeHtml(item.zona || '-')}</td>
+                <td>${escapeHtml(item.client_name || '-')}</td>
                 <td>${badge}</td>
             </tr>`;
         });
@@ -530,7 +521,7 @@ document.getElementById('clientes-tab').addEventListener('shown.bs.tab', async f
         listaDiv.innerHTML = html;
         
     } catch (error) {
-        listaDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        listaDiv.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(error.message)}</div>`;
     }
 });
 
@@ -554,10 +545,10 @@ async function refreshFacts() {
         if (data.success) {
             resultadoDiv.innerHTML = '<div class="alert alert-success">✓ Vistas actualizadas correctamente</div>';
         } else {
-            resultadoDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+            resultadoDiv.innerHTML = `<div class="alert alert-danger">${escapeHtml(data.error)}</div>`;
         }
     } catch (error) {
-        resultadoDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        resultadoDiv.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(error.message)}</div>`;
     }
 }
 
@@ -584,7 +575,7 @@ async function autogenerarMapeos() {
         const s = data.stats || {};
         resultadoDiv.innerHTML = `
             <div class="alert alert-success py-2 mb-0">
-                ✓ Mapeos generados · Productos: ${s.productos_creados || 0} (auto-mapeados: ${s.productos_auto_mapeados || 0}) · Clientes: ${s.clientes_creados || 0} (auto-mapeados: ${s.clientes_auto_mapeados || 0})
+                ✓ Mapeos generados · Productos: ${escapeHtml(s.productos_creados || 0)} (auto-mapeados: ${escapeHtml(s.productos_auto_mapeados || 0)}) · Clientes: ${escapeHtml(s.clientes_creados || 0)} (auto-mapeados: ${escapeHtml(s.clientes_auto_mapeados || 0)})
             </div>
         `;
 
@@ -596,7 +587,7 @@ async function autogenerarMapeos() {
             document.getElementById('clientes-tab')?.dispatchEvent(new Event('shown.bs.tab'));
         }
     } catch (error) {
-        resultadoDiv.innerHTML = `<div class="alert alert-danger py-2 mb-0">Error: ${error.message}</div>`;
+        resultadoDiv.innerHTML = `<div class="alert alert-danger py-2 mb-0">Error: ${escapeHtml(error.message)}</div>`;
     }
 }
 
@@ -672,10 +663,10 @@ async function cargarVentas(page = 1) {
             html += `<td>${escapeHtml(item.producto || '-')}</td>`;
             html += `<td>${escapeHtml(item.cliente || '-')}</td>`;
             html += `<td>${escapeHtml(item.sucursal || '-')}</td>`;
-            html += `<td class="text-end">${Number(item.kilos || 0).toFixed(3)}</td>`;
-            html += `<td class="text-end">${Number(item.cajas || 0).toFixed(2)}</td>`;
-            html += `<td class="text-end">$${Number(item.subtot || 0).toFixed(2)}</td>`;
-            html += `<td class="text-end">$${Number(item.total || 0).toFixed(2)}</td>`;
+            html += `<td class="text-end">${escapeHtml(Number(item.kilos || 0).toFixed(3))}</td>`;
+            html += `<td class="text-end">${escapeHtml(Number(item.cajas || 0).toFixed(2))}</td>`;
+            html += `<td class="text-end">$${escapeHtml(Number(item.subtot || 0).toFixed(2))}</td>`;
+            html += `<td class="text-end">$${escapeHtml(Number(item.total || 0).toFixed(2))}</td>`;
             html += `<td>${escapeHtml(item.estado || '-')}</td>`;
             html += '</tr>';
         });
@@ -683,7 +674,7 @@ async function cargarVentas(page = 1) {
         html += '</tbody></table>';
         listaDiv.innerHTML = html;
     } catch (error) {
-        listaDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+        listaDiv.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(error.message)}</div>`;
     }
 }
 
@@ -741,7 +732,7 @@ async function cargarCobertura() {
 
         let html = '<div class="table-responsive"><table class="table table-sm table-bordered align-middle">';
         html += '<thead class="table-light"><tr><th>Mes</th>';
-        campos.forEach(c => { html += `<th class="text-center">${c.label}</th>`; });
+        campos.forEach(c => { html += `<th class="text-center">${escapeHtml(c.label)}</th>`; });
         html += '</tr></thead><tbody>';
 
         resumen.forEach(mes => {
@@ -755,12 +746,12 @@ async function cargarCobertura() {
                 const filas = info.filas || 0;
                 const faltantes = info.dias_faltantes || [];
                 const badge = coberturaBadge(carg, hab);
-                let cell = `<span class="badge ${badge}">${carg}/${hab}</span>`;
-                cell += `<span class="text-muted ms-1 small">(${filas.toLocaleString('es-AR')} filas)</span>`;
+                let cell = `<span class="badge ${badge}">${escapeHtml(carg)}/${escapeHtml(hab)}</span>`;
+                cell += `<span class="text-muted ms-1 small">(${escapeHtml(filas.toLocaleString('es-AR'))} filas)</span>`;
                 if (faltantes.length > 0) {
                     const detailId = `faltantes_${mesId}_${c.key}`;
-                    cell += `<br><a href="#" class="small text-danger" onclick="event.preventDefault();document.getElementById('${detailId}').classList.toggle('d-none');">${faltantes.length} día(s) faltante(s)</a>`;
-                    cell += `<div id="${detailId}" class="d-none small text-muted mt-1">${faltantes.map(f => escapeHtml(f)).join(', ')}</div>`;
+                    cell += `<br><a href="#" class="small text-danger" data-toggle-faltantes="${escapeHtml(detailId)}">${escapeHtml(faltantes.length)} día(s) faltante(s)</a>`;
+                    cell += `<div id="${escapeHtml(detailId)}" class="d-none small text-muted mt-1">${faltantes.map(f => escapeHtml(f)).join(', ')}</div>`;
                 }
                 html += `<td class="text-center">${cell}</td>`;
             });
@@ -769,6 +760,12 @@ async function cargarCobertura() {
 
         html += '</tbody></table></div>';
         div.innerHTML = html;
+        div.querySelectorAll('[data-toggle-faltantes]').forEach(link => {
+            link.addEventListener('click', event => {
+                event.preventDefault();
+                document.getElementById(link.dataset.toggleFaltantes)?.classList.toggle('d-none');
+            });
+        });
     } catch (error) {
         div.innerHTML = `<div class="alert alert-danger">Error: ${escapeHtml(error.message)}</div>`;
     }
@@ -804,9 +801,9 @@ async function cargarHistorial() {
             html += `<td class="small">${escapeHtml(fecha)}</td>`;
             html += `<td class="small">${escapeHtml(item.archivo_nombre || '-')}</td>`;
             html += `<td><span class="badge bg-secondary">${escapeHtml(item.tipo_carga || '-')}</span></td>`;
-            html += `<td class="text-end">${Number(item.filas_insertadas || 0).toLocaleString('es-AR')}</td>`;
-            html += `<td class="text-end ${dupClass}">${Number(item.filas_duplicadas || 0).toLocaleString('es-AR')}</td>`;
-            html += `<td class="text-end ${errClass}">${Number(item.filas_error || 0).toLocaleString('es-AR')}</td>`;
+            html += `<td class="text-end">${escapeHtml(Number(item.filas_insertadas || 0).toLocaleString('es-AR'))}</td>`;
+            html += `<td class="text-end ${dupClass}">${escapeHtml(Number(item.filas_duplicadas || 0).toLocaleString('es-AR'))}</td>`;
+            html += `<td class="text-end ${errClass}">${escapeHtml(Number(item.filas_error || 0).toLocaleString('es-AR'))}</td>`;
             html += '</tr>';
         });
 

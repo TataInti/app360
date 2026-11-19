@@ -469,7 +469,10 @@ def main():
     matriz_jwt(informe, carpeta)
 
     with sync_playwright() as p:
-        navegador = p.chromium.launch(executable_path=CHROMIUM, args=["--no-sandbox"])
+        chromium_args = ["--no-sandbox"]
+        if urlparse(BASE_URL).port:
+            chromium_args.append(f"--explicitly-allowed-ports={urlparse(BASE_URL).port}")
+        navegador = p.chromium.launch(executable_path=CHROMIUM, args=chromium_args)
         contexto = navegador.new_context(locale="es-AR", viewport={"width": 1366, "height": 900})
         page = contexto.new_page()
         instrumentar(page, informe)
