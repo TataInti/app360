@@ -134,12 +134,17 @@ session["user_id"]
 Usuarios se crean/actualizan con el script:
 
 ```bash
-# Crear usuarios caja y director (genera contraseñas aleatorias)
+# Crear usuarios caja y director. Las claves nuevas se generan al azar y no se muestran.
 python scripts/setup_users.py
 
-# Regenerar contraseñas
+# Ver una sola vez las claves generadas en esta corrida (no se guardan en ningún archivo)
+python scripts/setup_users.py --mostrar-claves
+
+# Regenerar las claves de usuarios existentes (pide confirmación escrita)
 python scripts/setup_users.py --reset
 ```
+
+Las cuentas existentes conservan su clave en cada corrida: solo `--reset` la cambia.
 
 Para crear un usuario con rol distinto, editar `USERS` en [scripts/setup_users.py](../scripts/setup_users.py) o usar directamente el modelo `User` en un contexto de app.
 

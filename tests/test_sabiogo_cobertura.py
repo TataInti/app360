@@ -14,6 +14,9 @@ from models import db as _db
 from models.sabiogo import StgSabiogoVentas, StgSabiogoCompras, LogSabiogoCarga
 from services.sabiogo_service import SabiogoService
 
+# La base de este módulo no tiene tabla users (preexistente): no inyecta sesión admin.
+pytestmark = pytest.mark.sin_sesion_admin
+
 
 @pytest.fixture
 def app():

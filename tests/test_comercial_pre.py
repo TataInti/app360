@@ -9,6 +9,7 @@ from models.comercial import ComercialClienteCriterio, ComercialObjetivo, Comerc
 from models.sabiogo.staging import StgSabiogoVentas
 from services.comercial_pre import calcular_resumen_pre
 from services.vendedores_comerciales import seed_vendedores_comerciales
+from sesion_de_prueba import cambiar_usuario
 
 
 @pytest.fixture
@@ -386,10 +387,7 @@ def test_pantalla_criterios_guardado_selectivo_y_auditoria(client, app, pre_alia
         )
         db.session.commit()
 
-    with client.session_transaction() as sess:
-        sess["user"] = "Ciro"
-        sess["user_id"] = 1
-        sess["role"] = "sales"
+    cambiar_usuario(client, 1, username="Ciro", role="sales")
     app.jinja_env.globals["csrf_token"] = lambda: "test-csrf"
 
     page = client.get("/ventas/criterio-clientes")

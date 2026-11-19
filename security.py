@@ -1,11 +1,13 @@
 from functools import wraps
 from datetime import datetime, timedelta, timezone
+import hashlib
 import hmac
 import logging
 import jwt
 
 from flask import (
     flash,
+    g,
     redirect,
     session,
     url_for,
@@ -129,6 +131,145 @@ def log_access_denied(user, module, ip=None):
 
 
 # =============================================================================
+# Sesión web: revalidación en cada request (R-04)
+# =============================================================================
+# Clave de sesión con la huella HMAC del password_hash vigente al iniciar sesión.
+SESION_HUELLA_CLAVE = "sesion_huella"
+
+# Endpoints que no exigen sesión y no pasan por la revalidación. Coinciden con las
+# excepciones de tests/test_acceso_anonimo.py. auth.login valida una sesión previa
+# dentro de su vista, para que una sesión vencida no impida iniciar sesión.
+ENDPOINTS_SIN_REVALIDACION = frozenset({
+    "auth.login",
+    "static",
+    "api_rest.health_check",
+    "api_rest.login",
+    "api_rest.refresh_token",
+    "sabiogo.sabiogo_db_sync",
+    "sabiogo.sabiogo_db_sync_daily",
+    "sabiogo.sabiogo_db_sync_finalize",
+    "sabiogo.sabiogo_db_sync_status",
+})
+
+
+def huella_sesion(usuario):
+    """HMAC-SHA256 del password_hash vigente, con SECRET_KEY como clave.
+
+    Cambiar la clave de un usuario, o la SECRET_KEY, cambia la huella y cierra las
+    sesiones previas. El hash nunca entra en la sesión. Sin hash no hay huella: esa
+    cuenta no puede tener sesión.
+    """
+    if not usuario.password_hash:
+        return None
+    clave = current_app.secret_key
+    if isinstance(clave, str):
+        clave = clave.encode("utf-8")
+    return hmac.new(clave, usuario.password_hash.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def datos_de_sesion_web(usuario):
+    """Claves que identifican la sesión web de un usuario. El login usa solo esta función."""
+    return {
+        "user": usuario.username,
+        "user_id": usuario.id,
+        "role": usuario.role,
+        SESION_HUELLA_CLAVE: huella_sesion(usuario),
+    }
+
+
+def _usuario_por_pk(user_id):
+    """Usuario por clave primaria, o None. Una consulta por llamada.
+
+    populate_existing fuerza la lectura de la base: una desactivación hecha fuera de
+    la sesión ORM no queda oculta por el identity map.
+    """
+    from models import db
+    from models.core.user import User
+
+    if user_id is None:
+        return None
+    try:
+        clave = int(user_id)
+    except (TypeError, ValueError):
+        return None
+    return db.session.get(User, clave, populate_existing=True)
+
+
+def usuario_vigente(user_id):
+    """Usuario activo por clave primaria, o None (inexistente o inactivo). Una consulta."""
+    usuario = _usuario_por_pk(user_id)
+    if usuario is None or usuario.active is not True:
+        return None
+    return usuario
+
+
+def hay_sesion_web():
+    """True si la sesión trae alguna clave de identidad, aunque esté incompleta."""
+    return any(clave in session for clave in ("user", "user_id", "role", SESION_HUELLA_CLAVE))
+
+
+def _usuario_de_sesion_o_motivo():
+    """(usuario, None) si la sesión es válida; (None, motivo) si no lo es."""
+    huella_guardada = session.get(SESION_HUELLA_CLAVE)
+    if not huella_guardada:
+        return None, "sin_huella"
+    usuario = _usuario_por_pk(session.get("user_id"))
+    if usuario is None:
+        return None, "usuario_inexistente"
+    if usuario.active is not True:
+        return None, "usuario_inactivo"
+    huella_actual = huella_sesion(usuario)
+    if not huella_actual or not hmac.compare_digest(huella_actual, str(huella_guardada)):
+        return None, "huella_no_coincide"
+    return usuario, None
+
+
+def sesion_web_vigente():
+    """Valida la sesión web contra la base: una consulta por PK por request (cacheada en g).
+
+    Si no es válida, limpia la sesión completa y devuelve False. Si es válida, alinea
+    session["user"] y session["role"] con la base: un cambio de rol surte efecto en
+    este mismo request, antes de que las guardias de módulo lean el rol.
+    """
+    if "usuario_sesion" in g:
+        return g.usuario_sesion is not None
+    usuario, motivo = _usuario_de_sesion_o_motivo()
+    g.usuario_sesion = usuario
+    if usuario is None:
+        log_security_event(
+            "SESSION_REVOKED",
+            f"Sesión web invalidada: {motivo}",
+            user=session.get("user"),
+            extra={"motivo": motivo},
+        )
+        session.clear()
+        return False
+    if session.get("user") != usuario.username:
+        session["user"] = usuario.username
+    if session.get("role") != usuario.role:
+        session["role"] = usuario.role
+    return True
+
+
+def revalidar_sesion_web():
+    """before_request de la aplicación: corta una sesión revocada antes de las guardias de blueprint.
+
+    Sin claves de sesión no hay consulta. Las rutas de ENDPOINTS_SIN_REVALIDACION
+    no pasan por aquí. Una sesión no válida responde 401 JSON en /api/ y redirige al
+    login en el resto.
+    """
+    g.pop("usuario_sesion", None)
+    if request.endpoint in ENDPOINTS_SIN_REVALIDACION or not hay_sesion_web():
+        return None
+    if sesion_web_vigente():
+        return None
+    if "/api/" in request.path:
+        return jsonify({"error": "Sesión requerida"}), 401
+    flash("Tu sesión ya no es válida. Inicia sesión nuevamente.", "warning")
+    return redirect(url_for("auth.login"))
+
+
+# =============================================================================
 # JWT Token Management
 # =============================================================================
 def generate_access_token(user_id, username, role):
@@ -189,6 +330,12 @@ def jwt_required(f):
         
         if payload.get('type') != 'access':
             return jsonify({'error': 'Invalid token type'}), 401
+
+        # Revocación inmediata (R-04): el usuario del token debe existir y estar activo.
+        # jwt_o_sesion y jwt_modulo pasan por esta misma comprobación.
+        if usuario_vigente(payload.get('user_id')) is None:
+            log_security_event('JWT_REVOKED', 'Usuario inexistente o inactivo', user=payload.get('username'))
+            return jsonify({'error': 'Token is invalid or expired'}), 401
         
         # Add user info to request context
         request.current_user = {
@@ -227,6 +374,45 @@ def jwt_o_sesion(modulo):
             }
             return f(*args, **kwargs)
         return decorated
+    return decorator
+
+
+# Métodos que modifican datos: exigen edición del módulo.
+METODOS_ESCRITURA = ('POST', 'PUT', 'PATCH', 'DELETE')
+
+
+def jwt_modulo(modulo, nivel='view'):
+    """JWT válido, acceso al módulo y, en escrituras, edición del módulo.
+
+    Pensado para las escrituras de api_rest. Sin token o con token inválido responde
+    401 (jwt_required). Con token válido pero sin el módulo, o sin edición en una
+    escritura, responde 403 JSON. Rol e id salen solo del token: no usa la sesión web.
+
+    nivel='view': en lecturas basta con acceso de solo lectura o de edición.
+    nivel='edit': exige edición también en lecturas.
+    En POST, PUT, PATCH y DELETE siempre se exige edición, como protect_blueprint.
+    """
+    if nivel not in ('view', 'edit'):
+        raise ValueError(f"nivel de acceso inválido: {nivel!r}")
+
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            usuario = request.current_user
+            role = usuario.get('role')
+            user_id = usuario.get('user_id')
+            if not role or user_id is None:
+                log_access_denied(usuario.get('username'), modulo)
+                return jsonify({'error': 'Sin acceso al módulo'}), 403
+            if not module_allowed(modulo, role=role, user_id=user_id):
+                log_access_denied(usuario.get('username'), modulo)
+                return jsonify({'error': 'Sin acceso al módulo'}), 403
+            requiere_edicion = nivel == 'edit' or request.method in METODOS_ESCRITURA
+            if requiere_edicion and get_user_module_access(modulo, user_id, role) != 'edit':
+                log_access_denied(usuario.get('username'), modulo)
+                return jsonify({'error': 'Sin permiso de edición en el módulo'}), 403
+            return f(*args, **kwargs)
+        return jwt_required(decorated)
     return decorator
 
 

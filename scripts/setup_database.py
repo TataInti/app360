@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 Script para configurar la base de datos PostgreSQL
-Uso: python scripts/setup_database.py
+Uso:
+    python scripts/setup_database.py                         # crea tablas; un admin existente conserva su clave
+    python scripts/setup_database.py --reset-admin-password  # reasigna la clave del admin con ADMIN_PASSWORD (pide confirmación)
 """
 
 import os
@@ -14,33 +16,46 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from app import create_app
+from claves_seguras import confirmar
 from config import Config
 
 
-def ensure_admin_user():
+def ensure_admin_user(reset_password=False):
+    """Crea el admin inicial con ADMIN_PASSWORD. Una cuenta existente conserva su clave.
+
+    Devuelve "creado", "clave reasignada", "existe, sin cambio de clave" o None si
+    falta ADMIN_USERNAME o ADMIN_PASSWORD (en ese caso no se crea nada).
+    """
     from models import db
     from models.core.user import User
 
     username = Config.ADMIN_USERNAME
     password = Config.ADMIN_PASSWORD
     if not username or not password:
-        return
+        return None
 
     user = User.query.filter_by(username=username).first()
     if not user:
         user = User(username=username, role="admin", active=True)
+        user.set_password(password)
         db.session.add(user)
+        db.session.commit()
+        return "creado"
 
+    # La clave solo cambia con reset_password (--reset-admin-password).
+    # Activación y rol se mantienen como antes; se revisan en el corte de usuarios.
     user.active = True
-    # No podemos verificar el hash vs password sin conocer algoritmo, así que
-    # en dev lo seteamos siempre para asegurar acceso.
-    user.set_password(password)
     if not user.role:
         user.role = "admin"
-
+    if reset_password:
+        user.set_password(password)
+        resultado = "clave reasignada"
+    else:
+        resultado = "existe, sin cambio de clave"
     db.session.commit()
+    return resultado
 
-def setup_database():
+def setup_database(reset_admin_password=False):
     """Configura la base de datos PostgreSQL"""
 
     print("🚀 Configurando base de datos PostgreSQL...")
@@ -62,8 +77,16 @@ def setup_database():
             print("✅ Tablas creadas exitosamente")
 
             print("👤 Asegurando usuario admin...")
-            ensure_admin_user()
-            print("✅ Usuario admin listo")
+            if reset_admin_password and not confirmar(
+                "Se reasignará la clave del admin con ADMIN_PASSWORD."
+            ):
+                print("Sin confirmación: la clave del admin no se reasigna.")
+                reset_admin_password = False
+            resultado = ensure_admin_user(reset_password=reset_admin_password)
+            if resultado is None:
+                print("⚠️  ADMIN_USERNAME o ADMIN_PASSWORD no definidos: no se creó el admin inicial.")
+            else:
+                print(f"✅ Usuario admin listo ({resultado})")
 
             # Ejecutar seed data si existe
             seed_file = "scripts/seed_demo_data.py"
@@ -87,5 +110,15 @@ def setup_database():
             sys.exit(1)
 
 if __name__ == "__main__":
+    import argparse
     import importlib.util
-    setup_database()
+
+    parser = argparse.ArgumentParser(description="Configura la base PostgreSQL y el admin inicial.")
+    parser.add_argument(
+        "--reset-admin-password",
+        action="store_true",
+        help="Reasigna la clave del admin con ADMIN_PASSWORD (pide confirmación). "
+        "Sin este flag, un admin existente conserva su clave.",
+    )
+    args = parser.parse_args()
+    setup_database(reset_admin_password=args.reset_admin_password)

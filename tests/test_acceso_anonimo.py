@@ -25,6 +25,7 @@ from config import Config
 from models import Location, Product, StockLevel, db
 from models.core.user import User
 from models.core.user_permission import UserModulePermission
+from sesion_de_prueba import asegurar_usuario, marcar_sesion
 from security import (
     ACCESS_MAP,
     SIN_ACCESO_ROUTE,
@@ -113,6 +114,7 @@ def app_test(monkeypatch):
     with application.app_context():
         db.create_all()
         _registrar_date_trunc_sqlite()
+        asegurar_usuario(application, 1, "PROBE-admin", "admin")
         yield application
         db.session.remove()
         db.drop_all()
@@ -138,10 +140,12 @@ def _crear_usuario(app, username, role, modulos=()):
 
 
 def _cliente_con_sesion(app, role):
+    """Sesión de un usuario real con ese rol: la revalidación lo exige activo en la base."""
+    with app.app_context():
+        usuario = User.query.filter_by(username=f"PROBE-{role}").first()
+        usuario_id = usuario.id if usuario else _crear_usuario(app, f"PROBE-{role}", role)
     cliente = app.test_client()
-    with cliente.session_transaction() as sesion:
-        sesion["user"] = f"PROBE-{role}"
-        sesion["role"] = role
+    marcar_sesion(cliente, usuario_id)
     return cliente
 
 

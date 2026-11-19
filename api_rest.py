@@ -11,7 +11,7 @@ from models import (
 )
 from security import (
     generate_access_token, generate_refresh_token, decode_token,
-    jwt_required, jwt_o_sesion, log_login_attempt, log_security_event
+    jwt_required, jwt_modulo, jwt_o_sesion, log_login_attempt, log_security_event
 )
 from extensions import limiter
 
@@ -216,7 +216,7 @@ def get_products():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/products', methods=['POST'])
-@jwt_required
+@jwt_modulo('products', 'edit')
 def create_product():
     """Create a new product"""
     try:
@@ -242,7 +242,7 @@ def create_product():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/products/<int:product_id>', methods=['PUT'])
-@jwt_required
+@jwt_modulo('products', 'edit')
 def update_product(product_id):
     """Update a product"""
     try:
@@ -263,7 +263,7 @@ def update_product(product_id):
         return error_response(500, "Internal server error")
 
 @api_rest.route('/products/<int:product_id>', methods=['DELETE'])
-@jwt_required
+@jwt_modulo('products', 'edit')
 def delete_product(product_id):
     """Delete a product"""
     try:
@@ -279,6 +279,10 @@ def delete_product(product_id):
 # -----------------------------------------------------------------------------
 # LOCATIONS ENDPOINTS
 # -----------------------------------------------------------------------------
+# Campos de Location que la API acepta en alta y edición. Location no tiene 'province':
+# ese campo se descarta y no se reasigna a otro.
+CAMPOS_UBICACION = ("name", "address", "city", "country", "phone", "email")
+
 @api_rest.route('/locations', methods=['GET'])
 @jwt_required
 def get_locations():
@@ -292,7 +296,6 @@ def get_locations():
             'name': l.name,
             'address': l.address,
             'city': l.city,
-            'province': l.province,
             'country': l.country,
             'phone': l.phone,
             'email': l.email
@@ -309,7 +312,7 @@ def get_locations():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/locations', methods=['POST'])
-@jwt_required
+@jwt_modulo('locations', 'edit')
 def create_location():
     """Create a new location"""
     try:
@@ -319,15 +322,7 @@ def create_location():
         missing = require_fields(data, ["name"])
         if missing:
             return missing
-        location = Location(
-            name=data['name'],
-            address=data.get('address'),
-            city=data.get('city'),
-            province=data.get('province'),
-            country=data.get('country'),
-            phone=data.get('phone'),
-            email=data.get('email')
-        )
+        location = Location(**{campo: data.get(campo) for campo in CAMPOS_UBICACION})
         db.session.add(location)
         db.session.commit()
         return jsonify({'id': location.id, 'message': 'Location created successfully'}), 201
@@ -337,7 +332,7 @@ def create_location():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/locations/<int:location_id>', methods=['PUT'])
-@jwt_required
+@jwt_modulo('locations', 'edit')
 def update_location(location_id):
     """Update a location"""
     try:
@@ -345,13 +340,9 @@ def update_location(location_id):
         data = get_json_payload()
         if not data:
             return error_response(400, "Invalid request body")
-        location.name = data.get('name', location.name)
-        location.address = data.get('address', location.address)
-        location.city = data.get('city', location.city)
-        location.province = data.get('province', location.province)
-        location.country = data.get('country', location.country)
-        location.phone = data.get('phone', location.phone)
-        location.email = data.get('email', location.email)
+        for campo in CAMPOS_UBICACION:
+            if campo in data:
+                setattr(location, campo, data[campo])
         db.session.commit()
         return jsonify({'message': 'Location updated successfully'})
     except Exception as e:
@@ -360,7 +351,7 @@ def update_location(location_id):
         return error_response(500, "Internal server error")
 
 @api_rest.route('/locations/<int:location_id>', methods=['DELETE'])
-@jwt_required
+@jwt_modulo('locations', 'edit')
 def delete_location(location_id):
     """Delete a location"""
     try:
@@ -429,7 +420,7 @@ def get_leads():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/leads', methods=['POST'])
-@jwt_required
+@jwt_modulo('crm', 'edit')
 def create_lead():
     """Create a new lead"""
     try:
@@ -461,7 +452,7 @@ def create_lead():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/leads/<int:lead_id>', methods=['PUT'])
-@jwt_required
+@jwt_modulo('crm', 'edit')
 def update_lead(lead_id):
     """Update a lead"""
     try:
@@ -488,7 +479,7 @@ def update_lead(lead_id):
         return error_response(500, "Internal server error")
 
 @api_rest.route('/leads/<int:lead_id>', methods=['DELETE'])
-@jwt_required
+@jwt_modulo('crm', 'edit')
 def delete_lead(lead_id):
     """Delete a lead"""
     try:
@@ -535,7 +526,7 @@ def get_stock():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/stock', methods=['POST'])
-@jwt_required
+@jwt_modulo('stock', 'edit')
 def create_stock():
     """Create a new stock record"""
     try:
@@ -567,7 +558,7 @@ def create_stock():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/stock/<int:stock_id>', methods=['PUT'])
-@jwt_required
+@jwt_modulo('stock', 'edit')
 def update_stock(stock_id):
     """Update a stock record"""
     try:
@@ -594,7 +585,7 @@ def update_stock(stock_id):
         return error_response(500, "Internal server error")
 
 @api_rest.route('/stock/<int:stock_id>', methods=['DELETE'])
-@jwt_required
+@jwt_modulo('stock', 'edit')
 def delete_stock(stock_id):
     """Delete a stock record"""
     try:
@@ -701,7 +692,7 @@ def compras_overview():
         return error_response(500, 'Internal server error')
 
 @api_rest.route('/compras', methods=['POST'])
-@jwt_required
+@jwt_modulo('compras', 'edit')
 def create_compra():
     """Create a new purchase order"""
     try:
@@ -768,7 +759,7 @@ def create_compra():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/compras/<int:order_id>', methods=['PUT'])
-@jwt_required
+@jwt_modulo('compras', 'edit')
 def update_compra(order_id):
     """Update a purchase order"""
     try:
@@ -813,7 +804,7 @@ def update_compra(order_id):
         return error_response(500, "Internal server error")
 
 @api_rest.route('/compras/<int:order_id>', methods=['DELETE'])
-@jwt_required
+@jwt_modulo('compras', 'edit')
 def delete_compra(order_id):
     """Delete a purchase order"""
     try:
@@ -851,7 +842,8 @@ def get_rrhh():
             'description': g.description,
             'target_value': g.target_value,
             'current_value': g.current_value,
-            'deadline': g.deadline.isoformat() if g.deadline else None
+            # Goal no tiene fecha límite (solo 'period'): se devuelve null para mantener la forma.
+            'deadline': None
         } for g in goals]
 
         return jsonify({
@@ -926,7 +918,7 @@ def get_employees():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/rrhh/empleados', methods=['POST'])
-@jwt_required
+@jwt_modulo('rrhh', 'edit')
 def create_employee():
     """Create a new employee"""
     try:
@@ -975,7 +967,7 @@ def create_employee():
         return error_response(500, "Internal server error")
 
 @api_rest.route('/rrhh/empleados/<int:id>', methods=['PUT'])
-@jwt_required
+@jwt_modulo('rrhh', 'edit')
 def update_employee(id):
     """Update an employee"""
     try:
@@ -1019,7 +1011,7 @@ def update_employee(id):
         return error_response(500, "Internal server error")
 
 @api_rest.route('/rrhh/empleados/<int:id>', methods=['DELETE'])
-@jwt_required
+@jwt_modulo('rrhh', 'edit')
 def delete_employee(id):
     """Delete an employee"""
     try:

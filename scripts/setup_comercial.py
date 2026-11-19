@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 from datetime import datetime, timedelta
@@ -13,6 +14,7 @@ if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
 from app import create_app
+from claves_seguras import confirmar, generar_clave
 from config import Config
 from models import (
     Attendance,
@@ -33,6 +35,7 @@ from models import (
     User,
     db,
 )
+from security import ACCESS_MAP
 
 
 def get_or_create(model, filters=None, defaults=None):
@@ -236,32 +239,101 @@ def seed_rrhh_data(locations):
     db.session.commit()
 
 
-def seed_users():
-    accounts = [
-        (Config.ADMIN_USERNAME, Config.ADMIN_PASSWORD, "gerente"),
-        ("jefe_comercial", "Comercial123!", "comercial"),
-        ("jefe_compras", "Compras123!", "compras"),
-        ("jefe_rrhh", "RRHH123!", "rrhh"),
-        ("jefe_operaciones", "Operaciones123!", "operaciones"),
+def seed_users(reset_claves=False):
+    """Crea las cuentas de demo sin reasignar las claves de cuentas existentes.
+
+    Cuenta nueva: clave aleatoria; el admin del entorno toma ADMIN_PASSWORD.
+    Cuenta existente: su clave no cambia, salvo reset_claves=True (la regenera).
+    Devuelve una fila por cuenta. "clave" trae solo claves generadas en esta corrida.
+    """
+    # Los roles comercial, compras, rrhh y operaciones no existen en ACCESS_MAP.
+    # Se dejan tal como están hasta decidir el mapeo (decisión de producto P-8).
+    cuentas = [
+        (Config.ADMIN_USERNAME, "gerente"),
+        ("jefe_comercial", "comercial"),
+        ("jefe_compras", "compras"),
+        ("jefe_rrhh", "rrhh"),
+        ("jefe_operaciones", "operaciones"),
     ]
 
-    for username, password, role in accounts:
-        user = get_or_create(User, filters={"username": username})
-        user.role = role
-        user.set_password(password)
+    resumen = []
+    for username, role in cuentas:
+        user = User.query.filter_by(username=username).first()
+        clave_generada = None
+        if user is None:
+            user = User(username=username, role=role, active=True)
+            if username == Config.ADMIN_USERNAME and Config.ADMIN_PASSWORD:
+                user.set_password(Config.ADMIN_PASSWORD)
+                accion = "creado (clave de ADMIN_PASSWORD)"
+            else:
+                clave_generada = generar_clave()
+                user.set_password(clave_generada)
+                accion = "creado"
+            db.session.add(user)
+        else:
+            user.role = role  # Como antes: el rol de demo se fija en cada corrida.
+            if reset_claves:
+                clave_generada = generar_clave()
+                user.set_password(clave_generada)
+                accion = "clave regenerada"
+            else:
+                accion = "existe, clave sin cambios"
+        resumen.append(
+            {"usuario": username, "rol": role, "accion": accion, "clave": clave_generada}
+        )
 
     db.session.commit()
+    return resumen
 
 
-def main():
+def imprimir_resumen_usuarios(resumen, mostrar_claves=False):
+    """Imprime las cuentas. Las claves generadas solo se muestran con mostrar_claves."""
+    print("\n--- Cuentas de demo ---")
+    for fila in resumen:
+        print(f"  {fila['usuario']} (rol: {fila['rol']}): {fila['accion']}")
+        if fila["clave"]:
+            if mostrar_claves:
+                print(f"      clave: {fila['clave']}  (se muestra una sola vez; no se guarda)")
+            else:
+                print("      clave generada, no mostrada (usar --mostrar-claves para verla una vez)")
+
+    sin_mapeo = [fila["usuario"] for fila in resumen if fila["rol"] not in ACCESS_MAP]
+    if sin_mapeo:
+        print(
+            "ADVERTENCIA: estas cuentas usan roles que no existen en ACCESS_MAP (security.py) "
+            f"y no tienen módulos: {', '.join(sin_mapeo)}. Se dejan así; el mapeo a roles "
+            "reales es una decisión de producto pendiente (P-8)."
+        )
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Carga la base comercial de demo.")
+    parser.add_argument(
+        "--mostrar-claves",
+        action="store_true",
+        help="Muestra una vez las claves generadas para cuentas nuevas o regeneradas.",
+    )
+    parser.add_argument(
+        "--reset-claves",
+        action="store_true",
+        help="Regenera las claves de cuentas existentes. Pide confirmación.",
+    )
+    args = parser.parse_args(argv)
+
+    reset = args.reset_claves
+    if reset and not confirmar("Se regenerarán las claves de las cuentas de demo existentes."):
+        print("Sin confirmación: no se regeneran claves.")
+        reset = False
+
     app = create_app()
     with app.app_context():
         db.create_all()
         units, locations, products, campaign = seed_business_data()
         seed_demo_lead(units, locations, products, campaign)
         seed_rrhh_data(locations)
-        seed_users()
+        resumen = seed_users(reset_claves=reset)
         print("Base comercial sembrada con unidades, productos, campaña y lead demo.")
+        imprimir_resumen_usuarios(resumen, mostrar_claves=args.mostrar_claves)
 
 
 if __name__ == "__main__":

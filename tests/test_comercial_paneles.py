@@ -8,6 +8,7 @@ from app import create_app
 from config import Config
 from test_dashboard_equipo import agregar_pre
 from services.vendedores_comerciales import seed_vendedores_comerciales
+from sesion_de_prueba import cambiar_usuario
 from models import db
 from models.comercial import ComercialClienteCriterio
 from models.sabiogo.staging import StgSabiogoVentas
@@ -253,12 +254,10 @@ def test_error_no_devuelve_ceros(client, monkeypatch):
 
 @pytest.mark.parametrize('path', ['/comercial/seguimiento-clientes', BASE, BASE + '/detalle?cliente=X', '/api/dashboard-comercial/resumen-estrategico', '/api/comercial/paneles/opciones'])
 def test_permiso_existente_y_sin_ampliacion(client, path):
-    with client.session_transaction() as session:
-        session['role'] = 'hr'
+    cambiar_usuario(client, 1, role='hr')
     denied = client.get(path)
     assert denied.status_code == 302
-    with client.session_transaction() as session:
-        session['role'] = 'direccion'
+    cambiar_usuario(client, 1, role='direccion')
     allowed = client.get(path)
     assert allowed.status_code == 200
 
