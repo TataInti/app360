@@ -44,7 +44,8 @@
 
             <div class="mb-3">
                 <label>Precio unitario</label>
-                <input type="text" name="unit_price" class="form-control" placeholder="12345.00" required>
+                <input type="text" name="unit_price" class="form-control{% if error_precio %} is-invalid{% endif %}" placeholder="1.234,56" inputmode="decimal" required{% if error_precio %} aria-invalid="true" aria-describedby="errorPrecio"{% endif %}>
+                {% if error_precio %}<div class="invalid-feedback d-block" id="errorPrecio">{{ error_precio }}</div>{% endif %}
             </div>
 
             <div class="mb-3">

@@ -152,10 +152,23 @@
     return select;
   }
 
+  // Metas en formato de importe (es-AR), con el binding de dinero de App360UI: «1.234,56».
+  function activarCampoMeta(input, valor) {
+    const money = window.App360UI?.money;
+    if (!input || !money) return;
+    money.bindInput(input);
+    if (valor !== undefined && valor !== null && Number(valor) !== 0) money.setValue(input, valor);
+  }
+  // Devuelve el importe de la meta, 0 si está vacía o NaN si el texto no es un importe.
+  function leerMeta(input) {
+    if (!String(input?.value ?? '').trim()) return 0;
+    const valor = window.App360UI?.money?.getValue(input);
+    return Number.isFinite(valor) ? valor : NaN;
+  }
   function crearInputMeta(measure, value = 0) {
     const label = document.createElement('label');
     label.className = 'oc-line-target';
-    label.innerHTML = `<span>${MEDIDAS[measure].label}</span><input type="number" min="0" step="0.01" value="${esc(value)}" placeholder="0" data-meta="${measure}" aria-label="Meta de ${MEDIDAS[measure].label}"><small>${MEDIDAS[measure].unidad}</small>`;
+    label.innerHTML = `<span>${MEDIDAS[measure].label}</span><input type="text" inputmode="decimal" autocomplete="off" placeholder="0" data-money-input data-meta="${measure}" aria-label="Meta de ${MEDIDAS[measure].label}"><small>${MEDIDAS[measure].unidad}</small>`;
     return label;
   }
 
@@ -171,7 +184,7 @@
         const supported = !product || Boolean(option?.[`supports_${measure}`]);
         input.disabled = !supported;
         input.title = supported ? '' : `${MEDIDAS[measure].label} se habilita cuando hay cantidades del producto en staging.`;
-        if (!supported) input.value = '0';
+        if (!supported) window.App360UI?.money?.setValue(input, 0);
       }
       const hint = form.querySelector('[data-product-hint]');
       hint.hidden = !product;
@@ -242,6 +255,7 @@
       typeSelect.replaceWith(crearSelectDimension());
       const targets = form.querySelector('[data-targets]');
       targets.replaceWith(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, '')));
+      form.querySelectorAll('[data-meta]').forEach(input => activarCampoMeta(input, null));
       const lineHeader = form.querySelector('.oc-line-head');
       lineHeader.querySelector('[data-cancel-line]').addEventListener('click', () => {
         form.remove();
@@ -252,6 +266,7 @@
       form.innerHTML = `<div class="oc-line-head"><h3>${esc(DIMENSIONES[linea.dimension_tipo] || linea.dimension_tipo)} · ${esc(linea.dimension_valor)}</h3><button type="button" class="com-goal-delete" data-delete-line>Eliminar línea</button></div><div class="oc-line-meta" data-targets></div><div class="oc-line-footer"><span class="oc-line-realizado">Realizado leído desde PRE: ${esc(MEDIDAS.importe.format(linea.realizado_importe))} · ${esc(MEDIDAS.cajas.format(linea.realizado_cajas))} · ${esc(MEDIDAS.kilos.format(linea.realizado_kilos))}</span><div class="oc-line-actions"><button type="submit" class="com-primary">Guardar cambios</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
       const targets = form.querySelector('[data-targets]');
       targets.replaceWith(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, linea[`meta_${measure}`])));
+      for (const measure of Object.keys(MEDIDAS)) activarCampoMeta(form.querySelector(`[data-meta="${measure}"]`), linea[`meta_${measure}`]);
       if (linea.dimension_tipo === 'producto') {
         const caps = linea.capacidades || {};
         for (const measure of ['cajas', 'kilos']) {
@@ -273,10 +288,10 @@
   }
 
   function metasDelFormulario(form) {
-    const metas = {importe: Number(form.querySelector('[data-meta="importe"]').value || 0)};
+    const metas = {importe: leerMeta(form.querySelector('[data-meta="importe"]'))};
     for (const measure of ['cajas', 'kilos']) {
       const input = form.querySelector(`[data-meta="${measure}"]`);
-      if (!input.disabled) metas[measure] = Number(input.value || 0);
+      if (!input.disabled) metas[measure] = leerMeta(input);
     }
     return metas;
   }
@@ -290,6 +305,9 @@
     form.classList.add('oc-line-saving');
     try {
       const metas = metasDelFormulario(form);
+      if (Object.values(metas).some(valor => Number.isNaN(valor))) {
+        throw new Error('Ingresá un importe válido, por ejemplo 1.234,56.');
+      }
       if (!Object.values(metas).some(valor => valor > 0)) {
         throw new Error('Cargá una meta mayor que cero en importe, cajas o kilos para guardar la línea.');
       }

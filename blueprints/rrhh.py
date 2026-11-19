@@ -24,6 +24,7 @@ from models.rrhh import (
     TOLERANCIA_TARDANZA_MIN,
 )
 from security import protect_blueprint
+from services.importes import MAXIMO_NUMERIC_12_2, parse_importe
 
 rrhh_bp = Blueprint("rrhh", __name__)
 
@@ -638,7 +639,7 @@ def adelantos_solicitar():
         return jsonify({"error": "Empleado no encontrado o inactivo"}), 404
 
     try:
-        monto = Decimal(str(data["monto"]))
+        monto = parse_importe(data["monto"], maximo=MAXIMO_NUMERIC_12_2)
         if monto <= 0:
             return jsonify({"error": "Monto debe ser mayor a cero"}), 400
     except:

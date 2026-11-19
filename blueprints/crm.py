@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 
 from models import (
     BusinessUnit,
@@ -17,6 +17,7 @@ from models import (
     db,
 )
 from security import protect_blueprint
+from services.importes import MAXIMO_NUMERIC_12_2, ImporteInvalido, parse_importe
 
 crm_bp = Blueprint("crm", __name__)
 
@@ -356,11 +357,11 @@ def lead_demos_new(lead_id):
 @crm_bp.route("/leads/<int:lead_id>/quotations/new", methods=["POST"])
 def lead_quotations_new(lead_id):
     lead = Lead.query.get_or_404(lead_id)
-    amount_raw = request.form.get("amount", "0").replace(",", ".")
     try:
-        amount = Decimal(amount_raw)
-    except (InvalidOperation, TypeError):
-        amount = Decimal("0")
+        amount = parse_importe(request.form.get("amount"), maximo=MAXIMO_NUMERIC_12_2)
+    except ImporteInvalido as error:
+        flash(error.mensaje, "warning")
+        return redirect(url_for("crm.lead_detail", lead_id=lead.id))
 
     quotation = Quotation(
         lead=lead,
@@ -383,11 +384,12 @@ def campaigns_list():
 
 @crm_bp.route("/campaigns/new", methods=["POST"])
 def campaigns_new():
-    cost_raw = request.form.get("cost_estimate", "").replace(",", ".")
+    cost_raw = request.form.get("cost_estimate", "")
     try:
-        cost_value = Decimal(cost_raw) if cost_raw else None
-    except (InvalidOperation, TypeError):
-        cost_value = None
+        cost_value = parse_importe(cost_raw, maximo=MAXIMO_NUMERIC_12_2) if cost_raw.strip() else None
+    except ImporteInvalido as error:
+        flash(error.mensaje, "warning")
+        return redirect(url_for("crm.campaigns_list"))
 
     campaign = Campaign(
         name=request.form["name"],

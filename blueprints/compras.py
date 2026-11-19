@@ -19,6 +19,7 @@ from models import (
 )
 from models.time_utils import today_local_date
 from security import protect_blueprint
+from services.importes import MAXIMO_NUMERIC_12_2, ImporteInvalido, parse_importe
 
 compras_bp = Blueprint("compras", __name__)
 
@@ -87,9 +88,9 @@ def compras_nueva():
         monto_total = None
         if monto_total_raw:
             try:
-                monto_total = Decimal(monto_total_raw)
-            except InvalidOperation:
-                flash("Monto inválido.", "warning")
+                monto_total = parse_importe(monto_total_raw, maximo=MAXIMO_NUMERIC_12_2)
+            except ImporteInvalido as error:
+                flash(error.mensaje, "warning")
                 return render_template(
                     "compras_orden_nueva.html",
                     products=products,
