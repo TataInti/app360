@@ -1,72 +1,80 @@
-"""Selectores y lecturas de servidor para el E2E de objetivos comerciales."""
-from decimal import Decimal, InvalidOperation
+"""Selectores y lecturas de servidor para el E2E de objetivos comerciales.
+
+La pantalla es una tabla de equipo. Cada vendedor son dos filas hermanas dentro de #listaVendedores:
+la fila de resumen ([data-seller-row]; [data-seller-draft] si es borrador) con sus datos, y la fila
+siguiente (tr.oc-details), su zona expandible con el botón «Agregar objetivo» ([data-add-line]) y los
+formularios de línea (form.oc-line).
+"""
+import re
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 
 MEDIDAS = ("importe", "cajas", "kilos")
 
 
 class ObjetivosDOM:
-    """Centraliza las raíces de vendedor, línea, alta y resumen de la pantalla."""
+    """Centraliza las filas de vendedor, sus zonas de líneas, el alta y la fila Equipo."""
 
     def __init__(self, page):
         self.page = page
 
     def filas_vendedor(self):
-        filas = self.page.locator("[data-seller-row]")
-        return filas if filas.count() else self.page.locator("article.oc-seller-card")
+        return self.page.locator("[data-seller-row]")
+
+    def fila_equipo(self):
+        return self.page.locator("[data-team-row]")
 
     def fila_vendedor(self, ref):
         ref = str(ref)
-        filas = self.page.locator("[data-seller-row]")
         if ref.startswith("id:"):
             vendedor_id = ref.partition(":")[2]
             fila = self.page.locator(
                 f'[data-seller-row][data-vendedor-ref="{ref}"], '
-                f'[data-seller-row][data-vendedor-id="{vendedor_id}"], '
-                f'article.oc-seller-card[data-vendedor-ref="{ref}"]'
+                f'[data-seller-row][data-vendedor-id="{vendedor_id}"]'
             ).first
             if fila.count():
                 return fila
-        if filas.count():
-            return filas.filter(has_text=ref).first
-        return self.page.locator("article.oc-seller-card").filter(
-            has=self.page.locator("h2", has_text=ref)
-        ).first
+        return self.filas_vendedor().filter(has_text=ref).first
 
     def borrador_vendedor(self, ref=None):
         borradores = self.page.locator("[data-seller-draft]")
-        if not borradores.count():
-            borradores = self.page.locator("article.oc-seller-draft")
         if ref is None:
             return borradores.first
         ref = str(ref)
         if ref.startswith("id:"):
-            exacto = self.page.locator(
-                f'[data-seller-draft][data-vendedor-ref="{ref}"], '
-                f'article.oc-seller-draft[data-vendedor-ref="{ref}"]'
-            ).first
+            exacto = self.page.locator(f'[data-seller-draft][data-vendedor-ref="{ref}"]').first
             if exacto.count():
                 return exacto
         return borradores.filter(has_text=ref).first
 
-    def tarjeta_activa(self, ref):
-        borrador = self.borrador_vendedor(ref)
-        return borrador if borrador.count() else self.fila_vendedor(ref)
+    def fila_o_borrador(self, ref):
+        fila = self.fila_vendedor(ref)
+        return fila if fila.count() else self.borrador_vendedor(ref)
 
-    def _raiz_vendedor(self, ref):
-        if hasattr(ref, "locator"):
-            return ref
-        return self.tarjeta_activa(ref)
+    def zona_de(self, ref):
+        """Zona expandible del vendedor: la fila que sigue a su fila de resumen.
+
+        ref puede ser el nombre, la referencia («id:…», «nombre:…») o el locator de la fila de resumen.
+        """
+        resumen = ref if hasattr(ref, "locator") else self.fila_o_borrador(ref)
+        return resumen.locator("xpath=following-sibling::tr[1]")
+
+    def tarjeta_activa(self, ref):
+        """Zona de líneas del vendedor: contiene «Agregar objetivo» y los formularios de línea."""
+        return self.zona_de(ref)
+
+    def expandir(self, ref):
+        """Expande la zona de líneas del vendedor si está contraída, como lo haría una persona."""
+        fila = self.fila_vendedor(ref)
+        boton = fila.locator("button[aria-expanded]")
+        if boton.count() and boton.get_attribute("aria-expanded") == "false":
+            boton.click()
+        return self.zona_de(fila)
 
     def lineas_de(self, ref):
-        raiz = self._raiz_vendedor(ref)
-        filas = raiz.locator("[data-line-row]")
-        if filas.count():
-            return filas
-        contenedor = raiz.locator("[data-lines]")
-        if contenedor.count():
-            return contenedor.locator("form.oc-line")
-        return raiz.locator("form.oc-line")
+        """Formularios de línea del vendedor. ref: nombre, referencia o zona de líneas."""
+        zona = ref if hasattr(ref, "locator") else self.zona_de(ref)
+        return zona.locator("form.oc-line")
 
     def linea(self, ref, line_id=None, index=0):
         if line_id is not None:
@@ -76,19 +84,47 @@ class ObjetivosDOM:
         return self.lineas_de(ref).nth(index)
 
     def formulario_alta(self, ref=None):
-        panel = self.page.locator("[data-goal-drawer]:visible")
-        if panel.count():
-            formularios = panel.locator("[data-goal-form], form.oc-line")
-            if formularios.count():
-                return formularios.last
-        raiz = self.borrador_vendedor(ref) if ref is None else self.tarjeta_activa(ref)
-        return self.lineas_de(raiz).last
+        """Formulario de la última línea de la zona del vendedor (la línea nueva)."""
+        zona = self.zona_de(self.borrador_vendedor() if ref is None else ref)
+        return zona.locator("form.oc-line").last
 
     def resumen_de(self, ref):
-        raiz = self.fila_vendedor(ref)
-        if not raiz.count():
-            raiz = self.borrador_vendedor(ref)
-        return raiz.locator("[data-summary]").first
+        """Fila de resumen del vendedor: meta, realizado, avance, cajas, kilos y estado."""
+        return self.fila_o_borrador(ref)
+
+
+def entero(valor):
+    """Redondeo medio hacia arriba, como lo muestra la pantalla."""
+    return int(Decimal(str(valor)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+def numero_visible(texto):
+    """«$ 1.234.567», «20 %» o «23» → entero. «—» o vacío → None."""
+    digitos = re.sub(r"[^0-9-]", "", texto or "")
+    return int(digitos) if digitos not in ("", "-") else None
+
+
+def partir_real_meta(texto):
+    """«26 / 715» → (26, 715); «16 / —» → (16, None)."""
+    real, _, meta = (texto or "").partition("/")
+    return numero_visible(real), numero_visible(meta)
+
+
+def totales_equipo(datos):
+    """Fila Equipo calculada desde la API. Cada medida suma solo a los vendedores con meta en esa medida."""
+    total = {"lineas": 0}
+    for medida in MEDIDAS:
+        total[medida] = {"meta": Decimal(0), "real": Decimal(0), "hay": False}
+    for vendedor in datos.get("objetivos", []):
+        total["lineas"] += int(vendedor.get("cantidad_lineas") or 0)
+        for medida in MEDIDAS:
+            meta = (vendedor.get("metas") or {}).get(medida)
+            if meta is None:
+                continue
+            total[medida]["meta"] += Decimal(str(meta))
+            total[medida]["real"] += Decimal(str((vendedor.get("realizados") or {}).get(medida) or 0))
+            total[medida]["hay"] = True
+    return total
 
 
 def leer_objetivos(contexto, base_url, mes):

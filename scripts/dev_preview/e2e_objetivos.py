@@ -21,6 +21,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from urllib.parse import urlparse
 
 from e2e_objetivos_helpers import (
@@ -28,8 +29,12 @@ from e2e_objetivos_helpers import (
     cantidad_lineas,
     comparar_borrado,
     comparar_linea_readback,
+    entero,
     leer_objetivos,
+    numero_visible,
     objetivo_devuelto,
+    partir_real_meta,
+    totales_equipo,
     vendedor_en,
 )
 from playwright.sync_api import expect, sync_playwright
@@ -401,6 +406,7 @@ def recorrido_admin(page, informe, carpeta, contexto):
     if ana_antes is None or not ana_antes.get("lineas"):
         raise AssertionError("El readback previo no encontró líneas de Ana")
     linea_ana_json = ana_antes["lineas"][0]
+    ui.expandir(ANA)
     linea_ana = ui.linea(ANA, line_id=linea_ana_json["id"])
     metas_ana_esperadas = dict(linea_ana_json["metas"])
     metas_ana_esperadas["importe"] = 1600000
@@ -442,6 +448,7 @@ def recorrido_admin(page, informe, carpeta, contexto):
         raise AssertionError("El readback previo no encontró líneas de Carla")
     linea_carla_json = carla_antes["lineas"][0]
     antes = ui.lineas_de(CARLA).count()
+    ui.expandir(CARLA)
     ui.linea(CARLA, line_id=linea_carla_json["id"]).locator("[data-delete-line]").click()
     confirmar = page.get_by_role("button", name="Eliminar", exact=True).last
     expect(confirmar).to_be_visible(timeout=5000)
@@ -557,7 +564,7 @@ def recorrido_admin(page, informe, carpeta, contexto):
     informe.verificar(
         "vendedor nuevo queda seleccionado por nombre", referencia == f"nombre:{NUEVA}", referencia
     )
-    ui.borrador_vendedor().locator("[data-add-line]").click()
+    ui.zona_de(ui.borrador_vendedor()).locator("[data-add-line]").click()
     linea_nueva = ui.formulario_alta(NUEVA)
     linea_nueva.locator("select[data-dimension-tipo]").select_option("marca")
     page.wait_for_timeout(300)
@@ -600,6 +607,306 @@ def recorrido_admin(page, informe, carpeta, contexto):
     )
 
 
+JS_CELDAS = r"tr => [...tr.children].map(c => c.innerText.replace(/\s+/g, ' ').trim())"
+
+JS_MEDIDAS = """() => {
+  const wrap = document.querySelector('.oc-team-wrap');
+  const tabla = document.querySelector('.oc-team');
+  const filas = [...document.querySelectorAll('tr[data-seller-row]')].filter(f => !f.hasAttribute('data-seller-draft'));
+  const sexta = filas[Math.min(5, filas.length - 1)];
+  const pie = document.querySelector('.oc-team tfoot');
+  const numericas = [...document.querySelectorAll('.oc-team tbody td.num')];
+  return {
+    filas: filas.length,
+    tabla_inferior: Math.round(tabla.getBoundingClientRect().bottom),
+    seis_contraidos_inferior: Math.round(sexta.getBoundingClientRect().bottom + pie.getBoundingClientRect().height),
+    alto: window.innerHeight,
+    scroll_horizontal: wrap.scrollWidth - wrap.clientWidth,
+    numericas_derecha: numericas.length > 0 && numericas.every(td => getComputedStyle(td).textAlign === 'right'),
+    contraidas: filas.length > 0 && filas.every(f => f.nextElementSibling && f.nextElementSibling.hidden),
+  };
+}"""
+
+
+def recorrido_tabla_equipo(page, informe, carpeta, contexto):
+    """Tabla de equipo: fila Equipo, filas, expandir y contraer, borradores y medidas.
+
+    La fuente de verdad es el GET de objetivos del mes; la pantalla se compara contra esa lectura.
+    Con SEED_EQUIPO=1 también se verifica a T-Elena, vendedora sin líneas del seed de equipo.
+    """
+    print("== Tabla de equipo", flush=True)
+    ui = ObjetivosDOM(page)
+    page.goto(BASE_URL + "/comercial/objetivos", wait_until="domcontentloaded")
+    esperar_carga(page)
+    page.wait_for_timeout(300)
+    datos = leer_objetivos(contexto, BASE_URL, MES)
+    filas = ui.filas_vendedor()
+    con_equipo = bool(os.environ.get("SEED_EQUIPO"))
+    if con_equipo:
+        informe.verificar(
+            "sin líneas: T-Elena no aparece al cargar la pantalla",
+            ui.fila_vendedor("T-Elena").count() == 0,
+        )
+
+    # Fila Equipo: suma de la API. Cada medida solo suma a los vendedores con meta en esa medida.
+    total = totales_equipo(datos)
+
+    def partir_esperado(medida):
+        if not total[medida]["hay"]:
+            return (None, None)
+        return (entero(total[medida]["real"]), entero(total[medida]["meta"]))
+
+    avance_equipo = None
+    if total["importe"]["hay"] and total["importe"]["meta"] > 0:
+        avance_equipo = entero(total["importe"]["real"] / total["importe"]["meta"] * 100)
+    esperado_equipo = {
+        "lineas": total["lineas"],
+        "importe_meta": entero(total["importe"]["meta"]) if total["importe"]["hay"] else None,
+        "importe_real": entero(total["importe"]["real"]) if total["importe"]["hay"] else None,
+        "cajas": partir_esperado("cajas"),
+        "kilos": partir_esperado("kilos"),
+        "avance": avance_equipo,
+    }
+    dom_equipo = {
+        "lineas": numero_visible(page.locator("#equipoLineas").inner_text()),
+        "importe_meta": numero_visible(page.locator("#equipoMeta").inner_text()),
+        "importe_real": numero_visible(page.locator("#equipoReal").inner_text()),
+        "cajas": partir_real_meta(page.locator("#equipoCajas").inner_text()),
+        "kilos": partir_real_meta(page.locator("#equipoKilos").inner_text()),
+        "avance": numero_visible(page.locator("#equipoAvance").inner_text()),
+    }
+    informe.verificar(
+        "fila Equipo: líneas, importe, cajas y kilos son la suma de la API (solo vendedores con meta)",
+        dom_equipo == esperado_equipo,
+        {"pantalla": dom_equipo, "api": esperado_equipo},
+    )
+
+    # Filas por vendedor: líneas, estado y avance contra la API.
+    filas_ok, filas_mal = 0, []
+    for i in range(filas.count()):
+        fila = filas.nth(i)
+        vid = fila.get_attribute("data-vendedor-id")
+        if not vid:
+            continue
+        vendedor = vendedor_en(datos, vendedor_id=vid)
+        celdas = fila.evaluate(JS_CELDAS)
+        avance_api = None
+        if vendedor["cumplimiento"] is not None:
+            avance_api = entero(Decimal(str(vendedor["cumplimiento"])) * 100)
+        if (
+            numero_visible(celdas[1]) == vendedor["cantidad_lineas"]
+            and celdas[7] == vendedor["estado"]
+            and numero_visible(celdas[4]) == avance_api
+        ):
+            filas_ok += 1
+        else:
+            filas_mal.append(
+                {"vendedor": vendedor["nombre_visible"], "celdas": celdas,
+                 "api": [vendedor["cantidad_lineas"], vendedor["estado"], avance_api]}
+            )
+    informe.verificar(
+        f"filas por vendedor: líneas, avance y estado coinciden con la API ({filas_ok})",
+        filas_ok > 0 and not filas_mal,
+        filas_mal[:2],
+    )
+
+    # Expandir y contraer cada vendedor guardado; cajas y kilos sin «$» en la zona expandida.
+    expandibles, fallas_exp, valores_medida = 0, [], []
+    for i in range(filas.count()):
+        fila = filas.nth(i)
+        vid = fila.get_attribute("data-vendedor-id")
+        boton = fila.locator("button[aria-expanded]")
+        if not vid or not boton.count():
+            continue
+        vendedor = vendedor_en(datos, vendedor_id=vid)
+        zona = ui.zona_de(fila)
+        boton.click()
+        page.wait_for_timeout(120)
+        abierto = boton.get_attribute("aria-expanded") == "true" and zona.is_visible()
+        visibles = zona.locator("form.oc-line").evaluate_all(
+            "els => els.filter(e => e.offsetParent !== null).length"
+        )
+        valores_medida += zona.locator("form.oc-line").evaluate_all(
+            "forms => forms.flatMap(f => [f.querySelector('[data-meta=cajas]').value, "
+            "f.querySelector('[data-meta=kilos]').value])"
+        )
+        boton.click()
+        page.wait_for_timeout(120)
+        cerrado = boton.get_attribute("aria-expanded") == "false" and zona.is_hidden()
+        expandibles += 1
+        if not (abierto and visibles == vendedor["cantidad_lineas"] and cerrado):
+            fallas_exp.append(
+                {"vendedor": vendedor["nombre_visible"], "abierto": abierto, "visibles": visibles,
+                 "api": vendedor["cantidad_lineas"], "cerrado": cerrado}
+            )
+    informe.verificar(
+        f"expandir y contraer: aria-expanded y líneas visibles = cantidad_lineas ({expandibles} vendedores)",
+        expandibles > 0 and not fallas_exp,
+        fallas_exp[:2],
+    )
+    informe.verificar(
+        "cajas y kilos sin «$» en las zonas expandidas",
+        bool(valores_medida) and all("$" not in valor for valor in valores_medida),
+        f"{len(valores_medida)} valores",
+    )
+
+    # Borrador de un vendedor sin líneas (CARLA): «Sin meta», meta y avance «—», realizado de la API.
+    page.click("#agregarVendedor")
+    abrir_control(page, ui.borrador_vendedor())
+    page.keyboard.type(CARLA)
+    opcion_vendedor = page.locator(".ts-dropdown:visible .option", has_text=CARLA).first
+    expect(opcion_vendedor).to_be_visible(timeout=8000)
+    opcion_vendedor.click()
+    page.wait_for_timeout(300)
+    borrador_carla = ui.borrador_vendedor(CARLA)
+    ref_carla = borrador_carla.evaluate("e => e.dataset.vendedorRef || ''")
+    celdas_b = borrador_carla.evaluate(JS_CELDAS)
+    api_carla = vendedor_en(datos, nombre=CARLA)
+    informe.verificar(
+        "borrador de vendedor sin líneas: «Sin meta», meta y avance «—», realizado de la API",
+        celdas_b[7] == "Sin meta"
+        and celdas_b[2] == "—"
+        and celdas_b[4] == "—"
+        and numero_visible(celdas_b[3]) == entero(api_carla["realizados"]["importe"]),
+        celdas_b,
+    )
+
+    # Guardar otra línea (PATCH de ANA) no cierra ni cambia el borrador abierto.
+    ui.expandir(ANA)
+    linea_ana = ui.linea(ANA)
+    linea_ana.locator('[data-meta="importe"]').fill("1700000")
+    respuesta = enviar_linea(page, linea_ana, "PATCH", "/api/objetivos-comerciales/")
+    esperar_carga(page)
+    page.wait_for_timeout(300)
+    informe.verificar(
+        "al guardar otra línea, el borrador abierto se conserva con su mismo vendedor",
+        respuesta.status == 200
+        and ui.borrador_vendedor().count() == 1
+        and ui.borrador_vendedor().evaluate("e => e.dataset.vendedorRef || ''") == ref_carla,
+        f"{respuesta.status} {ref_carla}",
+    )
+
+    # Convertir un objetivo histórico no cierra el borrador abierto (solo cambia lo convertido).
+    if not page.locator("details.oc-legacy").evaluate("d => d.open"):
+        page.locator("details.oc-legacy summary").click()
+    legacy_filas = page.locator("#legacyGoals tbody tr[data-goal-id]")
+    expect(legacy_filas.first).to_be_visible(timeout=8000)
+    antes_legacy = legacy_filas.count()
+    fila_legacy = legacy_filas.first
+    form_legacy = fila_legacy.locator("form[data-convert-form]")
+    if fila_legacy.locator("select[data-month-mes]").count():
+        fila_legacy.locator("select[data-month-mes]").select_option(MES[5:7])
+        fila_legacy.locator("select[data-month-anio]").select_option(MES[:4])
+    abrir_control(page, form_legacy)
+    page.keyboard.type(BRUNO)
+    expect(page.locator(".ts-dropdown:visible .option", has_text=BRUNO).first).to_be_visible(timeout=8000)
+    page.locator(".ts-dropdown:visible .option", has_text=BRUNO).first.click()
+    form_legacy.locator("select[data-company]").select_option("CARNES")
+    form_legacy.locator("select[data-measure]").select_option("importe")
+    with page.expect_response(
+        lambda r: r.request.method == "POST" and "/api/objetivos-comerciales/convertir" in r.url,
+        timeout=15000,
+    ) as info:
+        form_legacy.locator("button[type=submit]").click()
+    esperar_carga(page)
+    page.wait_for_timeout(600)
+    informe.verificar(
+        "convertir objetivo histórico: el borrador abierto se conserva y la fila sale de pendientes",
+        info.value.status == 201
+        and ui.borrador_vendedor(CARLA).count() == 1
+        and legacy_filas.count() == antes_legacy - 1,
+        f"{info.value.status} {antes_legacy}->{legacy_filas.count()}",
+    )
+
+    if con_equipo:
+        # T-Elena: sin líneas, aparece solo como borrador de la sesión.
+        page.click("#agregarVendedor")
+        abrir_control(page, ui.borrador_vendedor())
+        page.keyboard.type("T-Elena")
+        opcion_vendedor = page.locator(".ts-dropdown:visible .option", has_text="T-Elena").first
+        expect(opcion_vendedor).to_be_visible(timeout=8000)
+        opcion_vendedor.click()
+        page.wait_for_timeout(300)
+        elena = ui.borrador_vendedor("T-Elena")
+        celdas_e = elena.evaluate(JS_CELDAS)
+        api_elena = vendedor_en(datos, nombre="T-Elena")
+        realizado_elena = numero_visible(celdas_e[3])
+        informe.verificar(
+            "T-Elena en la sesión: «Sin meta» una sola vez, meta y avance «—», realizado de la API y distinto de 0",
+            page.locator("[data-seller-row]", has_text="T-Elena").count() == 1
+            and celdas_e[7] == "Sin meta"
+            and celdas_e[2] == "—"
+            and celdas_e[4] == "—"
+            and realizado_elena == entero(api_elena["realizados"]["importe"])
+            and realizado_elena != 0,
+            celdas_e,
+        )
+        ui.zona_de(elena).locator("[data-cancel-draft]").click()
+        page.wait_for_timeout(200)
+        informe.verificar(
+            "descartar el borrador de T-Elena la quita de la tabla",
+            ui.borrador_vendedor("T-Elena").count() == 0,
+        )
+
+    # Escapes: un nombre con &, <, comillas simples se muestra como texto, sin markup inyectado.
+    nombre_escape = "Vendedora & <i>'Q'"
+    page.click("#agregarVendedor")
+    abrir_control(page, ui.borrador_vendedor())
+    page.keyboard.type(nombre_escape)
+    page.wait_for_timeout(400)
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(400)
+    ui.zona_de(ui.borrador_vendedor()).locator("[data-add-line]").click()
+    linea_escape = ui.formulario_alta()
+    linea_escape.locator("select[data-dimension-tipo]").select_option("marca")
+    page.wait_for_timeout(300)
+    abrir_control(page, linea_escape)
+    page.keyboard.type("Norte")
+    expect(opcion(linea_escape, "Marca Norte")).to_be_visible(timeout=8000)
+    opcion(linea_escape, "Marca Norte").click()
+    page.wait_for_timeout(300)
+    linea_escape.locator('[data-meta="importe"]').fill("50000")
+    respuesta = enviar_linea(page, linea_escape, "POST", "/api/objetivos-comerciales")
+    esperar_carga(page)
+    page.wait_for_timeout(300)
+    fila_escape = ui.filas_vendedor().filter(has_text=nombre_escape).first
+    th_escape = fila_escape.locator("th")
+    boton_escape = fila_escape.locator("button[aria-expanded]")
+    zona_escape = ui.zona_de(fila_escape)
+    informe.verificar(
+        "nombre con &, <, comillas: se muestra como texto en la fila, el botón y la zona (sin markup inyectado)",
+        respuesta.status == 201
+        and th_escape.locator("i, b, img, script").count() == 0
+        and nombre_escape in normalizar(th_escape.inner_text())
+        and boton_escape.get_attribute("title") == nombre_escape
+        and zona_escape.locator("td").first.get_attribute("aria-label") == f"Líneas de {nombre_escape}",
+        f"{respuesta.status} {normalizar(th_escape.inner_text())}",
+    )
+
+    # Medidas: con las filas contraídas, la tabla entra en la pantalla sin scroll horizontal.
+    medidas = []
+    for ancho, alto in ((1366, 768), (1440, 900)):
+        page.set_viewport_size({"width": ancho, "height": alto})
+        page.goto(BASE_URL + "/comercial/objetivos", wait_until="domcontentloaded")
+        esperar_carga(page)
+        page.wait_for_timeout(300)
+        medidas.append({"viewport": f"{ancho}x{alto}", **page.evaluate(JS_MEDIDAS)})
+        tomar(page, carpeta, f"10-tabla-{ancho}x{alto}")
+    # Criterio del brief: con 6 vendedores contraídos, la comparación entra sin scroll. Se mide la sexta fila
+    # más la fila Equipo; el cuadro con todas las filas se informa aparte, sin ser criterio.
+    informe.verificar(
+        "medidas: con 6 vendedores contraídos, la comparación entra en 1366×768 y 1440×900 sin scroll horizontal, con cifras a la derecha",
+        all(
+            m["seis_contraidos_inferior"] <= m["alto"]
+            and m["scroll_horizontal"] <= 0
+            and m["numericas_derecha"]
+            and m["contraidas"]
+            for m in medidas
+        ),
+        medidas,
+    )
+
+
 def sembrar_si_corresponde(sin_reset):
     if not sin_reset:
         subprocess.run([RUN_LOCAL, "reset"], check=True, stdout=subprocess.DEVNULL)
@@ -634,6 +941,7 @@ def main():
             informe.verificar("login admin por formulario", ingreso, urlparse(page.url).path)
             if ingreso:
                 recorrido_admin(page, informe, SHOTS_DIR, contexto)
+                recorrido_tabla_equipo(page, informe, SHOTS_DIR, contexto)
             contexto.close()
         finally:
             navegador.close()

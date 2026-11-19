@@ -210,17 +210,23 @@ def ejecutar(nombre, informe, funcion, *args):
 # Objetivos: C1 (duplicado), C5 (?mes=), C6 (selectores de mes en español)
 # ---------------------------------------------------------------------------
 def card_vendedor(page, nombre):
-    return page.locator("article.oc-seller-card").filter(has=page.locator("h2", has_text=nombre)).first
+    """Fila de resumen del vendedor guardado; sus líneas están en la fila que sigue (tabla de equipo)."""
+    return page.locator("[data-seller-row]:not([data-seller-draft])").filter(has_text=nombre).first
 
 
 def borrador(page):
-    return page.locator("article.oc-seller-draft").first
+    return page.locator("[data-seller-draft]").first
+
+
+def zona_de(fila):
+    """Zona expandible de una fila de resumen: «Agregar objetivo» y los formularios de línea."""
+    return fila.locator("xpath=following-sibling::tr[1]")
 
 
 def tarjeta_activa(page, nombre):
     if borrador(page).count():
-        return borrador(page)
-    return card_vendedor(page, nombre)
+        return zona_de(borrador(page))
+    return zona_de(card_vendedor(page, nombre))
 
 
 def esperar_carga(page):

@@ -14,7 +14,6 @@ ASSIGNMENT = re.compile(r"\binnerHTML\s*(?:\+=|=(?!=))")
 # SAFE HTML fragments (each exception is documented at its point of use):
 SAFE_HTML_EXCEPTIONS = {
     "static/js/objetivos_comerciales.js": {
-        "title": "Only fixed wrapper markup plus escaped seller name/month (crearTarjeta).",
         "rows": "Legacy rows are built field-by-field with escapeHtml before insertion.",
     },
     "templates/admin/admin_modulo.html": {
