@@ -23,6 +23,15 @@ import time
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
+from e2e_objetivos_helpers import (
+    ObjetivosDOM,
+    cantidad_lineas,
+    comparar_borrado,
+    comparar_linea_readback,
+    leer_objetivos,
+    objetivo_devuelto,
+    vendedor_en,
+)
 from playwright.sync_api import expect, sync_playwright
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -146,23 +155,6 @@ def instrumentar(page, informe):
     page.on("response", al_responder)
 
 
-def card_vendedor(page, nombre):
-    return (
-        page.locator("article.oc-seller-card").filter(has=page.locator("h2", has_text=nombre)).first
-    )
-
-
-def borrador(page):
-    return page.locator("article.oc-seller-draft").first
-
-
-def tarjeta_activa(page, nombre):
-    """Borrador si el vendedor todavía no tiene líneas guardadas; si no, su tarjeta guardada."""
-    if borrador(page).count():
-        return borrador(page)
-    return card_vendedor(page, nombre)
-
-
 def esperar_carga(page):
     page.wait_for_selector("#objetivosCarga[hidden]", state="attached", timeout=20000)
 
@@ -260,8 +252,9 @@ def recorrido_permisos(navegador, informe):
         contexto.close()
 
 
-def recorrido_admin(page, informe, carpeta):
+def recorrido_admin(page, informe, carpeta, contexto):
     print("== Pantalla de objetivos (admin)", flush=True)
+    ui = ObjetivosDOM(page)
     page.goto(BASE_URL + "/comercial/objetivos", wait_until="domcontentloaded")
     esperar_carga(page)
     page.locator("#periodoMes").select_option(MES[5:7])
@@ -270,18 +263,18 @@ def recorrido_admin(page, informe, carpeta):
     esperar_carga(page)
     page.wait_for_timeout(400)
     tomar(page, carpeta, "01-pagina")
-    tarjetas = page.locator("article.oc-seller-card").count()
+    tarjetas = ui.filas_vendedor().count()
     informe.verificar("la pantalla carga las tarjetas del período", tarjetas >= 3, tarjetas)
 
     # Alta de vendedor desde el catálogo.
     page.click("#agregarVendedor")
-    abrir_control(page, borrador(page))
+    abrir_control(page, ui.borrador_vendedor())
     page.keyboard.type(DIEGO)
     opcion_diego = page.locator(".ts-dropdown:visible .option", has_text=DIEGO).first
     expect(opcion_diego).to_be_visible(timeout=8000)
     opcion_diego.click()
     page.wait_for_timeout(300)
-    referencia = borrador(page).evaluate("e => e.dataset.vendedorRef || ''")
+    referencia = ui.borrador_vendedor().evaluate("e => e.dataset.vendedorRef || ''")
     informe.verificar(
         "alta de vendedor desde el catálogo", referencia.startswith("id:"), referencia
     )
@@ -290,9 +283,9 @@ def recorrido_admin(page, informe, carpeta):
     for caso in NIVELES:
         nivel = caso["nivel"]
         print(f"-- nivel {nivel}", flush=True)
-        tarjeta = tarjeta_activa(page, DIEGO)
+        tarjeta = ui.tarjeta_activa(DIEGO)
         tarjeta.locator("[data-add-line]").click()
-        linea = tarjeta_activa(page, DIEGO).locator("form.oc-line").last
+        linea = ui.formulario_alta(DIEGO)
         linea.locator("select[data-dimension-tipo]").select_option(nivel)
         page.wait_for_timeout(300)
         abrir_control(page, linea)
@@ -321,6 +314,8 @@ def recorrido_admin(page, informe, carpeta):
         )
         tomar(page, carpeta, f"03-{nivel}-elegido")
 
+        meta_cajas = 0
+        meta_kilos = 0
         if nivel == "producto":
             linea.locator('[data-meta="importe"]').fill("0")
             linea.locator("button[type=submit]").click()
@@ -361,8 +356,12 @@ def recorrido_admin(page, informe, carpeta):
             page.wait_for_timeout(300)
             linea.locator('[data-meta="cajas"]').fill("10")
             linea.locator('[data-meta="kilos"]').fill("20")
+            meta_cajas = 10
+            meta_kilos = 20
 
         linea.locator('[data-meta="importe"]').fill(caso["importe"])
+        datos_antes = leer_objetivos(contexto, BASE_URL, MES)
+        lineas_antes = cantidad_lineas(datos_antes, nombre=DIEGO)
         respuesta = enviar_linea(page, linea, "POST", "/api/objetivos-comerciales")
         informe.verificar(
             f"[{nivel}] guardar la línea responde 201",
@@ -371,12 +370,25 @@ def recorrido_admin(page, informe, carpeta):
         )
         esperar_carga(page)
         page.wait_for_timeout(300)
-        visibles = (
-            card_vendedor(page, DIEGO)
-            .locator("form.oc-line")
-            .filter(has_text=caso["esperada"])
-            .count()
+        objetivo_post = objetivo_devuelto(respuesta)
+        datos_despues = leer_objetivos(contexto, BASE_URL, MES)
+        readback_ok, readback_detalle = comparar_linea_readback(
+            datos_despues,
+            objetivo_post.get("id"),
+            {
+                "importe": int(caso["importe"]),
+                "cajas": meta_cajas,
+                "kilos": meta_kilos,
+            },
+            lineas_antes + (1 if respuesta.status == 201 else 0),
+            vendedor_id=objetivo_post.get("vendedor_id"),
         )
+        informe.verificar(
+            f"[{nivel}] readback API confirma id, metas y cantidad de líneas",
+            readback_ok,
+            readback_detalle,
+        )
+        visibles = ui.lineas_de(DIEGO).filter(has_text=caso["esperada"]).count()
         informe.verificar(
             f"[{nivel}] la línea guardada aparece en la tarjeta", visibles >= 1, visibles
         )
@@ -384,7 +396,15 @@ def recorrido_admin(page, informe, carpeta):
 
     # Edición de una línea existente (Ana).
     print("-- editar y eliminar líneas", flush=True)
-    linea_ana = card_vendedor(page, ANA).locator("form.oc-line").first
+    datos_ana_antes = leer_objetivos(contexto, BASE_URL, MES)
+    ana_antes = vendedor_en(datos_ana_antes, nombre=ANA)
+    if ana_antes is None or not ana_antes.get("lineas"):
+        raise AssertionError("El readback previo no encontró líneas de Ana")
+    linea_ana_json = ana_antes["lineas"][0]
+    linea_ana = ui.linea(ANA, line_id=linea_ana_json["id"])
+    metas_ana_esperadas = dict(linea_ana_json["metas"])
+    metas_ana_esperadas["importe"] = 1600000
+    cantidad_ana_antes = ana_antes["cantidad_lineas"]
     linea_ana.locator('[data-meta="importe"]').fill("1600000")
     respuesta = enviar_linea(page, linea_ana, "PATCH", "/api/objetivos-comerciales/")
     informe.verificar(
@@ -394,7 +414,20 @@ def recorrido_admin(page, informe, carpeta):
     )
     esperar_carga(page)
     page.wait_for_timeout(300)
-    resumen = normalizar(card_vendedor(page, ANA).locator("[data-summary]").inner_text())
+    datos_ana_despues = leer_objetivos(contexto, BASE_URL, MES)
+    readback_ok, readback_detalle = comparar_linea_readback(
+        datos_ana_despues,
+        linea_ana_json["id"],
+        metas_ana_esperadas,
+        cantidad_ana_antes,
+        vendedor_id=ana_antes["vendedor_id"],
+    )
+    informe.verificar(
+        "readback API confirma la edición de id, metas y cantidad de líneas",
+        readback_ok,
+        readback_detalle,
+    )
+    resumen = normalizar(ui.resumen_de(ANA).inner_text())
     informe.verificar(
         "la edición queda reflejada en el resumen del vendedor",
         "1.600.000" in resumen,
@@ -403,9 +436,13 @@ def recorrido_admin(page, informe, carpeta):
     tomar(page, carpeta, "06-editar-linea")
 
     # Eliminación de una línea existente (Carla).
-    carla = card_vendedor(page, CARLA)
-    antes = carla.locator("form.oc-line").count()
-    carla.locator("form.oc-line").first.locator("[data-delete-line]").click()
+    datos_carla_antes = leer_objetivos(contexto, BASE_URL, MES)
+    carla_antes = vendedor_en(datos_carla_antes, nombre=CARLA)
+    if carla_antes is None or not carla_antes.get("lineas"):
+        raise AssertionError("El readback previo no encontró líneas de Carla")
+    linea_carla_json = carla_antes["lineas"][0]
+    antes = ui.lineas_de(CARLA).count()
+    ui.linea(CARLA, line_id=linea_carla_json["id"]).locator("[data-delete-line]").click()
     confirmar = page.get_by_role("button", name="Eliminar", exact=True).last
     expect(confirmar).to_be_visible(timeout=5000)
     with page.expect_response(
@@ -416,7 +453,20 @@ def recorrido_admin(page, informe, carpeta):
     informe.verificar("eliminar línea responde 200", info.value.status == 200, info.value.status)
     esperar_carga(page)
     page.wait_for_timeout(300)
-    despues = card_vendedor(page, CARLA).locator("form.oc-line").count()
+    datos_carla_despues = leer_objetivos(contexto, BASE_URL, MES)
+    readback_ok, readback_detalle = comparar_borrado(
+        datos_carla_antes,
+        datos_carla_despues,
+        carla_antes["vendedor_id"],
+        linea_carla_json["id"],
+        carla_antes["cantidad_lineas"] - (1 if info.value.status == 200 else 0),
+    )
+    informe.verificar(
+        "readback API confirma id eliminado, metas restantes y cantidad de líneas",
+        readback_ok,
+        readback_detalle,
+    )
+    despues = ui.lineas_de(CARLA).count()
     informe.verificar(
         "eliminar línea la quita de la tarjeta", despues == antes - 1, f"{antes}->{despues}"
     )
@@ -498,17 +548,17 @@ def recorrido_admin(page, informe, carpeta):
     # Vendedor nuevo por nombre (no está en el catálogo).
     print("-- vendedor nuevo por nombre", flush=True)
     page.click("#agregarVendedor")
-    abrir_control(page, borrador(page))
+    abrir_control(page, ui.borrador_vendedor())
     page.keyboard.type(NUEVA)
     page.wait_for_timeout(400)
     page.keyboard.press("Enter")
     page.wait_for_timeout(400)
-    referencia = borrador(page).evaluate("e => e.dataset.vendedorRef || ''")
+    referencia = ui.borrador_vendedor().evaluate("e => e.dataset.vendedorRef || ''")
     informe.verificar(
         "vendedor nuevo queda seleccionado por nombre", referencia == f"nombre:{NUEVA}", referencia
     )
-    borrador(page).locator("[data-add-line]").click()
-    linea_nueva = borrador(page).locator("form.oc-line").last
+    ui.borrador_vendedor().locator("[data-add-line]").click()
+    linea_nueva = ui.formulario_alta(NUEVA)
     linea_nueva.locator("select[data-dimension-tipo]").select_option("marca")
     page.wait_for_timeout(300)
     abrir_control(page, linea_nueva)
@@ -517,6 +567,8 @@ def recorrido_admin(page, informe, carpeta):
     opcion(linea_nueva, "Campo Demo").click()
     page.wait_for_timeout(300)
     linea_nueva.locator('[data-meta="importe"]').fill("80000")
+    datos_nueva_antes = leer_objetivos(contexto, BASE_URL, MES)
+    lineas_nueva_antes = cantidad_lineas(datos_nueva_antes, nombre=NUEVA)
     respuesta = enviar_linea(page, linea_nueva, "POST", "/api/objetivos-comerciales")
     informe.verificar(
         "alta con vendedor nuevo responde 201",
@@ -525,8 +577,22 @@ def recorrido_admin(page, informe, carpeta):
     )
     esperar_carga(page)
     page.wait_for_timeout(300)
+    objetivo_nuevo = objetivo_devuelto(respuesta)
+    datos_nueva_despues = leer_objetivos(contexto, BASE_URL, MES)
+    readback_ok, readback_detalle = comparar_linea_readback(
+        datos_nueva_despues,
+        objetivo_nuevo.get("id"),
+        {"importe": 80000, "cajas": 0, "kilos": 0},
+        lineas_nueva_antes + (1 if respuesta.status == 201 else 0),
+        vendedor_id=objetivo_nuevo.get("vendedor_id"),
+    )
     informe.verificar(
-        "el vendedor nuevo aparece como tarjeta", card_vendedor(page, NUEVA).count() == 1
+        "readback API confirma alta por nombre: id, metas y cantidad de líneas",
+        readback_ok,
+        readback_detalle,
+    )
+    informe.verificar(
+        "el vendedor nuevo aparece como tarjeta", ui.fila_vendedor(NUEVA).count() == 1
     )
     tomar(page, carpeta, "09-vendedor-nuevo")
     informe.verificar(
@@ -567,7 +633,7 @@ def main():
             ingreso = login(page, ADMIN_USER, ADMIN_PASSWORD)
             informe.verificar("login admin por formulario", ingreso, urlparse(page.url).path)
             if ingreso:
-                recorrido_admin(page, informe, SHOTS_DIR)
+                recorrido_admin(page, informe, SHOTS_DIR, contexto)
             contexto.close()
         finally:
             navegador.close()
