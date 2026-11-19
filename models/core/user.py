@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from sqlalchemy import false
 from sqlalchemy.orm import validates
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -35,7 +37,10 @@ class User(db.Model):
         return valor
 
     def set_password(self, password):
+        # Todo cambio de clave (web, consola o scripts) registra el momento: los JWT emitidos
+        # antes dejan de valer (security.token_anterior_al_cambio_de_clave).
         self.password_hash = generate_password_hash(password)
+        self.password_changed_at = datetime.now(timezone.utc)
 
     def check_password(self, password):
         if not self.password_hash:

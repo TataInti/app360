@@ -1,5 +1,4 @@
 from flask import Blueprint, flash, g, redirect, render_template, request, session, url_for
-from datetime import datetime, timezone
 
 from config import Config
 from extensions import limiter
@@ -85,8 +84,7 @@ def cambiar_clave():
                 400,
             )
 
-        usuario.set_password(nueva)
-        usuario.password_changed_at = datetime.now(timezone.utc)
+        usuario.set_password(nueva)  # también registra password_changed_at
         usuario.must_change_password = False
         db.session.commit()
         # La sesión actual sigue abierta: su huella se recalcula con la clave nueva. Las otras
