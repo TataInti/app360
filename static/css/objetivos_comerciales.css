@@ -1,9 +1,101 @@
-.oc-page{--oc-border:var(--com-line,#dbe3ec);--oc-muted:var(--com-muted,#5b6b7c)}
-.oc-period-bar{display:grid;grid-template-columns:auto minmax(170px,220px) 1fr;gap:14px;align-items:center;padding:16px;background:var(--color-surface,#fff);border:1px solid var(--oc-border);border-radius:var(--radius-panel,8px);margin-bottom:20px}
-.oc-period-bar label{font-weight:700}.oc-period-bar input,.oc-page input,.oc-page select{min-height:40px}.oc-period-bar .com-note{margin:0}
-.oc-sellers{display:grid;gap:18px}.oc-seller-card{background:var(--color-surface,#fff);border:1px solid var(--oc-border);border-radius:var(--radius-panel,8px);padding:18px;box-shadow:0 4px 16px rgba(22,40,60,.04)}
-.oc-seller-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}.oc-seller-head h2{font-size:1.2rem;margin:0}.oc-seller-head p{margin:5px 0 0;color:var(--oc-muted)}.oc-seller-select{min-width:min(100%,340px)}.oc-seller-actions{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap}.oc-seller-actions .oc-add-line{margin-top:0}.oc-seller-draft .oc-seller-title{flex:1 1 auto;min-width:0}.oc-seller-draft .oc-seller-select{min-width:0;width:100%}.oc-seller-draft .oc-seller-actions{align-self:flex-end}
-.oc-seller-summary{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:10px;margin:12px 0 18px}.oc-summary-measure{padding:12px;border:1px solid var(--oc-border);border-radius:var(--radius-control,6px);background:var(--color-surface-subtle,#f6f8fb)}.oc-summary-measure strong{display:block;margin-bottom:4px}.oc-summary-measure span{display:block;font-size:.9rem;color:var(--oc-muted)}
-.oc-lines{display:grid;gap:12px}.oc-line{border:1px solid var(--oc-border);border-radius:var(--radius-panel,8px);padding:14px;background:#fff}.oc-line-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.oc-line-head h3{font-size:1rem;margin:0}.oc-line-meta{display:grid;grid-template-columns:minmax(150px,1.15fr) minmax(190px,1.5fr) repeat(3,minmax(120px,1fr));gap:10px;align-items:start}.oc-line-guardada .oc-line-meta{grid-template-columns:repeat(3,minmax(120px,1fr))}.oc-product-hint{margin:0 0 12px}.oc-line-meta label,.oc-legacy-form label{display:grid;gap:5px;font-size:.88rem;font-weight:600}.oc-line-meta input,.oc-line-meta select,.oc-legacy-form input,.oc-legacy-form select{width:100%;border:1px solid var(--oc-border);border-radius:var(--radius-control,6px);padding:8px 10px;background:#fff}.oc-unit-field{position:relative;display:block}.oc-unit-field input{padding-right:58px}.oc-unit-field small{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:var(--font-size-label,12px);font-weight:400;color:var(--oc-muted);pointer-events:none}.oc-line-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px}.oc-line-realizado{font-size:.88rem;color:var(--oc-muted)}.oc-line-actions{display:flex;gap:8px;align-items:center}.oc-line-actions button,.oc-seller-head button{white-space:nowrap}.oc-add-line{margin-top:14px}.oc-seller-draft{border-style:dashed}.oc-line-error{color:var(--state-error-ink,#8c3027);font-size:.9rem;margin:8px 0 0}.oc-line-saving{opacity:.7;pointer-events:none}.oc-legacy{margin-top:24px}.oc-legacy table{min-width:900px}.oc-legacy-form{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr)) auto;gap:10px;align-items:end;min-width:800px}.oc-legacy-form label{font-size:.82rem}.oc-periodo-pareja{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px}.oc-page .ts-wrapper{width:100%}.oc-page .ts-control{min-height:40px;border-color:var(--oc-border)}
-@media(max-width:900px){.oc-period-bar{grid-template-columns:1fr 1fr}.oc-period-bar .com-note{grid-column:1/-1}.oc-line-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.oc-legacy-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:600px){.oc-period-bar{grid-template-columns:1fr}.oc-period-bar .com-note{grid-column:auto}.oc-seller-head{display:grid}.oc-seller-select{min-width:0}.oc-seller-summary{grid-template-columns:1fr}.oc-line-meta{grid-template-columns:1fr}.oc-line-guardada .oc-line-meta{grid-template-columns:1fr}.oc-line-footer{align-items:flex-start;flex-direction:column}.oc-line-actions{width:100%;justify-content:flex-end}.oc-legacy-form{grid-template-columns:1fr;min-width:0}}
+/* Objetivos comerciales: tabla de equipo con filas expandibles, período en una línea y formularios de línea.
+   Tokens reales de templates/base.html. --state-dot-size (8px) es nuevo: se declara aquí porque
+   base.html no se toca en este corte (informe UX §6). */
+:root{--state-dot-size:8px}
+.oc-page{--oc-border:var(--color-border,#dce3eb);--oc-muted:var(--color-text-muted,#58677a)}
+.oc-page input,.oc-page select{min-height:40px}
+
+/* Período y avance esperado: una sola línea. */
+.oc-period-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 20px;margin:0 0 14px}
+.oc-periodo{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+.oc-page #periodoMes{min-width:150px}
+.oc-page #periodoAnio{min-width:96px}
+.oc-periodo > .fw-semibold{font-weight:var(--font-weight-strong,650)}
+.oc-esperado{margin:0;color:var(--oc-muted);font-size:var(--font-size-note,13px)}
+.oc-esperado b{color:var(--color-text-primary);font-weight:var(--font-weight-strong,650);font-variant-numeric:tabular-nums}
+
+/* Tabla de equipo: una fila por vendedor, zona expandible y fila Equipo. Importes sin centavos, porcentajes enteros. */
+.oc-page .oc-team-wrap{border:1px solid var(--oc-border);border-radius:var(--radius-table,7px);background:var(--color-surface,#fff);overflow-x:auto}
+.oc-page .oc-team{width:100%;min-width:960px;border-collapse:collapse;table-layout:fixed;font-size:var(--font-size-body,14px)}
+.oc-page .oc-team col.c-vendedor{width:19%}
+.oc-page .oc-team col.c-lineas{width:5%}
+.oc-page .oc-team col.c-meta{width:11%}
+.oc-page .oc-team col.c-real{width:11%}
+.oc-page .oc-team col.c-avance{width:13%}
+.oc-page .oc-team col.c-cajas{width:9%}
+.oc-page .oc-team col.c-kilos{width:9%}
+.oc-page .oc-team col.c-estado{width:23%}
+.oc-page .oc-team th,.oc-page .oc-team td{padding:var(--space-cell-y,10px) var(--space-cell-x,12px);border-bottom:1px solid var(--oc-border);vertical-align:middle;text-align:left;white-space:nowrap;line-height:1.35;color:var(--color-text-body,#334155)}
+.oc-page .oc-team thead th{font-size:var(--font-size-label,12px);font-weight:var(--font-weight-strong,650);background:var(--color-surface-subtle,#f3f6fa);color:var(--color-text-primary,#25364a)}
+.oc-page .oc-team .num{text-align:right;font-variant-numeric:tabular-nums}
+.oc-page .oc-team .oc-row > *{height:44px}
+.oc-page .oc-team .oc-name{font-weight:var(--font-weight-strong,650);min-width:0;background:transparent}
+.oc-page .oc-team .oc-details > td{white-space:normal;padding:4px var(--space-cell-x,12px) 16px 36px}
+.oc-page .oc-team .oc-row.oc-group-draft > *{background:var(--color-surface-muted,#f8fafc)}
+.oc-page .oc-team tfoot th,.oc-page .oc-team tfoot td{font-weight:var(--font-weight-strong,650);color:var(--color-text-primary,#25364a);background:var(--color-surface-subtle,#f8fafc);border-top:2px solid var(--oc-border);border-bottom:0;height:44px}
+.oc-foot{margin:8px 0 0;color:var(--oc-muted);font-size:var(--font-size-note,13px)}
+
+/* Fila de vendedor: botón de expandir con su nombre completo en title (se corta con puntos suspensivos). */
+.oc-page .oc-toggle{display:flex;align-items:center;gap:8px;width:100%;min-height:30px;padding:0;border:0;background:none;color:var(--color-action,#234e70);font:inherit;font-weight:var(--font-weight-strong,650);text-align:left;cursor:pointer}
+.oc-page .oc-page .oc-toggle > span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oc-chev{flex:0 0 auto;width:10px;color:var(--color-text-muted,#58677a);font-size:11px;transition:transform .15s}
+.oc-page .oc-page .oc-toggle[aria-expanded="true"] .oc-chev{transform:rotate(90deg)}
+.oc-av{display:grid;grid-template-columns:minmax(40px,1fr) 48px;align-items:center;gap:10px}
+.oc-track{height:6px;background:var(--color-surface-sunken,#eff4f8);border-radius:var(--radius-pill,999px);overflow:hidden}
+.oc-track span{display:block;height:100%;background:var(--color-action,#234e70);border-radius:inherit}
+.oc-av .num{text-align:right}
+
+/* Estado: punto + texto. El punto no lleva el color solo: el texto siempre está. */
+.oc-estado{display:inline-flex;align-items:center;gap:8px;color:var(--color-text-body,#334155)}
+.oc-dot{display:inline-block;flex:0 0 auto;width:var(--state-dot-size,8px);height:var(--state-dot-size,8px);border-radius:50%}
+.oc-dot-ok{background:var(--color-positive,#16a34a)}
+.oc-dot-warn{background:var(--color-warning,#f59e0b)}
+.oc-dot-none{background:var(--color-text-faint,#8a97a6)}
+
+/* Borrador de vendedor: selector en la primera celda; acciones en la zona de líneas. */
+.oc-name .ts-wrapper{width:100%;min-width:0}
+.oc-page .oc-draft-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:var(--font-weight-strong,650)}
+.oc-name .ts-control{min-height:34px}
+.oc-group-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px 18px;margin-top:12px}
+.oc-lines{display:grid;gap:12px}
+
+/* Acciones: una sola primaria por pantalla («Agregar vendedor»). Las demás son texto o secundarias. */
+.oc-page .oc-text-action{background:none;border:0;padding:0;min-height:0;color:var(--color-action,#234e70);font-size:var(--font-size-note,13px);font-weight:600;cursor:pointer;white-space:nowrap}
+.oc-page .oc-page .oc-text-action:hover{text-decoration:underline}
+.oc-page .oc-page .oc-text-action.oc-mute{color:var(--color-text-muted,#58677a);font-weight:500}
+.oc-page .oc-page .oc-text-action:disabled{color:var(--color-text-faint,#8a97a6);cursor:default;text-decoration:none}
+.oc-page .oc-save{min-height:var(--control-height,38px);padding:0 14px;border:1px solid var(--color-border-control,#bcc9d6);border-radius:var(--radius-control,6px);background:var(--color-surface,#fff);color:var(--color-text-body,#334155);font-size:var(--font-size-body,14px);font-weight:600;cursor:pointer;white-space:nowrap}
+.oc-page .oc-page .oc-save:hover:not(:disabled){background:var(--color-hover,#edf2f7)}
+.oc-page .oc-page .oc-save:disabled{color:var(--color-text-faint,#8a97a6);cursor:default}
+.oc-page .oc-page .oc-toggle:focus-visible,.oc-page .oc-text-action:focus-visible,.oc-page .oc-save:focus-visible{outline:3px solid var(--color-focus,#3d7aa9);outline-offset:2px}
+
+/* Formularios de línea (grilla del corte 1). */
+.oc-line{border:1px solid var(--oc-border);border-radius:var(--radius-panel,8px);padding:14px;background:var(--color-surface,#fff)}
+.oc-line-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.oc-line-head h3{font-size:1rem;margin:0}
+.oc-line-meta{display:grid;grid-template-columns:minmax(150px,1.15fr) minmax(190px,1.5fr) repeat(3,minmax(120px,1fr));gap:10px;align-items:start}
+.oc-line-guardada .oc-line-meta{grid-template-columns:repeat(3,minmax(120px,1fr))}
+.oc-product-hint{margin:0 0 12px}
+.oc-line-meta label,.oc-legacy-form label{display:grid;gap:5px;font-size:.88rem;font-weight:600}
+.oc-line-meta input,.oc-line-meta select,.oc-legacy-form input,.oc-legacy-form select{width:100%;border:1px solid var(--oc-border);border-radius:var(--radius-control,6px);padding:8px 10px;background:var(--color-surface,#fff)}
+.oc-unit-field{position:relative;display:block}
+.oc-unit-field input{padding-right:58px}
+.oc-unit-field small{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:var(--font-size-label,12px);font-weight:400;color:var(--oc-muted);pointer-events:none}
+.oc-line-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px}
+.oc-line-realizado{font-size:.88rem;color:var(--oc-muted)}
+.oc-line-actions{display:flex;gap:8px;align-items:center}
+.oc-line-actions button{white-space:nowrap}
+.oc-line-error{color:var(--state-error-ink,#8c3027);font-size:.9rem;margin:8px 0 0}
+.oc-line-saving{opacity:.7;pointer-events:none}
+
+/* Objetivos históricos de RRHH (sección plegada). */
+.oc-legacy{margin-top:24px}
+.oc-legacy table{min-width:900px}
+.oc-legacy-form{display:grid;grid-template-columns:repeat(4,minmax(130px,1fr)) auto;gap:10px;align-items:end;min-width:800px}
+.oc-legacy-form label{font-size:.82rem}
+.oc-periodo-pareja{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px}
+.oc-page .ts-wrapper{width:100%}
+.oc-page .ts-control{min-height:40px;border-color:var(--oc-border)}
+
+@media(max-width:900px){.oc-line-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.oc-legacy-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.oc-line-meta{grid-template-columns:1fr}.oc-line-guardada .oc-line-meta{grid-template-columns:1fr}.oc-line-footer{align-items:flex-start;flex-direction:column}.oc-line-actions{width:100%;justify-content:flex-end}.oc-legacy-form{grid-template-columns:1fr;min-width:0}}

@@ -329,7 +329,7 @@ def sembrar_equipo(session, admin_user, ahora) -> bool:
     filas_ventas = []
     fecha_venta = date(2026, 11, 15)
     for indice, (nombre, _cantidad) in enumerate(VENDEDORES_EQUIPO, start=1):
-        producto, rubro, subrubro, marca, origen, _con_cajas, _con_kilos = PRODUCTOS[
+        producto, rubro, subrubro, marca, origen, con_cajas, con_kilos = PRODUCTOS[
             (indice - 1) % len(PRODUCTOS)
         ]
         filas_ventas.append(
@@ -348,8 +348,9 @@ def sembrar_equipo(session, admin_user, ahora) -> bool:
                 comprobante="PRE",
                 nro_comprob=f"0999-000{indice:02d}",
                 subtot=float(50000 + indice * 1000),
-                cajas=float(indice),
-                kilos=float(indice * 5),
+                # Cajas y kilos solo para productos que los tienen (igual que generar_ventas).
+                cajas=float(indice) if con_cajas else 0.0,
+                kilos=float(indice * 5) if con_kilos else 0.0,
                 estado="procesado",
                 fuente_archivo=FUENTE_EQUIPO,
             )
