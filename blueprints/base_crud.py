@@ -3,11 +3,13 @@ from models import db
 
 
 class BaseCRUD:
-    def __init__(self, blueprint_name, model_class, service_class, template_prefix):
+    def __init__(self, blueprint_name, model_class, service_class, template_prefix, ruta_alta=None):
         self.bp = Blueprint(blueprint_name, __name__)
         self.model_class = model_class
         self.service = service_class()
         self.template_prefix = template_prefix
+        # Endpoint del formulario de alta propio del maestro, p. ej. "products.new_product".
+        self.ruta_alta = ruta_alta
         self._register_routes()
 
     def _register_routes(self):
@@ -29,6 +31,10 @@ class BaseCRUD:
             kwargs = {key: value for key, value in request.form.items()}
             self.service.create(**kwargs)
             return redirect(url_for(f"{self.bp.name}.list_items"))
+        if self.ruta_alta:
+            # El alta con formulario vive en la ruta propia del maestro. La plantilla genérica
+            # no existe para productos: el GET respondía 500.
+            return redirect(url_for(self.ruta_alta))
         return render_template(f"{self.template_prefix}_form.html")
 
     def edit_item(self, item_id):

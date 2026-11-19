@@ -13,7 +13,9 @@ from models import (
 )
 from security import (
     generate_access_token, generate_refresh_token, decode_token,
-    jwt_required, jwt_modulo, jwt_o_sesion, log_login_attempt, log_security_event
+    jwt_required, jwt_modulo, jwt_o_sesion, log_login_attempt, log_security_event,
+    registrar_ultimo_acceso, token_anterior_al_cambio_de_clave, verificar_clave_login,
+    MENSAJE_CAMBIO_CLAVE, CODIGO_CAMBIO_CLAVE
 )
 from extensions import limiter
 
@@ -119,7 +121,17 @@ def login():
     password = data.get('password')
     
     user = User.query.filter_by(username=username, active=True).first()
-    if user and user.check_password(password):
+    if verificar_clave_login(user, password):
+        if user.must_change_password:
+            # Clave temporal pendiente: sin token hasta que el usuario cambie su clave (M2).
+            log_security_event(
+                'LOGIN_CAMBIO_CLAVE_PENDIENTE',
+                'Login de API sin token: cambio de clave pendiente',
+                user=username,
+                ip=request.remote_addr,
+            )
+            return jsonify({'error': MENSAJE_CAMBIO_CLAVE, 'codigo': CODIGO_CAMBIO_CLAVE}), 403
+        registrar_ultimo_acceso(user)
         # Generate JWT tokens
         access_token = generate_access_token(user.id, user.username, user.role)
         refresh_token = generate_refresh_token(user.id, user.username)
@@ -161,6 +173,12 @@ def refresh_token():
     user = User.query.filter_by(username=payload['username'], active=True).first()
     if not user:
         return error_response(401, "User not found or inactive")
+    if token_anterior_al_cambio_de_clave(user, payload):
+        log_security_event('REFRESH_TOKEN_REVOKED', 'Refresh token anterior al cambio de clave', user=user.username)
+        return error_response(401, "Invalid or expired refresh token")
+    if user.must_change_password:
+        # Clave temporal pendiente: no se renueva el token hasta que cambie la clave (M2).
+        return jsonify({'error': MENSAJE_CAMBIO_CLAVE, 'codigo': CODIGO_CAMBIO_CLAVE}), 403
     
     # Generate new access token
     access_token = generate_access_token(user.id, user.username, user.role)
@@ -1093,7 +1111,6 @@ def get_business_units():
         items = [{
             'id': u.id,
             'name': u.name,
-            'description': u.description
         } for u in result.items]
         return jsonify({
             "items": items,
