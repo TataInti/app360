@@ -352,26 +352,48 @@ def escenario_admin(navegador):
     contexto.close()
 
 
+def _estado_en_texto(texto):
+    """Extrae el estado HTTP de un mensaje de consola («... status of 400 (BAD REQUEST)»)."""
+    partes = texto.split("status of ", 1)
+    if len(partes) == 2 and partes[1][:3].isdigit():
+        return int(partes[1][:3])
+    return None
+
+
 def informe():
     inesperadas = [r for r in RESPUESTAS if (r["status"], r["ruta"]) not in ESPERADAS]
     verificar("(g) sin 4xx/5xx inesperados en la navegación", not inesperadas, json.dumps(inesperadas)[:400])
-    errores_app = [c for c in CONSOLA if c["url"].startswith(BASE) or not c["url"]]
-    verificar("(g) consola sin errores de la aplicación", not errores_app and not ERRORES_JS,
-              json.dumps(errores_app + ERRORES_JS)[:400])
-    externos = [c for c in CONSOLA if c not in errores_app]
+    esperadas_consola, externas, inesperadas_consola = [], [], []
+    for entrada in CONSOLA:
+        ruta = urlsplit(entrada["url"]).path if entrada["url"] else ""
+        estado = _estado_en_texto(entrada["texto"])
+        if estado is None and not entrada["url"].startswith(BASE):
+            externas.append(entrada)
+        elif (estado, ruta) in ESPERADAS:
+            esperadas_consola.append(entrada)
+        else:
+            inesperadas_consola.append(entrada)
+    verificar(
+        "(g) consola sin errores inesperados (solo los rechazos y bloqueos previstos)",
+        not inesperadas_consola and not ERRORES_JS,
+        json.dumps(inesperadas_consola + ERRORES_JS)[:400],
+    )
     ok = all(v["ok"] for v in VERIFICACIONES)
     resumen = {
         "base_url": BASE,
         "verificaciones": VERIFICACIONES,
         "respuestas_4xx_5xx": RESPUESTAS,
-        "consola_externa_ignorada": externos,
+        "consola_esperada": esperadas_consola,
+        "consola_externa_ignorada": externas,
+        "consola_inesperada": inesperadas_consola + ERRORES_JS,
         "resultado": "OK" if ok else "FALLA",
     }
     os.makedirs(CAPTURAS, exist_ok=True)
     with open(os.path.join(CAPTURAS, "resumen_e2e.json"), "w", encoding="utf-8") as archivo:
         json.dump(resumen, archivo, ensure_ascii=False, indent=2)
     print(f"\nRESULTADO {'OK' if ok else 'FALLA'}: {sum(v['ok'] for v in VERIFICACIONES)}/{len(VERIFICACIONES)} verificaciones")
-    print(f"Consola externa ignorada (CDN u otros): {len(externos)}")
+    print(f"Mensajes de consola previstos (rechazos y bloqueos): {len(esperadas_consola)}")
+    print(f"Mensajes de consola externos ignorados (CDN u otros): {len(externas)}")
     return ok
 
 
