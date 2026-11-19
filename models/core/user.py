@@ -1,3 +1,4 @@
+from sqlalchemy import false
 from sqlalchemy.orm import validates
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -9,10 +10,18 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=True)
-    # Sin default: el rol es una decisión explícita. El antiguo default "manager"
+    # Sin default: el rol es una decisión explícita. El antiguo default \"manager\"
     # (administración total) hacía que un alta sin rol recibiera acceso completo.
     role = db.Column(db.String(40), nullable=False)
     active = db.Column(db.Boolean, default=True)
+    # Clave temporal obligatoria y datos de acceso (C1 de usuarios, migración
+    # 20261119_usuarios_c1_clave). Con default seguro: no cambian el estado de los usuarios
+    # existentes.
+    must_change_password = db.Column(
+        db.Boolean, nullable=False, default=False, server_default=false()
+    )
+    password_changed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    last_login_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     def __init__(self, **kwargs):
         if not kwargs.get("role"):
