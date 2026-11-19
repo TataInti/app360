@@ -433,6 +433,13 @@ def escenario_gastos(navegador, informe, carpeta):
         enlace.count() > 0 and (enlace.first.get_attribute("href") or "").startswith("/admin"),
         enlace.first.get_attribute("href") if enlace.count() else "sin enlace",
     )
+    aviso = page.locator("#frmCategoriaAviso")
+    texto_aviso = normalizar(aviso.inner_text()) if aviso.count() else ""
+    informe.verificar(
+        "C9 Gastos: el aviso debajo del selector muestra el mensaje completo",
+        aviso.is_visible() and texto_aviso == "No hay categorías de egreso. Creá una en Administración",
+        texto_aviso or "sin aviso",
+    )
     foto(page, carpeta, "gastos-sin-categorias")
     page.close()
 
@@ -653,7 +660,14 @@ def escenario_ventas(navegador, informe, carpeta):
               const texto = (el.textContent || el.value || '').trim();
               if (!/Todos los (clientes|productos)/.test(texto)) continue;
               const visible = el.getBoundingClientRect().width > 0;
-              const cortado = el.scrollWidth > el.clientWidth + 1;
+              // Se mide el texto que se ve: el que corta es el control (.ts-control).
+              const control = el.closest('.ts-control') || el;
+              let cortado = el.scrollWidth > el.clientWidth + 1;
+              if (el.classList.contains('item')) {
+                const rango = document.createRange();
+                rango.selectNodeContents(el);
+                cortado = rango.getBoundingClientRect().right > control.getBoundingClientRect().right - 24;
+              }
               const puntos = getComputedStyle(el).textOverflow === 'ellipsis';
               resultado.push({texto, visible, cortado, puntos, title: el.title || ''});
             }
@@ -661,7 +675,7 @@ def escenario_ventas(navegador, informe, carpeta):
         }"""
     )
     visibles = [r for r in recorte if r["visible"]]
-    cortados = [r for r in visibles if r["cortado"] and not (r["puntos"] and r["title"])]
+    cortados = [r for r in visibles if r["cortado"]]
     informe.verificar(
         "C8 Ventas a 1280 px: «Todos los clientes/productos» no se corta",
         len(visibles) > 0 and not cortados,
