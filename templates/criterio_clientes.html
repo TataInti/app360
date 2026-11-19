@@ -59,9 +59,6 @@
     const term = search.value.trim().toLocaleLowerCase('es');
     return rows.filter(row => !term || row.cliente.toLocaleLowerCase('es').includes(term));
   }
-  function esc(value) {
-    return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-  }
   function refreshSelection() {
     selectedLabel.textContent = `${selected.size} seleccionados`;
     const visibles = visibleRows();
@@ -76,11 +73,11 @@
       return;
     }
     body.innerHTML = visibles.map(row => `<tr>
-      <td><input class="criterio-row-check" type="checkbox" data-cliente="${esc(row.cliente)}" ${selected.has(row.cliente)?'checked':''} aria-label="Seleccionar ${esc(row.cliente)}"></td>
-      <td>${esc(row.cliente)}</td>
-      <td><span class="criterio-status ${row.criterio==='FAC'?'fac':'pre'}">${row.criterio==='FAC'?'Facturación (FAC)':'Presupuesto (PRE)'}</span></td>
-      <td>${esc(row.actualizado_por || '—')}</td>
-      <td>${esc(row.actualizado_en ? new Date(row.actualizado_en).toLocaleString('es-AR') : '—')}</td>
+      <td><input class="criterio-row-check" type="checkbox" data-cliente="${escapeHtml(row.cliente)}" ${escapeHtml(selected.has(row.cliente) ? 'checked' : '')} aria-label="Seleccionar ${escapeHtml(row.cliente)}"></td>
+      <td>${escapeHtml(row.cliente)}</td>
+      <td><span class="criterio-status ${escapeHtml(row.criterio === 'FAC' ? 'fac' : 'pre')}">${escapeHtml(row.criterio === 'FAC' ? 'Facturación (FAC)' : 'Presupuesto (PRE)')}</span></td>
+      <td>${escapeHtml(row.actualizado_por || '—')}</td>
+      <td>${escapeHtml(row.actualizado_en ? new Date(row.actualizado_en).toLocaleString('es-AR') : '—')}</td>
     </tr>`).join('');
     body.querySelectorAll('.criterio-row-check').forEach(check => check.addEventListener('change', () => {
       const cliente = check.dataset.cliente;

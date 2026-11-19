@@ -464,10 +464,10 @@ async function cargarInstrumentosArqueo() {
         }
         container.innerHTML = instrumentosList.map(inst => `
             <div class="row g-2 mb-1 align-items-center">
-                <div class="col-5"><small>${inst.nombre}</small></div>
+                <div class="col-5"><small>${escapeHtml(inst.nombre)}</small></div>
                 <div class="col-7">
                     <input type="number" step="0.01" class="form-control form-control-sm" data-money-input
-                           data-inst-id="${inst.id}" placeholder="Conteo real">
+                           data-inst-id="${escapeHtml(inst.id)}" placeholder="Conteo real">
                 </div>
             </div>
         `).join('');
@@ -523,30 +523,30 @@ async function cargarArqueos() {
                 const hoy = new Date().toISOString().split('T')[0];
                 const esHoy = a.fecha === hoy;
                 
-                let acciones = `<button class="btn btn-sm btn-outline-primary me-1" onclick="verDetalleInstrumentos(${a.id})" title="Detalle por instrumento">
+                let acciones = `<button class="btn btn-sm btn-outline-primary me-1" onclick="verDetalleInstrumentos(${escapeHtml(a.id)})" title="Detalle por instrumento">
                     <i class="bi bi-bar-chart"></i>
                 </button>
-                <button class="btn btn-sm btn-info" onclick="verHistorial(${a.id})" title="Ver historial">
+                <button class="btn btn-sm btn-info" onclick="verHistorial(${escapeHtml(a.id)})" title="Ver historial">
                     <i class="bi bi-clock-history"></i>
                 </button>`;
                 
                 if (isAdmin && esHoy) {
-                    acciones += ` <button class="btn btn-sm btn-warning" onclick="editarArqueo(${a.id})" title="Editar">
+                    acciones += ` <button class="btn btn-sm btn-warning" onclick="editarArqueo(${escapeHtml(a.id)})" title="Editar">
                         <i class="bi bi-pencil"></i>
                     </button>`;
                 }
                 
                 return `
                 <tr>
-                    <td>${a.fecha}</td>
-                    <td>${a.turno || '-'}</td>
-                    <td>$${parseFloat(a.saldo_inicial).toLocaleString('es-AR')}</td>
-                    <td class="text-success">$${ingresos.toLocaleString('es-AR')}</td>
-                    <td class="text-danger">$${egresos.toLocaleString('es-AR')}</td>
-                    <td>$${esperado.toLocaleString('es-AR')}</td>
-                    <td>$${parseFloat(a.saldo_final || 0).toLocaleString('es-AR')}</td>
-                    <td class="${difClass}"><strong>$${parseFloat(a.diferencia || 0).toLocaleString('es-AR')}</strong></td>
-                    <td>${a.usuario || '-'}</td>
+                    <td>${escapeHtml(a.fecha)}</td>
+                    <td>${escapeHtml(a.turno || '-')}</td>
+                    <td>$${escapeHtml(parseFloat(a.saldo_inicial).toLocaleString('es-AR'))}</td>
+                    <td class="text-success">$${escapeHtml(ingresos.toLocaleString('es-AR'))}</td>
+                    <td class="text-danger">$${escapeHtml(egresos.toLocaleString('es-AR'))}</td>
+                    <td>$${escapeHtml(esperado.toLocaleString('es-AR'))}</td>
+                    <td>$${escapeHtml(parseFloat(a.saldo_final || 0).toLocaleString('es-AR'))}</td>
+                    <td class="${escapeHtml(difClass)}"><strong>$${escapeHtml(parseFloat(a.diferencia || 0).toLocaleString('es-AR'))}</strong></td>
+                    <td>${escapeHtml(a.usuario || '-')}</td>
                     <td>${acciones}</td>
                 </tr>
             `}).join('');
@@ -612,9 +612,9 @@ async function verHistorial(id) {
                                 const cambios = compararCambios(log.cambios.anterior, log.cambios.nuevo);
                                 return `
                                 <tr>
-                                    <td>${new Date(log.fecha).toLocaleString('es-AR')}</td>
-                                    <td>${log.usuario}</td>
-                                    <td>${log.justificacion}</td>
+                                    <td>${escapeHtml(new Date(log.fecha).toLocaleString('es-AR'))}</td>
+                                    <td>${escapeHtml(log.usuario)}</td>
+                                    <td>${escapeHtml(log.justificacion)}</td>
                                     <td><small>${cambios}</small></td>
                                 </tr>
                                 `;
@@ -650,7 +650,7 @@ function compararCambios(anterior, nuevo) {
                 valorNuevo = formatMoneyValue(valorNuevo);
             }
             
-            cambios.push(`<strong>${campos[campo]}:</strong> ${valorAnterior} → ${valorNuevo}`);
+            cambios.push(`<strong>${escapeHtml(campos[campo])}:</strong> ${escapeHtml(valorAnterior)} → ${escapeHtml(valorNuevo)}`);
         }
     }
     
@@ -792,10 +792,10 @@ async function verDetalleInstrumentos(id) {
                     ${detalles.map(d => {
                         const difClass = d.diferencia < 0 ? 'text-danger' : d.diferencia > 0 ? 'text-warning' : 'text-success';
                         return `<tr>
-                            <td>${d.instrumento}</td>
-                            <td>$${d.saldo_calculado.toLocaleString('es-AR')}</td>
-                            <td>$${d.conteo_real.toLocaleString('es-AR')}</td>
-                            <td class="${difClass}"><strong>$${d.diferencia.toLocaleString('es-AR')}</strong></td>
+                            <td>${escapeHtml(d.instrumento)}</td>
+                            <td>$${escapeHtml(d.saldo_calculado.toLocaleString('es-AR'))}</td>
+                            <td>$${escapeHtml(d.conteo_real.toLocaleString('es-AR'))}</td>
+                            <td class="${difClass}"><strong>$${escapeHtml(d.diferencia.toLocaleString('es-AR'))}</strong></td>
                         </tr>`;
                     }).join('')}
                 </tbody>

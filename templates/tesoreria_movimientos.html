@@ -338,8 +338,8 @@ async function cargarInstrumentos() {
         const select = document.getElementById('selectInstrumento');
         const filtro = document.getElementById('instrumentoFiltro');
         _instrumentos.forEach(i => {
-            select.innerHTML += `<option value="${i.id}">${i.nombre}</option>`;
-            filtro.innerHTML += `<option value="${i.id}">${i.nombre}</option>`;
+            select.innerHTML += `<option value="${escapeHtml(i.id)}">${escapeHtml(i.nombre)}</option>`;
+            filtro.innerHTML += `<option value="${escapeHtml(i.id)}">${escapeHtml(i.nombre)}</option>`;
         });
     } catch(e) {
         console.error('Error:', e);
@@ -361,7 +361,7 @@ async function cargarCategoriasProveedores() {
         const selectProv = document.getElementById('selectProveedor');
         const categorias = catData.categorias || [];
         categorias.forEach(c => {
-            filtroCat.innerHTML += `<option value="${c.id}">${c.nombre}${c.activo ? '' : ' · Inactivo'}</option>`;
+            filtroCat.innerHTML += `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nombre)}${escapeHtml(c.activo ? '' : ' · Inactivo')}</option>`;
         });
         _conceptos = categorias.filter(c => c.activo && c.naturaleza);
         _conceptos.forEach(c => {
@@ -369,10 +369,10 @@ async function cargarCategoriasProveedores() {
                 c.efecto === 'segun_movimiento' ? 'Según movimiento' : 'No participa';
             const naturaleza = c.naturaleza === 'ambos' ? 'Ambos' :
                 c.naturaleza.charAt(0).toUpperCase() + c.naturaleza.slice(1);
-            selectCat.innerHTML += `<option value="${c.id}">${c.nombre} · ${naturaleza} · ${efecto}</option>`;
+            selectCat.innerHTML += `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nombre)} · ${escapeHtml(naturaleza)} · ${escapeHtml(efecto)}</option>`;
         });
         (provData.proveedores || []).forEach(p => {
-            selectProv.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
+            selectProv.innerHTML += `<option value="${escapeHtml(p.id)}">${escapeHtml(p.nombre)}</option>`;
         });
     } catch(e) {
         console.error('Error cargando categorías/proveedores:', e);
@@ -482,7 +482,7 @@ async function cargarMovimientos() {
                     m.categoria_efecto === 'segun_movimiento' ? 'Según movimiento' :
                     m.categoria_efecto === 'no_participa' ? 'No participa' : 'Pendiente';
                 const destinoCategoria = m.categoria_gasto
-                    ? `<div>${m.categoria_gasto}</div><small class="text-muted">${naturaleza} · ${efecto}</small>`
+                    ? `<div>${escapeHtml(m.categoria_gasto)}</div><small class="text-muted">${escapeHtml(naturaleza)} · ${escapeHtml(efecto)}</small>`
                     : '<span class="text-muted">Sin concepto</span>';
                 const destinoProveedor = m.proveedor || '-';
                 const esAnulado = m.estado === 'anulado';
@@ -496,31 +496,31 @@ async function cargarMovimientos() {
 
                 let acciones = '';
                 if (canEdit && !esAnulado && !esPendiente) {
-                    acciones = `<button class="btn btn-sm btn-outline-danger" onclick="solicitarAnulacion(${m.id})" title="Solicitar anulación">
+                    acciones = `<button class="btn btn-sm btn-outline-danger" onclick="solicitarAnulacion(${escapeHtml(m.id)})" title="Solicitar anulación">
                         <i class="bi bi-x-circle"></i>
                     </button>`;
                 }
                 if (isAdmin && esPendiente) {
-                    acciones = `<button class="btn btn-sm btn-success me-1" onclick="autorizarAnulacion(${m.id})" title="Autorizar">
+                    acciones = `<button class="btn btn-sm btn-success me-1" onclick="autorizarAnulacion(${escapeHtml(m.id)})" title="Autorizar">
                         <i class="bi bi-check-circle"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="rechazarAnulacion(${m.id})" title="Rechazar">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="rechazarAnulacion(${escapeHtml(m.id)})" title="Rechazar">
                         <i class="bi bi-arrow-counterclockwise"></i>
                     </button>`;
                 }
 
                 return `
                 <tr ${rowClass}>
-                    <td>${new Date(m.fecha_hora).toLocaleString('es-AR')}</td>
-                    <td><span class="badge ${m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger'}">${m.tipo}</span></td>
-                    <td>$${parseFloat(m.monto).toLocaleString('es-AR')}</td>
-                    <td>${m.instrumento || '-'}</td>
-                    <td>${m.portador || '-'}</td>
+                    <td>${escapeHtml(new Date(m.fecha_hora).toLocaleString('es-AR'))}</td>
+                    <td><span class="badge ${escapeHtml(m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger')}">${escapeHtml(m.tipo)}</span></td>
+                    <td>$${escapeHtml(parseFloat(m.monto).toLocaleString('es-AR'))}</td>
+                    <td>${escapeHtml(m.instrumento || '-')}</td>
+                    <td>${escapeHtml(m.portador || '-')}</td>
                     <td>${destinoCategoria}</td>
-                    <td>${destinoProveedor}</td>
-                    <td>${m.descripcion}</td>
+                    <td>${escapeHtml(destinoProveedor)}</td>
+                    <td>${escapeHtml(m.descripcion)}</td>
                     <td>${estadoBadge}</td>
-                    <td>${m.usuario || '-'}</td>
+                    <td>${escapeHtml(m.usuario || '-')}</td>
                     <td>${acciones}</td>
                 </tr>
             `}).join('');
@@ -533,9 +533,9 @@ async function cargarMovimientos() {
             const activos = movimientos.filter(m => m.estado !== 'anulado');
             document.getElementById('subtotalCount').textContent = `(${activos.length} activos)`;
             document.getElementById('subtotalMonto').innerHTML =
-                `<span class="text-success">+$${ingresos.toLocaleString('es-AR', {maximumFractionDigits:0})}</span> ` +
-                `<span class="text-danger">-$${egresos.toLocaleString('es-AR', {maximumFractionDigits:0})}</span> = ` +
-                `<span class="text-primary">$${(ingresos - egresos).toLocaleString('es-AR', {maximumFractionDigits:0})}</span>`;
+                `<span class="text-success">+$${escapeHtml(ingresos.toLocaleString('es-AR', {maximumFractionDigits:0}))}</span> ` +
+                `<span class="text-danger">-$${escapeHtml(egresos.toLocaleString('es-AR', {maximumFractionDigits:0}))}</span> = ` +
+                `<span class="text-primary">$${escapeHtml((ingresos - egresos).toLocaleString('es-AR', {maximumFractionDigits:0}))}</span>`;
             tfoot.classList.remove('d-none');
         } else {
             tfoot.classList.add('d-none');
@@ -731,7 +731,7 @@ async function cargarPortadoresPorInstrumento(instrumentoId) {
         const data = await resp.json();
         select.innerHTML = '<option value="">Seleccionar...</option>';
         (data.portadores || []).forEach(p => {
-            select.innerHTML += `<option value="${p.id}">${p.nombre}</option>`;
+            select.innerHTML += `<option value="${escapeHtml(p.id)}">${escapeHtml(p.nombre)}</option>`;
         });
     } catch(e) {
         select.innerHTML = '<option value="">Error al cargar</option>';
@@ -764,7 +764,7 @@ async function crearPortadorInline() {
         if (resp.ok) {
             const data = await resp.json();
             const select = document.getElementById('selectPortador');
-            select.innerHTML += `<option value="${data.portador.id}">${data.portador.nombre}</option>`;
+            select.innerHTML += `<option value="${escapeHtml(data.portador.id)}">${escapeHtml(data.portador.nombre)}</option>`;
             select.value = data.portador.id;
             notify('Portador creado y seleccionado.', 'success', { title: 'Dato actualizado' });
         } else {

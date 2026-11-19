@@ -465,15 +465,15 @@ async function cargarPagos() {
         data.pagos.forEach(pago => {
             const tr = document.createElement("tr");
             tr.innerHTML = `
-                <td>${pago.id}</td>
-                <td>${new Date(pago.fecha).toLocaleDateString('es-AR')}</td>
-                <td class="text-end">$ ${parseFloat(pago.monto).toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
-                <td>${pago.instrumento || "N/A"}</td>
-                <td>${pago.descripcion}</td>
-                <td>${pago.referencia || "-"}</td>
-                <td>${pago.usuario || "N/A"}</td>
+                <td>${escapeHtml(pago.id)}</td>
+                <td>${escapeHtml(new Date(pago.fecha).toLocaleDateString('es-AR'))}</td>
+                <td class="text-end">$ ${escapeHtml(parseFloat(pago.monto).toLocaleString('es-AR', {minimumFractionDigits: 2}))}</td>
+                <td>${escapeHtml(pago.instrumento || "N/A")}</td>
+                <td>${escapeHtml(pago.descripcion)}</td>
+                <td>${escapeHtml(pago.referencia || "-")}</td>
+                <td>${escapeHtml(pago.usuario || "N/A")}</td>
                 <td>
-                    ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="eliminarPago(${pago.id})"><i class="bi bi-trash"></i></button>` : ''}
+                    ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="eliminarPago(${escapeHtml(pago.id)})"><i class="bi bi-trash"></i></button>` : ''}
                 </td>
             `;
             tbody.appendChild(tr);
@@ -502,17 +502,17 @@ async function cargarLiquidaciones() {
             return;
         }
 
-        const tipoBadge = {consignado: 'bg-info', no_consignado: 'bg-secondary', ajuste: 'bg-dark'};
+        const tipoBadge = Object.assign(Object.create(null), {consignado: 'bg-info', no_consignado: 'bg-secondary', ajuste: 'bg-dark'});
         tbody.innerHTML = data.liquidaciones.map(liq => `
             <tr>
-                <td>${liq.id}</td>
-                <td>${new Date(liq.fecha).toLocaleDateString('es-AR')}</td>
-                <td class="text-end">$ ${parseFloat(liq.monto).toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
-                <td><span class="badge ${tipoBadge[liq.tipo] || 'bg-secondary'}">${liq.tipo}</span></td>
-                <td>${liq.descripcion}</td>
-                <td>${liq.referencia || "-"}</td>
-                <td>${liq.usuario || "N/A"}</td>
-                <td>${isAdmin ? `<button class="btn btn-sm btn-outline-danger" onclick="eliminarLiquidacion(${liq.id})"><i class="bi bi-trash"></i></button>` : ''}</td>
+                <td>${escapeHtml(liq.id)}</td>
+                <td>${escapeHtml(new Date(liq.fecha).toLocaleDateString('es-AR'))}</td>
+                <td class="text-end">$ ${escapeHtml(parseFloat(liq.monto).toLocaleString('es-AR', {minimumFractionDigits: 2}))}</td>
+                <td><span class="badge ${escapeHtml(tipoBadge[liq.tipo] || 'bg-secondary')}">${escapeHtml(liq.tipo)}</span></td>
+                <td>${escapeHtml(liq.descripcion)}</td>
+                <td>${escapeHtml(liq.referencia || "-")}</td>
+                <td>${escapeHtml(liq.usuario || "N/A")}</td>
+                <td>${isAdmin ? `<button class="btn btn-sm btn-outline-danger" onclick="eliminarLiquidacion(${escapeHtml(liq.id)})"><i class="bi bi-trash"></i></button>` : ''}</td>
             </tr>
         `).join('');
     } catch (error) {
@@ -730,23 +730,23 @@ async function verHistorialCuenta() {
                 html += `
                     <div class="app-log-entry">
                         <div class="app-log-entry__head">
-                            <div class="app-log-entry__title">${new Date(log.fecha).toLocaleString('es-AR')}</div>
-                            <span class="app-log-entry__meta">${log.usuario}</span>
+                            <div class="app-log-entry__title">${escapeHtml(new Date(log.fecha).toLocaleString('es-AR'))}</div>
+                            <span class="app-log-entry__meta">${escapeHtml(log.usuario)}</span>
                         </div>
-                        <p class="app-log-entry__note"><strong>Justificacion:</strong> ${log.justificacion}</p>
+                        <p class="app-log-entry__note"><strong>Justificacion:</strong> ${escapeHtml(log.justificacion)}</p>
                         <div class="app-detail-grid">
                             <div class="app-detail-card">
                                 <h6>Antes</h6>
                                 <ul>
-                                    <li>Saldo inicial: $ ${parseFloat(log.cambios.anterior.saldo_inicial).toLocaleString('es-AR', {minimumFractionDigits: 2})}</li>
-                                    ${log.cambios.anterior.observaciones ? `<li>Observaciones: ${log.cambios.anterior.observaciones}</li>` : ''}
+                                    <li>Saldo inicial: $ ${escapeHtml(parseFloat(log.cambios.anterior.saldo_inicial).toLocaleString('es-AR', {minimumFractionDigits: 2}))}</li>
+                                    ${log.cambios.anterior.observaciones ? `<li>Observaciones: ${escapeHtml(log.cambios.anterior.observaciones)}</li>` : ''}
                                 </ul>
                             </div>
                             <div class="app-detail-card">
                                 <h6>Despues</h6>
                                 <ul>
-                                    <li>Saldo inicial: $ ${parseFloat(log.cambios.nuevo.saldo_inicial).toLocaleString('es-AR', {minimumFractionDigits: 2})}</li>
-                                    ${log.cambios.nuevo.observaciones ? `<li>Observaciones: ${log.cambios.nuevo.observaciones}</li>` : ''}
+                                    <li>Saldo inicial: $ ${escapeHtml(parseFloat(log.cambios.nuevo.saldo_inicial).toLocaleString('es-AR', {minimumFractionDigits: 2}))}</li>
+                                    ${log.cambios.nuevo.observaciones ? `<li>Observaciones: ${escapeHtml(log.cambios.nuevo.observaciones)}</li>` : ''}
                                 </ul>
                             </div>
                         </div>

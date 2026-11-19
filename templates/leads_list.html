@@ -375,14 +375,14 @@
                 const author = entry.created_by ? entry.created_by : 'Sistema';
                 const dateLabel = entry.created_at ? new Date(entry.created_at).toLocaleString() : '';
                 entryEl.innerHTML = `
-                    <div><strong>${fromStage}</strong> -> <strong>${toStage}</strong></div>
-                    <div class="mt-1">${comment}</div>
-                    <small>${author} - ${dateLabel}</small>
+                    <div><strong>${escapeHtml(fromStage)}</strong> -> <strong>${escapeHtml(toStage)}</strong></div>
+                    <div class="mt-1">${escapeHtml(comment)}</div>
+                    <small>${escapeHtml(author)} - ${escapeHtml(dateLabel)}</small>
                 `;
                 historyList.appendChild(entryEl);
             });
         } catch (error) {
-            historyList.innerHTML = `<div class="history-empty">${error.message}</div>`;
+            historyList.innerHTML = `<div class="history-empty">${escapeHtml(error.message)}</div>`;
         }
     };
 

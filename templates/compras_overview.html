@@ -126,10 +126,10 @@
     }
     tbody.innerHTML = items.slice(0, 10).map(o => {
       const fecha = o.order_date ? String(o.order_date).slice(0, 10) : '-';
-      const prov = o.supplier || (o.supplier_id ? `Proveedor ${o.supplier_id}` : '-');
+      const prov = o.supplier || (o.supplier_id ? `Proveedor ${escapeHtml(o.supplier_id)}` : '-');
       const estado = o.status || '-';
       const monto = o.total_amount !== undefined && o.total_amount !== null ? money(o.total_amount) : '$0';
-      return `<tr><td>${o.id}</td><td>${fecha}</td><td>${prov}</td><td>${estado}</td><td class="text-end">${monto}</td></tr>`;
+      return `<tr><td>${escapeHtml(o.id)}</td><td>${escapeHtml(fecha)}</td><td>${escapeHtml(prov)}</td><td>${escapeHtml(estado)}</td><td class="text-end">${escapeHtml(monto)}</td></tr>`;
     }).join('');
   }
 

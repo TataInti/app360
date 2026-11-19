@@ -190,7 +190,9 @@ function badgeTipoAdelanto(tipo) {
         adelanto_mercaderia: ['bg-info text-dark',   'Mercadería'],
         prestamo:            ['bg-warning text-dark','Préstamo'],
     };
-    const [cls, lbl] = map[tipo] || ['bg-light text-dark', tipo || '—'];
+    const [cls, lbl] = Object.prototype.hasOwnProperty.call(map, tipo)
+        ? map[tipo]
+        : ['bg-light text-dark', escapeHtml(tipo || '—')];
     return `<span class="badge ${cls}">${lbl}</span>`;
 }
 
@@ -251,12 +253,12 @@ async function cargarEmpleados() {
             return;
         }
         tbody.innerHTML = items.map(e => {
-            const nombre = e.name || `${e.first_name || ''} ${e.last_name || ''}`.trim() || '—';
+            const nombre = e.name || [e.first_name || '', e.last_name || ''].join(' ').trim() || '—';
             return `<tr>
-                <td class="fw-semibold">${nombre}</td>
-                <td>${e.position || '—'}</td>
-                <td>${e.department || '—'}</td>
-                <td>${fmtFecha(e.hire_date)}</td>
+                <td class="fw-semibold">${escapeHtml(nombre)}</td>
+                <td>${escapeHtml(e.position || '—')}</td>
+                <td>${escapeHtml(e.department || '—')}</td>
+                <td>${escapeHtml(fmtFecha(e.hire_date))}</td>
                 <td class="text-center">${e.is_active
                     ? '<span class="badge bg-success">Activo</span>'
                     : '<span class="badge bg-secondary">Inactivo</span>'}</td>
@@ -307,12 +309,12 @@ async function cargarAdelantos() {
             return;
         }
         tbody.innerHTML = items.map(a => `<tr>
-            <td class="fw-semibold">${a.empleado?.nombre || '—'}</td>
+            <td class="fw-semibold">${escapeHtml(a.empleado?.nombre || '—')}</td>
             <td>${badgeTipoAdelanto(a.tipo)}</td>
-            <td class="text-end">${fmtMoney(a.monto)}</td>
-            <td class="text-truncate" style="max-width:130px;" title="${a.concepto || ''}">${a.concepto || '—'}</td>
+            <td class="text-end">${escapeHtml(fmtMoney(a.monto))}</td>
+            <td class="text-truncate" style="max-width:130px;" title="${escapeHtml(a.concepto || '')}">${escapeHtml(a.concepto || '—')}</td>
             <td class="text-center">${badgeEstadoAdelanto(a)}</td>
-            <td>${fmtFecha(a.fecha_solicitud)}</td>
+            <td>${escapeHtml(fmtFecha(a.fecha_solicitud))}</td>
         </tr>`).join('');
     } catch (e) {
         document.getElementById('tabla-adelantos').innerHTML =
@@ -328,11 +330,11 @@ async function cargarLiquidaciones() {
     document.getElementById('tabla-liquidaciones').innerHTML =
         '<tr><td colspan="6" class="text-center p-3 text-muted">Cargando...</td></tr>';
     try {
-        const r = await fetch(`/api/rrhh/liquidaciones/${periodo}`);
+        const r = await fetch(`/api/rrhh/liquidaciones/${escapeHtml(periodo)}`);
         if (r.status === 404) {
             document.getElementById('tabla-liquidaciones').innerHTML =
-                `<tr><td colspan="6" class="text-center p-3 text-muted">Todavía no hay liquidaciones para ${periodo}</td></tr>`;
-            document.getElementById('pie-liquidaciones').textContent = `Período ${periodo} — sin registros`;
+                `<tr><td colspan="6" class="text-center p-3 text-muted">Todavía no hay liquidaciones para ${escapeHtml(periodo)}</td></tr>`;
+            document.getElementById('pie-liquidaciones').textContent = `Período ${escapeHtml(periodo)} — sin registros`;
             return;
         }
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -341,8 +343,8 @@ async function cargarLiquidaciones() {
 
         if (!items.length) {
             document.getElementById('tabla-liquidaciones').innerHTML =
-                `<tr><td colspan="6" class="text-center p-3 text-muted">Todavía no hay liquidaciones para ${periodo}</td></tr>`;
-            document.getElementById('pie-liquidaciones').textContent = `Período ${periodo} — sin registros`;
+                `<tr><td colspan="6" class="text-center p-3 text-muted">Todavía no hay liquidaciones para ${escapeHtml(periodo)}</td></tr>`;
+            document.getElementById('pie-liquidaciones').textContent = `Período ${escapeHtml(periodo)} — sin registros`;
             return;
         }
 
@@ -356,12 +358,12 @@ async function cargarLiquidaciones() {
             const dMer = parseFloat(l.descuento_adelanto_mercaderia  || 0);
             const dCta = parseFloat(l.descuento_cuota_prestamo       || 0);
             return `<tr>
-                <td class="fw-semibold">${nombre}</td>
-                <td class="text-end">${fmtMoney(l.sueldo_base)}</td>
-                <td class="text-end ${dEf  > 0 ? 'text-danger' : 'text-muted'}">${dEf  > 0 ? '−'+fmtMoney(dEf)  : '—'}</td>
-                <td class="text-end ${dMer > 0 ? 'text-danger' : 'text-muted'}">${dMer > 0 ? '−'+fmtMoney(dMer) : '—'}</td>
-                <td class="text-end ${dCta > 0 ? 'text-warning': 'text-muted'}">${dCta > 0 ? '−'+fmtMoney(dCta) : '—'}</td>
-                <td class="text-end fw-bold text-success">${fmtMoney(l.sueldo_neto)}</td>
+                <td class="fw-semibold">${escapeHtml(nombre)}</td>
+                <td class="text-end">${escapeHtml(fmtMoney(l.sueldo_base))}</td>
+                <td class="text-end ${escapeHtml(dEf > 0 ? 'text-danger' : 'text-muted')}">${escapeHtml(dEf  > 0 ? '−'+fmtMoney(dEf)  : '—')}</td>
+                <td class="text-end ${escapeHtml(dMer > 0 ? 'text-danger' : 'text-muted')}">${escapeHtml(dMer > 0 ? '−'+fmtMoney(dMer) : '—')}</td>
+                <td class="text-end ${escapeHtml(dCta > 0 ? 'text-warning' : 'text-muted')}">${escapeHtml(dCta > 0 ? '−'+fmtMoney(dCta) : '—')}</td>
+                <td class="text-end fw-bold text-success">${escapeHtml(fmtMoney(l.sueldo_neto))}</td>
             </tr>`;
         }).join('');
     } catch (e) {
