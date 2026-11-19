@@ -270,8 +270,49 @@ def test_panel_de_ventas_carga_con_sesion_autorizada(app_test):
 
 
 # -----------------------------------------------------------------------------
-# api_rest: JWT o sesión con módulo
+# Respuesta uniforme de /api/: 401 JSON sin sesión; 403 JSON sin módulo.
+# Las pantallas HTML siguen redirigiendo (ver test_sin_sesion_ninguna_ruta_entrega_datos).
 # -----------------------------------------------------------------------------
+def test_api_sin_sesion_responde_401_json_en_todo_el_mapa(app_test, cliente_anonimo):
+    casos = [
+        (endpoint, metodo, ruta)
+        for endpoint, metodo, ruta in _casos_del_mapa(app_test)
+        if "/api/" in ruta and (endpoint, metodo) not in EXCEPCIONES
+    ]
+    assert len(casos) >= 100, "la matriz de /api/ debe recorrer todas las rutas de API"
+
+    no_uniformes = []
+    for endpoint, metodo, ruta in casos:
+        respuesta = cliente_anonimo.open(ruta, method=metodo)
+        if respuesta.status_code != 401 or not respuesta.is_json:
+            no_uniformes.append(f"{metodo} {ruta} ({endpoint}) -> {respuesta.status_code}")
+    assert not no_uniformes, "Rutas /api/ sin sesión sin respuesta 401 JSON:\n" + "\n".join(
+        no_uniformes
+    )
+
+
+@pytest.mark.parametrize(
+    "ruta",
+    ["/api/admin/accesos", "/api/admin/tesoreria/instrumentos/1/portadores"],
+)
+def test_api_admin_sin_sesion_responde_401_json(cliente_anonimo, ruta):
+    respuesta = cliente_anonimo.get(ruta)
+    assert respuesta.status_code == 401
+    assert respuesta.is_json
+    assert respuesta.get_json() == {"error": "Sesión requerida"}
+
+
+@pytest.mark.parametrize(
+    "ruta",
+    ["/api/admin/accesos", "/api/admin/tesoreria/instrumentos/1/portadores"],
+)
+def test_api_admin_con_rol_sin_admin_responde_403_json(app_test, ruta):
+    respuesta = _cliente_con_sesion(app_test, "sales").get(ruta)
+    assert respuesta.status_code == 403
+    assert respuesta.is_json
+    assert respuesta.get_json() == {"error": "Sin acceso al módulo"}
+
+
 @pytest.mark.parametrize("ruta", RUTAS_API_REST)
 def test_api_rest_sin_credencial_responde_401(cliente_anonimo, ruta):
     respuesta = cliente_anonimo.get(ruta)

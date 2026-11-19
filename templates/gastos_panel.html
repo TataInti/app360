@@ -18,6 +18,8 @@
         </div>
     </div>
 
+    <div id="gastosAviso" class="alert alert-warning" role="alert" hidden></div>
+
     <!-- Filtros -->
     <div class="period-bar dim-bar mb-3">
         <select id="selCategoria" style="min-width:130px"><option value="">Categoría</option></select>
@@ -186,6 +188,27 @@ const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 let chartCat = null, chartProv = null, chartEvo = null;
 let _instrumentos = [];
 
+const MENSAJE_ACCESO = 'Tu sesión terminó o no tenés acceso a esta sección';
+
+function mostrarAviso(texto) {
+    const aviso = document.getElementById('gastosAviso');
+    aviso.textContent = texto;
+    aviso.hidden = false;
+}
+
+// Una respuesta que no es JSON, o un 401/403, se informa en español. Un 401 lleva al login.
+async function pedirJson(url) {
+    const respuesta = await fetch(url, {headers: {'Accept': 'application/json'}});
+    const esJson = (respuesta.headers.get('content-type') || '').includes('application/json');
+    if (respuesta.status === 401 || respuesta.status === 403 || !esJson) {
+        if (respuesta.status === 401) setTimeout(() => { window.location.href = '/'; }, 2500);
+        throw new Error(MENSAJE_ACCESO);
+    }
+    const datos = await respuesta.json();
+    if (!respuesta.ok) throw new Error(datos.error || 'No se pudieron cargar los datos.');
+    return datos;
+}
+
 function fmtAbbr(n) {
     const a = Math.abs(n);
     if (a >= 1e6) return '$'+(n/1e6).toFixed(1)+'M';
@@ -267,20 +290,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.reset();
                 document.getElementById('portadorGroup').style.display = 'none';
                 load();
+            } else if (r.status === 401 || r.status === 403) {
+                alert(MENSAJE_ACCESO);
+                if (r.status === 401) setTimeout(() => { window.location.href = '/'; }, 2500);
             } else {
-                const err = await r.json();
-                alert('Error: '+(err.error||'No se pudo guardar'));
+                const err = await r.json().catch(() => ({}));
+                alert(err.error || 'No se pudo guardar el gasto.');
             }
         } catch(ex) { alert('Error de conexión'); }
     });
 });
 
 async function cargarRefs() {
-    const [catR, provR, instR] = await Promise.all([
-        fetch('/api/gastos/categorias?naturaleza=egreso,ambos'), fetch('/api/gastos/proveedores'),
-        fetch('/api/tesoreria/instrumentos')
-    ]);
-    const [catD, provD, instD] = await Promise.all([catR.json(), provR.json(), instR.json()]);
+    let catD, provD, instD;
+    try {
+        [catD, provD, instD] = await Promise.all([
+            pedirJson('/api/gastos/categorias?naturaleza=egreso,ambos'),
+            pedirJson('/api/gastos/proveedores'),
+            pedirJson('/api/tesoreria/instrumentos'),
+        ]);
+    } catch (error) {
+        mostrarAviso(error.message);
+        return;
+    }
 
     _instrumentos = instD.instrumentos || [];
 
@@ -344,9 +376,14 @@ async function load(period) {
 
     let urlR = `/api/gastos/resumen?fecha_desde=${desde}&fecha_hasta=${hasta}`;
 
-    const [listR, resR] = await Promise.all([fetch(url), fetch(urlR)]);
-    const listD = await listR.json();
-    const resD = await resR.json();
+    let listD, resD;
+    document.getElementById('gastosAviso').hidden = true;
+    try {
+        [listD, resD] = await Promise.all([pedirJson(url), pedirJson(urlR)]);
+    } catch (error) {
+        mostrarAviso(error.message);
+        return;
+    }
 
     // KPIs
     document.getElementById('kpiTotal').textContent = fmtAbbr(resD.total || 0);

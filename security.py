@@ -482,6 +482,11 @@ def module_allowed(module, role=None, user_id=None):
     return False
 
 
+def es_ruta_api():
+    """Las rutas /api/ responden JSON (401 o 403). Las pantallas HTML siguen redirigiendo."""
+    return "/api/" in request.path
+
+
 def protect_blueprint(bp, module):
     @bp.before_request
     def guard():
@@ -510,18 +515,24 @@ def protect_blueprint(bp, module):
                 access = get_user_module_access(module, user_id, role)
                 if access == "view":
                     log_access_denied(session.get("user"), module)
+                    if es_ruta_api():
+                        return jsonify({'error': 'Sin permiso de edición en el módulo'}), 403
                     flash("Tu acceso a esta sección es solo lectura.", "warning")
                     return redirect(request.referrer or url_for("auth.login")), 403
             return  # access granted
         if session.get("user"):
             # Usuario logueado pero sin acceso, redirigir a ruta permitida
             log_access_denied(session.get("user"), module)
+            if es_ruta_api():
+                return jsonify({'error': 'Sin acceso al módulo'}), 403
             route = first_allowed_route(session.get("role"))
             if route == request.path:
                 # La pantalla de destino también niega el acceso: no redirigir a sí misma
                 route = SIN_ACCESO_ROUTE
             flash("No tienes acceso a esta sección.", "warning")
             return redirect(route)
+        if es_ruta_api():
+            return jsonify({'error': 'Sesión requerida'}), 401
         flash("Debes iniciar sesión.", "warning")
         return redirect(url_for("auth.login"))
 

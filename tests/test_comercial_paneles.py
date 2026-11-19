@@ -256,7 +256,12 @@ def test_error_no_devuelve_ceros(client, monkeypatch):
 def test_permiso_existente_y_sin_ampliacion(client, path):
     cambiar_usuario(client, 1, role='hr')
     denied = client.get(path)
-    assert denied.status_code == 302
+    if path.startswith('/api/'):
+        # Las rutas de API responden JSON 403 sin módulo; las pantallas siguen redirigiendo.
+        assert denied.status_code == 403
+        assert denied.is_json
+    else:
+        assert denied.status_code == 302
     cambiar_usuario(client, 1, role='direccion')
     allowed = client.get(path)
     assert allowed.status_code == 200
