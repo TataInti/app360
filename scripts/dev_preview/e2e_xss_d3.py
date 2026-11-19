@@ -56,11 +56,17 @@ def verify(name, condition, detail=""):
 
 def seed_primary_fixtures():
     """Reuse only the synthetic product/lead created for the D3 local database."""
-    password = os.environ.get("E2E_PG_PASSWORD", "app360_e2e_local_ficticia")
+    database_url = os.environ.get("E2E_DATABASE_URL") or os.environ.get("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("Configurá DATABASE_URL para la base local app360_fix_d3")
+    from sqlalchemy.engine import make_url
+    parsed = make_url(database_url)
+    if parsed.host not in {"127.0.0.1", "localhost"} or parsed.port != 55432 or parsed.database != "app360_fix_d3":
+        raise RuntimeError("E2E D3 solo escribe en 127.0.0.1:55432/app360_fix_d3")
     os.environ.update({
         "PYTHON_DOTENV_DISABLED": "true",
         "PYTHONDONTWRITEBYTECODE": "1",
-        "DATABASE_URL": f"postgresql://app360_e2e:{password}@127.0.0.1:55432/app360_fix_d3",
+        "DATABASE_URL": database_url,
         "SECRET_KEY": "d3-local-secret-synthetic-only",
         "JWT_SECRET_KEY": "d3-local-jwt-synthetic-only",
         "ADMIN_PASSWORD": ADMIN_PASSWORD,
