@@ -32,6 +32,25 @@ El entorno de Python y Playwright vive en `/root/.cache/app360-e2e-venv`, fuera
 del repo. `run_local.sh up` lo crea la primera vez. Las capturas, los informes
 y los logs van a `/root/.hermes/cache/scratch/`, también fuera del repo.
 
+## Localizadores y suite de objetivos
+
+`e2e_objetivos.py` conserva los casos del DOM actual; sus localizadores de
+vendedor, línea, alta y resumen están centralizados en
+`e2e_objetivos_helpers.py`. Para una instancia aislada, pasá `E2E_RUN_LOCAL`,
+`E2E_BASE_URL` y `E2E_SHOTS_DIR` antes de correr el script:
+
+```
+E2E_RUN_LOCAL=/ruta/scratch/start.sh E2E_BASE_URL=http://127.0.0.1:5064 \
+E2E_SHOTS_DIR=/ruta/scratch/objetivos-shots \
+/root/.cache/app360-e2e-venv/bin/python scripts/dev_preview/e2e_objetivos.py
+```
+
+El fixture de equipo se agrega solo a pedido con
+`python scripts/dev_preview/seed_demo.py --reset --equipo`. Usa el período fijo
+`2026-11`, seis vendedores `T-` con 6, 4, 3, 2, 0 y 5 líneas, y ventas PRE
+sintéticas para `T-Elena` y `T-PRE SIN ALIAS`. Sin `--equipo`, el seed y las
+demás suites conservan su comportamiento habitual.
+
 ## Seguridad del entorno
 
 - `seed_demo.py` y `baseline_previa.py` se niegan a escribir si la URL no es
