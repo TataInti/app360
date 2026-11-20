@@ -33,6 +33,7 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import datetime
 
 import psycopg2
@@ -149,6 +150,17 @@ def fila_de(page, producto_nombre, ubicacion_nombre):
     return coincidencias
 
 
+def esperar_fila(page, producto_nombre, ubicacion_nombre, cantidad, segundos=10):
+    """La lista se refresca de forma asíncrona tras guardar: se sondea hasta ver la fila nueva."""
+    limite = time.time() + segundos
+    while time.time() < limite:
+        coincidencias = fila_de(page, producto_nombre, ubicacion_nombre)
+        if len(coincidencias) == 1 and coincidencias[0]["celdas"][5] == str(cantidad):
+            return coincidencias
+        page.wait_for_timeout(200)
+    return fila_de(page, producto_nombre, ubicacion_nombre)
+
+
 def abrir_panel(page):
     page.locator('[data-drawer-open="stockPanel"]').first.click()
     expect(page.locator("#stockPanel")).to_be_visible()
@@ -260,7 +272,7 @@ def escenario_escritorio(page, productos, ubicaciones):
     page.click('#stockPanel [data-accion="guardar"]')
     expect(page.locator("#stockPanel")).to_be_hidden(timeout=10000)
     expect(page.locator("[data-stock-region] tr[data-stock-id]").first).to_be_visible(timeout=10000)
-    fila = fila_de(page, NOMBRES["p1"], NOMBRES["l1"])
+    fila = esperar_fila(page, NOMBRES["p1"], NOMBRES["l1"], 5)
     verificar("guardar: la fila nueva aparece en la lista con producto, ubicación y cantidad", len(fila) == 1 and fila[0]["celdas"][5] == "5", fila)
     verificar("guardar: el foco vuelve al botón de la cabecera", page.evaluate("document.activeElement.dataset.drawerOpen") == "stockPanel")
     verificar("guardar: aviso «Stock guardado: producto uno en deposito norte»", page.get_by_text(f"Stock guardado: {NOMBRES['p1']} en {NOMBRES['l1']}").first.is_visible())
@@ -284,7 +296,7 @@ def escenario_escritorio(page, productos, ubicaciones):
         verificar(f"agregar otro {indice}: la cantidad vuelve a 0", page.input_value("#stock-cantidad") == "0")
         verificar(f"agregar otro {indice}: foco en el primer campo", page.evaluate("document.activeElement.id") == "product_id")
         expect(page.locator("[data-stock-region] tr[data-stock-id]").first).to_be_visible(timeout=10000)
-        fila = fila_de(page, nombre_p, nombre_l)
+        fila = esperar_fila(page, nombre_p, nombre_l, cantidad)
         verificar(f"agregar otro {indice}: la lista muestra {nombre_p} en {nombre_l} con {cantidad}", len(fila) == 1 and fila[0]["celdas"][5] == str(cantidad), fila)
         api = stock_api(page) or []
         verificar(
@@ -345,7 +357,7 @@ def escenario_escritorio(page, productos, ubicaciones):
     expect(page.locator("#stockPanel")).to_be_hidden(timeout=10000)
     expect(page.locator("[data-stock-region] tr[data-stock-id]").first).to_be_visible(timeout=10000)
     nombre_raro = NOMBRES["p3"]
-    fila = fila_de(page, nombre_raro, NOMBRES["l1"])
+    fila = esperar_fila(page, nombre_raro, NOMBRES["l1"], 1)
     verificar("escapes: el nombre se muestra como texto literal en la lista", len(fila) == 1, [f["celdas"][:2] for f in filas_stock(page)][:3])
     verificar("escapes: no aparece marcado <b> en la lista", page.locator("[data-stock-region] b").count() == 0)
     opciones = page.locator("#stockPanel #product_id option").all_inner_texts()
