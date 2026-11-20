@@ -201,29 +201,80 @@ def _tocar_par_sin_fallo(user_id, ip, ahora, *, crear=True):
 
 
 def _escritura_de_rechazo_sin_cuenta(ip, ahora):
-    """Actualiza contadores ficticios bajo savepoint y revierte todo antes del COMMIT real."""
-    _limpiar_pares_vencidos(ahora)
+    """Actualiza contadores ficticios bajo savepoint y revierte todo antes del COMMIT real.
+
+    Orden de bloqueos igual al de la cuenta activa: primero la fila del usuario, después los pares.
+    Si la limpieza de pares fuera antes, un intento sin cuenta podría retener pares mientras espera
+    a un usuario que otro intento bloquea, y al revés: ciclo de bloqueos (deadlock) en PostgreSQL.
+    """
     candidatos = db.session.execute(select(User.id).order_by(User.id).limit(64)).scalars().all()
     if not candidatos:
+        _limpiar_pares_vencidos(ahora)
         return
     user_id = secrets.choice(candidatos)
     ip_ficticia = f"__c4_timing_{secrets.token_hex(8)}"
+    fila = (
+        User.query.filter_by(id=user_id)
+        .with_for_update()
+        .populate_existing()
+        .one_or_none()
+    )
+    if fila is None:
+        return
+    _limpiar_pares_vencidos(ahora)
     savepoint = db.session.begin_nested()
     try:
-        fila = (
-            User.query.filter_by(id=user_id)
-            .with_for_update()
-            .populate_existing()
-            .one_or_none()
-        )
-        if fila is None:
-            return
         _sumar_fallo(fila, ahora)
         _par_de_usuario(fila.id, ip_ficticia)
         _upsert_intento_par(fila.id, ip_ficticia, ahora)
         db.session.flush()
     finally:
         savepoint.rollback()
+
+
+def _mejor_esfuerzo(canal, ip, nombre, etapa, operacion):
+    """Ejecuta un paso de contadores dentro de un punto de guardado y devuelve (ok, valor).
+
+    El contador es best-effort en el camino de acierto: si un paso falla (tabla ausente, ciclo de
+    bloqueos entre workers), el error se deshace solo en ese punto, queda un evento
+    LOGIN_ESTADO_NO_ACTUALIZADO con la etapa y la clase de error, y la decisión sigue. El acierto de
+    una cuenta no bloqueada no depende del estado de los contadores. Los rechazos siguen cerrados.
+    """
+    savepoint = db.session.begin_nested()
+    try:
+        valor = operacion()
+        db.session.flush()
+        savepoint.commit()
+        return True, valor
+    except Exception as error:
+        savepoint.rollback()
+        security.log_security_event(
+            "LOGIN_ESTADO_NO_ACTUALIZADO",
+            "No se pudo actualizar un contador del acceso; la decisión sigue sin ese dato",
+            user=nombre,
+            ip=ip,
+            extra={
+                "canal": canal,
+                "etapa": etapa,
+                "excepcion": type(error).__name__,
+                "codigo_sql": getattr(getattr(error, "orig", None), "pgcode", None),
+            },
+        )
+        return False, None
+
+
+def _reiniciar_contadores(fila, par, ahora, canal, pendiente):
+    """Reinicia contadores de la cuenta y del par tras un acierto y registra el último acceso."""
+    fila.failed_login_count = 0
+    fila.failed_login_window_start = None
+    fila.locked_until = None
+    if canal == "web" or not pendiente:
+        fila.last_login_at = ahora
+    if par is not None:
+        par.failed_count = 0
+        par.window_start = ahora
+        par.locked_until = None
+        par.updated_at = ahora
 
 
 def _escritura_de_rechazo_bloqueado(fila, ip, ahora, par=None):
@@ -290,14 +341,18 @@ def autenticar(username, password, canal, ip=None):
             _escritura_de_rechazo_sin_cuenta(ip, ahora)
             return _rechazar(canal, ip, nombre, existente, CUENTA_INACTIVA, ahora)
         return _decidir_cuenta_activa(canal, ip, nombre, activa, coincide, vencida)
-    except Exception:
+    except Exception as error:
         db.session.rollback()
         security.log_security_event(
             "LOGIN_ESTADO_NO_ACTUALIZADO",
             "No se pudo actualizar el estado de acceso de la cuenta; el login se rechaza",
             user=nombre,
             ip=ip,
-            extra={"canal": canal},
+            extra={
+                "canal": canal,
+                "excepcion": type(error).__name__,
+                "codigo_sql": getattr(getattr(error, "orig", None), "pgcode", None),
+            },
         )
         return Resultado(ok=False)
 
@@ -310,26 +365,20 @@ def _decidir_cuenta_activa(canal, ip, nombre, usuario, coincide, vencida):
         db.session.rollback()
         _escritura_de_rechazo_sin_cuenta(ip, ahora)
         return _rechazar(canal, ip, nombre, None, CUENTA_INACTIVA, ahora)
-    _limpiar_pares_vencidos(ahora)
+    _mejor_esfuerzo(canal, ip, nombre, "limpieza_pares", lambda: _limpiar_pares_vencidos(ahora))
     if esta_bloqueada(fila, ahora):
         _escritura_de_rechazo_bloqueado(fila, ip, ahora)
         return _rechazar(canal, ip, nombre, fila, CUENTA_BLOQUEADA, ahora)
-    par = _par_de_usuario(fila.id, ip)
+    _, par = _mejor_esfuerzo(canal, ip, nombre, "lectura_par", lambda: _par_de_usuario(fila.id, ip))
     if par is not None and par.locked_until is not None and _aware(par.locked_until) > ahora:
         _escritura_de_rechazo_bloqueado(fila, ip, ahora, par=par)
         return _rechazar(canal, ip, nombre, fila, CUENTA_BLOQUEADA, ahora)
     if coincide and not vencida:
         pendiente = bool(fila.must_change_password)
-        fila.failed_login_count = 0
-        fila.failed_login_window_start = None
-        fila.locked_until = None
-        if par is not None:
-            par.failed_count = 0
-            par.window_start = ahora
-            par.locked_until = None
-            par.updated_at = ahora
-        if canal == "web" or not pendiente:
-            fila.last_login_at = ahora
+        _mejor_esfuerzo(
+            canal, ip, nombre, "reinicio_contadores",
+            lambda: _reiniciar_contadores(fila, par, ahora, canal, pendiente),
+        )
         detalle = {"canal": canal, "cambio_clave_pendiente": pendiente}
         valores = _valores_evento("login_ok", canal, ip, nombre, fila, ahora, detalle, None)
         _cerrar_intento(valores, canal, ip, nombre)
@@ -436,3 +485,24 @@ def _cerrar_intento(valores, canal, ip, nombre):
             extra={"canal": canal, "accion": valores["accion"]},
         )
     db.session.commit()
+
+
+def esquema_faltante():
+    """Piezas de C4 que faltan en la base, por consulta de metadatos. Lista vacía si el esquema está completo.
+
+    Lo usa /api/health: si falta algo responde 503 con el detalle. El login no cambia: si la tabla de pares
+    no existe, el acierto sigue (best-effort) y el evento LOGIN_ESTADO_NO_ACTUALIZADO queda registrado.
+    """
+    inspector = sa.inspect(db.engine)
+    faltan = []
+    if not inspector.has_table("user_login_attempts"):
+        faltan.append("tabla user_login_attempts")
+    columnas_usuarios = {c["name"] for c in inspector.get_columns("users")}
+    for columna in ("failed_login_count", "failed_login_window_start", "locked_until"):
+        if columna not in columnas_usuarios:
+            faltan.append(f"users.{columna}")
+    columnas_auditoria = {c["name"] for c in inspector.get_columns("user_audit_log")}
+    for columna in ("clave_agrupacion", "repeticiones"):
+        if columna not in columnas_auditoria:
+            faltan.append(f"user_audit_log.{columna}")
+    return faltan

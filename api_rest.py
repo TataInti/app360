@@ -19,7 +19,7 @@ from security import (
     MENSAJE_CAMBIO_CLAVE, CODIGO_CAMBIO_CLAVE
 )
 from extensions import limiter
-from services.acceso_login import autenticar, nombre_auditado
+from services.acceso_login import autenticar, esquema_faltante, nombre_auditado
 
 api_rest = Blueprint('api_rest', __name__, url_prefix='/api')
 
@@ -99,7 +99,19 @@ def paginate_query(query):
 # -----------------------------------------------------------------------------
 @api_rest.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
+    """Health check endpoint. Responde 503 con el detalle si falta esquema de C4; el login no cambia."""
+    try:
+        faltantes = esquema_faltante()
+    except Exception:
+        faltantes = ['base no verificable']
+    if faltantes:
+        return jsonify({
+            'status': 'degraded',
+            'codigo': 'ESQUEMA_INCOMPLETO',
+            'faltantes': faltantes,
+            'timestamp': datetime.now().isoformat(),
+            'version': '1.0.0'
+        }), 503
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
