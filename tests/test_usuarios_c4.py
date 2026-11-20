@@ -546,6 +546,9 @@ def test_escritura_ficticia_se_revierte_y_auditoria_real_suma_una_vez(app_seguri
     cliente = app.test_client()
     with app.app_context():
         pares_antes = UserLoginAttempt.query.count()
+        usuarios_antes = db.session.query(
+            User.id, User.failed_login_count, User.failed_login_window_start, User.locked_until
+        ).order_by(User.id).all()
     for _ in range(2):
         assert _api(cliente, "probe.fake.write.inexistente", "PROBE-mal").status_code == 401
         assert _api(cliente, "probe.fake.write.inactiva", "PROBE-mal").status_code == 401
@@ -556,6 +559,10 @@ def test_escritura_ficticia_se_revierte_y_auditoria_real_suma_una_vez(app_seguri
         assert len(no_existentes) == 1 and no_existentes[0].repeticiones == 2
         assert len(bajas) == 1 and bajas[0].repeticiones == 2
         assert UserLoginAttempt.query.count() == pares_antes
+        usuarios_despues = db.session.query(
+            User.id, User.failed_login_count, User.failed_login_window_start, User.locked_until
+        ).order_by(User.id).all()
+        assert usuarios_despues == usuarios_antes
         assert UserLoginAttempt.query.filter_by(user_id=inactiva_id).count() == 0
 
 
