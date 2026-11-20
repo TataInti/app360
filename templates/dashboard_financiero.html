@@ -1,6 +1,11 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<style>
+  .dash-kpi-grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .dash-detalle { padding: 0.75rem 1rem; font-size: 0.85rem; color: var(--color-text-body); }
+</style>
+<script src="{{ asset('js/app_format.js') }}" defer></script>
 <div class="container-fluid">
 
   <!-- Header -->
@@ -57,7 +62,7 @@
       <div class="kpi-card accent-purple"><span class="kpi-label">Empleados c/adelantos</span><span class="kpi-value" id="kpi-rrhh-emps">0</span></div>
     </div>
 
-    <div class="kpi-grid" style="grid-template-columns:repeat(2,1fr)">
+    <div class="kpi-grid dash-kpi-grid-2">
       <div class="kpi-card"><span class="kpi-label">Monto adelantos/préstamos (período)</span><span class="kpi-value" id="kpi-rrhh-monto">$0</span></div>
       <div class="kpi-card"><span class="kpi-label">Saldo pendiente préstamos (global)</span><span class="kpi-value" id="kpi-rrhh-pendiente">$0</span></div>
     </div>
@@ -71,13 +76,13 @@
       <div class="col-lg-6">
         <div class="table-card">
           <div class="table-card-head">Máximo ingreso</div>
-          <div style="padding:0.75rem 1rem;font-size:0.85rem;color:var(--color-text-body)" id="max-ingreso">Sin datos</div>
+          <div class="dash-detalle" id="max-ingreso">Sin datos</div>
         </div>
       </div>
       <div class="col-lg-6">
         <div class="table-card">
           <div class="table-card-head">Máximo egreso</div>
-          <div style="padding:0.75rem 1rem;font-size:0.85rem;color:var(--color-text-body)" id="max-egreso">Sin datos</div>
+          <div class="dash-detalle" id="max-egreso">Sin datos</div>
         </div>
       </div>
     </div>
@@ -88,8 +93,8 @@
   let flujoChart, instrumentosChart;
   const C = window.App360Charts;
   const S = C.semantic;
-  const money = v => { const n=Number(v||0); return '$'+(Number.isFinite(n)?n:0).toLocaleString('es-AR',{maximumFractionDigits:0}); };
-  const pct   = v => (Number(v||0)).toFixed(1)+' %';
+  const money = v => App360Format.formatARS(Number(v||0));
+  const pct   = v => App360Format.formatNumber(Number(v||0), {decimales: 1}) + ' %';
 
   const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   function fmtL(l,g){
