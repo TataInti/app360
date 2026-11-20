@@ -1,106 +1,134 @@
 {% extends 'base.html' %}
+{% from "_components.html" import form_grid, page_head, status %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center">
-    <div>
-        <h1>Venta #{{ sale.id }}</h1>
-        <p class="text-muted mb-0">
-            {{ sale.product.name }} — {{ sale.location.name }}
-        </p>
+{% set subtitle = sale.product.name ~ ' — ' ~ sale.location.name %}
+{% call page_head('Venta #' ~ sale.id, subtitle) %}
+<a href="/ventas" class="btn btn-outline-secondary">Volver a ventas</a>
+{% endcall %}
+
+<section class="mb-4">
+    <h2 class="h5">Resumen</h2>
+    <table class="app-table">
+        <tbody>
+            <tr>
+                <th scope="row" class="app-table__head-cell">Lead</th>
+                <td class="app-table__cell">{{ sale.lead.name if sale.lead else 'Sin lead' }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="app-table__head-cell">Cantidad</th>
+                <td class="app-table__cell app-table__numeric">{{ sale.quantity }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="app-table__head-cell">Precio unitario</th>
+                <td class="app-table__cell app-table__numeric" data-format-number="{{ sale.unit_price }}" data-currency="{{ sale.currency }}">{{ sale.unit_price }} {{ sale.currency }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="app-table__head-cell">Estado</th>
+                <td class="app-table__cell">{{ status(sale.status) }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="app-table__head-cell">Entrega comprometida</th>
+                <td class="app-table__cell">
+                    {% if sale.scheduled_delivery %}
+                        {{ sale.scheduled_delivery.strftime("%Y-%m-%d %H:%M") }}
+                    {% else %}
+                        Sin fecha
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th scope="row" class="app-table__head-cell">Stock reservado</th>
+                <td class="app-table__cell app-table__numeric">{{ sale.reservations|sum(attribute='quantity') }}</td>
+            </tr>
+            <tr>
+                <th scope="row" class="app-table__head-cell">Stock disponible (ubicación)</th>
+                <td class="app-table__cell app-table__numeric">{{ stock_level }}</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+<div class="row g-4">
+    <div class="col-12 col-xl-6">
+        <section>
+            <h2 class="h5">Cambiar estado</h2>
+            <form action="{{ url_for('ventas.ventas_update_status', sale_id=sale.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% call form_grid(2) %}
+                <div class="app-field">
+                    <label class="app-field__label" for="sale_status">Estado</label>
+                    <select id="sale_status" name="status" class="form-control app-field__control">
+                        {% for status in statuses %}
+                        <option value="{{ status }}" {% if sale.status == status %}selected{% endif %}>
+                            {{ status }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="app-form-grid__full app-actions">
+                    <button type="submit" class="btn btn-primary">Actualizar</button>
+                </div>
+                {% endcall %}
+            </form>
+        </section>
     </div>
-    <a href="/ventas" class="btn btn-outline-secondary">Volver a ventas</a>
+
+    <div class="col-12 col-xl-6">
+        <section>
+            <h2 class="h5">Nueva reserva de stock</h2>
+            <form action="{{ url_for('ventas.ventas_reservation_new', sale_id=sale.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% call form_grid(2) %}
+                <div class="app-field">
+                    <label class="app-field__label" for="reservation_quantity">Cantidad</label>
+                    <input id="reservation_quantity" type="number" name="quantity" class="form-control app-field__control" value="1" min="1" required>
+                </div>
+                <div class="app-form-grid__full app-actions">
+                    <button type="submit" class="btn btn-outline-secondary">Reservar</button>
+                </div>
+                {% endcall %}
+            </form>
+        </section>
+    </div>
 </div>
 
-<div class="card mb-4">
-    <div class="card-body">
-        <h5 class="card-title">Resumen</h5>
-        <dl class="row">
-            <dt class="col-4">Lead</dt>
-            <dd class="col-8">{{ sale.lead.name if sale.lead else 'Sin lead' }}</dd>
-
-            <dt class="col-4">Cantidad</dt>
-            <dd class="col-8">{{ sale.quantity }}</dd>
-
-            <dt class="col-4">Precio unitario</dt>
-            <dd class="col-8">{{ sale.unit_price }} {{ sale.currency }}</dd>
-
-            <dt class="col-4">Estado</dt>
-            <dd class="col-8">{{ sale.status }}</dd>
-
-            <dt class="col-4">Entrega comprometida</dt>
-            <dd class="col-8">
-                {% if sale.scheduled_delivery %}
-                    {{ sale.scheduled_delivery.strftime("%Y-%m-%d %H:%M") }}
-                {% else %}
-                    Sin fecha
-                {% endif %}
-            </dd>
-
-            <dt class="col-4">Stock reservado</dt>
-            <dd class="col-8">{{ sale.reservations|sum(attribute='quantity') }}</dd>
-
-            <dt class="col-4">Stock disponible (ubicación)</dt>
-            <dd class="col-8">{{ stock_level }}</dd>
-        </dl>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-md-6">
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">Cambiar estado</h5>
-                <form action="{{ url_for('ventas.ventas_update_status', sale_id=sale.id) }}" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div class="mb-3">
-                        <label>Estado</label>
-                        <select name="status" class="form-control">
-                            {% for status in statuses %}
-                            <option value="{{ status }}" {% if sale.status == status %}selected{% endif %}>
-                                {{ status }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <button class="btn btn-primary">Actualizar</button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6">
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">Nueva reserva de stock</h5>
-                <form action="{{ url_for('ventas.ventas_reservation_new', sale_id=sale.id) }}" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div class="mb-3">
-                        <label>Cantidad</label>
-                        <input type="number" name="quantity" class="form-control" value="1" min="1" required>
-                    </div>
-                    <button class="btn btn-outline-secondary w-100">Reservar</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="card">
-    <div class="card-body">
-        <h5 class="card-title">Reservas</h5>
-        {% if sale.reservations %}
-        <ul class="list-group">
+<section class="mt-4">
+    <h2 class="h5">Reservas</h2>
+    {% if sale.reservations %}
+    <table class="app-table">
+        <thead class="app-table__head">
+            <tr>
+                <th class="app-table__head-cell app-table__numeric">Cantidad</th>
+                <th class="app-table__head-cell">Estado</th>
+                <th class="app-table__head-cell">Fecha</th>
+            </tr>
+        </thead>
+        <tbody>
             {% for reservation in sale.reservations %}
-            <li class="list-group-item">
-                {{ reservation.quantity }} unidades — {{ reservation.created_at.strftime("%Y-%m-%d %H:%M") }}
-                <span class="badge bg-secondary float-end">{{ reservation.status }}</span>
-            </li>
+            <tr>
+                <td class="app-table__cell app-table__numeric">{{ reservation.quantity }} unidades</td>
+                <td class="app-table__cell">{{ status(reservation.status) }}</td>
+                <td class="app-table__cell">{{ reservation.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+            </tr>
             {% endfor %}
-        </ul>
-        {% else %}
-        <p class="text-muted">Aún no hay reservas registradas.</p>
-        {% endif %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-title">Aún no hay reservas registradas</div>
+        <div class="empty-text">Las reservas que agregues aparecerán aquí.</div>
     </div>
-</div>
+    {% endif %}
+</section>
+
+<script src="{{ asset('js/app_format.js') }}"></script>
+<script>
+document.querySelectorAll('[data-format-number]').forEach((element) => {
+    const importe = window.App360Format.formatNumber(element.dataset.formatNumber, {decimales: 2});
+    const moneda = element.dataset.currency || '';
+    element.textContent = `${importe} ${moneda}`.trim();
+});
+</script>
 
 {% endblock %}

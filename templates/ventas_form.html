@@ -1,15 +1,18 @@
 {% extends 'base.html' %}
+{% from "_components.html" import form_grid, page_head %}
 
 {% block content %}
-<h1>Registrar venta</h1>
+{% call page_head('Registrar venta') %}{% endcall %}
 
-<form method="POST" class="mt-4">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="row">
-        <div class="col-md-6">
-            <div class="mb-3">
-                <label>Lead (opcional)</label>
-                <select name="lead_id" class="form-control">
+<div class="row">
+    <div class="col-12 col-xl-8">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            {% call form_grid(2) %}
+            <div class="app-field">
+                <label class="app-field__label" for="lead_id">Lead (opcional)</label>
+                <select id="lead_id" name="lead_id" class="form-control app-field__control">
                     <option value="">-- Sin lead --</option>
                     {% for lead in leads %}
                     <option value="{{ lead.id }}">{{ lead.name }} ({{ lead.source }})</option>
@@ -17,60 +20,61 @@
                 </select>
             </div>
 
-            <div class="mb-3">
-                <label>Producto</label>
-                <select name="product_id" class="form-control" required>
+            <div class="app-field">
+                <label class="app-field__label" for="product_id">Producto</label>
+                <select id="product_id" name="product_id" class="form-control app-field__control" required>
                     {% for product in products %}
                     <option value="{{ product.id }}">{{ product.name }}</option>
                     {% endfor %}
                 </select>
             </div>
 
-            <div class="mb-3">
-                <label>Ubicación</label>
-                <select name="location_id" class="form-control" required>
+            <div class="app-field">
+                <label class="app-field__label" for="location_id">Ubicación</label>
+                <select id="location_id" name="location_id" class="form-control app-field__control" required>
                     {% for location in locations %}
                     <option value="{{ location.id }}">{{ location.name }}</option>
                     {% endfor %}
                 </select>
             </div>
-        </div>
 
-        <div class="col-md-6">
-            <div class="mb-3">
-                <label>Cantidad</label>
-                <input type="number" name="quantity" class="form-control" value="1" min="1" required>
+            <div class="app-field">
+                <label class="app-field__label" for="quantity">Cantidad</label>
+                <input id="quantity" type="number" name="quantity" class="form-control app-field__control" value="1" min="1" required>
             </div>
 
-            <div class="mb-3">
-                <label>Precio unitario</label>
-                <input type="text" name="unit_price" class="form-control{% if error_precio %} is-invalid{% endif %}" placeholder="1.234,56" inputmode="decimal" required{% if error_precio %} aria-invalid="true" aria-describedby="errorPrecio"{% endif %}>
+            <div class="app-field">
+                <label class="app-field__label" for="unit_price">Precio unitario</label>
+                <input id="unit_price" type="text" name="unit_price" class="form-control app-field__control{% if error_precio %} is-invalid{% endif %}" placeholder="1.234,56" inputmode="decimal" required{% if error_precio %} aria-invalid="true" aria-describedby="errorPrecio"{% endif %}>
                 {% if error_precio %}<div class="invalid-feedback d-block" id="errorPrecio">{{ error_precio }}</div>{% endif %}
             </div>
 
-            <div class="mb-3">
-                <label>Moneda</label>
-                <input type="text" name="currency" class="form-control" value="ARS">
+            <div class="app-field">
+                <label class="app-field__label" for="currency">Moneda</label>
+                <input id="currency" type="text" name="currency" class="form-control app-field__control" value="ARS">
             </div>
 
-            <div class="mb-3">
-                <label>Estado</label>
-                <select name="status" class="form-control">
+            <div class="app-field">
+                <label class="app-field__label" for="status">Estado</label>
+                <select id="status" name="status" class="form-control app-field__control">
                     {% for status in statuses %}
                     <option value="{{ status }}">{{ status }}</option>
                     {% endfor %}
                 </select>
             </div>
 
-            <div class="mb-3">
-                <label>Fecha de entrega comprometida</label>
-                <input type="datetime-local" name="scheduled_delivery" class="form-control">
+            <div class="app-field">
+                <label class="app-field__label" for="scheduled_delivery">Fecha de entrega comprometida</label>
+                <input id="scheduled_delivery" type="datetime-local" name="scheduled_delivery" class="form-control app-field__control">
             </div>
-        </div>
-    </div>
 
-    <button class="btn btn-primary">Registrar venta</button>
-    <a href="/ventas" class="btn btn-secondary ms-2">Cancelar</a>
-</form>
+            <div class="app-form-grid__full app-actions">
+                <button type="submit" class="btn btn-primary">Registrar venta</button>
+                <a href="/ventas" class="btn btn-secondary">Cancelar</a>
+            </div>
+            {% endcall %}
+        </form>
+    </div>
+</div>
 
 {% endblock %}

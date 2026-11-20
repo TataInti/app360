@@ -1,26 +1,21 @@
 {% extends 'base.html' %}
+{% from "_components.html" import form_grid, page_head %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center">
-    <div>
-        <h1>Registro #{{ order.id }}</h1>
-        <p class="text-muted mb-0">
-            {{ order.location.name if order.location else 'Ubicación no asignada' }}
-            · {{ order.supplier or 'Proveedor no especificado' }}
-        </p>
-    </div>
-    <a href="/compras" class="btn btn-outline-secondary">Volver al panel</a>
-</div>
+{% set subtitle = (order.location.name if order.location else 'Ubicación no asignada') ~ ' · ' ~ (order.supplier or 'Proveedor no especificado') %}
+{% call page_head('Registro #' ~ order.id, subtitle) %}
+<a href="/compras" class="btn btn-outline-secondary">Volver al panel</a>
+{% endcall %}
 
-<div class="row mt-4">
-    <div class="col-md-6">
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">Datos del registro</h5>
-                <ul class="list-group">
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span>Fecha</span>
-                        <span>
+<div class="row g-4">
+    <div class="col-12 col-xl-6">
+        <section class="mb-4">
+            <h2 class="h5">Datos del registro</h2>
+            <table class="app-table">
+                <tbody>
+                    <tr>
+                        <th scope="row" class="app-table__head-cell">Fecha</th>
+                        <td class="app-table__cell">
                             {% if order.order_date %}
                                 {{ order.order_date.strftime('%Y-%m-%d') }}
                             {% elif order.created_at %}
@@ -28,114 +23,138 @@
                             {% else %}
                                 -
                             {% endif %}
-                        </span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span>Comprobante</span>
-                        <span>{{ order.comprobante_numero or '-' }}</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span>Monto</span>
-                        <span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row" class="app-table__head-cell">Comprobante</th>
+                        <td class="app-table__cell">{{ order.comprobante_numero or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th scope="row" class="app-table__head-cell">Monto</th>
+                        <td class="app-table__cell app-table__numeric">
                             {% if order.monto_total is not none %}
-                                {{ '%.2f'|format(order.monto_total) }}
+                                <span data-format-ars="{{ order.monto_total }}">{{ order.monto_total }}</span>
                             {% else %}
                                 -
                             {% endif %}
-                        </span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span>Origen de fondos</span>
-                        <span>{{ order.instrumento.nombre if order.instrumento else '-' }}</span>
-                    </li>
-                </ul>
-            </div>
-        </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row" class="app-table__head-cell">Origen de fondos</th>
+                        <td class="app-table__cell">{{ order.instrumento.nombre if order.instrumento else '-' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
 
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">Estado del registro</h5>
-                <form action="{{ url_for('compras.compras_change_status', order_id=order.id) }}" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div class="mb-3">
-                        <label>Estado</label>
-                        <select name="status" class="form-control">
-                            {% for status in statuses %}
-                            <option value="{{ status }}" {% if order.status == status %}selected{% endif %}>{{ status }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <button class="btn btn-primary">Guardar</button>
-                </form>
-            </div>
-        </div>
+        <section class="mb-4">
+            <h2 class="h5">Estado del registro</h2>
+            <form action="{{ url_for('compras.compras_change_status', order_id=order.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% call form_grid(2) %}
+                <div class="app-field">
+                    <label class="app-field__label" for="order_status">Estado</label>
+                    <select id="order_status" name="status" class="form-control app-field__control">
+                        {% for status in statuses %}
+                        <option value="{{ status }}" {% if order.status == status %}selected{% endif %}>{{ status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="app-form-grid__full app-actions">
+                    <button type="submit" class="btn btn-outline-secondary">Guardar</button>
+                </div>
+                {% endcall %}
+            </form>
+        </section>
 
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Items</h5>
-                <ul class="list-group">
+        <section>
+            <h2 class="h5">Items</h2>
+            <table class="app-table">
+                <thead class="app-table__head">
+                    <tr>
+                        <th class="app-table__head-cell">Producto</th>
+                        <th class="app-table__head-cell app-table__numeric">Cantidad</th>
+                    </tr>
+                </thead>
+                <tbody>
                     {% for item in order.items %}
-                    <li class="list-group-item">
-                        {{ item.product.name }} · {{ item.quantity }} unidades
-                    </li>
+                    <tr>
+                        <td class="app-table__cell">{{ item.product.name }}</td>
+                        <td class="app-table__cell app-table__numeric">{{ item.quantity }} unidades</td>
+                    </tr>
                     {% else %}
-                    <li class="list-group-item text-muted">Sin ítems registrados.</li>
+                    <tr><td colspan="2" class="app-table__cell"><div class="empty-state"><div class="empty-title">Sin ítems registrados</div></div></td></tr>
                     {% endfor %}
-                </ul>
-            </div>
-        </div>
+                </tbody>
+            </table>
+        </section>
     </div>
 
-    <div class="col-md-6">
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">Registrar recepción</h5>
-                <form id="formRecepcion" action="{{ url_for('compras.compras_add_receipt', order_id=order.id) }}" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="recepcion_token" value="{{ recepcion_token }}">
-                    <div class="mb-3">
-                        <label>Producto</label>
-                        <select name="product_id" class="form-control">
-                            {% for item in order.items %}
-                            <option value="{{ item.product.id }}">{{ item.product.name }} · pendiente {{ pendientes.get(item.product_id, 0) }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label>Cantidad recibida</label>
-                        <input type="number" name="quantity" class="form-control" value="1" min="1" required>
-                    </div>
-                    <button type="submit" id="btnRegistrarRecepcion" class="btn btn-outline-success w-100">Registrar recepción</button>
-                    <script>
-                        document.getElementById('formRecepcion')?.addEventListener('submit', function () {
-                            document.getElementById('btnRegistrarRecepcion').disabled = true;
-                        });
-                    </script>
-                </form>
-            </div>
-        </div>
+    <div class="col-12 col-xl-6">
+        <section class="mb-4">
+            <h2 class="h5">Registrar recepción</h2>
+            <form id="formRecepcion" action="{{ url_for('compras.compras_add_receipt', order_id=order.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="recepcion_token" value="{{ recepcion_token }}">
+                {% call form_grid(2) %}
+                <div class="app-field">
+                    <label class="app-field__label" for="receipt_product_id">Producto</label>
+                    <select id="receipt_product_id" name="product_id" class="form-control app-field__control">
+                        {% for item in order.items %}
+                        <option value="{{ item.product.id }}">{{ item.product.name }} · pendiente {{ pendientes.get(item.product_id, 0) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="app-field">
+                    <label class="app-field__label" for="receipt_quantity">Cantidad recibida</label>
+                    <input id="receipt_quantity" type="number" name="quantity" class="form-control app-field__control" value="1" min="1" required>
+                </div>
+                <div class="app-form-grid__full app-actions">
+                    <button type="submit" id="btnRegistrarRecepcion" class="btn btn-primary">Registrar recepción</button>
+                </div>
+                {% endcall %}
+            </form>
+        </section>
 
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Recepciones</h5>
-                {% if order.receipts %}
-                <ul class="list-group">
+        <section>
+            <h2 class="h5">Recepciones</h2>
+            {% if order.receipts %}
+            <table class="app-table">
+                <thead class="app-table__head">
+                    <tr>
+                        <th class="app-table__head-cell">Producto</th>
+                        <th class="app-table__head-cell app-table__numeric">Cantidad</th>
+                        <th class="app-table__head-cell">Fecha</th>
+                    </tr>
+                </thead>
+                <tbody>
                     {% for receipt in order.receipts %}
-                    <li class="list-group-item">
-                        {{ receipt.quantity_received }} unidades de {{ receipt.product.name }}
-                        <br>
-                        <small class="text-muted">
-                            {{ receipt.received_at.strftime("%Y-%m-%d %H:%M") }}
-                        </small>
-                    </li>
+                    <tr>
+                        <td class="app-table__cell">{{ receipt.product.name }}</td>
+                        <td class="app-table__cell app-table__numeric">{{ receipt.quantity_received }} unidades</td>
+                        <td class="app-table__cell">{{ receipt.received_at.strftime("%Y-%m-%d %H:%M") }}</td>
+                    </tr>
                     {% endfor %}
-                </ul>
-                {% else %}
-                <p class="text-muted">No se registraron recepciones todavía.</p>
-                {% endif %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-title">No se registraron recepciones todavía</div>
+                <div class="empty-text">Las recepciones registradas aparecerán aquí.</div>
             </div>
-        </div>
+            {% endif %}
+        </section>
     </div>
 </div>
+
+<script src="{{ asset('js/app_format.js') }}"></script>
+<script>
+document.querySelectorAll('[data-format-ars]').forEach((element) => {
+    element.textContent = window.App360Format.formatARS(element.dataset.formatArs, {decimales: 2});
+});
+document.getElementById('formRecepcion')?.addEventListener('submit', function () {
+    document.getElementById('btnRegistrarRecepcion').disabled = true;
+});
+</script>
 
 {% endblock %}

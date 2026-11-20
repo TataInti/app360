@@ -13,7 +13,7 @@
         <i class="bi bi-file-earmark-excel"></i> Exportar
       </a>
       <a href="/compras/orden-nueva" class="btn btn-primary btn-sm">
-        <i class="bi bi-plus-circle"></i> Nuevo Registro
+        <i class="bi bi-plus-circle"></i> Nuevo registro
       </a>
     </div>
   </div>
@@ -64,21 +64,21 @@
     <div class="table-card">
       <div class="table-card-head d-flex justify-content-between align-items-center">
         <span>Últimas órdenes</span>
-        <a href="/compras" class="btn btn-sm btn-outline-secondary" style="font-size:0.75rem;">Ver listado completo</a>
+        <a href="/compras" class="btn btn-sm btn-outline-secondary">Ver listado completo</a>
       </div>
       <div class="table-responsive">
-        <table class="table table-sm align-middle mb-0">
-          <thead>
+        <table class="table table-sm align-middle mb-0 app-table">
+          <thead class="app-table__head">
             <tr>
-              <th>ID</th>
-              <th>Fecha</th>
-              <th>Proveedor</th>
-              <th>Estado</th>
-              <th class="text-end">Monto</th>
+              <th class="app-table__head-cell">ID</th>
+              <th class="app-table__head-cell">Fecha</th>
+              <th class="app-table__head-cell">Proveedor</th>
+              <th class="app-table__head-cell">Estado</th>
+              <th class="app-table__head-cell app-table__numeric">Monto</th>
             </tr>
           </thead>
           <tbody id="tbody-ultimas">
-            <tr><td colspan="5" class="text-muted">
+            <tr><td colspan="5" class="app-table__cell text-muted">
               <span class="loading-text">Cargando datos...</span>
             </td></tr>
           </tbody>
@@ -88,12 +88,13 @@
   </div>
 </div>
 
+<script src="{{ asset('js/app_format.js') }}"></script>
+<script src="{{ asset('js/app_status.js') }}"></script>
 <script>
   let estadoChart;
 
   function money(v) {
-    const n = Number(v || 0);
-    return '$' + (Number.isFinite(n) ? n : 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+    return window.App360Format.formatARS(v ?? 0);
   }
 
   function setActivePeriodButton(period) {
@@ -116,21 +117,48 @@
   function renderUltimas(items) {
     const tbody = document.getElementById('tbody-ultimas');
     if (!items || !items.length) {
-      tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">
-        <div class="empty-icon"><i class="bi bi-inbox"></i></div>
-        <div class="empty-title">Sin órdenes de compra</div>
-        <div class="empty-text">Las órdenes aparecerán aquí cuando registres la primera.</div>
-        <a href="/compras/orden-nueva" class="btn btn-primary btn-sm"><i class="bi bi-plus-circle"></i> Nuevo Registro</a>
-      </div></td></tr>`;
+      const fila = document.createElement('tr');
+      const celda = document.createElement('td');
+      celda.colSpan = 5;
+      celda.className = 'app-table__cell';
+      const estadoVacio = document.createElement('div');
+      estadoVacio.className = 'empty-state';
+      const icono = document.createElement('i');
+      icono.className = 'bi bi-inbox empty-icon';
+      icono.setAttribute('aria-hidden', 'true');
+      const titulo = document.createElement('div');
+      titulo.className = 'empty-title';
+      titulo.textContent = 'Sin órdenes de compra';
+      const texto = document.createElement('div');
+      texto.className = 'empty-text';
+      texto.textContent = 'Las órdenes aparecerán aquí cuando registres la primera. Usá Nuevo registro para empezar.';
+      estadoVacio.append(icono, titulo, texto);
+      celda.append(estadoVacio);
+      fila.append(celda);
+      tbody.replaceChildren(fila);
       return;
     }
-    tbody.innerHTML = items.slice(0, 10).map(o => {
+
+    const crearCelda = (valor, clases = 'app-table__cell') => {
+      const celda = document.createElement('td');
+      celda.className = clases;
+      celda.textContent = String(valor ?? '-');
+      return celda;
+    };
+    const filas = items.slice(0, 10).map(o => {
       const fecha = o.order_date ? String(o.order_date).slice(0, 10) : '-';
-      const prov = o.supplier || (o.supplier_id ? `Proveedor ${escapeHtml(o.supplier_id)}` : '-');
+      const prov = o.supplier || (o.supplier_id ? `Proveedor ${o.supplier_id}` : '-');
       const estado = o.status || '-';
-      const monto = o.total_amount !== undefined && o.total_amount !== null ? money(o.total_amount) : '$0';
-      return `<tr><td>${escapeHtml(o.id)}</td><td>${escapeHtml(fecha)}</td><td>${escapeHtml(prov)}</td><td>${escapeHtml(estado)}</td><td class="text-end">${escapeHtml(monto)}</td></tr>`;
-    }).join('');
+      const monto = money(o.total_amount ?? 0);
+      const fila = document.createElement('tr');
+      fila.append(crearCelda(o.id), crearCelda(fecha), crearCelda(prov));
+      const celdaEstado = document.createElement('td');
+      celdaEstado.className = 'app-table__cell';
+      celdaEstado.append(window.App360Status.statusDot(estado));
+      fila.append(celdaEstado, crearCelda(monto, 'app-table__cell app-table__numeric'));
+      return fila;
+    });
+    tbody.replaceChildren(...filas);
   }
 
   async function cargar(period) {

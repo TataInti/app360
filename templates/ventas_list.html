@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from "_components.html" import status %}
 
 {% block content %}
 <div class="container-fluid">
@@ -17,43 +18,40 @@
             <i class="bi bi-list-ul"></i> Registro de ventas
         </div>
         <div class="table-responsive">
-            <table class="table table-hover table-sm mb-0">
-                <thead>
+            <table class="table table-hover table-sm mb-0 app-table">
+                <thead class="app-table__head">
                     <tr>
-                        <th>Fecha</th>
-                        <th>Lead</th>
-                        <th>Producto</th>
-                        <th>Sucursal</th>
-                        <th>Cantidad</th>
-                        <th>Precio unitario</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
+                        <th class="app-table__head-cell">Fecha</th>
+                        <th class="app-table__head-cell">Lead</th>
+                        <th class="app-table__head-cell">Producto</th>
+                        <th class="app-table__head-cell">Sucursal</th>
+                        <th class="app-table__head-cell app-table__numeric">Cantidad</th>
+                        <th class="app-table__head-cell app-table__numeric">Precio unitario</th>
+                        <th class="app-table__head-cell">Estado</th>
+                        <th class="app-table__head-cell">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for sale in sales %}
                     <tr>
-                        <td>{{ sale.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
-                        <td>{{ sale.lead.name if sale.lead else 'Sin lead' }}</td>
-                        <td>{{ sale.product.name }}</td>
-                        <td>{{ sale.location.name }}</td>
-                        <td>{{ sale.quantity }}</td>
-                        <td>{{ sale.unit_price }} {{ sale.currency }}</td>
-                        <td>{{ sale.status }}</td>
-                        <td>
-                            <a href="/ventas/{{ sale.id }}" class="btn btn-sm btn-outline-primary" style="font-size:0.75rem;">Ver</a>
+                        <td class="app-table__cell">{{ sale.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+                        <td class="app-table__cell">{{ sale.lead.name if sale.lead else 'Sin lead' }}</td>
+                        <td class="app-table__cell">{{ sale.product.name }}</td>
+                        <td class="app-table__cell">{{ sale.location.name }}</td>
+                        <td class="app-table__cell app-table__numeric">{{ sale.quantity }}</td>
+                        <td class="app-table__cell app-table__numeric" data-format-number="{{ sale.unit_price }}" data-currency="{{ sale.currency }}">{{ sale.unit_price }} {{ sale.currency }}</td>
+                        <td class="app-table__cell">{{ status(sale.status) }}</td>
+                        <td class="app-table__cell">
+                            <a href="/ventas/{{ sale.id }}" class="btn btn-sm btn-outline-secondary">Ver</a>
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="8">
+                        <td colspan="8" class="app-table__cell">
                             <div class="empty-state">
-                                <div class="empty-icon"><i class="bi bi-receipt"></i></div>
+                                <i class="bi bi-receipt empty-icon" aria-hidden="true"></i>
                                 <div class="empty-title">No se registraron ventas aún</div>
-                                <div class="empty-text">Comenzá registrando la primera venta para ver la información aquí.</div>
-                                <a href="/ventas/nuevo" class="btn btn-primary btn-sm">
-                                    <i class="bi bi-plus-circle"></i> Crear primera venta
-                                </a>
+                                <div class="empty-text">Comenzá registrando la primera venta con el botón Crear venta.</div>
                             </div>
                         </td>
                     </tr>
@@ -63,4 +61,12 @@
         </div>
     </div>
 </div>
+<script src="{{ asset('js/app_format.js') }}"></script>
+<script>
+document.querySelectorAll('[data-format-number]').forEach((element) => {
+    const importe = window.App360Format.formatNumber(element.dataset.formatNumber, {decimales: 2});
+    const moneda = element.dataset.currency || '';
+    element.textContent = `${importe} ${moneda}`.trim();
+});
+</script>
 {% endblock %}
