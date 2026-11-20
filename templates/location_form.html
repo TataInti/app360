@@ -1,31 +1,44 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>{{ 'Editar Ubicación' if location else 'Nueva Ubicación' }}</h1>
-
-<form method="POST">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="mb-3">
-        <label>Nombre</label>
-        <input type="text" name="name" class="form-control"
-               value="{{ location.name if location else '' }}" required>
+<header class="panel-header">
+    <div>
+        <h1>{{ 'Editar Ubicación' if location else 'Nueva Ubicación' }}</h1>
+        <span class="panel-subtitle">Completá el nombre y el tipo de ubicación.</span>
     </div>
+</header>
 
-    <div class="mb-3">
-        <label>Tipo</label>
-        <select name="type" class="form-control">
-            <option value="sucursal"
-                {% if location and location.type == 'sucursal' %}selected{% endif %}>
-                Sucursal
-            </option>
-            <option value="nave"
-                {% if location and location.type == 'nave' %}selected{% endif %}>
-                Nave
-            </option>
-        </select>
+<div class="row">
+    <div class="col-12 col-lg-8">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="app-form-grid app-form-grid--cols-2">
+                <label class="app-field">
+                    <span class="app-field__label">Nombre</span>
+                    <input type="text" name="name" class="form-control app-field__control"
+                           value="{{ location.name if location else '' }}" required>
+                </label>
+
+                <label class="app-field">
+                    <span class="app-field__label">Tipo</span>
+                    <select name="type" class="form-control app-field__control">
+                        <option value="sucursal"
+                            {% if location and location.type == 'sucursal' %}selected{% endif %}>
+                            Sucursal
+                        </option>
+                        <option value="nave"
+                            {% if location and location.type == 'nave' %}selected{% endif %}>
+                            Nave
+                        </option>
+                    </select>
+                </label>
+
+                <div class="app-form-grid__full app-actions">
+                    <button class="btn btn-primary" type="submit">Guardar</button>
+                    <a href="/locations" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </div>
+        </form>
     </div>
-
-    <button class="btn btn-primary" type="submit">Guardar</button>
-    <a href="/locations" class="btn btn-secondary">Volver</a>
-</form>
+</div>
 {% endblock %}

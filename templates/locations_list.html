@@ -1,30 +1,67 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<header class="panel-header">
+    <div>
+        <h1>Ubicaciones</h1>
+        <span class="panel-subtitle">Administrá las ubicaciones de stock.</span>
+    </div>
+    {% if locations %}
+    <div class="action-bar">
+        <a href="/locations/new" class="btn btn-sm btn-primary">Nueva Ubicación</a>
+    </div>
+    {% endif %}
+</header>
 
-<h1>Ubicaciones</h1>
+{% if locations %}
+<div class="table-responsive">
+    <table class="app-table" aria-label="Ubicaciones">
+        <thead class="app-table__head">
+            <tr>
+                <th class="app-table__head-cell app-table__numeric" scope="col">ID</th>
+                <th class="app-table__head-cell" scope="col">Nombre</th>
+                <th class="app-table__head-cell" scope="col">Tipo</th>
+                <th class="app-table__head-cell" scope="col">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in locations %}
+            <tr class="app-table__row">
+                <td class="app-table__cell app-table__numeric">{{ l.id }}</td>
+                <td class="app-table__cell">{{ l.name }}</td>
+                <td class="app-table__cell">{{ l.type }}</td>
+                <td class="app-table__cell"><a href="/locations/edit/{{ l.id }}" class="btn btn-sm btn-secondary">Editar</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr class="app-table__total">
+                <th class="app-table__cell" scope="row" colspan="4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Total de ubicaciones</span>
+                        <span class="app-table__numeric" data-format-number="{{ locations|length }}">{{ locations|length }}</span>
+                    </div>
+                </th>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+{% else %}
+<section class="empty-state" aria-labelledby="locations-empty-title">
+    <i class="bi bi-inbox empty-icon" aria-hidden="true"></i>
+    <div class="empty-title" id="locations-empty-title">Todavía no hay ubicaciones</div>
+    <p class="empty-text">Creá una ubicación para poder registrar stock en el lugar correcto.</p>
+    <a href="/locations/new" class="btn btn-sm btn-primary">Crear primera ubicación</a>
+</section>
+{% endif %}
 
-<a href="/locations/new" class="btn btn-primary mb-3">Nueva Ubicación</a>
-
-<table class="table table-bordered">
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Nombre</th>
-            <th>Tipo</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for l in locations %}
-        <tr>
-            <td>{{ l.id }}</td>
-            <td>{{ l.name }}</td>
-            <td>{{ l.type }}</td>
-            <td><a href="/locations/edit/{{ l.id }}" class="btn btn-sm btn-secondary">Editar</a></td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<script src="{{ asset('js/app_format.js') }}" defer></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('[data-format-number]').forEach(function (element) {
+        element.textContent = window.App360Format.formatNumber(element.dataset.formatNumber);
+    });
+});
+</script>
 {% endblock %}
 
