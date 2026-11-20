@@ -7,11 +7,15 @@ mismo rechazo que una clave incorrecta, aunque la clave sea la correcta, y no ca
 extiende el bloqueo. Los usuarios inexistentes y las cuentas desactivadas no tienen estado: no
 suman fallos ni se bloquean.
 
+Transacción (igualación de tiempos): cada intento se confirma con un único COMMIT. El estado de la
+cuenta y la fila de auditoría van juntos; la auditoría va en un punto de guardado, así que si falla
+solo ella se deshace, el estado se conserva y el login responde igual. Así el camino de una cuenta
+existente no hace más confirmaciones que el de una cuenta inexistente.
+
 Auditoría (A1): login_ok y login_failed se escriben en user_audit_log con el usuario tal como se
 escribió (sin caracteres no imprimibles, hasta 80), la IP y un motivo genérico. La clave no entra en
-ningún campo. Los fallos se agrupan por IP, motivo, cuenta y minuto: una sola fila con el contador
-en repeticiones. Así una ráfaga de nombres inexistentes ocupa una fila por minuto y por IP. La
-escritura es de mejor esfuerzo: si falla, el login responde igual y queda un evento de seguridad.
+ningún campo. Los fallos se agrupan por IP, canal, motivo, cuenta y minuto: una sola fila con el
+contador en repeticiones. Así una ráfaga de nombres inexistentes ocupa una fila por minuto y por IP.
 """
 
 from dataclasses import dataclass
@@ -80,52 +84,24 @@ def nombre_auditado(texto, clave):
 
 
 def autenticar(username, password, canal, ip=None):
-    """Decide un inicio de sesión, aplica el bloqueo y registra el acceso. Nunca lanza por la auditoría.
+    """Decide un inicio de sesión, aplica el bloqueo y registra el acceso en una sola transacción.
 
     canal: "web" o "api". Los rechazos son iguales para todos los motivos: solo el registro interno
-    distingue el motivo.
+    distingue el motivo. Si el estado no se puede leer o confirmar, el login se rechaza igual.
     """
     texto = username if isinstance(username, str) else ""
     clave = password if isinstance(password, str) else ""
-    existente = User.query.filter_by(username=texto).first()
-    activa = existente if existente is not None and existente.active is True else None
-    # Mismo trabajo de hash en todos los casos (M4): el tiempo no revela si la cuenta existe ni si está bloqueada.
-    coincide, vencida = security.comprobar_clave_login(activa, clave)
     nombre = nombre_auditado(texto, clave)
-    if existente is None:
-        return _rechazar(canal, ip, nombre, None, USUARIO_INEXISTENTE)
-    if activa is None:
-        return _rechazar(canal, ip, nombre, existente, CUENTA_INACTIVA)
-    return _decidir_cuenta_activa(canal, ip, nombre, activa, coincide, vencida)
-
-
-def _decidir_cuenta_activa(canal, ip, nombre, usuario, coincide, vencida):
-    ahora = security.ahora()
     try:
-        # Bloqueo de fila: los intentos de una cuenta se serializan y cada uno ve el contador del anterior.
-        fila = User.query.filter_by(id=usuario.id).with_for_update().populate_existing().one_or_none()
-        if fila is None or fila.active is not True:
-            db.session.rollback()
-            return _rechazar(canal, ip, nombre, None, CUENTA_INACTIVA)
-        if esta_bloqueada(fila, ahora):
-            # Durante el bloqueo no se cambia el contador ni se extiende el bloqueo.
-            db.session.commit()
-            return _rechazar(canal, ip, nombre, fila, CUENTA_BLOQUEADA)
-        if coincide and not vencida:
-            pendiente = bool(fila.must_change_password)
-            id_usuario, nombre_usuario = fila.id, fila.username
-            fila.failed_login_count = 0
-            fila.failed_login_window_start = None
-            fila.locked_until = None
-            if canal == "web" or not pendiente:
-                fila.last_login_at = ahora
-            db.session.commit()
-            _auditar_acceso_correcto(canal, ip, nombre, id_usuario, nombre_usuario, pendiente)
-            return Resultado(ok=True, usuario=fila, cambio_clave_pendiente=pendiente)
-        motivo = CLAVE_TEMPORAL_VENCIDA if coincide else CLAVE_INCORRECTA
-        _sumar_fallo(fila, ahora)
-        db.session.commit()
-        return _rechazar(canal, ip, nombre, fila, motivo)
+        existente = User.query.filter_by(username=texto).first()
+        activa = existente if existente is not None and existente.active is True else None
+        # Mismo trabajo de hash en todos los casos (M4): el tiempo no revela si la cuenta existe ni si está bloqueada.
+        coincide, vencida = security.comprobar_clave_login(activa, clave)
+        if existente is None:
+            return _rechazar(canal, ip, nombre, None, USUARIO_INEXISTENTE)
+        if activa is None:
+            return _rechazar(canal, ip, nombre, existente, CUENTA_INACTIVA)
+        return _decidir_cuenta_activa(canal, ip, nombre, activa, coincide, vencida)
     except Exception:
         db.session.rollback()
         security.log_security_event(
@@ -136,6 +112,32 @@ def _decidir_cuenta_activa(canal, ip, nombre, usuario, coincide, vencida):
             extra={"canal": canal},
         )
         return Resultado(ok=False)
+
+
+def _decidir_cuenta_activa(canal, ip, nombre, usuario, coincide, vencida):
+    ahora = security.ahora()
+    # Bloqueo de fila: los intentos de una cuenta se serializan y cada uno ve el contador del anterior.
+    fila = User.query.filter_by(id=usuario.id).with_for_update().populate_existing().one_or_none()
+    if fila is None or fila.active is not True:
+        db.session.rollback()
+        return _rechazar(canal, ip, nombre, None, CUENTA_INACTIVA, ahora)
+    if esta_bloqueada(fila, ahora):
+        # Durante el bloqueo no se cambia el contador ni se extiende el bloqueo.
+        return _rechazar(canal, ip, nombre, fila, CUENTA_BLOQUEADA, ahora)
+    if coincide and not vencida:
+        pendiente = bool(fila.must_change_password)
+        fila.failed_login_count = 0
+        fila.failed_login_window_start = None
+        fila.locked_until = None
+        if canal == "web" or not pendiente:
+            fila.last_login_at = ahora
+        detalle = {"canal": canal, "cambio_clave_pendiente": pendiente}
+        valores = _valores_evento("login_ok", canal, ip, nombre, fila, ahora, detalle, None)
+        _cerrar_intento(valores, canal, ip, nombre)
+        return Resultado(ok=True, usuario=fila, cambio_clave_pendiente=pendiente)
+    motivo = CLAVE_TEMPORAL_VENCIDA if coincide else CLAVE_INCORRECTA
+    _sumar_fallo(fila, ahora)
+    return _rechazar(canal, ip, nombre, fila, motivo, ahora)
 
 
 def _sumar_fallo(fila, ahora):
@@ -153,9 +155,41 @@ def _sumar_fallo(fila, ahora):
         fila.locked_until = ahora + DURACION_BLOQUEO
 
 
-def _rechazar(canal, ip, nombre, usuario, motivo):
-    _auditar_fallo(canal, ip, nombre, usuario, motivo)
+def _rechazar(canal, ip, nombre, usuario, motivo, ahora=None):
+    """Registra el rechazo y confirma el intento. El motivo solo queda en la auditoría."""
+    ahora = ahora or security.ahora()
+    agrupacion = _agrupacion(canal, ip, motivo, usuario, ahora)
+    valores = _valores_evento("login_failed", canal, ip, nombre, usuario, ahora, {"motivo": motivo, "canal": canal}, agrupacion)
+    _cerrar_intento(valores, canal, ip, nombre)
     return Resultado(ok=False, motivo=motivo)
+
+
+def _valores_evento(accion, canal, ip, nombre, usuario, ahora, detalle, agrupacion):
+    """Fila de auditoría. El objetivo es la cuenta si existe; si no, queda sin objetivo (NULL)."""
+    objetivo_id = usuario.id if usuario is not None else None
+    return {
+        "created_at": ahora,
+        "actor_user_id": objetivo_id,
+        "actor_username": nombre,
+        "accion": accion,
+        "target_user_id": objetivo_id,
+        "target_username": usuario.username if usuario is not None else None,
+        "detalle": detalle,
+        "ip": ip,
+        "clave_agrupacion": agrupacion,
+        "repeticiones": 1,
+    }
+
+
+def _agrupacion(canal, ip, motivo, usuario, ahora):
+    """Clave de agrupación de los fallos: IP, canal, motivo, cuenta (si existe) y minuto.
+
+    El nombre escrito no forma parte de la clave: una ráfaga de nombres inexistentes ocupa una sola
+    fila por minuto y por IP.
+    """
+    minuto = ahora.replace(second=0, microsecond=0)
+    objetivo_id = usuario.id if usuario is not None else None
+    return f"fallo|{ip or '-'}|{canal}|{motivo}|{objetivo_id or '-'}|{minuto:%Y%m%d%H%M}"
 
 
 def _escribir_evento(valores):
@@ -175,59 +209,23 @@ def _escribir_evento(valores):
     db.session.execute(sentencia)
 
 
-def _mejor_esfuerzo(accion, canal, ip, nombre, escribir):
-    """Escribe y confirma. Si falla, deshace solo la auditoría: el login no cambia y queda un evento de seguridad."""
+def _cerrar_intento(valores, canal, ip, nombre):
+    """Confirma el intento con un único COMMIT: estado de la cuenta y auditoría juntos.
+
+    El estado se envía a la base antes del punto de guardado: si falla, la excepción llega a
+    autenticar() y el login se rechaza. La auditoría va en un punto de guardado: si falla, solo ella
+    se deshace, el estado se confirma igual, queda un evento de seguridad y el login responde igual.
+    """
+    db.session.flush()
     try:
-        escribir()
-        db.session.commit()
+        with db.session.begin_nested():
+            _escribir_evento(valores)
     except Exception:
-        db.session.rollback()
         security.log_security_event(
             "AUDITORIA_LOGIN_NO_REGISTRADA",
-            f"No se pudo registrar un acceso ({accion}) en la auditoría; el login responde igual",
+            f"No se pudo registrar un acceso ({valores['accion']}) en la auditoría; el login responde igual",
             user=nombre,
             ip=ip,
-            extra={"canal": canal, "accion": accion},
+            extra={"canal": canal, "accion": valores["accion"]},
         )
-
-
-def _auditar_acceso_correcto(canal, ip, nombre, usuario_id, usuario_nombre, pendiente):
-    valores = {
-        "created_at": security.ahora(),
-        "actor_user_id": usuario_id,
-        "actor_username": nombre,
-        "accion": "login_ok",
-        "target_user_id": usuario_id,
-        "target_username": usuario_nombre,
-        "detalle": {"canal": canal, "cambio_clave_pendiente": pendiente},
-        "ip": ip,
-        "clave_agrupacion": None,
-        "repeticiones": 1,
-    }
-    _mejor_esfuerzo("login_ok", canal, ip, nombre, lambda: _escribir_evento(valores))
-
-
-def _auditar_fallo(canal, ip, nombre, usuario, motivo):
-    def escribir():
-        ahora = security.ahora()
-        objetivo_id = usuario.id if usuario is not None else None
-        objetivo_nombre = usuario.username if usuario is not None else None
-        minuto = ahora.replace(second=0, microsecond=0)
-        # Agrupación: IP, canal, motivo, cuenta (si existe) y minuto. El nombre escrito no forma parte de la clave.
-        agrupacion = f"fallo|{ip or '-'}|{canal}|{motivo}|{objetivo_id or '-'}|{minuto:%Y%m%d%H%M}"
-        _escribir_evento(
-            {
-                "created_at": ahora,
-                "actor_user_id": objetivo_id,
-                "actor_username": nombre,
-                "accion": "login_failed",
-                "target_user_id": objetivo_id,
-                "target_username": objetivo_nombre,
-                "detalle": {"motivo": motivo, "canal": canal},
-                "ip": ip,
-                "clave_agrupacion": agrupacion,
-                "repeticiones": 1,
-            }
-        )
-
-    _mejor_esfuerzo("login_failed", canal, ip, nombre, escribir)
+    db.session.commit()
