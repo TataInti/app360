@@ -260,11 +260,6 @@
         });
 
         panel.addEventListener('keydown', function (evento) {
-            if (evento.key === 'Escape') {
-                evento.preventDefault();
-                cerrar();
-                return;
-            }
             if (evento.key !== 'Tab') {
                 return;
             }
@@ -281,6 +276,16 @@
                 evento.preventDefault();
                 primero.focus();
             }
+        });
+
+        // Escape cierra el panel aunque el foco haya quedado fuera (p. ej. tras cancelar la confirmación).
+        // Si hay un modal abierto, Escape corresponde a ese modal.
+        document.addEventListener('keydown', function (evento) {
+            if (evento.key !== 'Escape' || panel.hidden || document.querySelector('.modal.show')) {
+                return;
+            }
+            evento.preventDefault();
+            cerrar();
         });
 
         panel.querySelectorAll('[data-drawer-cancel]').forEach(function (boton) {

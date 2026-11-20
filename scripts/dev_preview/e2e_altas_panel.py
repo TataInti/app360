@@ -89,12 +89,30 @@ def login(page):
     page.wait_for_load_state("load")
 
 
-def productos_api(page):
-    """Todos los productos de /api/products (paginado), indexados por SKU."""
+TOKEN_API = {}
+
+
+def cabeceras_api(origen):
+    """JWT del admin para /api/products. Se pide una vez: /api/login admite 5 intentos por minuto."""
+    req = origen.request if hasattr(origen, "request") else origen
+    if "token" not in TOKEN_API:
+        respuesta = req.post(f"{BASE_URL}/api/login", data={"username": ADMIN_USER, "password": ADMIN_PASSWORD}, max_redirects=0)
+        if respuesta.status != 200:
+            return None
+        TOKEN_API["token"] = respuesta.json()["access_token"]
+    return {"Authorization": f"Bearer {TOKEN_API['token']}"}
+
+
+def productos_api(origen):
+    """Todos los productos de /api/products (paginado, con JWT), indexados por SKU."""
+    req = origen.request if hasattr(origen, "request") else origen
+    cabeceras = cabeceras_api(origen)
+    if cabeceras is None:
+        return None
     por_sku = {}
     numero = 1
     while True:
-        respuesta = page.request.get(f"{BASE_URL}/api/products?page={numero}&per_page=100", max_redirects=0)
+        respuesta = req.get(f"{BASE_URL}/api/products?page={numero}&per_page=100", headers=cabeceras, max_redirects=0)
         if respuesta.status != 200:
             return None
         cuerpo = respuesta.json()
@@ -245,15 +263,21 @@ def escenario_escritorio(page, unidad, skus):
     page.fill("#producto-nombre", "PROBE sin guardar")
     page.keyboard.press("Escape")
     expect(page.locator("#app360ConfirmModal")).to_be_visible(timeout=5000)
+    # Bootstrap ignora hide() durante la transición de apertura: se espera a que termine.
+    page.wait_for_timeout(600)
     verificar("escape con datos: pide confirmación", True)
     page.click("#app360ConfirmCancel")
     expect(page.locator("#app360ConfirmModal")).to_be_hidden(timeout=5000)
+    page.wait_for_timeout(600)  # termina la transición de cierre del modal antes del siguiente Escape
     verificar("escape con datos: cancelar mantiene el panel abierto", page.locator("#productoPanel").is_visible())
 
     # 6) Escape con datos y confirmación: cierra y devuelve el foco
     page.keyboard.press("Escape")
     expect(page.locator("#app360ConfirmModal")).to_be_visible(timeout=5000)
+    # Bootstrap ignora hide() durante la transición de apertura: se espera a que termine.
+    page.wait_for_timeout(600)
     page.click("#app360ConfirmAccept")
+    expect(page.locator("#app360ConfirmModal")).to_be_hidden(timeout=5000)
     expect(page.locator("#productoPanel")).to_be_hidden(timeout=5000)
     verificar(
         "escape con datos: confirmar cierra y devuelve el foco al botón",
@@ -356,9 +380,15 @@ def main():
         navegador.close()
     presentes = [s for s in skus if s in api_final]
     verificar(f"cierre: los {len(skus)} productos del recorrido están en la API", len(presentes) == len(skus), f"{len(presentes)}/{len(skus)}")
-    ruidosos = [m for m in CONSOLA if "ERR_" not in m and "net::" not in m]
-    verificar("consola: sin errores de JavaScript", not ruidosos and not ERRORES_PAGINA, ruidosos or ERRORES_PAGINA)
-    INFORME["errores_consola_externos"] = [m for m in CONSOLA if m not in ruidosos]
+    # El navegador registra como consola cada recurso fallido. Se cuentan aparte: los 422 de
+    # /products/new (validaciones que el recorrido provoca a propósito) y el 404 de /favicon.ico
+    # (la app no sirve favicon). Cualquier otro error de consola o de página es falla.
+    recursos = [m for m in CONSOLA if m.startswith("Failed to load resource")]
+    validacion = [m for m in recursos if "status of 422" in m]
+    favicon = [m for m in recursos if "status of 404" in m]
+    inesperados = [m for m in CONSOLA if m not in validacion and m not in favicon]
+    verificar("consola: sin errores de JavaScript ni recursos inesperados", not inesperados and not ERRORES_PAGINA, inesperados or ERRORES_PAGINA)
+    INFORME["consola_recursos_esperados"] = {"422_validacion": len(validacion), "404_favicon": len(favicon)}
     INFORME["productos_creados"] = skus
     fallas = [r for r in RESULTADOS if not r["ok"]]
     INFORME["resumen"] = {"total": len(RESULTADOS), "ok": len(RESULTADOS) - len(fallas), "fallas": len(fallas)}
