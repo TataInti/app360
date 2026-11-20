@@ -3,7 +3,8 @@
 > **Estado: aprobado y aplicado a todo el sitio (octubre 2026).**
 > Los valores viven en `:root` de `templates/base.html` y en
 > `static/js/app_charts.js`. Este documento registra el origen y las
-> correcciones aplicadas. Para el uso vigente ver `skills/DESIGN_SYSTEM.md` §8.
+> correcciones aplicadas. Para patrones vigentes ver `skills/DESIGN_SYSTEM.md` §§3.1–3.17;
+> para el inventario de tokens, ver §8.
 
 Este documento describe los valores que originalmente usaban **Panel de ventas** y
 **Seguimiento de clientes**, y que hoy son la base del sistema de diseño de APP360.
