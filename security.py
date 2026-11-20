@@ -396,7 +396,7 @@ def guardia_api_admin_sin_sesion():
     if hay_sesion_web() and sesion_web_vigente():
         return None
     # Mismo cuerpo que el resto de /api/ sin sesión (contrato de tests/test_acceso_anonimo.py).
-    return jsonify({"error": "Sesión requerida"}), 401
+    return jsonify({"error": "Sesión requerida", "codigo": "SESION_REQUERIDA"}), 401
 
 
 # =============================================================================

@@ -273,7 +273,7 @@ def test_anonimo_y_jwt_reciben_401_json_en_rol_y_reseteo(app_seguridad):
 
     for respuesta in (rol, reseteo, con_jwt):
         assert respuesta.status_code == 401 and respuesta.is_json
-        assert respuesta.get_json() == {"error": "Sesión requerida"}
+        assert respuesta.get_json() == {"error": "Sesión requerida", "codigo": "SESION_REQUERIDA"}
     assert _estado(app, objetivo)["rol"] == "sales"
 
 
@@ -297,12 +297,12 @@ def test_autocambio_de_rol_y_autorreseteo_responden_403(app_seguridad):
 
 @pytest.mark.parametrize("rol_unico", ["admin", "manager", "gerente"])
 def test_servicio_rechaza_bajar_al_ultimo_administrador_activo(app_seguridad, rol_unico):
-    """El servicio no confía en el actor: aunque no sea administrador, el último activo no baja."""
+    """El servicio mantiene el último administrador aunque el actor no esté activo."""
     app = app_seguridad
     unico = _crear(app, "probe.unico", rol_unico)
-    ventas = _crear(app, "probe.ventas", "sales")
+    actor_inactivo = _crear(app, "probe.actor-inactivo", "admin", active=False)
     with app.app_context():
-        actor = db.session.get(User, ventas)
+        actor = db.session.get(User, actor_inactivo)
         with pytest.raises(ua.ErrorUsuarios) as info:
             ua.cambiar_rol(actor, unico, "sales")
         assert info.value.codigo == "ULTIMO_ADMINISTRADOR" and info.value.status == 409
@@ -315,9 +315,9 @@ def test_ultimo_administrador_puede_pasar_a_otro_rol_de_administracion(app_segur
     """admin → gerente no deja al sistema sin administradores: ambos cuentan como administración."""
     app = app_seguridad
     unico = _crear(app, "probe.admin", "admin")
-    ventas = _crear(app, "probe.ventas", "sales")
+    actor_inactivo = _crear(app, "probe.actor-inactivo", "admin", active=False)
     with app.app_context():
-        usuario, anterior, cambiado = ua.cambiar_rol(db.session.get(User, ventas), unico, "gerente")
+        usuario, anterior, cambiado = ua.cambiar_rol(db.session.get(User, actor_inactivo), unico, "gerente")
         assert usuario.role == "gerente" and anterior == "admin" and cambiado is True
 
 
@@ -338,11 +338,12 @@ def test_segundo_cambio_ve_el_estado_que_dejo_el_primero(app_seguridad):
     app = app_seguridad
     x = _crear(app, "probe.admin-x", "admin")
     y = _crear(app, "probe.admin-y", "gerente")
-    actor = _crear(app, "probe.ventas", "sales")
+    actor_inactivo = _crear(app, "probe.actor-inactivo", "admin", active=False)
     with app.app_context():
-        ua.cambiar_rol(db.session.get(User, actor), x, "sales")
+        actor = db.session.get(User, actor_inactivo)
+        ua.cambiar_rol(actor, x, "sales")
         with pytest.raises(ua.ErrorUsuarios) as info:
-            ua.cambiar_rol(db.session.get(User, actor), y, "sales")
+            ua.cambiar_rol(actor, y, "sales")
         assert info.value.codigo == "ULTIMO_ADMINISTRADOR"
         db.session.rollback()
     assert _estado(app, y)["rol"] == "gerente" and _estado(app, x)["rol"] == "sales"
@@ -664,7 +665,10 @@ def test_api_admin_sin_sesion_responde_401_json_aunque_falte_el_token_csrf(csrf_
         llamada = getattr(anonimo, metodo)
         respuesta = llamada(ruta, json=cuerpo) if cuerpo is not None else llamada(ruta)
         assert respuesta.status_code == 401, (metodo, ruta)
-        assert respuesta.is_json and respuesta.get_json() == {"error": "Sesión requerida"}, (metodo, ruta)
+        assert respuesta.is_json and respuesta.get_json() == {
+            "error": "Sesión requerida",
+            "codigo": "SESION_REQUERIDA",
+        }, (metodo, ruta)
 
 
 def test_sesion_valida_sin_token_csrf_sigue_recibiendo_400(csrf_activo):
