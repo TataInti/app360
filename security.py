@@ -377,6 +377,9 @@ def revalidar_sesion_web():
 # =============================================================================
 # JWT Token Management
 # =============================================================================
+MAX_JWT_TOKEN_LENGTH = 32_768
+
+
 def _iat_con_fraccion():
     """Hora de emisión de un JWT con fracción de segundo (NumericDate admite decimales, RFC 7519).
 
@@ -414,13 +417,18 @@ def generate_refresh_token(user_id, username, token_version=0):
 
 
 def decode_token(token):
-    """Decode and validate a JWT token"""
+    """Decode and validate a JWT token without trusting oversized or hostile JSON."""
+    # Los tokens emitidos por esta API son pequeños; el límite evita decodificar payloads
+    # desproporcionados antes de autenticar la firma.
+    if not isinstance(token, str) or len(token) > MAX_JWT_TOKEN_LENGTH:
+        return None
     try:
         payload = jwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
         return payload
     except jwt.ExpiredSignatureError:
         return None
-    except jwt.InvalidTokenError:
+    except (jwt.InvalidTokenError, RecursionError):
+        # json.loads puede propagar RecursionError con claims profundamente anidados.
         return None
 
 
