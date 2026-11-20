@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>App360 · Componentes de sistema</title>
+  <link rel="stylesheet" href="../../static/css/app_components.css">
+  <style>
+    :root {
+      --color-surface: #ffffff;
+      --color-surface-subtle: #f3f6fa;
+      --color-surface-muted: #f8fafc;
+      --color-text-primary: #25364a;
+      --color-text-body: #334155;
+      --color-text-muted: #58677a;
+      --color-text-faint: #8a97a6;
+      --color-border: #dce3eb;
+      --color-border-control: #bcc9d6;
+      --color-action: #234e70;
+      --color-action-hover: #1b3d59;
+      --color-focus: #3d7aa9;
+      --color-hover: #edf2f7;
+      --color-positive: #16a34a;
+      --color-warning: #f59e0b;
+      --state-error-ink: #8c3027;
+      --state-dot-size: 8px;
+      --drawer-width-form: 440px;
+      --font-family-base: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-size-body: 14px;
+      --font-size-label: 12px;
+      --font-size-note: 13px;
+      --font-size-page: 24px;
+      --font-size-section: 18px;
+      --font-weight-strong: 650;
+      --font-weight-page: 700;
+      --radius-control: 6px;
+      --radius-table: 7px;
+      --radius-panel: 8px;
+      --radius-pill: 999px;
+      --control-height: 38px;
+      --space-control: 12px;
+      --space-section: 28px;
+      --space-cell-y: 10px;
+      --space-cell-x: 12px;
+      --app-shadow-lg: 0 24px 60px rgba(15, 23, 42, 0.18);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: var(--space-section);
+      background: var(--color-surface);
+      color: var(--color-text-primary);
+      font: var(--font-size-body)/1.45 var(--font-family-base);
+    }
+    .demo-main {
+      padding-right: calc(var(--drawer-width-form) + var(--space-section));
+    }
+    .demo-description {
+      margin: var(--space-cell-y) 0 0;
+      color: var(--color-text-muted);
+    }
+    .demo-filters { margin-bottom: var(--space-control); }
+    .demo-table-wrap { overflow-x: auto; }
+    .demo-status-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-control);
+      margin-top: var(--space-control);
+    }
+    .demo-footnote {
+      margin: var(--space-control) 0 0;
+      color: var(--color-text-muted);
+    }
+    .demo-expand-note { margin: 0; }
+    .demo-line-list { margin: 0; }
+
+  </style>
+</head>
+<body>
+  <main class="demo-main">
+    <header class="app-page-head">
+      <div>
+        <h1 class="app-page-head__title">Componentes del sistema</h1>
+        <p class="demo-description">Muestra estática · datos sintéticos · noviembre 2026</p>
+      </div>
+      <div class="app-page-head__actions">
+        <div class="app-actions">
+          <button class="app-actions__secondary" type="button">Panel abierto</button>
+        </div>
+      </div>
+    </header>
+
+    <section aria-label="Filtros de muestra">
+      <div class="app-form-grid app-form-grid--cols-3 demo-filters">
+        <label class="app-field">
+          <span class="app-field__label">Período</span>
+          <input class="app-field__control" type="month" value="2026-11">
+        </label>
+        <label class="app-field">
+          <span class="app-field__label">Vendedor</span>
+          <select class="app-field__control">
+            <option>Todo el equipo</option>
+            <option>T-Ana</option>
+            <option>T-Bruno</option>
+            <option>T-Carla</option>
+            <option>T-Diego</option>
+            <option>T-Elena</option>
+            <option>T-Fabián</option>
+          </select>
+        </label>
+        <label class="app-field">
+          <span class="app-field__label">Medida</span>
+          <select class="app-field__control">
+            <option>Importe</option>
+            <option>Cajas</option>
+            <option>Kilos</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <section aria-label="Resumen sintético por vendedor">
+      <div class="demo-table-wrap">
+        <table class="app-table">
+          <thead class="app-table__head">
+            <tr>
+              <th class="app-table__head-cell" scope="col">Vendedor</th>
+              <th class="app-table__head-cell app-table__numeric" scope="col">Meta</th>
+              <th class="app-table__head-cell app-table__numeric" scope="col">Realizado</th>
+              <th class="app-table__head-cell app-table__numeric" scope="col">Avance</th>
+              <th class="app-table__head-cell" scope="col">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="app-table__row">
+              <td class="app-table__cell">
+                <button class="app-table__toggle" type="button" aria-expanded="false" aria-controls="lineas-t-ana">T-Ana<span class="app-table__chevron" aria-hidden="true">⌄</span></button>
+              </td>
+              <td class="app-table__cell app-table__numeric num">$ 2.400.000</td>
+              <td class="app-table__cell app-table__numeric num">$ 1.650.000</td>
+              <td class="app-table__cell app-table__numeric num">69 %</td>
+              <td class="app-table__cell"><span class="app-status app-status--warn"><span class="app-status__dot" aria-hidden="true"></span>En observación</span></td>
+            </tr>
+            <tr class="app-table__expandable" id="lineas-t-ana" hidden>
+              <td class="app-table__cell" colspan="5">
+                <div class="app-table__detail">
+                  <p class="demo-expand-note">Detalle expandible · metas por línea</p>
+                  <ul class="demo-line-list">
+                    <li>Queso Sardo Demo · meta $ 1.400.000 · realizado $ 960.000</li>
+                    <li>Empresa Lácteos · meta $ 1.000.000 · realizado $ 690.000</li>
+                  </ul>
+                </div>
+              </td>
+            </tr>
+            <tr class="app-table__row">
+              <td class="app-table__cell">T-Bruno</td>
+              <td class="app-table__cell app-table__numeric num">$ 1.800.000</td>
+              <td class="app-table__cell app-table__numeric num">$ 1.120.000</td>
+              <td class="app-table__cell app-table__numeric num">62 %</td>
+              <td class="app-table__cell"><span class="app-status app-status--warn"><span class="app-status__dot" aria-hidden="true"></span>En observación</span></td>
+            </tr>
+            <tr class="app-table__row">
+              <td class="app-table__cell">T-Carla</td>
+              <td class="app-table__cell app-table__numeric num">$ 1.500.000</td>
+              <td class="app-table__cell app-table__numeric num">$ 1.500.000</td>
+              <td class="app-table__cell app-table__numeric num">100 %</td>
+              <td class="app-table__cell"><span class="app-status app-status--ok"><span class="app-status__dot" aria-hidden="true"></span>Cumplido</span></td>
+            </tr>
+            <tr class="app-table__row">
+              <td class="app-table__cell">T-Diego</td>
+              <td class="app-table__cell app-table__numeric num">$ 1.200.000</td>
+              <td class="app-table__cell app-table__numeric num">$ 800.000</td>
+              <td class="app-table__cell app-table__numeric num">67 %</td>
+              <td class="app-table__cell"><span class="app-status app-status--warn"><span class="app-status__dot" aria-hidden="true"></span>En observación</span></td>
+            </tr>
+            <tr class="app-table__row">
+              <td class="app-table__cell">T-Elena</td>
+              <td class="app-table__cell app-table__numeric num">—</td>
+              <td class="app-table__cell app-table__numeric num">$ 230.000</td>
+              <td class="app-table__cell app-table__numeric num">—</td>
+              <td class="app-table__cell"><span class="app-status app-status--neutral"><span class="app-status__dot" aria-hidden="true"></span>Sin meta</span></td>
+            </tr>
+            <tr class="app-table__row">
+              <td class="app-table__cell">T-Fabián</td>
+              <td class="app-table__cell app-table__numeric num">$ 2.100.000</td>
+              <td class="app-table__cell app-table__numeric num">$ 1.700.000</td>
+              <td class="app-table__cell app-table__numeric num">81 %</td>
+              <td class="app-table__cell"><span class="app-status app-status--ok"><span class="app-status__dot" aria-hidden="true"></span>Cumplido</span></td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr class="app-table__total">
+              <th class="app-table__cell" scope="row">Equipo</th>
+              <td class="app-table__cell app-table__numeric num">$ 9.000.000</td>
+              <td class="app-table__cell app-table__numeric num">$ 7.000.000</td>
+              <td class="app-table__cell app-table__numeric num">78 %</td>
+              <td class="app-table__cell">6 vendedores</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="demo-status-legend" aria-label="Variantes de estado">
+        <span class="app-status app-status--ok"><span class="app-status__dot" aria-hidden="true"></span>Correcto</span>
+        <span class="app-status app-status--warn"><span class="app-status__dot" aria-hidden="true"></span>Atención</span>
+        <span class="app-status app-status--error"><span class="app-status__dot" aria-hidden="true"></span>Error de carga</span>
+        <span class="app-status app-status--neutral"><span class="app-status__dot" aria-hidden="true"></span>Sin meta</span>
+      </div>
+      <p class="demo-footnote">Los valores y vendedores de esta página son sintéticos.</p>
+    </section>
+  </main>
+
+  <aside class="app-drawer" aria-labelledby="drawer-title">
+    <header class="app-drawer__header">
+      <h2 class="app-drawer__title" id="drawer-title">Alta de objetivo</h2>
+      <p class="app-drawer__description">Formulario de muestra · medidas en pesos argentinos.</p>
+    </header>
+    <div class="app-drawer__body">
+      <form class="app-form-grid app-form-grid--cols-2">
+        <label class="app-field">
+          <span class="app-field__label">Vendedor</span>
+          <select class="app-field__control">
+            <option>T-Ana</option>
+            <option>T-Bruno</option>
+            <option>T-Carla</option>
+            <option>T-Diego</option>
+            <option>T-Elena</option>
+            <option>T-Fabián</option>
+          </select>
+        </label>
+        <label class="app-field">
+          <span class="app-field__label">Período</span>
+          <input class="app-field__control" type="month" value="2026-11">
+        </label>
+        <label class="app-field">
+          <span class="app-field__label">Medida</span>
+          <select class="app-field__control">
+            <option>Importe</option>
+            <option>Cajas</option>
+            <option>Kilos</option>
+          </select>
+        </label>
+        <label class="app-field">
+          <span class="app-field__label">Meta</span>
+          <span class="app-input-unit">
+            <span class="app-input-unit__prefix" aria-hidden="true">$</span>
+            <input class="app-input-unit__control" type="text" inputmode="numeric" value="1.400.000" aria-label="Meta en pesos">
+            <span class="app-input-unit__suffix" aria-hidden="true">ARS</span>
+          </span>
+        </label>
+        <label class="app-field app-form-grid__full">
+          <span class="app-field__label">Descripción</span>
+          <input class="app-field__control" type="text" value="Venta de productos lácteos">
+        </label>
+      </form>
+    </div>
+    <footer class="app-drawer__footer">
+      <div class="app-actions">
+        <button class="app-actions__secondary" type="button">Cancelar</button>
+        <button class="app-actions__primary" type="button">Guardar</button>
+      </div>
+    </footer>
+  </aside>
+
+  <script>
+    document.querySelectorAll(".app-table__toggle").forEach((control) => {
+      control.addEventListener("click", () => {
+        const expanded = control.getAttribute("aria-expanded") === "true";
+        const row = document.getElementById(control.getAttribute("aria-controls"));
+        control.setAttribute("aria-expanded", String(!expanded));
+        row.hidden = expanded;
+      });
+    });
+  </script>
+</body>
+</html>
