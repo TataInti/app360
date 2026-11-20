@@ -1,57 +1,69 @@
 {% extends 'base.html' %}
+{% from "_components.html" import status %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center">
-    <h1>Panel de Registros de Compras</h1>
-    <div class="d-flex gap-2">
-        <a href="/compras/exportar" class="btn btn-outline-secondary">Exportar Excel</a>
-        <a href="/compras/orden-nueva" class="btn btn-primary">Nuevo Registro</a>
+<div class="container-fluid">
+    <header class="panel-header">
+        <div>
+            <h1>Panel de Registros de Compras</h1>
+            <span class="panel-subtitle">Órdenes de compra registradas</span>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/compras/exportar" class="btn btn-outline-secondary">Exportar Excel</a>
+            <a href="/compras/orden-nueva" class="btn btn-primary">Nuevo registro</a>
+        </div>
+    </header>
+
+    <div class="table-card">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 app-table">
+                <thead class="app-table__head">
+                    <tr>
+                        <th class="app-table__head-cell app-table__numeric">ID</th>
+                        <th class="app-table__head-cell">Fecha</th>
+                        <th class="app-table__head-cell">Proveedor</th>
+                        <th class="app-table__head-cell">Ubicación</th>
+                        <th class="app-table__head-cell">Estado</th>
+                        <th class="app-table__head-cell app-table__numeric">Items</th>
+                        <th class="app-table__head-cell">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for o in orders %}
+                    <tr>
+                        <td class="app-table__cell app-table__numeric">{{ o.id }}</td>
+                        <td class="app-table__cell">
+                            {% if o.order_date %}
+                                {{ o.order_date.strftime('%Y-%m-%d') }}
+                            {% elif o.created_at %}
+                                {{ o.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="app-table__cell">{{ o.supplier if o.supplier else 'Sin proveedor' }}</td>
+                        <td class="app-table__cell">{{ o.location.name if o.location else 'Sin ubicación' }}</td>
+                        <td class="app-table__cell">{{ status(o.status or 'desconocido') }}</td>
+                        <td class="app-table__cell app-table__numeric">{{ o.items|length if o.items else 0 }}</td>
+                        <td class="app-table__cell">
+                            <a href="/compras/{{ o.id }}" class="btn btn-sm btn-outline-secondary">Detalle</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="app-table__cell">
+                            <div class="empty-state">
+                                <i class="bi bi-inbox empty-icon" aria-hidden="true"></i>
+                                <div class="empty-title">No hay registros de compras</div>
+                                <div class="empty-text">Las compras aparecerán aquí cuando registres la primera. Usá Nuevo registro para empezar.</div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
-
-<table class="table table-bordered table-striped mt-3">
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Fecha</th>
-            <th>Proveedor</th>
-            <th>Ubicación</th>
-            <th>Estado</th>
-            <th>Items</th>
-            <th>Acciones</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for o in orders %}
-        <tr>
-            <td>{{ o.id }}</td>
-            <td>
-                {% if o.order_date %}
-                    {{ o.order_date.strftime('%Y-%m-%d') }}
-                {% elif o.created_at %}
-                    {{ o.created_at.strftime('%Y-%m-%d %H:%M') }}
-                {% else %}
-                    -
-                {% endif %}
-            </td>
-            <td>{{ o.supplier if o.supplier else 'Sin proveedor' }}</td>
-            <td>{{ o.location.name if o.location else 'Sin ubicación' }}</td>
-            <td>
-                <span class="badge bg-{{ 'secondary' if o.status == 'borrador' else 'info' if o.status == 'enviada' else 'warning' if o.status == 'recibida' else 'success' if o.status == 'cerrada' else 'light' }}">
-                    {{ o.status or 'desconocido' }}
-                </span>
-            </td>
-            <td>{{ o.items|length if o.items else 0 }}</td>
-            <td>
-                <a href="/compras/{{ o.id }}" class="btn btn-sm btn-outline-secondary">Detalle</a>
-            </td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="7" class="text-center text-muted">No hay registros de compras.</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
 
 {% endblock %}
