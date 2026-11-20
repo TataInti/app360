@@ -2,16 +2,33 @@
 
 {% block content %}
 <div class="container-fluid app-access-page">
+    {% set module_short_labels = {
+        'dashboard': 'P. Tesorería',
+        'dashboard_comercial': 'P. Ventas',
+        'panel': 'Ejecutivo',
+        'bi': 'Rentabilidad',
+        'products': 'Productos',
+        'locations': 'Ubicaciones',
+        'stock': 'Stock',
+        'crm': 'CRM/Ventas',
+        'compras': 'Compras',
+        'rrhh': 'RRHH',
+        'tesoreria': 'Tesorería',
+        'gastos': 'Gastos'
+    } %}
     <header class="panel-header app-access-header">
         <div class="app-access-heading">
             <h1 class="app-access-title"><i class="bi bi-shield-lock" aria-hidden="true"></i> Accesos</h1>
             <p class="panel-subtitle">Los permisos individuales se suman a los del rol.</p>
         </div>
         <div class="app-access-header-actions">
-            <a class="app-access-back" href="/admin"><i class="bi bi-arrow-left" aria-hidden="true"></i> Volver</a>
-            <span id="accessChangeCount" class="app-access-change-count" aria-live="polite">0 usuarios con cambios</span>
+            <a class="app-access-back" href="/admin">Volver</a>
+            <div class="app-access-feedback">
+                <span id="accessChangeCount" class="app-access-change-count" aria-live="polite">0 usuarios con cambios</span>
+                <p id="accessSummary" class="app-access-summary" role="status" aria-live="polite" hidden></p>
+            </div>
             <div class="app-actions">
-                <button type="button" id="accessDiscard" class="app-actions__secondary" disabled>Descartar cambios</button>
+                <button type="button" id="accessDiscard" class="app-actions__secondary app-access-discard" disabled>Descartar cambios</button>
                 <button type="button" id="accessSave" class="app-actions__primary" disabled>Guardar cambios (0)</button>
             </div>
         </div>
@@ -21,7 +38,6 @@
         <span class="app-status__dot" aria-hidden="true"></span>
         <span class="app-status__text">Cargando permisos…</span>
     </p>
-    <p id="accessSummary" class="app-access-summary" role="status" aria-live="polite" hidden></p>
 
     <section class="table-card app-access-card" aria-label="Permisos de usuarios">
         <p class="app-access-scroll-hint">Deslizá horizontalmente para ver todos los módulos; la columna Usuario queda fija.</p>
@@ -32,9 +48,8 @@
                         <th scope="col" class="app-access-user-heading">Usuario</th>
                         <th scope="col" class="app-access-role-heading">Rol</th>
                         {% for mod, label in managed_modules.items() %}
-                        <th scope="col" class="app-access-module-heading" title="{{ label }}">{{ label }}</th>
+                        <th scope="col" class="app-access-module-heading" title="{{ label }}" aria-label="{{ label }}">{{ module_short_labels.get(mod, label) }}</th>
                         {% endfor %}
-                        <th scope="col" class="app-access-status-heading">Estado</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -42,10 +57,17 @@
                     {% set role_mods = access_map.get(user.role, []) %}
                     {% set has_all = 'all' in role_mods %}
                     <tr data-user-id="{{ user.id }}">
-                        <td class="app-access-user"><strong>{{ user.username }}</strong></td>
+                        <td class="app-access-user">
+                            <strong>{{ user.username }}</strong>
+                            <span class="app-status app-status--neutral app-access-row-status" data-row-status hidden>
+                                <span class="app-status__dot" aria-hidden="true"></span>
+                                <span class="app-status__text" data-row-status-text></span>
+                            </span>
+                            <button type="button" class="app-access-retry" data-row-retry hidden>Reintentar</button>
+                        </td>
                         <td class="app-access-role">{{ user.role }}</td>
                         {% for mod, label in managed_modules.items() %}
-                        <td class="app-access-permission">
+                        <td class="app-access-permission" data-module="{{ mod }}">
                             {% if has_all or mod in role_mods %}
                             <span class="app-status app-status--neutral app-access-inherited">
                                 <span class="app-status__dot" aria-hidden="true"></span>
@@ -60,13 +82,6 @@
                             {% endif %}
                         </td>
                         {% endfor %}
-                        <td class="app-access-row-state">
-                            <span class="app-status app-status--neutral app-access-row-status" data-row-status hidden>
-                                <span class="app-status__dot" aria-hidden="true"></span>
-                                <span class="app-status__text" data-row-status-text></span>
-                            </span>
-                            <button type="button" class="app-access-retry" data-row-retry hidden>Reintentar</button>
-                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
