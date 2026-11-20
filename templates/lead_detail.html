@@ -1,174 +1,152 @@
 {% extends 'base.html' %}
+{% from '_components.html' import page_head, status %}
 
 {% block content %}
-{% set unidad_vis = units | selectattr("id", "equalto", lead.business_unit_id) | list %}
-{% set producto_vis = products | selectattr("id", "equalto", lead.product_id) | list %}
+{% set unidad_vis = units | selectattr('id', 'equalto', lead.business_unit_id) | list %}
+{% set producto_vis = products | selectattr('id', 'equalto', lead.product_id) | list %}
 
-<div class="d-flex justify-content-between align-items-center">
-    <div>
-        <h1>{{ lead.name }}</h1>
-        <p class="text-muted mb-1">Lead creado el {{ lead.created_at.strftime("%Y-%m-%d %H:%M") }}</p>
-        <p class="mb-0">
-            <strong>Unidad:</strong> {{ unidad_vis[0].name if unidad_vis else "—" }}
-            &nbsp;·&nbsp;
-            <strong>Producto:</strong> {{ producto_vis[0].name if producto_vis else "—" }}
-        </p>
-    </div>
+{% call page_head(lead.name, 'Lead creado el ' ~ lead.created_at.strftime('%Y-%m-%d %H:%M')) %}
     <a href="/leads" class="btn btn-outline-secondary">Volver a leads</a>
-</div>
+{% endcall %}
 
-<div class="row mt-4">
-    <div class="col-md-6">
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">Detalles del lead</h5>
-                <dl class="row">
-                    <dt class="col-4">Origen</dt>
-                    <dd class="col-8">{{ lead.source or 'No definido' }}</dd>
-                    <dt class="col-4">Estado comercial</dt>
-                    <dd class="col-8">{{ lead.status }}</dd>
-                    <dt class="col-4">Etapa actual</dt>
-                    <dd class="col-8">{{ lead.stage }}</dd>
-                    <dt class="col-4">Responsable</dt>
-                    <dd class="col-8">{{ lead.owner_name or 'sin asignar' }}</dd>
-                    <dt class="col-4">Último contacto</dt>
-                    <dd class="col-8">
-                        {% if lead.last_contacted_at %}
-                            {{ lead.last_contacted_at.strftime("%Y-%m-%d %H:%M") }}
-                        {% else %}
-                            Sin actividad registrada
-                        {% endif %}
-                    </dd>
-                    <dt class="col-4">Campaña</dt>
-                    <dd class="col-8">{{ lead.campaign.name if lead.campaign else '—' }}</dd>
-                </dl>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">Actualizar pipeline</h5>
-                <form action="{{ url_for('crm.lead_update', lead_id=lead.id) }}" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div class="mb-3">
-                        <label>Etapa</label>
-                        <select name="stage" class="form-control">
-                            {% for stage in stages %}
-                            <option value="{{ stage.name }}" {% if lead.stage == stage.name %}selected{% endif %}>
-                                {{ stage.name|capitalize }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <label>Responsable</label>
-                        <input type="text" name="owner_name" class="form-control" value="{{ lead.owner_name or '' }}">
-                    </div>
-
-                    <div class="mb-3">
-                        <label>Último contacto</label>
-                        <input type="datetime-local" name="last_contacted_at" class="form-control"
-                               value="{{ lead.last_contacted_at.strftime('%Y-%m-%dT%H:%M') if lead.last_contacted_at else '' }}">
-                    </div>
-
-                    <div class="mb-3">
-                        <label>Campaña</label>
-                        <select name="campaign_id" class="form-control">
-                            <option value="">-- Ninguna --</option>
-                            {% for campaign in campaigns %}
-                            <option value="{{ campaign.id }}"
-                                {% if lead.campaign_id == campaign.id %}selected{% endif %}>
-                                {{ campaign.name }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <label>Estado (ganado / perdido / etc.)</label>
-                        <input type="text" name="status" class="form-control" value="{{ lead.status }}">
-                    </div>
-
-                    <button class="btn btn-primary">Guardar</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<h3>Actividades comerciales</h3>
-
-<div class="row">
+<dl class="row g-2 mb-4">
     <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">Interacciones</h5>
-                <form action="{{ url_for('crm.lead_interactions_new', lead_id=lead.id) }}" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div class="mb-2">
-                        <label>Fecha</label>
-                        <input type="datetime-local" name="contact_date" class="form-control">
-                    </div>
-                    <div class="mb-2">
-                        <label>Tipo</label>
-                        <input type="text" name="type" class="form-control">
-                    </div>
-                    <div class="mb-2">
-                        <label>Canal</label>
-                        <select name="channel" class="form-control">
-                            {% for canal in channels %}
-                            <option value="{{ canal }}">{{ canal }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-2">
-                        <label>Responsable</label>
-                        <input type="text" name="owner_name" class="form-control" value="{{ lead.owner_name or '' }}">
-                    </div>
-                    <div class="mb-2">
-                        <label>Notas</label>
-                        <textarea name="notes" class="form-control" rows="2"></textarea>
-                    </div>
-                    <button class="btn btn-outline-primary btn-sm w-100">Registrar interacción</button>
-                </form>
+        <dt class="app-field__label">Unidad</dt>
+        <dd class="mb-0">{{ unidad_vis[0].name if unidad_vis else '—' }}</dd>
+    </div>
+    <div class="col-md-4">
+        <dt class="app-field__label">Producto</dt>
+        <dd class="mb-0">{{ producto_vis[0].name if producto_vis else '—' }}</dd>
+    </div>
+    <div class="col-md-4">
+        <dt class="app-field__label">Origen</dt>
+        <dd class="mb-0">{{ lead.source or 'No definido' }}</dd>
+    </div>
+    <div class="col-md-4">
+        <dt class="app-field__label">Estado comercial</dt>
+        <dd class="mb-0">{{ status(lead.status) }}</dd>
+    </div>
+    <div class="col-md-4">
+        <dt class="app-field__label">Etapa actual</dt>
+        <dd class="mb-0">{{ lead.stage }}</dd>
+    </div>
+</dl>
 
-                {% if interactions %}
-                <table class="table table-sm table-hover mt-3">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Tipo</th>
-                            <th>Canal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for inter in interactions %}
-                        <tr>
-                            <td>{{ inter.contact_date.strftime("%Y-%m-%d %H:%M") }}</td>
-                            <td>{{ inter.type }}</td>
-                            <td>{{ inter.channel }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% else %}
-                <p class="text-muted mt-3">Aún no hay interacciones registradas.</p>
-                {% endif %}
+<section class="col-xl-10 mx-auto mb-4" aria-labelledby="leadUpdateTitle">
+    <h2 id="leadUpdateTitle" class="h5 mb-3">Actualizar</h2>
+    <form action="{{ url_for('crm.lead_update', lead_id=lead.id) }}" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="app-form-grid app-form-grid--cols-3">
+            <div class="app-field">
+                <label class="app-field__label" for="detailStage">Etapa</label>
+                <select id="detailStage" name="stage" class="app-field__control">
+                    {% for stage in stages %}
+                    <option value="{{ stage.name }}" {% if lead.stage == stage.name %}selected{% endif %}>
+                        {{ stage.name|capitalize }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="app-field">
+                <label class="app-field__label" for="detailOwner">Responsable</label>
+                <input id="detailOwner" type="text" name="owner_name" class="app-field__control" value="{{ lead.owner_name or '' }}">
+            </div>
+            <div class="app-field">
+                <label class="app-field__label" for="detailLastContact">Último contacto</label>
+                <input id="detailLastContact" type="datetime-local" name="last_contacted_at" class="app-field__control"
+                       value="{{ lead.last_contacted_at.strftime('%Y-%m-%dT%H:%M') if lead.last_contacted_at else '' }}">
+            </div>
+            <div class="app-field">
+                <label class="app-field__label" for="detailCampaign">Campaña</label>
+                <select id="detailCampaign" name="campaign_id" class="app-field__control">
+                    <option value="">-- Ninguna --</option>
+                    {% for campaign in campaigns %}
+                    <option value="{{ campaign.id }}" {% if lead.campaign_id == campaign.id %}selected{% endif %}>
+                        {{ campaign.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="app-field">
+                <label class="app-field__label" for="detailStatus">Estado (ganado / perdido / etc.)</label>
+                <input id="detailStatus" type="text" name="status" class="app-field__control" value="{{ lead.status }}">
             </div>
         </div>
-    </div>
+        <div class="d-flex justify-content-end mt-3">
+            <button class="btn btn-primary" type="submit">Guardar</button>
+        </div>
+    </form>
+</section>
 
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">Test drives / Demos</h5>
-                <form action="{{ url_for('crm.lead_demos_new', lead_id=lead.id) }}" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div class="mb-2">
-                        <label>Producto</label>
-                        <select name="product_id" class="form-control" required>
+<section aria-labelledby="actividades">
+    <h2 id="actividades" class="h4 mb-3">Actividades comerciales</h2>
+    <div class="row g-4">
+        <section class="col-lg-4" aria-labelledby="interactionsTitle">
+            <h3 id="interactionsTitle" class="h5">Interacciones</h3>
+            {% if interactions %}
+            <ul class="list-unstyled mb-3">
+                {% for inter in interactions %}
+                <li class="activity-item py-2 border-bottom">
+                    <time>{{ inter.contact_date.strftime('%Y-%m-%d %H:%M') }}</time>
+                    <span> · {{ inter.type }} · {{ inter.channel }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted mb-3">Aún no hay interacciones registradas.</p>
+            {% endif %}
+            <form action="{{ url_for('crm.lead_interactions_new', lead_id=lead.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="app-form-grid app-form-grid--cols-2">
+                    <div class="app-field">
+                        <label class="app-field__label" for="interactionDate">Fecha</label>
+                        <input id="interactionDate" type="datetime-local" name="contact_date" class="app-field__control">
+                    </div>
+                    <div class="app-field">
+                        <label class="app-field__label" for="interactionType">Tipo</label>
+                        <input id="interactionType" type="text" name="type" class="app-field__control">
+                    </div>
+                    <div class="app-field">
+                        <label class="app-field__label" for="interactionChannel">Canal</label>
+                        <select id="interactionChannel" name="channel" class="app-field__control">
+                            {% for canal in channels %}<option value="{{ canal }}">{{ canal }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="app-field">
+                        <label class="app-field__label" for="interactionOwner">Responsable</label>
+                        <input id="interactionOwner" type="text" name="owner_name" class="app-field__control" value="{{ lead.owner_name or '' }}">
+                    </div>
+                    <div class="app-field app-form-grid__full">
+                        <label class="app-field__label" for="interactionNotes">Notas</label>
+                        <textarea id="interactionNotes" name="notes" class="app-field__control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end mt-2">
+                    <button class="btn btn-sm btn-outline-secondary" type="submit">Registrar interacción</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="col-lg-4" aria-labelledby="demosTitle">
+            <h3 id="demosTitle" class="h5">Test drives / Demos</h3>
+            {% if demos %}
+            <ul class="list-unstyled mb-3">
+                {% for demo in demos %}
+                <li class="activity-item py-2 border-bottom">
+                    <time>{{ demo.scheduled_at.strftime('%Y-%m-%d %H:%M') }}</time>
+                    <span> · {{ demo.product.name }} · {{ demo.responsible }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted mb-3">No hay demos agendados.</p>
+            {% endif %}
+            <form action="{{ url_for('crm.lead_demos_new', lead_id=lead.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="app-form-grid app-form-grid--cols-2">
+                    <div class="app-field">
+                        <label class="app-field__label" for="demoProduct">Producto</label>
+                        <select id="demoProduct" name="product_id" class="app-field__control" required>
                             {% for product in products %}
                             <option value="{{ product.id }}" {% if lead.product_id == product.id %}selected{% endif %}>
                                 {{ product.name }}
@@ -176,69 +154,55 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="mb-2">
-                        <label>Ubicación</label>
-                        <select name="location_id" class="form-control">
+                    <div class="app-field">
+                        <label class="app-field__label" for="demoLocation">Ubicación</label>
+                        <select id="demoLocation" name="location_id" class="app-field__control">
                             <option value="">-- Ninguna --</option>
-                            {% for loc in locations %}
-                            <option value="{{ loc.id }}">{{ loc.name }}</option>
-                            {% endfor %}
+                            {% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}
                         </select>
                     </div>
-                    <div class="mb-2">
-                        <label>Fecha y hora</label>
-                        <input type="datetime-local" name="scheduled_at" class="form-control" required>
+                    <div class="app-field">
+                        <label class="app-field__label" for="demoScheduledAt">Fecha y hora</label>
+                        <input id="demoScheduledAt" type="datetime-local" name="scheduled_at" class="app-field__control" required>
                     </div>
-                    <div class="mb-2">
-                        <label>Responsable</label>
-                        <input type="text" name="responsible" class="form-control" value="{{ lead.owner_name or '' }}">
+                    <div class="app-field">
+                        <label class="app-field__label" for="demoResponsible">Responsable</label>
+                        <input id="demoResponsible" type="text" name="responsible" class="app-field__control" value="{{ lead.owner_name or '' }}">
                     </div>
-                    <div class="mb-2">
-                        <label>Estado</label>
-                        <input type="text" name="status" class="form-control" value="programado">
+                    <div class="app-field">
+                        <label class="app-field__label" for="demoStatus">Estado</label>
+                        <input id="demoStatus" type="text" name="status" class="app-field__control" value="programado">
                     </div>
-                    <div class="mb-2">
-                        <label>Notas</label>
-                        <textarea name="notes" class="form-control" rows="2"></textarea>
+                    <div class="app-field app-form-grid__full">
+                        <label class="app-field__label" for="demoNotes">Notas</label>
+                        <textarea id="demoNotes" name="notes" class="app-field__control" rows="2"></textarea>
                     </div>
-                    <button class="btn btn-outline-secondary btn-sm w-100">Agendar demo</button>
-                </form>
+                </div>
+                <div class="d-flex justify-content-end mt-2">
+                    <button class="btn btn-sm btn-outline-secondary" type="submit">Agendar demo</button>
+                </div>
+            </form>
+        </section>
 
-                {% if demos %}
-                <table class="table table-sm table-hover mt-3">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>Producto</th>
-                            <th>Responsable</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for demo in demos %}
-                        <tr>
-                            <td>{{ demo.scheduled_at.strftime("%Y-%m-%d %H:%M") }}</td>
-                            <td>{{ demo.product.name }}</td>
-                            <td>{{ demo.responsible }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% else %}
-                <p class="text-muted mt-3">No hay demos agendados.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-4">
-        <div class="card mb-4">
-            <div class="card-body">
-                <h5 class="card-title">Cotizaciones</h5>
-                <form action="{{ url_for('crm.lead_quotations_new', lead_id=lead.id) }}" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div class="mb-2">
-                        <label>Producto</label>
-                        <select name="product_id" class="form-control" required>
+        <section class="col-lg-4" aria-labelledby="quotationsTitle">
+            <h3 id="quotationsTitle" class="h5">Cotizaciones</h3>
+            {% if quotations %}
+            <ul class="list-unstyled mb-3">
+                {% for quote in quotations %}
+                <li class="activity-item py-2 border-bottom">
+                    <span>{{ quote.amount }} {{ quote.currency }} · {{ quote.product.name }} · {{ quote.status }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-muted mb-3">Sin cotizaciones cargadas.</p>
+            {% endif %}
+            <form action="{{ url_for('crm.lead_quotations_new', lead_id=lead.id) }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="app-form-grid app-form-grid--cols-2">
+                    <div class="app-field">
+                        <label class="app-field__label" for="quotationProduct">Producto</label>
+                        <select id="quotationProduct" name="product_id" class="app-field__control" required>
                             {% for product in products %}
                             <option value="{{ product.id }}" {% if lead.product_id == product.id %}selected{% endif %}>
                                 {{ product.name }}
@@ -246,50 +210,28 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="mb-2">
-                        <label>Monto</label>
-                        <input type="text" name="amount" class="form-control" placeholder="12345.00" required>
+                    <div class="app-field">
+                        <label class="app-field__label" for="quotationAmount">Monto</label>
+                        <input id="quotationAmount" type="text" name="amount" class="app-field__control" placeholder="12345.00" required>
                     </div>
-                    <div class="mb-2">
-                        <label>Moneda</label>
-                        <input type="text" name="currency" class="form-control" value="ARS">
+                    <div class="app-field">
+                        <label class="app-field__label" for="quotationCurrency">Moneda</label>
+                        <input id="quotationCurrency" type="text" name="currency" class="app-field__control" value="ARS">
                     </div>
-                    <div class="mb-2">
-                        <label>Estado</label>
-                        <input type="text" name="status" class="form-control" value="borrador">
+                    <div class="app-field">
+                        <label class="app-field__label" for="quotationStatus">Estado</label>
+                        <input id="quotationStatus" type="text" name="status" class="app-field__control" value="borrador">
                     </div>
-                    <div class="mb-2">
-                        <label>Notas</label>
-                        <textarea name="notes" class="form-control" rows="2"></textarea>
+                    <div class="app-field app-form-grid__full">
+                        <label class="app-field__label" for="quotationNotes">Notas</label>
+                        <textarea id="quotationNotes" name="notes" class="app-field__control" rows="2"></textarea>
                     </div>
-                    <button class="btn btn-outline-success btn-sm w-100">Agregar cotización</button>
-                </form>
-
-                {% if quotations %}
-                <table class="table table-sm table-hover mt-3">
-                    <thead>
-                        <tr>
-                            <th>Monto</th>
-                            <th>Producto</th>
-                            <th>Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for quote in quotations %}
-                        <tr>
-                            <td>{{ quote.amount }} {{ quote.currency }}</td>
-                            <td>{{ quote.product.name }}</td>
-                            <td>{{ quote.status }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                {% else %}
-                <p class="text-muted mt-3">Sin cotizaciones cargadas.</p>
-                {% endif %}
-            </div>
-        </div>
+                </div>
+                <div class="d-flex justify-content-end mt-2">
+                    <button class="btn btn-sm btn-outline-secondary" type="submit">Agregar cotización</button>
+                </div>
+            </form>
+        </section>
     </div>
-</div>
-
+</section>
 {% endblock %}

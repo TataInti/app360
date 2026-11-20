@@ -33,7 +33,7 @@
 
 {% macro form_grid(columnas=2) -%}
   {% set cantidad_columnas = columnas if columnas in [2, 3] else 2 %}
-  <div class="app-form-grid app-form-grid--{{ cantidad_columnas }}" data-columns="{{ cantidad_columnas }}">
+  <div class="app-form-grid app-form-grid--cols-{{ cantidad_columnas }}" data-columns="{{ cantidad_columnas }}">
     {{ caller() }}
   </div>
 {%- endmacro %}

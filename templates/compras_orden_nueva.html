@@ -1,83 +1,88 @@
 {% extends 'base.html' %}
+{% from "_components.html" import form_grid, page_head %}
 
 {% block content %}
-<h1>Nuevo Registro de Compras</h1>
+{% call page_head('Nuevo Registro de Compras') %}{% endcall %}
 
-<form method="POST">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="row">
+    <div class="col-12 col-xl-10">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    <div class="mb-3">
-        <label>Fecha</label>
-        <input type="date" name="order_date" class="form-control" value="{{ default_date }}" required>
+            {% call form_grid(3) %}
+            <div class="app-field">
+                <label class="app-field__label" for="order_date">Fecha</label>
+                <input id="order_date" type="date" name="order_date" class="form-control app-field__control" value="{{ default_date }}" required>
+            </div>
+
+            <div class="app-field">
+                <label class="app-field__label" for="comprobante_numero">Número de comprobante</label>
+                <input id="comprobante_numero" type="text" name="comprobante_numero" class="form-control app-field__control">
+            </div>
+
+            <div class="app-field">
+                <label class="app-field__label" for="supplier_id">Proveedor</label>
+                <select id="supplier_id" name="supplier_id" class="form-control app-field__control">
+                    <option value="">Seleccionar proveedor existente</option>
+                    {% for p in proveedores %}
+                    <option value="{{ p.id }}">{{ p.nombre }}</option>
+                    {% endfor %}
+                </select>
+                <small class="form-text">Si el proveedor no existe, ingresalo manualmente abajo.</small>
+                <label class="app-field__label" for="supplier_text">Proveedor (manual)</label>
+                <input id="supplier_text" type="text" name="supplier_text" class="form-control app-field__control">
+            </div>
+
+            <div class="app-field">
+                <label class="app-field__label" for="location_id">Ubicación (Sucursal / Nave)</label>
+                <select id="location_id" name="location_id" class="form-control app-field__control" required>
+                    {% for l in locations %}
+                    <option value="{{ l.id }}">{{ l.name }} ({{ l.type }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="app-field">
+                <label class="app-field__label" for="product_id">Producto</label>
+                <select id="product_id" name="product_id" class="form-control app-field__control" required>
+                    {% for p in products %}
+                    <option value="{{ p.id }}">{{ p.sku }} - {{ p.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="app-field">
+                <label class="app-field__label" for="quantity">Cantidad</label>
+                <input id="quantity" type="number" name="quantity" class="form-control app-field__control" value="1" min="1" required>
+            </div>
+
+            <div class="app-field">
+                <label class="app-field__label" for="monto_total">Monto total</label>
+                <input id="monto_total" type="text" name="monto_total" class="form-control app-field__control" data-money-input inputmode="decimal" placeholder="1.234,56">
+            </div>
+
+            <div class="app-field">
+                <label class="app-field__label" for="instrumento_id">Origen de los fondos</label>
+                <select id="instrumento_id" name="instrumento_id" class="form-control app-field__control">
+                    <option value="">No generar egreso</option>
+                    {% for i in instrumentos %}
+                    <option value="{{ i.id }}">{{ i.nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="app-field">
+                <label class="app-field__label" for="notes">Notas (opcional)</label>
+                <textarea id="notes" name="notes" class="form-control app-field__control" rows="2"></textarea>
+            </div>
+
+            <div class="app-form-grid__full app-actions">
+                <button type="submit" class="btn btn-primary">Guardar Registro</button>
+                <a href="/compras" class="btn btn-secondary">Volver</a>
+            </div>
+            {% endcall %}
+        </form>
     </div>
-
-    <div class="mb-3">
-        <label>Número de comprobante</label>
-        <input type="text" name="comprobante_numero" class="form-control">
-    </div>
-
-    <div class="mb-3">
-        <label>Proveedor</label>
-        <select name="supplier_id" class="form-control">
-            <option value="">Seleccionar proveedor existente</option>
-            {% for p in proveedores %}
-            <option value="{{ p.id }}">{{ p.nombre }}</option>
-            {% endfor %}
-        </select>
-        <div class="form-text">Si el proveedor no existe, ingresalo manualmente abajo.</div>
-    </div>
-
-    <div class="mb-3">
-        <label>Proveedor (manual)</label>
-        <input type="text" name="supplier_text" class="form-control">
-    </div>
-
-    <div class="mb-3">
-        <label>Ubicación (Sucursal / Nave)</label>
-        <select name="location_id" class="form-control" required>
-            {% for l in locations %}
-            <option value="{{ l.id }}">{{ l.name }} ({{ l.type }})</option>
-            {% endfor %}
-        </select>
-    </div>
-
-    <div class="mb-3">
-        <label>Producto</label>
-        <select name="product_id" class="form-control" required>
-            {% for p in products %}
-            <option value="{{ p.id }}">{{ p.sku }} - {{ p.name }}</option>
-            {% endfor %}
-        </select>
-    </div>
-
-    <div class="mb-3">
-        <label>Cantidad</label>
-        <input type="number" name="quantity" class="form-control" value="1" min="1" required>
-    </div>
-
-    <div class="mb-3">
-        <label>Monto total</label>
-        <input type="text" name="monto_total" class="form-control" data-money-input inputmode="decimal" placeholder="1.234,56">
-    </div>
-
-    <div class="mb-3">
-        <label>Origen de los fondos</label>
-        <select name="instrumento_id" class="form-control">
-            <option value="">No generar egreso</option>
-            {% for i in instrumentos %}
-            <option value="{{ i.id }}">{{ i.nombre }}</option>
-            {% endfor %}
-        </select>
-        <div class="form-text">Si seleccionas un origen, se registrará un egreso en Tesorería.</div>
-    </div>
-
-    <div class="mb-3">
-        <label>Notas (opcional)</label>
-        <textarea name="notes" class="form-control" rows="3"></textarea>
-    </div>
-
-    <button type="submit" class="btn btn-primary">Guardar Registro</button>
-    <a href="/compras" class="btn btn-secondary">Volver</a>
-</form>
+</div>
 
 {% endblock %}

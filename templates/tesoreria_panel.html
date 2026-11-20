@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 
 {% block content %}
+<script src="{{ asset('js/app_format.js') }}" defer></script>
+<script src="{{ asset('js/tesoreria_forms.js') }}" defer></script>
 <div class="container-fluid">
     <!-- Header -->
     <div class="panel-header">
@@ -9,14 +11,14 @@
             <span>Vista rápida de caja, movimientos recientes y cierres operativos del día.</span>
         </div>
         <div class="action-bar">
-            <a href="/tesoreria/movimientos" class="btn btn-outline-primary btn-sm">
+            <a href="/tesoreria/movimientos" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-arrow-left-right"></i> Movimientos
             </a>
-            <a href="/tesoreria/arqueos" class="btn btn-outline-primary btn-sm">
+            <a href="/tesoreria/arqueos" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-calculator"></i> Arqueos
             </a>
             {% if session.get('role') != 'director' %}
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoArqueo">
+            <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoArqueo">
                 <i class="bi bi-plus-circle"></i> Nuevo Arqueo
             </button>
             <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
@@ -69,7 +71,7 @@
                     <tr>
                         <th>Fecha/Hora</th>
                         <th>Tipo</th>
-                        <th>Monto</th>
+                        <th class="text-end">Monto</th>
                         <th>Instrumento</th>
                         <th>Descripción</th>
                         <th>Usuario</th>
@@ -95,11 +97,11 @@
                     <tr>
                         <th>Fecha</th>
                         <th>Turno</th>
-                        <th>Saldo Inicial</th>
-                        <th>Ingresos</th>
-                        <th>Egresos</th>
-                        <th>Saldo Final</th>
-                        <th>Diferencia</th>
+                        <th class="text-end">Saldo Inicial</th>
+                        <th class="text-end">Ingresos</th>
+                        <th class="text-end">Egresos</th>
+                        <th class="text-end">Saldo Final</th>
+                        <th class="text-end">Diferencia</th>
                     </tr>
                 </thead>
                 <tbody id="tabla-arqueos">
@@ -112,130 +114,52 @@
     </div>
 </div>
 
-<!-- Modal Nuevo Movimiento -->
-<div class="modal fade app-modal app-modal--blue" id="modalNuevoMovimiento" tabindex="-1" aria-labelledby="modalNuevoMovimientoPanelTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header app-modal__header">
-                <div class="app-modal__title-group">
-                    <span class="app-modal__eyebrow">Caja</span>
-                    <h5 class="modal-title" id="modalNuevoMovimientoPanelTitle">Registrar nuevo movimiento</h5>
-                    <p class="app-modal__subtitle">Carga un ingreso o egreso rapido desde el panel principal de tesoreria.</p>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-            </div>
-            <form id="formMovimiento">
-                <div class="modal-body">
-                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
-                    <div class="mb-3">
-                        <label class="form-label">Concepto *</label>
-                        <select class="form-select" name="categoria_gasto_id" id="select-concepto-rapido" required>
-                            <option value="">Seleccionar…</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Tipo *</label>
-                        <select class="form-select" name="tipo" id="select-tipo-rapido" required disabled>
-                            <option value="ingreso">Ingreso</option>
-                            <option value="egreso">Egreso</option>
-                        </select>
-                        <div class="form-text" id="tipo-rapido-hint">Seleccioná primero un concepto.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Monto</label>
-                        <input type="number" class="form-control" name="monto" step="0.01" min="0.01" data-money-input required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Instrumento</label>
-                        <select class="form-select" name="instrumento_id" required id="select-instrumento">
-                            <option value="">Cargando...</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Descripción</label>
-                        <input type="text" class="form-control" name="descripcion" required>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-primary">Guardar movimiento</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Nuevo Arqueo -->
-<div class="modal fade app-modal app-modal--sky" id="modalNuevoArqueo" tabindex="-1" aria-labelledby="modalNuevoArqueoPanelTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header app-modal__header">
-                <div class="app-modal__title-group">
-                    <span class="app-modal__eyebrow">Cierre</span>
-                    <h5 class="modal-title" id="modalNuevoArqueoPanelTitle">Nuevo arqueo de caja</h5>
-                    <p class="app-modal__subtitle">Registra el cierre del turno con saldo esperado, saldo real y observaciones.</p>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-            </div>
-            <form id="formArqueo">
-                <div class="modal-body">
-                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Fecha *</label>
-                            <input type="date" class="form-control" name="fecha" id="arqueoFecha" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Turno *</label>
-                            <select class="form-select" name="turno" required>
-                                <option value="mañana">Mañana</option>
-                                <option value="tarde">Tarde</option>
-                                <option value="noche">Noche</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label">Saldo Inicial *</label>
-                            <input type="number" class="form-control" name="saldo_inicial" step="0.01" data-money-input required>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Ingresos del Turno</label>
-                            <input type="number" class="form-control" name="ingresos" step="0.01" data-money-input>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Egresos del Turno</label>
-                            <input type="number" class="form-control" name="egresos" step="0.01" data-money-input>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Saldo Real (conteo físico) *</label>
-                            <input type="number" class="form-control" name="saldo_real" step="0.01" data-money-input required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Observaciones</label>
-                            <input type="text" class="form-control" name="observaciones">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-primary">Guardar arqueo</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+{% with mov_modo='panel' %}{% include "tesoreria/_modal_movimiento.html" %}{% endwith %}
+{% with arqueo_modo='panel' %}{% include "tesoreria/_modal_arqueo.html" %}{% endwith %}
 
 <script>
     let flujoChart, instrumentosChart;
-    let conceptosRapidos = [];
 
     document.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('arqueoFecha').value = new Date().toISOString().split('T')[0];
         cargarDatos();
+        cargarFormularios();
     });
+    document.addEventListener('tesoreria:movimiento-guardado', cargarDatos);
+    document.addEventListener('tesoreria:arqueo-guardado', cargarDatos);
+
+    // Ids del modal de movimiento del panel (los originales del panel).
+    const IDS_MOV_PANEL = {concepto: 'select-concepto-rapido', tipo: 'select-tipo-rapido', hint: 'tipo-rapido-hint', instrumento: 'select-instrumento'};
+
+    function cargarFormularios() {
+        fetch('/api/tesoreria/instrumentos')
+            .then(r => r.json())
+            .then(data => {
+                TesoreriaForms.cargarInstrumentos(data.instrumentos || [], IDS_MOV_PANEL);
+            })
+            .catch(e => console.error('Error instrumentos:', e));
+        fetch('/api/gastos/categorias')
+            .then(r => r.json())
+            .then(data => TesoreriaForms.cargarConceptos(data.categorias || [], IDS_MOV_PANEL))
+            .catch(e => console.error('Error conceptos:', e));
+        document.getElementById(IDS_MOV_PANEL.concepto)
+            ?.addEventListener('change', () => TesoreriaForms.sincronizarTipoRapido(IDS_MOV_PANEL));
+        document.getElementById('formMovimiento')?.addEventListener('submit', function (e) {
+            e.preventDefault();
+            TesoreriaForms.enviarMovimiento(this, () => {
+                bootstrap.Modal.getInstance(document.getElementById('modalNuevoMovimiento'))?.hide();
+                this.reset();
+                TesoreriaForms.sincronizarTipoRapido(IDS_MOV_PANEL);
+                cargarDatos();
+            });
+        });
+        document.getElementById('arqueoFecha').value = new Date().toISOString().split('T')[0];
+        TesoreriaForms.montarArqueoPanel(document.getElementById('formArqueo'), (form) => {
+            bootstrap.Modal.getInstance(document.getElementById('modalNuevoArqueo'))?.hide();
+            form.reset();
+            document.getElementById('arqueoFecha').value = new Date().toISOString().split('T')[0];
+            cargarDatos();
+        });
+    }
 
     function cargarDatos() {
         // Cargar movimientos
@@ -246,17 +170,6 @@
 
         // Cargar charts
         cargarGraficos();
-
-        // Cargar instrumentos
-        fetch('/api/tesoreria/instrumentos')
-            .then(r => r.json())
-            .then(data => cargarInstrumentos(data.instrumentos || []))
-            .catch(e => console.error('Error instrumentos:', e));
-
-        fetch('/api/gastos/categorias')
-            .then(r => r.json())
-            .then(data => cargarConceptosRapidos(data.categorias || []))
-            .catch(e => console.error('Error conceptos:', e));
 
         // Cargar arqueos
         fetch('/api/tesoreria/arqueos?per_page=5')
@@ -287,13 +200,6 @@
     function safeNumber(value) {
         const n = Number(value);
         return Number.isFinite(n) ? n : 0;
-    }
-
-    function fmtNumAbbr(n) {
-        const abs = Math.abs(n);
-        if (abs >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
-        if (abs >= 1000) return '$' + (n / 1000).toFixed(0) + 'K';
-        return '$' + Math.round(n).toLocaleString('es-AR');
     }
 
     function cargarGraficos() {
@@ -372,7 +278,7 @@
                             callbacks: {
                                 label: (ctx) => {
                                     const v = safeNumber(ctx.parsed?.y ?? ctx.parsed ?? 0);
-                                    return `${ctx.dataset.label}: $${v.toLocaleString('es-AR')}`;
+                                    return `${ctx.dataset.label}: ${TesoreriaForms.importe(v, 0)}`;
                                 }
                             }
                         }
@@ -427,8 +333,7 @@
                             callbacks: {
                                 label: (ctx) => {
                                     const label = ctx.label ? `${ctx.label}: ` : '';
-                                    const v = safeNumber(ctx.parsed || 0);
-                                    return label + '$' + v.toLocaleString('es-AR');
+                                    return label + TesoreriaForms.importe(safeNumber(ctx.parsed || 0), 0);
                                 }
                             }
                         }
@@ -450,22 +355,23 @@
             </div></td></tr>`;
             return;
         }
-        
+
         let ingresos = 0, egresos = 0;
         movimientos.forEach(m => {
             if (m.tipo === 'ingreso') ingresos += parseFloat(m.monto);
             else egresos += parseFloat(m.monto);
         });
-        
-        document.getElementById('ingresos-hoy').textContent = '$' + ingresos.toLocaleString('es-AR', {maximumFractionDigits:0});
-        document.getElementById('egresos-hoy').textContent = '$' + egresos.toLocaleString('es-AR', {maximumFractionDigits:0});
-        document.getElementById('saldo-actual').textContent = '$' + (ingresos - egresos).toLocaleString('es-AR', {maximumFractionDigits:0});
-        
+        const decimalesKpi = TesoreriaForms.decimalesPara([ingresos, egresos, ingresos - egresos]);
+        document.getElementById('ingresos-hoy').textContent = TesoreriaForms.importe(ingresos, decimalesKpi);
+        document.getElementById('egresos-hoy').textContent = TesoreriaForms.importe(egresos, decimalesKpi);
+        document.getElementById('saldo-actual').textContent = TesoreriaForms.importe(ingresos - egresos, decimalesKpi);
+
+        const decimales = TesoreriaForms.decimalesPara(movimientos.map(m => m.monto));
         tbody.innerHTML = movimientos.map(m => `
             <tr>
                 <td>${escapeHtml(new Date(m.fecha_hora).toLocaleString('es-AR'))}</td>
-                <td><span class="badge ${escapeHtml(m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger')}">${escapeHtml(m.tipo)}</span></td>
-                <td>$${escapeHtml(parseFloat(m.monto).toLocaleString('es-AR'))}</td>
+                <td>${TesoreriaForms.tipoHtml(m.tipo)}</td>
+                <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(m.monto, decimales))}</td>
                 <td>${escapeHtml(m.instrumento)}</td>
                 <td>${escapeHtml(m.descripcion)}</td>
                 <td>${escapeHtml(m.usuario || 'N/A')}</td>
@@ -483,156 +389,26 @@
             </div></td></tr>`;
             return;
         }
-        tbody.innerHTML = arqueos.map(a => {
-            const difClass = a.diferencia < 0 ? 'text-danger' : a.diferencia > 0 ? 'text-warning' : 'text-success';
-            const ingresos = parseFloat(a.ingresos_total || a.ingresos || 0);
-            const egresos = parseFloat(a.egresos_total || a.egresos || 0);
-            return `
+        const filas = arqueos.map(a => ({
+            ...a,
+            ingresos: parseFloat(a.ingresos_total || a.ingresos || 0),
+            egresos: parseFloat(a.egresos_total || a.egresos || 0),
+        }));
+        const decimales = TesoreriaForms.decimalesPara(filas.flatMap(a => [
+            parseFloat(a.saldo_inicial || 0), a.ingresos, a.egresos, parseFloat(a.saldo_final || 0), parseFloat(a.diferencia || 0),
+        ]));
+        tbody.innerHTML = filas.map(a => `
             <tr>
                 <td>${escapeHtml(a.fecha)}</td>
                 <td>${escapeHtml(a.turno || '-')}</td>
-                <td>$${escapeHtml(parseFloat(a.saldo_inicial).toLocaleString('es-AR'))}</td>
-                <td class="text-success">$${escapeHtml(ingresos.toLocaleString('es-AR'))}</td>
-                <td class="text-danger">$${escapeHtml(egresos.toLocaleString('es-AR'))}</td>
-                <td>$${escapeHtml(parseFloat(a.saldo_final || 0).toLocaleString('es-AR'))}</td>
-                <td class="${escapeHtml(difClass)}"><strong>$${escapeHtml(parseFloat(a.diferencia || 0).toLocaleString('es-AR'))}</strong></td>
+                <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(a.saldo_inicial, decimales))}</td>
+                <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(a.ingresos, decimales))}</td>
+                <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(a.egresos, decimales))}</td>
+                <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(a.saldo_final || 0, decimales))}</td>
+                <td class="text-end">${TesoreriaForms.celdaDiferenciaHtml(a.diferencia, decimales)}</td>
             </tr>
-        `}).join('');
+        `).join('');
     }
-
-    function cargarInstrumentos(instrumentos) {
-        const select = document.getElementById('select-instrumento');
-        if (instrumentos.length) {
-            select.innerHTML = instrumentos.map(i => `<option value="${escapeHtml(i.id)}">${escapeHtml(i.nombre)}</option>`).join('');
-        } else {
-            select.innerHTML = '<option value="">Sin instrumentos</option>';
-        }
-    }
-
-    function cargarConceptosRapidos(conceptos) {
-        conceptosRapidos = conceptos.filter(c => c.naturaleza);
-        const select = document.getElementById('select-concepto-rapido');
-        select.innerHTML = '<option value="">Seleccionar…</option>' + conceptosRapidos.map(c => {
-            const efecto = c.efecto === 'suma' ? 'Suma' : c.efecto === 'resta' ? 'Resta' :
-                c.efecto === 'segun_movimiento' ? 'Según movimiento' : 'No participa';
-            const naturaleza = c.naturaleza === 'ambos' ? 'Ambos' :
-                c.naturaleza.charAt(0).toUpperCase() + c.naturaleza.slice(1);
-            return `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nombre)} · ${escapeHtml(naturaleza)} · ${escapeHtml(efecto)}</option>`;
-        }).join('');
-    }
-
-    function sincronizarTipoRapido() {
-        const conceptoId = Number(document.getElementById('select-concepto-rapido').value || 0);
-        const concepto = conceptosRapidos.find(c => Number(c.id) === conceptoId);
-        const tipo = document.getElementById('select-tipo-rapido');
-        const hint = document.getElementById('tipo-rapido-hint');
-        if (!concepto) {
-            tipo.disabled = true;
-            hint.textContent = 'Seleccioná primero un concepto.';
-        } else if (concepto.naturaleza === 'ambos') {
-            tipo.disabled = false;
-            tipo.value = 'ingreso';
-            hint.textContent = 'Este concepto admite ambos tipos.';
-        } else {
-            tipo.value = concepto.naturaleza;
-            tipo.disabled = true;
-            hint.textContent = `Tipo fijado por el concepto: ${concepto.naturaleza}.`;
-        }
-    }
-
-    document.getElementById('select-concepto-rapido')?.addEventListener('change', sincronizarTipoRapido);
-
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-
-    // Avisos ligados al formulario: el error se muestra dentro del modal, sin prefijo técnico.
-    function mostrarErrorFormulario(form, mensaje) {
-        const aviso = form?.querySelector('[data-form-error]');
-        if (!aviso) { alert(mensaje); return; }
-        aviso.textContent = mensaje;
-        aviso.classList.remove('d-none');
-    }
-    function ocultarErrorFormulario(form) {
-        form?.querySelector('[data-form-error]')?.classList.add('d-none');
-    }
-
-    // Enviar formulario de movimiento
-    document.getElementById('formMovimiento')?.addEventListener('submit', function(e) {
-        e.preventDefault();
-        ocultarErrorFormulario(this);
-        const formData = new FormData(this);
-        const data = {
-            tipo: formData.get('tipo'),
-            monto: parseFloat(formData.get('monto')),
-            instrumento_id: parseInt(formData.get('instrumento_id')),
-            categoria_gasto_id: parseInt(formData.get('categoria_gasto_id')),
-            descripcion: formData.get('descripcion')
-        };
-        
-        fetch('/api/tesoreria/movimientos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify(data)
-        })
-        .then(r => r.json())
-        .then(d => {
-            if (d.message) {
-                bootstrap.Modal.getInstance(document.getElementById('modalNuevoMovimiento')).hide();
-                this.reset();
-                sincronizarTipoRapido();
-                cargarDatos();
-            } else {
-                mostrarErrorFormulario(this, d.error || 'No se pudo guardar el movimiento. Revisá los datos e intentá de nuevo.');
-            }
-        })
-        .catch(e => {
-            console.error('Error:', e);
-            mostrarErrorFormulario(this, 'No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
-        });
-    });
-
-    // Enviar formulario de arqueo
-    document.getElementById('formArqueo')?.addEventListener('submit', function(e) {
-        e.preventDefault();
-        ocultarErrorFormulario(this);
-        const formData = new FormData(this);
-        
-        const inicial = parseFloat(formData.get('saldo_inicial')) || 0;
-        const ingresos = parseFloat(formData.get('ingresos')) || 0;
-        const egresos = parseFloat(formData.get('egresos')) || 0;
-        const real = parseFloat(formData.get('saldo_real')) || 0;
-        
-        const data = {
-            fecha: formData.get('fecha'),
-            turno: formData.get('turno'),
-            saldo_inicial: inicial,
-            ingresos: ingresos,
-            egresos: egresos,
-            saldo_final: real,
-            diferencia: real - (inicial + ingresos - egresos),
-            observaciones: formData.get('observaciones')
-        };
-        
-        fetch('/api/tesoreria/arqueos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify(data)
-        })
-        .then(r => r.json())
-        .then(d => {
-            if (d.message) {
-                bootstrap.Modal.getInstance(document.getElementById('modalNuevoArqueo')).hide();
-                this.reset();
-                document.getElementById('arqueoFecha').value = new Date().toISOString().split('T')[0];
-                cargarDatos();
-            } else {
-                mostrarErrorFormulario(this, d.error || 'No se pudo guardar el arqueo. Revisá los datos e intentá de nuevo.');
-            }
-        })
-        .catch(e => {
-            console.error('Error:', e);
-            mostrarErrorFormulario(this, 'No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
-        });
-    });
 </script>
 
 <style>

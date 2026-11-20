@@ -1,0 +1,164 @@
+{# Modal «Nuevo arqueo de caja» (SIS-1C). Parámetro arqueo_modo:
+   - 'completo' (por defecto, pantalla Arqueos): saldo esperado con ingresos y egresos del sistema, diferencia
+     calculada, conteo por instrumento y detalles. Lo monta static/js/tesoreria_forms.js (montarArqueo).
+   - 'panel' (Tesorería): ingresos y egresos editables, etiquetas originales del panel, sin conteo por instrumento.
+     Lo monta montarArqueoPanel (mismo payload que el panel original).
+   Ids que usan los E2E (no cambiar): #formArqueo, #modalNuevoArqueo, #saldoReal; en completo también
+   #ingresosTurnoSistema, #egresosTurnoSistema, #diferenciaCalc, #avisoTotalesTurno, #detalleInstrumentos y el texto «Saldo Inicial». #}
+{% set panel = (arqueo_modo | default('completo')) == 'panel' %}
+{% if panel %}
+<div class="modal fade app-modal app-modal--sky" id="modalNuevoArqueo" tabindex="-1"
+     aria-labelledby="modalNuevoArqueoPanelTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Cierre</span>
+                    <h5 class="modal-title" id="modalNuevoArqueoPanelTitle">Nuevo arqueo de caja</h5>
+                    <p class="app-modal__subtitle">Registra el cierre del turno con saldo esperado, saldo real y observaciones.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <form id="formArqueo">
+                <div class="modal-body tes-arqueo__cuerpo">
+                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
+                    <div class="app-form-grid app-form-grid--cols-3">
+                        <div class="app-field">
+                            <label class="app-field__label" for="arqueoFecha">Fecha *</label>
+                            <input class="app-field__control" type="date" name="fecha" id="arqueoFecha" required>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="arqueoTurno">Turno *</label>
+                            <select class="app-field__control" name="turno" id="arqueoTurno" required>
+                                <option value="mañana">Mañana</option>
+                                <option value="tarde">Tarde</option>
+                                <option value="noche">Noche</option>
+                            </select>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="arqueoSaldoInicial">Saldo Inicial *</label>
+                            <input class="app-field__control tes-numero" type="number" id="arqueoSaldoInicial" name="saldo_inicial"
+                                   step="0.01" data-money-input required>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="arqueoIngresos">Ingresos del Turno</label>
+                            <input class="app-field__control tes-numero" type="number" id="arqueoIngresos" name="ingresos"
+                                   step="0.01" data-money-input>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="arqueoEgresos">Egresos del Turno</label>
+                            <input class="app-field__control tes-numero" type="number" id="arqueoEgresos" name="egresos"
+                                   step="0.01" data-money-input>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="saldoReal">Saldo Real (conteo físico) *</label>
+                            <input class="app-field__control tes-numero" type="number" id="saldoReal" name="saldo_real"
+                                   step="0.01" data-money-input required>
+                        </div>
+                        <div class="app-field app-form-grid__full">
+                            <label class="app-field__label" for="arqueoObservaciones">Observaciones</label>
+                            <input class="app-field__control" type="text" id="arqueoObservaciones" name="observaciones">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar arqueo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="modal fade app-modal app-modal--blue" id="modalNuevoArqueo" tabindex="-1"
+     aria-labelledby="modalNuevoArqueoTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Cierre</span>
+                    <h5 class="modal-title" id="modalNuevoArqueoTitle">Nuevo arqueo de caja</h5>
+                    <p class="app-modal__subtitle">Registra el cierre del turno con saldo esperado, conteo real y detalle por instrumento.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <form id="formArqueo">
+                <div class="modal-body tes-arqueo__cuerpo">
+                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
+                    <div class="app-form-grid app-form-grid--cols-3">
+                        <div class="app-field">
+                            <label class="app-field__label" for="arqueoFecha">Fecha *</label>
+                            <input class="app-field__control" type="date" name="fecha" id="arqueoFecha" required>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="arqueoTurno">Turno *</label>
+                            <select class="app-field__control" name="turno" id="arqueoTurno" required>
+                                <option value="mañana">Mañana</option>
+                                <option value="tarde">Tarde</option>
+                                <option value="noche">Noche</option>
+                            </select>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="arqueoSaldoInicial">Saldo Inicial *</label>
+                            <input class="app-field__control tes-numero" type="number" id="arqueoSaldoInicial" name="saldo_inicial"
+                                   step="0.01" data-money-input data-money-calc="saldo_inicial" required>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="ingresosTurnoSistema">Ingresos del turno (sistema)</label>
+                            <input class="app-field__control tes-numero" type="text" id="ingresosTurnoSistema" readonly>
+                            <span class="tes-ayuda">Se toman de los movimientos del turno.</span>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="egresosTurnoSistema">Egresos del turno (sistema)</label>
+                            <input class="app-field__control tes-numero" type="text" id="egresosTurnoSistema" readonly>
+                            <span class="tes-ayuda">Se toman de los movimientos del turno.</span>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="saldoReal">Saldo Real (conteo físico) *</label>
+                            <input class="app-field__control tes-numero" type="number" id="saldoReal" name="saldo_real"
+                                   step="0.01" data-money-input data-money-calc="saldo_real" required>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="diferenciaCalc">Diferencia (calculada)</label>
+                            <input class="app-field__control tes-numero" type="text" id="diferenciaCalc" readonly>
+                            <span class="tes-ayuda" id="diferenciaEstado"></span>
+                        </div>
+                        <div class="app-field app-form-grid__full">
+                            <label class="app-field__label" for="arqueoObservaciones">Observaciones</label>
+                            <input class="app-field__control" type="text" id="arqueoObservaciones" name="observaciones">
+                        </div>
+                    </div>
+                    <p class="tes-aviso" id="avisoTotalesTurno" role="alert" hidden></p>
+
+                    <h3 class="tes-seccion">Conteo por instrumento</h3>
+                    <table class="app-table">
+                        <thead class="app-table__head">
+                            <tr>
+                                <th class="app-table__head-cell" scope="col">Instrumento</th>
+                                <th class="app-table__head-cell app-table__numeric" scope="col">Conteo real</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detalleInstrumentos">
+                            <tr><td class="app-table__cell" colspan="2">Cargando instrumentos...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar arqueo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+<style>
+    /* Reglas propias de Tesorería: el sistema no las define. Solo tokens por nombre. */
+    .tes-arqueo__cuerpo { max-height: calc(100vh - 16rem); overflow-y: auto; }
+    .tes-numero { text-align: right; font-variant-numeric: tabular-nums; }
+    .tes-ayuda { color: var(--color-text-muted); font-size: var(--font-size-note); }
+    .tes-aviso { margin: var(--space-cell-y) 0 0; color: var(--state-error-ink); font-size: var(--font-size-note); }
+    .tes-aviso[hidden] { display: none; }
+    .tes-seccion { margin: var(--space-section) 0 var(--space-cell-y); color: var(--color-text-primary); font-size: var(--font-size-section); font-weight: var(--font-weight-strong); }
+    .tes-arqueo__cuerpo .app-table__cell > .app-field__control { text-align: right; font-variant-numeric: tabular-nums; }
+</style>

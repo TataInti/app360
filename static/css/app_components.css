@@ -31,6 +31,50 @@
     font-weight: var(--font-weight-strong);
 }
 
+.app-input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: var(--control-height);
+    padding: var(--space-cell-y) var(--space-cell-x);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    color: var(--color-text-body);
+    font-family: var(--font-family-base);
+    font-size: var(--font-size-body);
+}
+
+.app-input:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 1px;
+}
+
+.app-input-unit > .app-input {
+    flex: 1 1 auto;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+}
+
+.app-input-unit > .app-input:focus-visible {
+    outline: 0;
+}
+
+.app-field__help,
+.app-field__error {
+    display: block;
+    font-size: var(--font-size-label);
+}
+
+.app-field__help {
+    color: var(--color-text-muted);
+}
+
+.app-field__error {
+    color: var(--state-error-ink);
+}
+
 .app-field__control {
     box-sizing: border-box;
     width: 100%;
@@ -69,7 +113,8 @@
 }
 
 .app-input-unit__prefix,
-.app-input-unit__suffix {
+.app-input-unit__suffix,
+.app-input-unit__text {
     flex: 0 0 auto;
     padding: 0 var(--space-cell-x);
     color: var(--color-text-muted);
@@ -177,6 +222,11 @@
     white-space: nowrap;
 }
 
+.app-status__text {
+    color: var(--color-text-body);
+    font-size: var(--font-size-body);
+}
+
 .app-status__dot {
     display: inline-block;
     flex: 0 0 var(--state-dot-size);
@@ -265,11 +315,22 @@
     color: var(--color-text-primary);
 }
 
+.app-page-head__content {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .app-page-head__title {
     margin: 0;
     color: var(--color-text-primary);
     font-size: var(--font-size-page);
     font-weight: var(--font-weight-page);
+}
+
+.app-page-head__subtitle {
+    margin: var(--space-cell-y) 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-note);
 }
 
 .app-page-head__actions {
@@ -315,4 +376,27 @@
 
 .app-actions__secondary:hover {
     background: var(--color-hover);
+}
+
+/* SIS-1B: el primario de Bootstrap usa la acción institucional. */
+.btn-primary:not(.com-primary):not(.criterio-btn):not(.btn-outline-primary):not(.btn-secondary):not(.btn-success):not(.btn-warning):not(.app-modal .btn-primary) {
+    --bs-btn-color: var(--color-surface);
+    --bs-btn-bg: var(--color-action);
+    --bs-btn-border-color: var(--color-action);
+    --bs-btn-hover-color: var(--color-surface);
+    --bs-btn-hover-bg: var(--color-action-hover);
+    --bs-btn-hover-border-color: var(--color-action-hover);
+    --bs-btn-active-color: var(--color-surface);
+    --bs-btn-active-bg: var(--color-action-hover);
+    --bs-btn-active-border-color: var(--color-action-hover);
+    --bs-btn-disabled-color: var(--color-text-muted);
+    --bs-btn-disabled-bg: var(--color-surface-muted);
+    --bs-btn-disabled-border-color: var(--color-border);
+    --bs-btn-disabled-opacity: 1;
+}
+
+.btn-primary:not(.com-primary):not(.criterio-btn):not(.btn-outline-primary):not(.btn-secondary):not(.btn-success):not(.btn-warning):not(.app-modal .btn-primary):focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+    box-shadow: none;
 }

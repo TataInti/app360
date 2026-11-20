@@ -1,57 +1,105 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+    .friar-resumen {
+        max-width: 32rem;
+        margin: 0 0 var(--space-section);
+    }
+    .friar-resumen__titulo {
+        margin: 0 0 var(--space-cell-y);
+        color: var(--color-text-muted);
+        font-size: var(--font-size-label);
+        font-weight: var(--font-weight-strong);
+    }
+    .friar-resumen__nota {
+        margin: var(--space-cell-y) 0 0;
+        color: var(--color-text-muted);
+        font-size: var(--font-size-note);
+    }
+</style>
+<script src="{{ asset('js/app_format.js') }}" defer></script>
 <div class="container-fluid">
-    <div class="panel-header">
+    <header class="panel-header">
         <div>
             <h1><i class="bi bi-wallet2"></i> Cuenta Corriente Friar</h1>
-            <span>Saldo, liquidaciones y pagos de cuenta corriente</span>
+            <span class="panel-subtitle">Saldo, liquidaciones y pagos de cuenta corriente</span>
         </div>
-        <a href="/tesoreria" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Volver
-        </a>
-    </div>
+        <div class="app-actions">
+            <a href="/tesoreria" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Volver
+            </a>
+            <button class="btn btn-sm btn-outline-secondary d-none" id="btnEditarSaldo" onclick="editarSaldoInicial()">
+                <i class="bi bi-pencil"></i> Editar saldo
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="verHistorialCuenta()">
+                <i class="bi bi-clock-history"></i> Historial
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="exportarPagos()">
+                <i class="bi bi-file-earmark-excel"></i> Excel
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalNuevaLiquidacion">
+                <i class="bi bi-plus-circle"></i> Liquidación
+            </button>
+            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoPago">
+                <i class="bi bi-plus-circle"></i> Pago
+            </button>
+        </div>
+    </header>
 
-    <!-- Tarjetas de Resumen -->
-    <div class="kpi-grid">
-        <div class="kpi-card accent-blue"><span class="kpi-label">Saldo Inicial</span><span class="kpi-value" id="saldoInicial">$ 0.00</span><span class="kpi-sub" id="fechaEdicion"></span></div>
-        <div class="kpi-card accent-amber"><span class="kpi-label">+ Liquidaciones</span><span class="kpi-value" id="totalLiquidaciones">$ 0.00</span></div>
-        <div class="kpi-card accent-red"><span class="kpi-label">- Pagos</span><span class="kpi-value" id="totalPagos">$ 0.00</span></div>
-        <div class="kpi-card accent-green"><span class="kpi-label">= Saldo Actual</span><span class="kpi-value" id="saldoActual">$ 0.00</span></div>
-    </div>
-
-    <!-- Acciones Principales -->
-    <div class="action-bar justify-content-center">
-        <button class="btn btn-sm btn-outline-warning d-none" id="btnEditarSaldo" onclick="editarSaldoInicial()">
-            <i class="bi bi-pencil"></i> Editar Saldo
-        </button>
-        <button class="btn btn-sm btn-outline-secondary" onclick="verHistorialCuenta()">
-            <i class="bi bi-clock-history"></i> Historial
-        </button>
-        <button class="btn btn-sm btn-outline-success" onclick="exportarPagos()">
-            <i class="bi bi-file-earmark-excel"></i> Excel
-        </button>
-        <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#modalNuevaLiquidacion">
-            <i class="bi bi-plus-circle"></i> Liquidación
-        </button>
-        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoPago">
-            <i class="bi bi-plus-circle"></i> Pago
-        </button>
-    </div>
+    <!-- Saldo: tabla con fila de total (reemplaza las cuatro tarjetas) -->
+    <section class="friar-resumen" aria-labelledby="friarResumenTitulo">
+        <h2 class="friar-resumen__titulo" id="friarResumenTitulo">Saldo de la cuenta</h2>
+        <div class="empty-state" id="friarSinCuenta" hidden>
+            <div class="empty-icon"><i class="bi bi-journal-x" aria-hidden="true"></i></div>
+            <div class="empty-title">No existe una cuenta corriente Friar configurada.</div>
+            <div class="empty-text">Un administrador puede cargarla desde Administrar Tesorería, pestaña Cuenta Corriente Friar.</div>
+        </div>
+        <table class="app-table" id="friarResumen">
+            <caption class="visually-hidden">Saldo de la cuenta corriente Friar</caption>
+            <thead class="app-table__head">
+                <tr>
+                    <th scope="col" class="app-table__head-cell">Concepto</th>
+                    <th scope="col" class="app-table__head-cell app-table__numeric">Importe</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <th scope="row" class="app-table__cell">Saldo inicial</th>
+                    <td class="app-table__cell app-table__numeric" id="saldoInicial">—</td>
+                </tr>
+                <tr>
+                    <th scope="row" class="app-table__cell">+ Liquidaciones</th>
+                    <td class="app-table__cell app-table__numeric" id="totalLiquidaciones">—</td>
+                </tr>
+                <tr>
+                    <th scope="row" class="app-table__cell">− Pagos</th>
+                    <td class="app-table__cell app-table__numeric" id="totalPagos">—</td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr class="app-table__total">
+                    <th scope="row" class="app-table__cell">= Saldo actual</th>
+                    <td class="app-table__cell app-table__numeric" id="saldoActual">—</td>
+                </tr>
+            </tfoot>
+        </table>
+        <p class="friar-resumen__nota" id="fechaEdicion"></p>
+    </section>
 
     <!-- Filtros -->
     <div class="period-bar dim-bar">
-        <div class="row w-100">
+        <div class="row w-100 g-2 align-items-end">
             <div class="col-md-3">
-                <label class="form-label">Desde</label>
+                <label class="form-label" for="fechaDesde">Desde</label>
                 <input type="date" id="fechaDesde" class="form-control form-control-sm" onchange="cargarLiquidaciones(); cargarPagos()">
             </div>
             <div class="col-md-3">
-                <label class="form-label">Hasta</label>
+                <label class="form-label" for="fechaHasta">Hasta</label>
                 <input type="date" id="fechaHasta" class="form-control form-control-sm" onchange="cargarLiquidaciones(); cargarPagos()">
             </div>
             <div class="col-md-3 d-flex align-items-end">
-                <button class="btn btn-sm btn-secondary" onclick="limpiarFiltros()">
+                <button class="btn btn-sm btn-outline-secondary" onclick="limpiarFiltros()">
                     <i class="bi bi-x-circle"></i> Limpiar
                 </button>
             </div>
@@ -80,21 +128,21 @@
                     <h3><i class="bi bi-file-earmark-text"></i> Liquidaciones recibidas de Friar</h3>
                 </div>
                 <div class="scroll-table">
-                    <table class="table table-hover mb-0">
-                        <thead>
+                    <table class="app-table">
+                        <thead class="app-table__head">
                             <tr>
-                                <th>ID</th>
-                                <th>Fecha</th>
-                                <th>Monto</th>
-                                <th>Tipo</th>
-                                <th>Descripción</th>
-                                <th>Referencia</th>
-                                <th>Usuario</th>
-                                <th>Acciones</th>
+                                <th scope="col" class="app-table__head-cell">ID</th>
+                                <th scope="col" class="app-table__head-cell">Fecha</th>
+                                <th scope="col" class="app-table__head-cell app-table__numeric">Monto</th>
+                                <th scope="col" class="app-table__head-cell">Tipo</th>
+                                <th scope="col" class="app-table__head-cell">Descripción</th>
+                                <th scope="col" class="app-table__head-cell">Referencia</th>
+                                <th scope="col" class="app-table__head-cell">Usuario</th>
+                                <th scope="col" class="app-table__head-cell">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="tablaLiquidaciones">
-                            <tr><td colspan="8" class="text-center"><span class="loading-text">Cargando…</span></td></tr>
+                            <tr><td colspan="8" class="app-table__cell"><span class="loading-text">Cargando…</span></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -108,21 +156,21 @@
                     <h3><i class="bi bi-list-ul"></i> Listado de Pagos</h3>
                 </div>
                 <div class="scroll-table">
-                    <table class="table table-hover mb-0">
-                        <thead>
+                    <table class="app-table">
+                        <thead class="app-table__head">
                             <tr>
-                                <th>ID</th>
-                                <th>Fecha</th>
-                                <th>Monto</th>
-                                <th>Instrumento</th>
-                                <th>Descripción</th>
-                                <th>Referencia</th>
-                                <th>Usuario</th>
-                                <th>Acciones</th>
+                                <th scope="col" class="app-table__head-cell">ID</th>
+                                <th scope="col" class="app-table__head-cell">Fecha</th>
+                                <th scope="col" class="app-table__head-cell app-table__numeric">Monto</th>
+                                <th scope="col" class="app-table__head-cell">Instrumento</th>
+                                <th scope="col" class="app-table__head-cell">Descripción</th>
+                                <th scope="col" class="app-table__head-cell">Referencia</th>
+                                <th scope="col" class="app-table__head-cell">Usuario</th>
+                                <th scope="col" class="app-table__head-cell">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="tablaPagos">
-                            <tr><td colspan="8" class="text-center"><span class="loading-text">Cargando pagos…</span></td></tr>
+                            <tr><td colspan="8" class="app-table__cell"><span class="loading-text">Cargando pagos…</span></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -132,8 +180,8 @@
 </div>
 
 <!-- Modal: Editar Saldo Inicial -->
-<div class="modal fade app-modal app-modal--amber" id="modalEditarSaldo" tabindex="-1" aria-labelledby="modalEditarSaldoTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+<div class="modal fade app-modal app-modal--neutral" id="modalEditarSaldo" tabindex="-1" aria-labelledby="modalEditarSaldoTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header app-modal__header">
                 <div class="app-modal__title-group">
@@ -144,32 +192,32 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
-                <form id="formEditarSaldo">
-                    <div class="mb-3">
-                        <label for="nuevoSaldoInicial" class="form-label">Nuevo Saldo Inicial *</label>
-                        <input type="number" step="0.01" class="form-control" id="nuevoSaldoInicial" data-money-input required>
+                <form id="formEditarSaldo" class="app-form-grid app-form-grid--cols-2">
+                    <div class="app-field">
+                        <label class="app-field__label" for="nuevoSaldoInicial">Nuevo saldo inicial *</label>
+                        <input type="number" step="0.01" class="form-control app-field__control" id="nuevoSaldoInicial" data-money-input required>
                     </div>
-                    <div class="mb-3">
-                        <label for="observacionesSaldo" class="form-label">Observaciones</label>
-                        <textarea class="form-control" id="observacionesSaldo" rows="2"></textarea>
+                    <div class="app-field">
+                        <label class="app-field__label" for="observacionesSaldo">Observaciones</label>
+                        <textarea class="form-control app-field__control" id="observacionesSaldo" rows="2"></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label for="justificacionSaldo" class="form-label">Justificación del Cambio *</label>
-                        <textarea class="form-control" id="justificacionSaldo" rows="3" required></textarea>
-                        <div class="form-text">Explique el motivo del cambio en el saldo inicial</div>
+                    <div class="app-field app-form-grid__full">
+                        <label class="app-field__label" for="justificacionSaldo">Justificación del cambio *</label>
+                        <textarea class="form-control app-field__control" id="justificacionSaldo" rows="3" required></textarea>
+                        <small class="form-text">Explicá el motivo del cambio en el saldo inicial.</small>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-sm btn-warning" onclick="guardarSaldoInicial()">Guardar cambios</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="guardarSaldoInicial()">Guardar cambios</button>
             </div>
         </div>
     </div>
 </div>
 
 <!-- Modal: Historial de Cambios -->
-<div class="modal fade app-modal app-modal--sky" id="modalHistorialCuenta" tabindex="-1" aria-labelledby="modalHistorialCuentaTitle" aria-hidden="true">
+<div class="modal fade app-modal app-modal--neutral" id="modalHistorialCuenta" tabindex="-1" aria-labelledby="modalHistorialCuentaTitle" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header app-modal__header">
@@ -197,7 +245,7 @@
 
 <!-- Modal: Nuevo Pago -->
 <div class="modal fade app-modal app-modal--blue" id="modalNuevoPago" tabindex="-1" aria-labelledby="modalNuevoPagoTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header app-modal__header">
                 <div class="app-modal__title-group">
@@ -208,28 +256,28 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
-                <form id="formNuevoPago">
-                    <div class="mb-3">
-                        <label for="fechaPago" class="form-label">Fecha *</label>
-                        <input type="date" class="form-control" id="fechaPago" required>
+                <form id="formNuevoPago" class="app-form-grid app-form-grid--cols-2">
+                    <div class="app-field">
+                        <label class="app-field__label" for="fechaPago">Fecha *</label>
+                        <input type="date" class="form-control app-field__control" id="fechaPago" required>
                     </div>
-                    <div class="mb-3">
-                        <label for="montoPago" class="form-label">Monto *</label>
-                        <input type="number" step="0.01" class="form-control" id="montoPago" data-money-input required>
+                    <div class="app-field">
+                        <label class="app-field__label" for="montoPago">Monto *</label>
+                        <input type="number" step="0.01" class="form-control app-field__control" id="montoPago" data-money-input required>
                     </div>
-                    <div class="mb-3">
-                        <label for="instrumentoPago" class="form-label">Instrumento de Pago *</label>
-                        <select class="form-select" id="instrumentoPago" required>
+                    <div class="app-field">
+                        <label class="app-field__label" for="instrumentoPago">Instrumento de pago *</label>
+                        <select class="form-select app-field__control" id="instrumentoPago" required>
                             <option value="">Seleccione...</option>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label for="descripcionPago" class="form-label">Descripción *</label>
-                        <textarea class="form-control" id="descripcionPago" rows="2" required></textarea>
+                    <div class="app-field">
+                        <label class="app-field__label" for="referenciaPago">Referencia / comprobante</label>
+                        <input type="text" class="form-control app-field__control" id="referenciaPago">
                     </div>
-                    <div class="mb-3">
-                        <label for="referenciaPago" class="form-label">Referencia / Comprobante</label>
-                        <input type="text" class="form-control" id="referenciaPago">
+                    <div class="app-field app-form-grid__full">
+                        <label class="app-field__label" for="descripcionPago">Descripción *</label>
+                        <textarea class="form-control app-field__control" id="descripcionPago" rows="2" required></textarea>
                     </div>
                 </form>
             </div>
@@ -242,8 +290,8 @@
 </div>
 
 <!-- Modal: Nueva Liquidación -->
-<div class="modal fade app-modal app-modal--amber" id="modalNuevaLiquidacion" tabindex="-1" aria-labelledby="modalNuevaLiquidacionTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+<div class="modal fade app-modal app-modal--neutral" id="modalNuevaLiquidacion" tabindex="-1" aria-labelledby="modalNuevaLiquidacionTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header app-modal__header">
                 <div class="app-modal__title-group">
@@ -254,36 +302,36 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
-                <form id="formNuevaLiquidacion">
-                    <div class="mb-3">
-                        <label for="fechaLiq" class="form-label">Fecha *</label>
-                        <input type="date" class="form-control" id="fechaLiq" required>
+                <form id="formNuevaLiquidacion" class="app-form-grid app-form-grid--cols-2">
+                    <div class="app-field">
+                        <label class="app-field__label" for="fechaLiq">Fecha *</label>
+                        <input type="date" class="form-control app-field__control" id="fechaLiq" required>
                     </div>
-                    <div class="mb-3">
-                        <label for="montoLiq" class="form-label">Monto *</label>
-                        <input type="number" step="0.01" class="form-control" id="montoLiq" data-money-input required>
+                    <div class="app-field">
+                        <label class="app-field__label" for="montoLiq">Monto *</label>
+                        <input type="number" step="0.01" class="form-control app-field__control" id="montoLiq" data-money-input required>
                     </div>
-                    <div class="mb-3">
-                        <label for="tipoLiq" class="form-label">Tipo *</label>
-                        <select class="form-select" id="tipoLiq" required>
+                    <div class="app-field">
+                        <label class="app-field__label" for="tipoLiq">Tipo *</label>
+                        <select class="form-select app-field__control" id="tipoLiq" required>
                             <option value="consignado">Consignado</option>
                             <option value="no_consignado">No Consignado</option>
                             <option value="ajuste">Ajuste</option>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label for="descripcionLiq" class="form-label">Descripción *</label>
-                        <textarea class="form-control" id="descripcionLiq" rows="2" required></textarea>
+                    <div class="app-field">
+                        <label class="app-field__label" for="referenciaLiq">Nro Liquidación / referencia</label>
+                        <input type="text" class="form-control app-field__control" id="referenciaLiq">
                     </div>
-                    <div class="mb-3">
-                        <label for="referenciaLiq" class="form-label">Nro Liquidación / Referencia</label>
-                        <input type="text" class="form-control" id="referenciaLiq">
+                    <div class="app-field app-form-grid__full">
+                        <label class="app-field__label" for="descripcionLiq">Descripción *</label>
+                        <textarea class="form-control app-field__control" id="descripcionLiq" rows="2" required></textarea>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-sm btn-warning" onclick="guardarLiquidacion()">Registrar</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="guardarLiquidacion()">Registrar</button>
             </div>
         </div>
     </div>
@@ -292,6 +340,22 @@
 <script>
 let cuentaActual = null;
 const isAdmin = {{ 'true' if session.get('role') in ['admin', 'manager', 'gerente'] else 'false' }};
+const TIPOS_LIQUIDACION = Object.assign(Object.create(null), {
+    consignado: 'Consignado',
+    no_consignado: 'No consignado',
+    ajuste: 'Ajuste',
+});
+
+function importe(valor) {
+    return App360Format.formatARS(valor, {decimales: 2});
+}
+
+function filaVacia(titulo, texto, columnas = 8) {
+    return `<tr><td colspan="${columnas}" class="app-table__cell"><div class="empty-state">`
+        + `<div class="empty-title">${escapeHtml(titulo)}</div>`
+        + `<div class="empty-text">${escapeHtml(texto)}</div>`
+        + `</div></td></tr>`;
+}
 
 function getUI() {
     return window.App360UI;
@@ -379,11 +443,17 @@ function alert(message) {
     notify(content, variant, { title });
 }
 
+// Sin cuenta: se muestra el estado vacío con el siguiente paso; la tabla de saldo se oculta.
+function mostrarSinCuenta(sinCuenta) {
+    document.getElementById("friarSinCuenta").hidden = !sinCuenta;
+    document.getElementById("friarResumen").hidden = sinCuenta;
+}
+
 document.addEventListener("DOMContentLoaded", function() {
     // Establecer fecha de hoy en los modales
     document.getElementById("fechaPago").valueAsDate = new Date();
     document.getElementById("fechaLiq").valueAsDate = new Date();
-    
+
     cargarCuentaCorriente();
     cargarInstrumentos();
     cargarLiquidaciones();
@@ -394,26 +464,27 @@ async function cargarCuentaCorriente() {
     try {
         const response = await fetch("/api/tesoreria/cta-cte-friar");
         const data = await response.json();
-        
+
+        mostrarSinCuenta(!data.cuenta);
         if (!data.cuenta) {
-            alert("No existe una cuenta corriente Friar configurada.");
+            cuentaActual = null;
             return;
         }
-        
+
         cuentaActual = data.cuenta;
-        
-        // Actualizar tarjetas
-        document.getElementById("saldoInicial").textContent = `$ ${parseFloat(data.cuenta.saldo_inicial).toLocaleString('es-AR', {maximumFractionDigits:0})}`;
-        document.getElementById("totalLiquidaciones").textContent = `$ ${parseFloat(data.cuenta.total_liquidaciones).toLocaleString('es-AR', {maximumFractionDigits:0})}`;
-        document.getElementById("totalPagos").textContent = `$ ${parseFloat(data.cuenta.total_pagos).toLocaleString('es-AR', {maximumFractionDigits:0})}`;
-        document.getElementById("saldoActual").textContent = `$ ${parseFloat(data.cuenta.saldo_actual).toLocaleString('es-AR', {maximumFractionDigits:0})}`;
-        
+        document.getElementById("saldoInicial").textContent = importe(data.cuenta.saldo_inicial);
+        document.getElementById("totalLiquidaciones").textContent = importe(data.cuenta.total_liquidaciones);
+        document.getElementById("totalPagos").textContent = importe(data.cuenta.total_pagos);
+        document.getElementById("saldoActual").textContent = importe(data.cuenta.saldo_actual);
+
         // Mostrar fecha de última edición
         if (data.cuenta.fecha_edicion) {
             const fecha = new Date(data.cuenta.fecha_edicion);
             document.getElementById("fechaEdicion").textContent = `Editado: ${fecha.toLocaleDateString('es-AR')} por ${data.cuenta.editado_por}`;
+        } else {
+            document.getElementById("fechaEdicion").textContent = "";
         }
-        
+
         // Mostrar botón de editar solo si es admin
         if (isAdmin) {
             document.getElementById("btnEditarSaldo").classList.remove("d-none");
@@ -428,7 +499,7 @@ async function cargarInstrumentos() {
     try {
         const response = await fetch("/api/tesoreria/instrumentos");
         const data = await response.json();
-        
+
         const select = document.getElementById("instrumentoPago");
         data.instrumentos.forEach(inst => {
             const option = document.createElement("option");
@@ -445,35 +516,38 @@ async function cargarInstrumentos() {
 async function cargarPagos() {
     const fechaDesde = document.getElementById("fechaDesde").value;
     const fechaHasta = document.getElementById("fechaHasta").value;
-    
+
     let url = "/api/tesoreria/cta-cte-friar/pagos?";
     if (fechaDesde) url += `fecha_desde=${fechaDesde}&`;
     if (fechaHasta) url += `fecha_hasta=${fechaHasta}&`;
-    
+
     try {
         const response = await fetch(url);
         const data = await response.json();
-        
+
         const tbody = document.getElementById("tablaPagos");
         tbody.innerHTML = "";
-        
+
         if (data.pagos.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center">No hay pagos registrados</td></tr>';
+            tbody.innerHTML = filaVacia(
+                "No hay pagos registrados",
+                "Registrá un pago con el botón Pago o probá con otro período."
+            );
             return;
         }
-        
+
         data.pagos.forEach(pago => {
             const tr = document.createElement("tr");
             tr.innerHTML = `
-                <td>${escapeHtml(pago.id)}</td>
-                <td>${escapeHtml(new Date(pago.fecha).toLocaleDateString('es-AR'))}</td>
-                <td class="text-end">$ ${escapeHtml(parseFloat(pago.monto).toLocaleString('es-AR', {minimumFractionDigits: 2}))}</td>
-                <td>${escapeHtml(pago.instrumento || "N/A")}</td>
-                <td>${escapeHtml(pago.descripcion)}</td>
-                <td>${escapeHtml(pago.referencia || "-")}</td>
-                <td>${escapeHtml(pago.usuario || "N/A")}</td>
-                <td>
-                    ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="eliminarPago(${escapeHtml(pago.id)})"><i class="bi bi-trash"></i></button>` : ''}
+                <td class="app-table__cell">${escapeHtml(pago.id)}</td>
+                <td class="app-table__cell">${escapeHtml(new Date(pago.fecha).toLocaleDateString('es-AR'))}</td>
+                <td class="app-table__cell app-table__numeric">${escapeHtml(importe(pago.monto))}</td>
+                <td class="app-table__cell">${escapeHtml(pago.instrumento || "N/A")}</td>
+                <td class="app-table__cell">${escapeHtml(pago.descripcion)}</td>
+                <td class="app-table__cell">${escapeHtml(pago.referencia || "-")}</td>
+                <td class="app-table__cell">${escapeHtml(pago.usuario || "N/A")}</td>
+                <td class="app-table__cell">
+                    ${isAdmin ? `<button class="btn btn-sm btn-outline-danger" aria-label="Eliminar pago" title="Eliminar pago" onclick="eliminarPago(${escapeHtml(pago.id)})"><i class="bi bi-trash" aria-hidden="true"></i></button>` : ''}
                 </td>
             `;
             tbody.appendChild(tr);
@@ -498,21 +572,23 @@ async function cargarLiquidaciones() {
         const tbody = document.getElementById("tablaLiquidaciones");
 
         if (data.liquidaciones.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center">No hay liquidaciones</td></tr>';
+            tbody.innerHTML = filaVacia(
+                "No hay liquidaciones registradas",
+                "Registrá una con el botón Liquidación o probá con otro período."
+            );
             return;
         }
 
-        const tipoBadge = Object.assign(Object.create(null), {consignado: 'bg-info', no_consignado: 'bg-secondary', ajuste: 'bg-dark'});
         tbody.innerHTML = data.liquidaciones.map(liq => `
             <tr>
-                <td>${escapeHtml(liq.id)}</td>
-                <td>${escapeHtml(new Date(liq.fecha).toLocaleDateString('es-AR'))}</td>
-                <td class="text-end">$ ${escapeHtml(parseFloat(liq.monto).toLocaleString('es-AR', {minimumFractionDigits: 2}))}</td>
-                <td><span class="badge ${escapeHtml(tipoBadge[liq.tipo] || 'bg-secondary')}">${escapeHtml(liq.tipo)}</span></td>
-                <td>${escapeHtml(liq.descripcion)}</td>
-                <td>${escapeHtml(liq.referencia || "-")}</td>
-                <td>${escapeHtml(liq.usuario || "N/A")}</td>
-                <td>${isAdmin ? `<button class="btn btn-sm btn-outline-danger" onclick="eliminarLiquidacion(${escapeHtml(liq.id)})"><i class="bi bi-trash"></i></button>` : ''}</td>
+                <td class="app-table__cell">${escapeHtml(liq.id)}</td>
+                <td class="app-table__cell">${escapeHtml(new Date(liq.fecha).toLocaleDateString('es-AR'))}</td>
+                <td class="app-table__cell app-table__numeric">${escapeHtml(importe(liq.monto))}</td>
+                <td class="app-table__cell">${escapeHtml(TIPOS_LIQUIDACION[liq.tipo] || liq.tipo)}</td>
+                <td class="app-table__cell">${escapeHtml(liq.descripcion)}</td>
+                <td class="app-table__cell">${escapeHtml(liq.referencia || "-")}</td>
+                <td class="app-table__cell">${escapeHtml(liq.usuario || "N/A")}</td>
+                <td class="app-table__cell">${isAdmin ? `<button class="btn btn-sm btn-outline-danger" aria-label="Eliminar liquidación" title="Eliminar liquidación" onclick="eliminarLiquidacion(${escapeHtml(liq.id)})"><i class="bi bi-trash" aria-hidden="true"></i></button>` : ''}</td>
             </tr>
         `).join('');
     } catch (error) {
@@ -653,7 +729,7 @@ function editarSaldoInicial() {
         alert("No se ha cargado la cuenta corriente");
         return;
     }
-    
+
     setMoneyValue("nuevoSaldoInicial", cuentaActual.saldo_inicial);
     document.getElementById("observacionesSaldo").value = cuentaActual.observaciones || "";
     document.getElementById("justificacionSaldo").value = "";
@@ -666,12 +742,12 @@ async function guardarSaldoInicial() {
     const nuevoSaldo = getMoneyValue(nuevoSaldoField);
     const observaciones = document.getElementById("observacionesSaldo").value;
     const justificacion = document.getElementById("justificacionSaldo").value;
-    
+
     if (!nuevoSaldoField.value.trim() || !Number.isFinite(nuevoSaldo) || !justificacion.trim()) {
         alert("El saldo inicial y la justificación son obligatorios");
         return;
     }
-    
+
     try {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const response = await fetch(`/api/tesoreria/cta-cte-friar/${cuentaActual.id}`, {
@@ -686,9 +762,9 @@ async function guardarSaldoInicial() {
                 justificacion: justificacion.trim()
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             alert(data.message);
             hideModal("modalEditarSaldo");
@@ -707,13 +783,13 @@ async function verHistorialCuenta() {
         alert("No se ha cargado la cuenta corriente");
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/tesoreria/cta-cte-friar/${cuentaActual.id}/logs`);
         const data = await response.json();
-        
+
         const content = document.getElementById("historialCuentaContent");
-        
+
         if (data.logs.length === 0) {
             content.innerHTML = `
                 <div class="app-log-entry">
@@ -738,14 +814,14 @@ async function verHistorialCuenta() {
                             <div class="app-detail-card">
                                 <h6>Antes</h6>
                                 <ul>
-                                    <li>Saldo inicial: $ ${escapeHtml(parseFloat(log.cambios.anterior.saldo_inicial).toLocaleString('es-AR', {minimumFractionDigits: 2}))}</li>
+                                    <li>Saldo inicial: ${escapeHtml(importe(log.cambios.anterior.saldo_inicial))}</li>
                                     ${log.cambios.anterior.observaciones ? `<li>Observaciones: ${escapeHtml(log.cambios.anterior.observaciones)}</li>` : ''}
                                 </ul>
                             </div>
                             <div class="app-detail-card">
                                 <h6>Despues</h6>
                                 <ul>
-                                    <li>Saldo inicial: $ ${escapeHtml(parseFloat(log.cambios.nuevo.saldo_inicial).toLocaleString('es-AR', {minimumFractionDigits: 2}))}</li>
+                                    <li>Saldo inicial: ${escapeHtml(importe(log.cambios.nuevo.saldo_inicial))}</li>
                                     ${log.cambios.nuevo.observaciones ? `<li>Observaciones: ${escapeHtml(log.cambios.nuevo.observaciones)}</li>` : ''}
                                 </ul>
                             </div>
@@ -770,17 +846,17 @@ async function guardarPago() {
     const instrumento_id = document.getElementById("instrumentoPago").value;
     const descripcion = document.getElementById("descripcionPago").value;
     const referencia = document.getElementById("referenciaPago").value;
-    
+
     if (!fecha || !montoField.value.trim() || !Number.isFinite(monto) || !instrumento_id || !descripcion.trim()) {
         alert("Todos los campos obligatorios (*) deben completarse");
         return;
     }
-    
+
     if (monto <= 0) {
         alert("El monto debe ser mayor a cero");
         return;
     }
-    
+
     try {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const response = await fetch("/api/tesoreria/cta-cte-friar/pagos", {
@@ -800,13 +876,13 @@ async function guardarPago() {
 
         const contentType = response.headers.get('content-type') || '';
         const data = contentType.includes('application/json') ? await response.json() : { error: await response.text() };
-        
+
         if (response.ok) {
             alert(data.message);
             hideModal("modalNuevoPago");
             document.getElementById("formNuevoPago").reset();
             document.getElementById("fechaPago").valueAsDate = new Date();
-            
+
             // Recargar cuenta y pagos
             cargarCuentaCorriente();
             cargarPagos();
@@ -830,7 +906,7 @@ async function eliminarPago(id) {
     if (!confirmed) {
         return;
     }
-    
+
     try {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const response = await fetch(`/api/tesoreria/cta-cte-friar/pagos/${id}`, {
@@ -842,7 +918,7 @@ async function eliminarPago(id) {
 
         const contentType = response.headers.get('content-type') || '';
         const data = contentType.includes('application/json') ? await response.json() : { error: await response.text() };
-        
+
         if (response.ok) {
             alert(data.message);
             cargarCuentaCorriente();
