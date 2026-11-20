@@ -373,13 +373,13 @@ def cambiar_rol(actor, usuario_id, nuevo_rol):
     usuario = _usuario_bloqueado(usuario_id)
     if usuario is None:
         raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
-    _exigir_jerarquia(actor, usuario, rol)
     if actor.id == usuario.id:
         raise ErrorUsuarios(
             "AUTOCAMBIO_ROL",
             "No podés cambiar tu propio rol. Pedile a otro administrador que lo haga.",
             403,
         )
+    _exigir_jerarquia(actor, usuario, rol)
     anterior = usuario.role
     if rol == anterior:
         db.session.rollback()

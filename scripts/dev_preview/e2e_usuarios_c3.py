@@ -258,8 +258,8 @@ def escenario_rol(navegador, admin, admin_ctx):
         admin.locator("#modalRolTitulo").inner_text(),
     )
     verificar(
-        "(R1) la etiqueta del selector dice «Nuevo rol»",
-        admin.locator("label[for='modalRolSelect']").inner_text().strip() == "Nuevo rol",
+        "(R1) la etiqueta visible del selector dice «NUEVO ROL»",
+        admin.locator("label[for='modalRolSelect']").inner_text().strip() == "NUEVO ROL",
     )
     verificar(
         "(R1) el modal preselecciona el rol actual (Ventas)",
@@ -406,6 +406,17 @@ def escenario_jerarquia(navegador):
         "(C3 jerarquía) filas admin/manager deshabilitadas con explicación",
         ui_filas_ok and ui_notas_ok,
     )
+
+    # No dejar roles administrativos sintéticos activos para afectar la siguiente regresión.
+    with APP.app_context():
+        for nombre in (usuario_gerente, usuario_manager, usuario_ventas):
+            cuenta = User.query.filter_by(username=nombre).one()
+            cuenta.role = "sales"
+            cuenta.active = False
+            cuenta.deactivated_at = datetime.now(timezone.utc)
+            cuenta.must_change_password = False
+            cuenta.temp_password_expires_at = None
+        db.session.commit()
     contexto.close()
 
 

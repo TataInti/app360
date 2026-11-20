@@ -1,8 +1,10 @@
 """Regresiones C3: jerarquía de administración y scripts de setup."""
 
 import importlib
+import os
 import re
 import sys
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -200,3 +202,194 @@ def test_setup_comercial_conserva_rol_y_clave_de_cuenta_existente(app_seguridad,
         assert sales.role == "sales" and sales.password_hash == sales_hash
         assert admin.role == "admin" and admin.password_hash == admin_hash
     assert next(item for item in resumen if item["usuario"] == "jefe_comercial")["rol"] == "sales"
+
+
+def test_favicon_implicito_no_responde_404(app_seguridad):
+    respuesta = app_seguridad.test_client().get("/favicon.ico")
+    assert respuesta.status_code == 204 and respuesta.get_data() == b""
+
+
+PG_URL_ENV = "APP360_PRUEBAS_PG_URL"
+
+
+@pytest.mark.skipif(
+    not os.environ.get(PG_URL_ENV) or "carrera" not in os.environ.get(PG_URL_ENV, ""),
+    reason=f"Carrera real: requiere {PG_URL_ENV} con una base propia y etiqueta carrera",
+)
+def test_postgres_serializa_reset_reset_y_reset_cambio_propio(monkeypatch):
+    from sqlalchemy.engine import make_url
+
+    from sesion_de_prueba import marcar_sesion
+
+    url = os.environ[PG_URL_ENV]
+    parsed = make_url(url)
+    assert parsed.host in {"127.0.0.1", "localhost"} and parsed.port == 55432
+    assert parsed.database == "app360_c3fix"
+
+    monkeypatch.setattr(Config, "SECRET_KEY", "test-secret")
+    monkeypatch.setattr(Config, "JWT_SECRET_KEY", "test-secret")
+    monkeypatch.setattr(Config, "ADMIN_PASSWORD", "test-admin")
+    monkeypatch.setattr(Config, "SQLALCHEMY_DATABASE_URI", url)
+    monkeypatch.setattr(Config, "WTF_CSRF_CHECK_DEFAULT", False, raising=False)
+    monkeypatch.setattr(Config, "RATELIMIT_ENABLED", False)
+    from app import create_app
+
+    app = create_app()
+    app.config["TESTING"] = True
+    try:
+        with app.app_context():
+            db.drop_all()
+            db.create_all()
+            admin = User(username="probe-pg-admin", role="admin", active=True)
+            manager = User(username="probe-pg-manager", role="manager", active=True)
+            target = User(username="probe-pg-target", role="sales", active=True)
+            for user in (admin, manager, target):
+                user.set_password(os.urandom(24).hex())
+                user.must_change_password = False
+                user.temp_password_expires_at = None
+            db.session.add_all((admin, manager, target))
+            db.session.commit()
+            admin_id, manager_id, target_id = admin.id, manager.id, target.id
+            before_version = target.token_version
+            before_audits = UserAuditLog.query.filter_by(
+                accion="user_password_reset", target_user_id=target_id
+            ).count()
+
+        barrier = threading.Barrier(2)
+        results = [None, None]
+
+        def reset_worker(index, actor_id):
+            try:
+                with app.app_context():
+                    actor = db.session.get(User, actor_id)
+                    barrier.wait(timeout=30)
+                    _user, key, _expiry = ua.restablecer_clave(actor, target_id)
+                    results[index] = {"status": 200, "key": key}
+            except ua.ErrorUsuarios as error:
+                db.session.rollback()
+                results[index] = {"status": error.status, "code": error.codigo}
+            except Exception as error:
+                results[index] = {"exception": type(error).__name__}
+
+        workers = [
+            threading.Thread(target=reset_worker, args=(0, admin_id)),
+            threading.Thread(target=reset_worker, args=(1, manager_id)),
+        ]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=90)
+        assert all(not worker.is_alive() for worker in workers)
+        with app.app_context():
+            target = db.session.get(User, target_id, populate_existing=True)
+            matching_keys = sum(bool(item and item.get("key") and target.check_password(item["key"])) for item in results)
+            after_version = target.token_version
+            after_audits = UserAuditLog.query.filter_by(
+                accion="user_password_reset", target_user_id=target_id
+            ).count()
+        assert all(item and item.get("status") == 200 for item in results), results
+        assert matching_keys == 1
+        assert after_version == before_version + 2
+        assert after_audits == before_audits + 2
+
+        # Reset y cambio propio simultáneos con la clave anterior: el reset final debe
+        # dejar el estado temporal coherente; luego el usuario puede cambiar esa clave.
+        with app.app_context():
+            target = db.session.get(User, target_id, populate_existing=True)
+            target.set_password(os.urandom(24).hex())
+            target.must_change_password = False
+            target.temp_password_expires_at = None
+            db.session.commit()
+            current_password = f"PROBE-{os.urandom(24).hex()}-X9!"
+            target.set_password(current_password)
+            target.must_change_password = False
+            target.temp_password_expires_at = None
+            db.session.commit()
+            before_version = target.token_version
+            before_audits = UserAuditLog.query.filter_by(
+                accion="user_password_reset", target_user_id=target_id
+            ).count()
+
+        reset_client = app.test_client()
+        change_client = app.test_client()
+        marcar_sesion(reset_client, admin_id)
+        marcar_sesion(change_client, target_id)
+        new_password = f"PROBE-{os.urandom(24).hex()}-X9!"
+        race_barrier = threading.Barrier(2)
+        race_results = {}
+
+        def reset_http():
+            with app.app_context():
+                try:
+                    race_barrier.wait(timeout=30)
+                    response = reset_client.post(f"/api/admin/usuarios/{target_id}/restablecer-clave")
+                    body = response.get_json() or {}
+                    race_results["reset"] = {
+                        "status": response.status_code,
+                        "code": body.get("codigo"),
+                        "key": body.get("clave_temporal"),
+                    }
+                finally:
+                    db.session.remove()
+
+        def change_http():
+            with app.app_context():
+                try:
+                    race_barrier.wait(timeout=30)
+                    response = change_client.post(
+                        "/cambiar-clave",
+                        data={
+                            "clave_actual": current_password,
+                            "clave_nueva": new_password,
+                            "repetir_clave": new_password,
+                        },
+                    )
+                    race_results["change"] = {"status": response.status_code}
+                finally:
+                    db.session.remove()
+
+        reset_thread = threading.Thread(target=reset_http)
+        change_thread = threading.Thread(target=change_http)
+        reset_thread.start()
+        change_thread.start()
+        reset_thread.join(timeout=90)
+        change_thread.join(timeout=90)
+        assert not reset_thread.is_alive() and not change_thread.is_alive()
+        assert race_results["reset"]["status"] == 200
+        with app.app_context():
+            target = db.session.get(User, target_id, populate_existing=True)
+            temp_key = race_results["reset"]["key"]
+            assert temp_key and target.check_password(temp_key)
+            assert target.must_change_password is True
+            assert target.temp_password_expires_at is not None
+            assert target.token_version == before_version + 1
+            assert UserAuditLog.query.filter_by(
+                accion="user_password_reset", target_user_id=target_id
+            ).count() == before_audits + 1
+
+        cliente = app.test_client()
+        login = cliente.post(
+            "/",
+            data={"username": "probe-pg-target", "password": temp_key},
+        )
+        assert login.status_code == 302 and "/cambiar-clave" in login.headers.get("Location", "")
+        cambio = cliente.post(
+            "/cambiar-clave",
+            data={
+                "clave_actual": temp_key,
+                "clave_nueva": new_password,
+                "repetir_clave": new_password,
+            },
+        )
+        assert cambio.status_code == 302
+        with app.app_context():
+            target = db.session.get(User, target_id, populate_existing=True)
+            assert target.check_password(new_password)
+            assert target.must_change_password is False
+            assert target.temp_password_expires_at is None
+            assert target.token_version == before_version + 1
+    finally:
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()

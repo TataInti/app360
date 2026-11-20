@@ -294,6 +294,11 @@ def create_app():
 
     app.register_blueprint(admin_usuarios_bp)
 
+    # login.html no extiende base.html; responder sin contenido evita su favicon.ico implícito.
+    @app.route("/favicon.ico", methods=["GET"])
+    def favicon_vacio():
+        return "", 204
+
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     # Register error handlers
