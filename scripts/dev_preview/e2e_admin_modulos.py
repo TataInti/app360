@@ -9,10 +9,12 @@ import argparse
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
@@ -36,6 +38,8 @@ CAPTURE_LABEL = os.environ.get("E2E_CAPTURE_LABEL", "after")
 DB_NAME = "app360_sis2a_admin"
 TOKEN = "T-SIS2A"
 
+# Los inputs type=number del modal no aceptan decimales (el atributo step se escapa en el
+# template: hallazgo previo al PR). Por eso importes enteros en el alta.
 MODULES = {
     "movimientos": {
         "conceptos": {
@@ -108,7 +112,7 @@ MODULES = {
                 "position": "vendedor",
                 "department": "T-SIS2A",
                 "hire_date": "2026-11-01",
-                "salary": "1234.50",
+                "salary": "1234",
                 "location_id": "",
                 "clock_id": "",
                 "turno_id": "",
@@ -140,7 +144,7 @@ MODULES = {
             "values": {
                 "name": 'T-SIS2A & <"producto>',
                 "sku": "T-SIS2A-SKU-001",
-                "price": "123.45",
+                "price": "123",
                 "category": "T-SIS2A",
             },
             "display": "name",
@@ -190,6 +194,26 @@ def visible_row(page, entity: str, item_id: int):
     return row
 
 
+def marcar_pantalla(page) -> None:
+    """Marca la pantalla: la recarga que la app hace tras una acción la borra."""
+    page.evaluate("() => { window.__sis2aMarca = true; }")
+
+
+def esperar_recarga(page) -> None:
+    """Espera la recarga (location.reload) que la app hace tras guardar, cambiar estado o eliminar."""
+    fin = time.monotonic() + 30
+    while time.monotonic() < fin:
+        try:
+            page.wait_for_load_state("load", timeout=3000)
+            if page.evaluate("() => window.__sis2aMarca !== true"):
+                page.wait_for_load_state("networkidle", timeout=20000)
+                return
+        except PlaywrightError:
+            pass
+        page.wait_for_timeout(250)
+    raise AssertionError("la pantalla no se recargó después de la acción")
+
+
 def ensure_tab(page, module: str, entity: str) -> None:
     if urlparse(page.url).path != f"/admin/{module}":
         page.goto(f"{BASE_URL}/admin/{module}", wait_until="networkidle")
@@ -216,9 +240,12 @@ def fill_modal(page, values: dict) -> None:
 def wait_for_confirm_and_accept(page) -> None:
     confirm = page.locator("#app360ConfirmModal")
     try:
-        confirm.wait_for(state="visible", timeout=2500)
+        confirm.wait_for(state="visible", timeout=6000)
     except PlaywrightTimeoutError:
         return
+    # El clic durante la transición de apertura del modal se pierde: esperar a que esté visible del todo.
+    page.locator("#app360ConfirmModal.show").wait_for(state="visible")
+    page.wait_for_timeout(800)
     page.locator("#app360ConfirmAccept").click()
     confirm.wait_for(state="hidden", timeout=10000)
 
@@ -229,6 +256,7 @@ def create_item(page, module: str, entity: str, values: dict, display: str) -> i
     new_button = empty_cta if empty_cta.is_visible() else page.locator(
         f"#content-{entity} .table-card-head button[onclick*='abrirModalNuevoFromBtn']"
     )
+    marcar_pantalla(page)
     with page.expect_response(
         lambda response: response.request.method == "POST"
         and f"/api/admin/{module}/{entity}" in urlparse(response.url).path,
@@ -241,7 +269,7 @@ def create_item(page, module: str, entity: str, values: dict, display: str) -> i
     response = response_info.value
     if response.status != 201:
         raise AssertionError(f"POST {module}/{entity}: HTTP {response.status}")
-    page.wait_for_load_state("networkidle")
+    esperar_recarga(page)
     matches = [row for row in api_list(page, module, entity)["items"] if row.get(display) == values.get(display)]
     if len(matches) != 1:
         raise AssertionError(f"POST {module}/{entity}: readback ambiguo para {display}")
@@ -254,6 +282,7 @@ def create_item(page, module: str, entity: str, values: dict, display: str) -> i
 def edit_item(page, module: str, entity: str, item_id: int, field: str, value: str) -> None:
     ensure_tab(page, module, entity)
     row = visible_row(page, entity, item_id)
+    marcar_pantalla(page)
     with page.expect_response(
         lambda response: response.request.method == "PUT"
         and f"/api/admin/{module}/{entity}/{item_id}" in urlparse(response.url).path,
@@ -273,12 +302,13 @@ def edit_item(page, module: str, entity: str, item_id: int, field: str, value: s
     response = response_info.value
     if response.status != 200:
         raise AssertionError(f"PUT {module}/{entity}/{item_id}: HTTP {response.status}")
-    page.wait_for_load_state("networkidle")
+    esperar_recarga(page)
 
 
 def toggle_item(page, module: str, entity: str, item_id: int, expected: bool) -> None:
     ensure_tab(page, module, entity)
     row = visible_row(page, entity, item_id)
+    marcar_pantalla(page)
     with page.expect_response(
         lambda response: response.request.method == "PATCH"
         and f"/api/admin/{module}/{entity}/{item_id}/toggle" in urlparse(response.url).path,
@@ -288,7 +318,8 @@ def toggle_item(page, module: str, entity: str, item_id: int, expected: bool) ->
     response = response_info.value
     if response.status != 200:
         raise AssertionError(f"PATCH {module}/{entity}/{item_id}/toggle: HTTP {response.status}")
-    page.wait_for_load_state("networkidle")
+    esperar_recarga(page)
+    ensure_tab(page, module, entity)
     record = api_item(page, module, entity, item_id)
     state_field = "activo" if "activo" in record else "is_active"
     if bool(record.get(state_field)) != expected:
@@ -319,7 +350,8 @@ def configure_turno(page, turno_id: int) -> dict:
     if response.status != 200:
         raise AssertionError(f"PUT turnos/{turno_id}/dias: HTTP {response.status}")
     payload = response.json()
-    if not payload.get("success"):
+    # El endpoint confirma con «message» (contrato de rrhh.py), no con «success».
+    if payload.get("message") != "Horarios actualizados":
         raise AssertionError("La API no confirmó el guardado de horarios")
     data = page.request.get(f"{BASE_URL}/api/rrhh/turnos/{turno_id}/dias", max_redirects=0)
     if data.status != 200:
@@ -359,18 +391,20 @@ def configure_portador(page, instrument_id: int, portador_id: int) -> dict:
 def delete_item(page, module: str, entity: str, item_id: int) -> None:
     ensure_tab(page, module, entity)
     row = visible_row(page, entity, item_id)
+    marcar_pantalla(page)
     with page.expect_response(
         lambda response: response.request.method == "DELETE"
         and f"/api/admin/{module}/{entity}/{item_id}" in urlparse(response.url).path,
         timeout=15000,
     ) as response_info:
         row.locator('button[aria-label="Eliminar registro"]').click()
-        page.locator("#app360ConfirmModal").wait_for(state="visible")
+        page.locator("#app360ConfirmModal.show").wait_for(state="visible")
+        page.wait_for_timeout(800)
         page.locator("#app360ConfirmAccept").click()
     response = response_info.value
     if response.status != 200:
         raise AssertionError(f"DELETE {module}/{entity}/{item_id}: HTTP {response.status}")
-    page.wait_for_load_state("networkidle")
+    esperar_recarga(page)
 
 
 def verify_dom_and_api(checks: Checks, page, module: str, entity: str, item_id: int, display: str, expected: str) -> dict:
@@ -626,14 +660,21 @@ def main() -> int:
 
             capture_viewports(page, checks)
 
-            delete_targets = {
-                "movimientos": "proveedores",
-                "tesoreria": "portadores",
-                "rrhh": "turnos",
-                "stock": "unidades",
-                "marketing": "pipeline",
-            }
-            for module, entity in delete_targets.items():
+            # Catálogos con botón «Eliminar». cuenta_friar no tiene baja en la UI (cuenta única).
+            # Instrumentos antes que portadores: el instrumento tiene la asociación M2M.
+            delete_targets = [
+                ("movimientos", "conceptos"),
+                ("movimientos", "proveedores"),
+                ("tesoreria", "instrumentos"),
+                ("tesoreria", "portadores"),
+                ("rrhh", "empleados"),
+                ("rrhh", "turnos"),
+                ("stock", "ubicaciones"),
+                ("stock", "productos"),
+                ("stock", "unidades"),
+                ("marketing", "pipeline"),
+            ]
+            for module, entity in delete_targets:
                 entry = created.get((module, entity))
                 if not entry:
                     check(checks, f"{module}/{entity}: eliminar con confirmación", False, "no se creó el registro sintético")
