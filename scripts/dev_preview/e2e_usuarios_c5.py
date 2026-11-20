@@ -168,7 +168,11 @@ def fila(pagina, usuario):
 
 
 def esperar_aviso(pagina, texto):
-    pagina.locator("#avisoUsuarios").filter(has_text=texto).wait_for(timeout=15000)
+    try:
+        pagina.locator("#avisoUsuarios").filter(has_text=texto).wait_for(timeout=15000)
+    except Exception:
+        print("DIAG aviso visible:", pagina.locator("#avisoUsuarios").inner_text()[:160], flush=True)
+        raise
 
 
 def enlace_de_panel(pagina):
@@ -197,6 +201,7 @@ def emitir_enlace(pagina, usuario, ttl=None):
     respuesta = info.value
     verificar(f"emitir enlace para {usuario} responde 201", respuesta.status == 201, str(respuesta.status))
     pagina.locator("#panelEnlaceRecuperacion").wait_for(state="visible")
+    pagina.locator("#modalRecuperacion").wait_for(state="hidden", timeout=15000)
     texto = enlace_de_panel(pagina)
     token = texto.split("#", 1)[1] if "#" in texto else ""
     verificar(f"el enlace de {usuario} apunta a la dirección pública configurada", texto.startswith(BASE + "/recuperar-clave#"))
@@ -273,7 +278,10 @@ def main():
             # 5. Revocado por el administrador: ya no sirve
             token_r, _ = emitir_enlace(pa, REVOCAR)
             fila(pa, REVOCAR).locator("button[data-accion='revocar']").click()
-            pa.locator("#app360ConfirmAccept").click()
+            pa.locator("#app360ConfirmAccept").wait_for(state="visible")
+            with pa.expect_response(lambda r: r.request.method == "POST" and r.url.endswith("/revocar")) as info_rev:
+                pa.locator("#app360ConfirmAccept").click()
+            print("DIAG revocar HTTP", info_rev.value.status, flush=True)
             esperar_aviso(pa, "Se revocó el enlace")
             verificar("tras revocar, la cuenta queda sin clave utilizable (estado pendiente)", esperar_en_fila(pa, REVOCAR, "Recuperación pendiente"))
             captura(pa, "07_revocado_pendiente")
