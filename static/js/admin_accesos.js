@@ -73,7 +73,7 @@
 
     function updateControls() {
         const count = changedRows().length;
-        changeCount.textContent = `${count} usuarios con cambios`;
+        changeCount.textContent = count === 1 ? '1 usuario con cambios' : `${count} usuarios con cambios`;
         saveButton.textContent = `Guardar cambios (${count})`;
         saveButton.disabled = !loaded || saving || count === 0;
         discardButton.disabled = !loaded || saving || count === 0;

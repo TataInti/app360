@@ -487,6 +487,14 @@
     white-space: nowrap;
 }
 
+.app-access-feedback {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-cell-y);
+}
+
 .app-access-back {
     color: var(--color-action);
     font-size: var(--font-size-body);
@@ -516,6 +524,12 @@
     cursor: not-allowed;
 }
 
+.app-access-header-actions .app-access-discard[disabled] {
+    border-color: var(--color-border-control);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
 .app-access-header-actions .app-actions__primary:focus-visible,
 .app-access-header-actions .app-actions__secondary:focus-visible,
 .app-access-retry:focus-visible {
@@ -528,9 +542,11 @@
 }
 
 .app-access-summary {
-    margin: 0 0 var(--space-control);
+    max-width: 28rem;
+    margin: 0;
     color: var(--color-text-body);
-    font-size: var(--font-size-body);
+    font-size: var(--font-size-note);
+    text-align: right;
 }
 
 .app-access-summary--ok {
@@ -542,6 +558,7 @@
 }
 
 .app-access-card {
+    max-width: 67.125rem;
     min-width: 0;
 }
 
@@ -549,6 +566,18 @@
     max-width: 100%;
     overflow: auto;
     overscroll-behavior-x: contain;
+    scroll-padding-left: 11rem;
+    scroll-snap-type: x mandatory;
+}
+
+.app-access-table .app-access-user-heading,
+.app-access-table .app-access-user,
+.app-access-table .app-access-role-heading,
+.app-access-table .app-access-role,
+.app-access-table .app-access-module-heading,
+.app-access-table .app-access-permission {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
 }
 
 .app-access-table {
@@ -590,18 +619,20 @@
 
 .app-access-table .app-access-module-heading,
 .app-access-table .app-access-permission {
-    width: 9rem;
-    min-width: 9rem;
+    width: 8rem;
+    min-width: 8rem;
+    padding-right: 0;
+    padding-left: 0;
 }
 
 .app-access-module-heading {
-    max-width: 9rem;
+    max-width: 8rem;
     white-space: normal;
 }
 
 .app-access-select {
-    width: 9rem;
-    min-width: 9rem;
+    width: 8rem;
+    min-width: 8rem;
     border-color: var(--color-border-control);
 }
 
@@ -617,22 +648,26 @@
 
 .app-access-inherited {
     color: var(--color-text-muted);
+    white-space: normal;
 }
 
 .app-access-inherited .app-status__text {
     color: var(--color-text-muted);
-}
-
-.app-access-row-state,
-.app-access-status-heading {
-    width: 16rem;
-    min-width: 16rem;
+    font-size: var(--font-size-note);
 }
 
 .app-access-row-status {
-    max-width: 13rem;
+    display: flex;
+    max-width: 10rem;
+    margin-top: var(--space-cell-y);
+    align-items: flex-start;
     white-space: normal;
     overflow-wrap: anywhere;
+    font-size: var(--font-size-note);
+}
+
+.app-access-row-status .app-status__text {
+    font-size: var(--font-size-note);
 }
 
 .app-access-retry {

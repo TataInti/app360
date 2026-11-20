@@ -229,7 +229,7 @@ def main():
             "selects => selects.map(select => select.getBoundingClientRect().width)"
         )
         checks.check("Sin acceso no se recorta en los selects", bool(select_widths)
-                     and min(select_widths) >= 140, select_widths)
+                     and min(select_widths) >= 120 and max(select_widths) <= 136, select_widths)
 
         datos_antes = leer_accesos(context, BASE_URL)
         ids = {role: usuario_id(datos_antes, username) for role, username in USERS.items()}
@@ -279,6 +279,33 @@ def main():
         sales_products = fila(page, ids["sales"]).locator('select[name="products"]')
         purchase_locations = fila(page, ids["purchases"]).locator('select[name="locations"]')
         sales_products.select_option("view")
+        checks.check("plural singular del contador",
+                     page.locator("#accessChangeCount").inner_text() == "1 usuario con cambios"
+                     and page.locator("#accessSave").inner_text() == "Guardar cambios (1)")
+        page.set_viewport_size({"width": 1366, "height": 768})
+        page.evaluate("window.scrollTo(0, 0)")
+        marker_metrics = page.evaluate("""userId => {
+            const row = document.querySelector(`#tblAccesos tr[data-user-id="${userId}"]`);
+            const marker = row.querySelector('.app-access-row-status');
+            const userCell = marker.closest('.app-access-user');
+            const markerRect = marker.getBoundingClientRect();
+            const userRect = userCell.getBoundingClientRect();
+            const tableScroll = document.querySelector('#accessTableScroll');
+            return {
+                visible: !marker.hidden && markerRect.top >= 0 && markerRect.bottom <= innerHeight
+                    && markerRect.left >= 0 && markerRect.right <= innerWidth
+                    && markerRect.left >= userRect.left && markerRect.right <= userRect.right,
+                pageScrollX: scrollX,
+                documentWidth: document.documentElement.scrollWidth,
+                viewportWidth: innerWidth,
+                tableScrollLeft: tableScroll.scrollLeft
+            };
+        }""", ids["sales"])
+        checks.check("marca Modificado visible a 1366×768 sin scroll horizontal",
+                     marker_metrics["visible"] and marker_metrics["pageScrollX"] == 0
+                     and marker_metrics["documentWidth"] == marker_metrics["viewportWidth"]
+                     and marker_metrics["tableScrollLeft"] == 0, marker_metrics)
+        page.set_viewport_size({"width": 1440, "height": 900})
         purchase_locations.select_option("edit")
         expect(fila(page, ids["sales"]).locator("[data-row-status-text]")).to_have_text("Modificado")
         expect(fila(page, ids["purchases"]).locator("[data-row-status-text]")).to_have_text("Modificado")
@@ -323,6 +350,16 @@ def main():
             metrics = page.evaluate("""() => {
                 const button = document.querySelector('#accessSave');
                 const rect = button.getBoundingClientRect();
+                const scroller = document.querySelector('#accessTableScroll');
+                const scrollerRect = scroller.getBoundingClientRect();
+                const stickyRight = document.querySelector('.app-access-user').getBoundingClientRect().right;
+                const partialHeadersAtStart = Array.from(document.querySelectorAll('#tblAccesos thead th'))
+                    .filter(header => !header.classList.contains('app-access-user-heading'))
+                    .filter(header => {
+                        const headerRect = header.getBoundingClientRect();
+                        return headerRect.right > stickyRight + 1 && headerRect.left < scrollerRect.right - 1
+                            && (headerRect.left < stickyRight - 1 || headerRect.right > scrollerRect.right + 1);
+                    }).map(header => header.innerText);
                 return {
                     count: document.querySelectorAll('.app-access-header-actions .app-actions__primary').length,
                     visible: rect.top >= 0 && rect.bottom <= innerHeight && rect.left >= 0 && rect.right <= innerWidth,
@@ -331,7 +368,9 @@ def main():
                     viewportWidth: innerWidth,
                     sticky: getComputedStyle(document.querySelector('.app-access-user')).position,
                     tableColumns: document.querySelectorAll('#tblAccesos thead th').length,
-                    scrollable: document.querySelector('#accessTableScroll').scrollWidth > document.querySelector('#accessTableScroll').clientWidth,
+                    scrollable: scroller.scrollWidth > scroller.clientWidth,
+                    snapType: getComputedStyle(scroller).scrollSnapType,
+                    partialHeadersAtStart,
                     hintVisible: !!document.querySelector('.app-access-scroll-hint') && getComputedStyle(document.querySelector('.app-access-scroll-hint')).display !== 'none'
                 };
             }""")
@@ -343,9 +382,37 @@ def main():
                          and item["documentWidth"] == item["viewportWidth"] for item in capturas_primario),
                      capturas_primario)
         checks.check("tabla completa con Usuario fija e indicación de scroll",
-                     all(item["sticky"] == "sticky" and item["tableColumns"] == 15
-                         and item["scrollable"] and item["hintVisible"] for item in capturas_primario),
+                     all(item["sticky"] == "sticky" and item["tableColumns"] == 14
+                         and item["scrollable"] and item["hintVisible"]
+                         and not item["partialHeadersAtStart"] for item in capturas_primario),
                      capturas_primario)
+        table_scroll = page.locator("#accessTableScroll")
+        table_scroll.evaluate("element => element.scrollTo({ left: 420 })")
+        page.wait_for_timeout(250)
+        snap_metrics = page.evaluate("""() => {
+            const container = document.querySelector('#accessTableScroll');
+            const containerRect = container.getBoundingClientRect();
+            const stickyRight = document.querySelector('.app-access-user').getBoundingClientRect().right;
+            const headers = Array.from(document.querySelectorAll('#tblAccesos thead th'))
+                .filter(header => !header.classList.contains('app-access-user-heading'));
+            const visible = headers.filter(header => {
+                const rect = header.getBoundingClientRect();
+                return rect.right > stickyRight + 1 && rect.left < containerRect.right - 1;
+            });
+            const partial = visible.filter(header => {
+                const rect = header.getBoundingClientRect();
+                return rect.left < stickyRight - 1 || rect.right > containerRect.right + 1;
+            }).map(header => header.innerText);
+            return {
+                scrollLeft: container.scrollLeft,
+                snapType: getComputedStyle(container).scrollSnapType,
+                partial
+            };
+        }""")
+        checks.check("columnas completas al detener el desplazamiento",
+                     snap_metrics["scrollLeft"] > 0 and "mandatory" in snap_metrics["snapType"]
+                     and not snap_metrics["partial"], snap_metrics)
+        table_scroll.evaluate("element => { element.scrollLeft = 0; }")
 
         # Dos usuarios modificados: solo dos PUT, secuenciales; la API es la verdad.
         start_index = len(checks.put_events)
@@ -356,6 +423,21 @@ def main():
         expect(fila(page, ids["purchases"]).locator("[data-row-status-text]")).to_have_text("Guardado", timeout=15000)
         expect(page.locator("#accessSummary")).to_contain_text("2 de 2 usuarios actualizados", timeout=15000)
         guardados = leer_accesos(context, BASE_URL)
+        pantalla_permisos = page.locator("#tblAccesos tbody tr[data-user-id]").evaluate_all("""rows =>
+            Object.fromEntries(rows.map(row => [row.dataset.userId,
+                Object.fromEntries(Array.from(row.querySelectorAll('td.app-access-permission')).map(cell => {
+                    const select = cell.querySelector('select.perm-select');
+                    return [cell.dataset.module, select ? select.value : 'edit'];
+                }))
+            ]))""")
+        pantalla_igual_api = all(
+            user_id in pantalla_permisos
+            and len(user["permissions"]) == len(pantalla_permisos[user_id])
+            and all(pantalla_permisos[user_id].get(module) == level
+                    for module, level in user["permissions"].items())
+            for user_id, user in guardados.items()
+        )
+        checks.check("pantalla y API coinciden después de guardar cambios", pantalla_igual_api)
         cambios_esperados = sorted([
             (ids["sales"], "products", "view"),
             (ids["purchases"], "locations", "edit"),

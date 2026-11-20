@@ -121,3 +121,21 @@ def test_bootstrap_primary_maps_states_to_tokens_and_preserves_exceptions():
     assert re.search(r"outline:\s*3px\s+solid\s+var\(--color-focus\)", focus_body)
     assert re.search(r"outline-offset:\s*2px", focus_body)
     assert re.search(r"box-shadow:\s*none", focus_body)
+
+
+def test_access_status_uses_sticky_user_cell_and_live_feedback():
+    admin_access = (ROOT / "templates" / "admin" / "admin_accesos.html").read_text(
+        encoding="utf-8"
+    )
+    user_cell = re.search(r'<td class="app-access-user">(.*?)</td>', admin_access, flags=re.S)
+    assert user_cell
+    assert "data-row-status" in user_cell.group(1)
+    assert "data-row-retry" in user_cell.group(1)
+    assert "app-access-status-heading" not in admin_access
+    assert 'id="accessSummary" class="app-access-summary" role="status" aria-live="polite"' in admin_access
+
+    access_js = (ROOT / "static" / "js" / "admin_accesos.js").read_text(encoding="utf-8")
+    assert "count === 1 ? '1 usuario con cambios'" in access_js
+
+    css = CSS_PATH.read_text(encoding="utf-8")
+    assert "scroll-snap-type: x mandatory" in css
