@@ -258,3 +258,4 @@ def test_admin_accesos_keeps_api_text_out_of_html_sinks():
     source = (ROOT / "static" / "js" / "admin_accesos.js").read_text(encoding="utf-8")
     assert "innerHTML" not in source
     assert "textContent" in source
+    assert "text.textContent = message" in source

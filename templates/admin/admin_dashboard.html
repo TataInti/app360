@@ -1,145 +1,120 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="panel-header">
+<div class="container-fluid app-admin-page">
+    <header class="panel-header app-admin-header">
         <div>
-            <h1><i class="bi bi-gear-fill"></i> Panel de Administración</h1>
-            <span>Gestión de catálogos y variables de configuración del sistema</span>
+            <h1><i class="bi bi-gear-fill" aria-hidden="true"></i> Panel de Administración</h1>
+            <span class="panel-subtitle">Gestión de catálogos y variables de configuración del sistema</span>
         </div>
-    </div>
+    </header>
 
-    <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
-        <!-- Movimientos -->
-        <div class="kpi-card admin-module admin-module--danger">
-            <div class="admin-module__head">
-                <i class="bi bi-cash-stack"></i>
-                <strong>Movimientos</strong>
+    <ul class="app-admin-list" aria-label="Módulos de administración">
+        <li class="app-admin-row">
+            <div class="app-admin-row__heading">
+                <i class="bi bi-cash-stack app-admin-icon" aria-hidden="true"></i>
+                <h2 class="app-admin-row__title">Movimientos</h2>
             </div>
-            <div class="admin-module__body">
-                <ul class="list-group list-group-flush">
-                    {% for entidad, info in stats.get('movimientos', {}).items() %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1 border-0">
-                        {{ info.name }}
-                        <span class="badge bg-primary rounded-pill">{{ info.total }}</span>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-            <div class="admin-module__foot">
-                <a href="/admin/movimientos" class="btn btn-sm btn-outline-danger w-100">
-                    <i class="bi bi-pencil-square"></i> Administrar
-                </a>
-            </div>
-        </div>
+            <ul class="app-admin-row__statuses" aria-label="Datos de Movimientos">
+                {% for entidad, info in stats.get('movimientos', {}).items() %}
+                <li class="app-status app-status--neutral app-admin-status">
+                    <span class="app-status__dot" aria-hidden="true"></span>
+                    <span class="app-status__text">{{ info.name }}: {{ info.total }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            <a href="/admin/movimientos" class="app-admin-link">
+                <i class="bi bi-pencil-square" aria-hidden="true"></i> Administrar
+            </a>
+        </li>
 
-        <!-- Tesorería -->
-        <div class="kpi-card admin-module admin-module--green">
-            <div class="admin-module__head">
-                <i class="bi bi-safe2"></i>
-                <strong>Tesorería</strong>
+        <li class="app-admin-row">
+            <div class="app-admin-row__heading">
+                <i class="bi bi-safe2 app-admin-icon" aria-hidden="true"></i>
+                <h2 class="app-admin-row__title">Tesorería</h2>
             </div>
-            <div class="admin-module__body">
-                <ul class="list-group list-group-flush">
-                    {% for entidad, info in stats.get('tesoreria', {}).items() %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1 border-0">
-                        {{ info.name }}
-                        <span class="badge bg-primary rounded-pill">{{ info.total }}</span>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-            <div class="admin-module__foot">
-                <a href="/admin/tesoreria" class="btn btn-sm btn-outline-success w-100">
-                    <i class="bi bi-pencil-square"></i> Administrar
-                </a>
-            </div>
-        </div>
+            <ul class="app-admin-row__statuses" aria-label="Datos de Tesorería">
+                {% for entidad, info in stats.get('tesoreria', {}).items() %}
+                <li class="app-status app-status--neutral app-admin-status">
+                    <span class="app-status__dot" aria-hidden="true"></span>
+                    <span class="app-status__text">{{ info.name }}: {{ info.total }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            <a href="/admin/tesoreria" class="app-admin-link">
+                <i class="bi bi-pencil-square" aria-hidden="true"></i> Administrar
+            </a>
+        </li>
 
-        <!-- RRHH -->
-        <div class="kpi-card admin-module admin-module--blue">
-            <div class="admin-module__head">
-                <i class="bi bi-people-fill"></i>
-                <strong>RRHH</strong>
+        <li class="app-admin-row">
+            <div class="app-admin-row__heading">
+                <i class="bi bi-people-fill app-admin-icon" aria-hidden="true"></i>
+                <h2 class="app-admin-row__title">RRHH</h2>
             </div>
-            <div class="admin-module__body">
-                <ul class="list-group list-group-flush">
-                    {% for entidad, info in stats.get('rrhh', {}).items() %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1 border-0">
-                        {{ info.name }}
-                        <span class="badge bg-primary rounded-pill">{{ info.total }}</span>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-            <div class="admin-module__foot">
-                <a href="/admin/rrhh" class="btn btn-sm btn-outline-primary w-100">
-                    <i class="bi bi-pencil-square"></i> Administrar
-                </a>
-            </div>
-        </div>
+            <ul class="app-admin-row__statuses" aria-label="Datos de RRHH">
+                {% for entidad, info in stats.get('rrhh', {}).items() %}
+                <li class="app-status app-status--neutral app-admin-status">
+                    <span class="app-status__dot" aria-hidden="true"></span>
+                    <span class="app-status__text">{{ info.name }}: {{ info.total }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            <a href="/admin/rrhh" class="app-admin-link">
+                <i class="bi bi-pencil-square" aria-hidden="true"></i> Administrar
+            </a>
+        </li>
 
-        <!-- Stock/Core -->
-        <div class="kpi-card admin-module admin-module--amber">
-            <div class="admin-module__head">
-                <i class="bi bi-box-seam"></i>
-                <strong>Stock / Maestros</strong>
+        <li class="app-admin-row">
+            <div class="app-admin-row__heading">
+                <i class="bi bi-box-seam app-admin-icon" aria-hidden="true"></i>
+                <h2 class="app-admin-row__title">Stock / Maestros</h2>
             </div>
-            <div class="admin-module__body">
-                <ul class="list-group list-group-flush">
-                    {% for entidad, info in stats.get('stock', {}).items() %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1 border-0">
-                        {{ info.name }}
-                        <span class="badge bg-primary rounded-pill">{{ info.total }}</span>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-            <div class="admin-module__foot">
-                <a href="/admin/stock" class="btn btn-sm btn-outline-warning w-100">
-                    <i class="bi bi-pencil-square"></i> Administrar
-                </a>
-            </div>
-        </div>
+            <ul class="app-admin-row__statuses" aria-label="Datos de Stock y Maestros">
+                {% for entidad, info in stats.get('stock', {}).items() %}
+                <li class="app-status app-status--neutral app-admin-status">
+                    <span class="app-status__dot" aria-hidden="true"></span>
+                    <span class="app-status__text">{{ info.name }}: {{ info.total }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            <a href="/admin/stock" class="app-admin-link">
+                <i class="bi bi-pencil-square" aria-hidden="true"></i> Administrar
+            </a>
+        </li>
 
-        <!-- Control de Accesos -->
-        <div class="kpi-card admin-module admin-module--neutral">
-            <div class="admin-module__head">
-                <i class="bi bi-shield-lock"></i>
-                <strong>Control de Accesos</strong>
+        <li class="app-admin-row app-admin-row--access">
+            <div class="app-admin-row__heading">
+                <i class="bi bi-shield-lock app-admin-icon" aria-hidden="true"></i>
+                <h2 class="app-admin-row__title">Control de Accesos</h2>
             </div>
-            <div class="admin-module__body">
-                <p class="text-muted mb-0" style="font-size:.85rem">Gestiona permisos de acceso por módulo para cada usuario.</p>
-            </div>
-            <div class="admin-module__foot">
-                <a href="/admin/accesos" class="btn btn-sm btn-outline-dark w-100">
-                    <i class="bi bi-shield-lock"></i> Administrar
-                </a>
-            </div>
-        </div>
+            <p class="app-admin-row__help">
+                <span class="app-status app-status--neutral app-admin-status">
+                    <span class="app-status__dot" aria-hidden="true"></span>
+                    <span class="app-status__text">Gestiona permisos de acceso por módulo para cada usuario.</span>
+                </span>
+            </p>
+            <a href="/admin/accesos" class="app-actions__primary app-admin-primary">
+                <i class="bi bi-shield-lock" aria-hidden="true"></i> Administrar
+            </a>
+        </li>
 
-        <!-- Marketing -->
-        <div class="kpi-card admin-module admin-module--purple">
-            <div class="admin-module__head">
-                <i class="bi bi-megaphone"></i>
-                <strong>Marketing</strong>
+        <li class="app-admin-row">
+            <div class="app-admin-row__heading">
+                <i class="bi bi-megaphone app-admin-icon" aria-hidden="true"></i>
+                <h2 class="app-admin-row__title">Marketing</h2>
             </div>
-            <div class="admin-module__body">
-                <ul class="list-group list-group-flush">
-                    {% for entidad, info in stats.get('marketing', {}).items() %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-1 border-0">
-                        {{ info.name }}
-                        <span class="badge bg-primary rounded-pill">{{ info.total }}</span>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-            <div class="admin-module__foot" style="display:flex;gap:.5rem">
-                <a href="/admin/marketing" class="btn btn-sm btn-outline-primary w-100">
-                    <i class="bi bi-pencil-square"></i> Administrar
-                </a>
-            </div>
-        </div>
-    </div>
+            <ul class="app-admin-row__statuses" aria-label="Datos de Marketing">
+                {% for entidad, info in stats.get('marketing', {}).items() %}
+                <li class="app-status app-status--neutral app-admin-status">
+                    <span class="app-status__dot" aria-hidden="true"></span>
+                    <span class="app-status__text">{{ info.name }}: {{ info.total }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            <a href="/admin/marketing" class="app-admin-link">
+                <i class="bi bi-pencil-square" aria-hidden="true"></i> Administrar
+            </a>
+        </li>
+    </ul>
 </div>
 {% endblock %}
