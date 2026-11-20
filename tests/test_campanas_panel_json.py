@@ -224,9 +224,9 @@ def test_estado_vacio_y_boton_primario_de_cabecera(app_seguridad):
     con_filas = cliente.get("/campaigns").get_data(as_text=True)
 
     assert "Todavía no hay campañas" in vacia
-    assert vacia.count('data-drawer-open="campanaPanel"') == 2
+    assert len(re.findall(r'<button[^>]*data-drawer-open="campanaPanel"', vacia)) == 2
     assert "Todavía no hay campañas" not in con_filas
-    assert con_filas.count('data-drawer-open="campanaPanel"') == 1
+    assert len(re.findall(r'<button[^>]*data-drawer-open="campanaPanel"', con_filas)) == 1
     assert 'data-campaign-id="' in con_filas
 
 
