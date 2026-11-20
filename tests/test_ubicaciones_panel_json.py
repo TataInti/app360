@@ -257,3 +257,17 @@ def test_plantilla_de_ubicaciones_no_interpola_html_ni_usa_innerhtml():
         plantilla = (RAIZ / "templates" / nombre).read_text(encoding="utf-8")
         assert "innerHTML" not in plantilla
         assert "outerHTML" not in plantilla
+
+
+def test_cabecera_de_accion_se_refresca_con_la_lista(app_seguridad):
+    # La acción «Nueva Ubicación» aparece al primer alta: su región se reemplaza junto con la tabla.
+    cliente = _cliente(app_seguridad, 1, "PROBE-admin", "admin")
+    vacia = cliente.get("/locations").get_data(as_text=True)
+    db.session.add(Location(name="PROBE cabecera", type="nave"))
+    db.session.commit()
+    con_filas = cliente.get("/locations").get_data(as_text=True)
+
+    assert 'data-locations-accion' in vacia and 'data-locations-accion' in con_filas
+    assert 'data-drawer-open="ubicacionPanel" aria-controls="ubicacionPanel">Nueva Ubicación' not in vacia
+    assert 'data-drawer-open="ubicacionPanel" aria-controls="ubicacionPanel">Nueva Ubicación' in con_filas
+

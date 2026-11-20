@@ -6,11 +6,11 @@
         <h1>Ubicaciones</h1>
         <span class="panel-subtitle">Administrá las ubicaciones de stock.</span>
     </div>
-    {% if locations %}
-    <div class="action-bar">
+    <div class="action-bar" data-locations-accion>
+        {% if locations %}
         <button type="button" class="btn btn-sm btn-primary" data-drawer-open="ubicacionPanel" aria-controls="ubicacionPanel">Nueva Ubicación</button>
+        {% endif %}
     </div>
-    {% endif %}
 </header>
 
 <div data-locations-region>
@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Reemplaza solo la tabla (o el estado vacío) con la lista fresca del servidor y resalta el alta.
+    // Reemplaza la tabla (o el estado vacío) y la acción de cabecera con la lista fresca del servidor, y resalta el alta.
     function refrescarLista(idNuevo) {
         return fetch('/locations', { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
             .then(function (respuesta) {
@@ -98,11 +98,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 return respuesta.text();
             })
             .then(function (html) {
-                var fresca = new DOMParser().parseFromString(html, 'text/html').querySelector('[data-locations-region]');
+                var documento = new DOMParser().parseFromString(html, 'text/html');
+                var fresca = documento.querySelector('[data-locations-region]');
+                var frescaAccion = documento.querySelector('[data-locations-accion]');
                 if (!fresca || !region) {
                     return;
                 }
                 region.replaceChildren.apply(region, Array.from(fresca.childNodes));
+                var accion = document.querySelector('[data-locations-accion]');
+                if (accion && frescaAccion) {
+                    accion.replaceChildren.apply(accion, Array.from(frescaAccion.childNodes));
+                }
                 formatearNumeros(region);
                 if (/^\d+$/.test(String(idNuevo))) {
                     var fila = region.querySelector('tr[data-location-id="' + idNuevo + '"]');
@@ -124,6 +130,14 @@ document.addEventListener('DOMContentLoaded', function () {
         alGuardar: function (cuerpo) {
             refrescarLista(cuerpo.id).catch(function () {
                 // Si no se puede refrescar la tabla, el alta ya quedó guardada: la lista se ve al recargar.
+            }).then(function () {
+                // Si el disparador era el estado vacío, se reemplazó y el foco quedó en el cuerpo: vuelve al botón de cabecera.
+                if (!document.activeElement || document.activeElement === document.body) {
+                    var disparador = document.querySelector('[data-locations-accion] [data-drawer-open="ubicacionPanel"]');
+                    if (disparador) {
+                        disparador.focus();
+                    }
+                }
             });
         }
     });

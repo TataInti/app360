@@ -117,6 +117,14 @@ document.addEventListener('DOMContentLoaded', function () {
         alGuardar: function (cuerpo) {
             refrescarLista(cuerpo.id).catch(function () {
                 // Si no se puede refrescar la tabla, el alta ya quedó guardada: la lista se ve al recargar.
+            }).then(function () {
+                // Si el disparador era el estado vacío, se reemplazó y el foco quedó en el cuerpo: vuelve al botón de cabecera.
+                if (!document.activeElement || document.activeElement === document.body) {
+                    var disparador = document.querySelector('.app-page-head [data-drawer-open="campanaPanel"]');
+                    if (disparador) {
+                        disparador.focus();
+                    }
+                }
             });
         }
     });
