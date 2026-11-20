@@ -40,10 +40,17 @@ def _responder_error(error):
     return _error(error.codigo, error.mensaje, error.status, error.campos)
 
 
-def _fallo_interno(accion):
-    # Sin str(e): los errores de SQLAlchemy incluyen parámetros de la consulta.
+def _fallo_interno(accion, error=None):
+    # No se registra str(error): SQLAlchemy puede incluir parámetros de la consulta.
     db.session.rollback()
-    current_app.logger.error("Falló una acción de administración de usuarios: %s", accion)
+    origen = getattr(error, "orig", None)
+    sqlstate = getattr(origen, "pgcode", None) or getattr(origen, "sqlstate", None)
+    current_app.logger.error(
+        "Falló una acción de administración de usuarios: accion=%s exception=%s sqlstate=%s",
+        accion,
+        type(error).__name__ if error is not None else "desconocida",
+        sqlstate or "n/a",
+    )
     return _error("ERROR_INTERNO", "No se pudo completar la acción. No se aplicó ningún cambio.", 500)
 
 
@@ -108,8 +115,8 @@ def crear():
     except ua.ErrorUsuarios as error:
         db.session.rollback()
         return _responder_error(error)
-    except Exception:
-        return _fallo_interno("alta")
+    except Exception as error:
+        return _fallo_interno("alta", error)
     # La clave temporal viaja solo en esta respuesta: no va a la URL, a los logs ni a la auditoría.
     cuerpo = {
         "usuario": ua.serializar_usuario(usuario),
@@ -128,8 +135,8 @@ def _cambiar_estado(usuario_id, operacion, nombre):
     except ua.ErrorUsuarios as error:
         db.session.rollback()
         return _responder_error(error)
-    except Exception:
-        return _fallo_interno(nombre)
+    except Exception as error:
+        return _fallo_interno(nombre, error)
     return jsonify({"usuario": ua.serializar_usuario(usuario)})
 
 
@@ -156,8 +163,8 @@ def cambiar_rol(usuario_id):
     except ua.ErrorUsuarios as error:
         db.session.rollback()
         return _responder_error(error)
-    except Exception:
-        return _fallo_interno("cambio de rol")
+    except Exception as error:
+        return _fallo_interno("cambio de rol", error)
     return jsonify(
         {
             "usuario": ua.serializar_usuario(usuario),
@@ -175,8 +182,8 @@ def restablecer_clave(usuario_id):
     except ua.ErrorUsuarios as error:
         db.session.rollback()
         return _responder_error(error)
-    except Exception:
-        return _fallo_interno("restablecimiento de clave")
+    except Exception as error:
+        return _fallo_interno("restablecimiento de clave", error)
     # La clave temporal viaja solo en esta respuesta (no-store): no va a la URL, a los logs ni a la auditoría.
     return jsonify(
         {
