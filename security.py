@@ -190,17 +190,23 @@ def clave_temporal_vencida(usuario):
     return ahora() >= vence
 
 
-def verificar_clave_login(usuario, clave):
-    """Verifica la clave del login. Sin usuario o sin hash, hace el mismo trabajo de hash.
+def comprobar_clave_login(usuario, clave):
+    """(coincide, vencida) de la clave del login. Hace el mismo trabajo de hash con o sin usuario.
 
-    Una clave temporal vencida no sirve: el login la trata como una clave incorrecta (C2, D1).
+    coincide: la clave es la del usuario. vencida: la clave temporal ya venció (C2, D1). Sin usuario o
+    sin hash compara contra HASH_FICTICIO (M4) y devuelve (False, False).
     """
     clave = clave if isinstance(clave, str) else ""
     if usuario is None or not usuario.password_hash:
         check_password_hash(HASH_FICTICIO, clave)
-        return False
-    valida = usuario.check_password(clave)
-    return valida and not clave_temporal_vencida(usuario)
+        return False, False
+    return usuario.check_password(clave), clave_temporal_vencida(usuario)
+
+
+def verificar_clave_login(usuario, clave):
+    """Verifica la clave del login. Una clave temporal vencida no sirve: cuenta como clave incorrecta."""
+    coincide, vencida = comprobar_clave_login(usuario, clave)
+    return coincide and not vencida
 
 
 def registrar_ultimo_acceso(usuario):

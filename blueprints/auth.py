@@ -2,7 +2,7 @@ from flask import Blueprint, flash, g, redirect, render_template, request, sessi
 
 from config import Config
 from extensions import limiter
-from models import User, db
+from models import db
 from security import (
     SESION_HUELLA_CLAVE,
     SIN_ACCESO_ROUTE,
@@ -12,10 +12,9 @@ from security import (
     huella_sesion,
     log_login_attempt,
     log_security_event,
-    registrar_ultimo_acceso,
     sesion_web_vigente,
-    verificar_clave_login,
 )
+from services.acceso_login import autenticar, nombre_auditado
 from services.politica_clave import errores_clave_nueva
 
 auth_bp = Blueprint("auth", __name__)
@@ -37,13 +36,12 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "")
         password = request.form.get("password", "")
-        user = User.query.filter_by(username=username, active=True).first()
-
-        # Mismo trabajo de hash con o sin usuario: el tiempo de respuesta no revela si existe.
-        if verificar_clave_login(user, password):
-            registrar_ultimo_acceso(user)
+        # Mismas reglas que la API (C4): bloqueo por cuenta, registro de accesos y tiempo igualado.
+        resultado = autenticar(username, password, canal="web", ip=request.remote_addr)
+        if resultado.ok:
+            user = resultado.usuario
             session.update(datos_de_sesion_web(user))
-            log_login_attempt(username, success=True, ip=request.remote_addr)
+            log_login_attempt(nombre_auditado(username, password), success=True, ip=request.remote_addr)
             if user.must_change_password:
                 flash("Primero cambiá tu clave temporal.", "warning")
                 return redirect(url_for("auth.cambiar_clave"))
@@ -51,7 +49,7 @@ def login():
             route = first_allowed_route(user.role)
             return redirect(route)
 
-        log_login_attempt(username, success=False, ip=request.remote_addr)
+        log_login_attempt(nombre_auditado(username, password), success=False, ip=request.remote_addr)
         flash("Usuario o contraseña incorrectos.", "warning")
 
     return render_template(
