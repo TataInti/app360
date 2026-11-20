@@ -26,7 +26,7 @@ from datetime import timedelta, timezone
 from functools import wraps
 
 import sqlalchemy as sa
-from flask import has_request_context, request
+from flask import current_app, has_app_context, has_request_context, request
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 import security
@@ -128,13 +128,16 @@ def bloquear_mutaciones_usuarios():
         )
 
 
+def _sqlstate_operacional(error):
+    original = getattr(error, "orig", None)
+    return getattr(original, "pgcode", None) or getattr(original, "sqlstate", None)
+
+
 def es_error_concurrencia(error):
     """True solo para deadlock/serialization de PostgreSQL, no para cualquier OperationalError."""
     if not isinstance(error, OperationalError):
         return False
-    original = getattr(error, "orig", None)
-    sqlstate = getattr(original, "pgcode", None) or getattr(original, "sqlstate", None)
-    return str(sqlstate or "").upper() in SQLSTATES_CONCURRENCIA
+    return str(_sqlstate_operacional(error) or "").upper() in SQLSTATES_CONCURRENCIA
 
 
 def reintentar_operacion_concurrente(func):
@@ -152,6 +155,13 @@ def reintentar_operacion_concurrente(func):
                 db.session.rollback()
                 if not es_error_concurrencia(error):
                     raise
+                if has_app_context():
+                    current_app.logger.warning(
+                        "Conflicto concurrente en administración de usuarios: exception=%s sqlstate=%s intento=%s",
+                        type(error).__name__,
+                        _sqlstate_operacional(error) or "n/a",
+                        intento + 1,
+                    )
                 if intento == 1:
                     raise ErrorUsuarios(
                         CODIGO_OPERACION_CONCURRENTE,

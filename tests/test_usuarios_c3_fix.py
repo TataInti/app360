@@ -250,6 +250,27 @@ def test_operational_error_repetido_devuelve_409_uniforme(app_seguridad):
     )
 
 
+def test_api_serializa_conflicto_concurrente_en_409_json(app_seguridad, monkeypatch):
+    actor_id = _crear(app_seguridad, "probe-concurrente-admin", "admin")
+    target_id = _crear(app_seguridad, "probe-concurrente-target", "sales")
+    client = _cliente(app_seguridad, actor_id)
+
+    def siempre_concurrente(*args, **kwargs):
+        raise ua.ErrorUsuarios(
+            "OPERACION_CONCURRENTE",
+            "Otro administrador está modificando esta cuenta; reintentá en unos segundos",
+            409,
+        )
+
+    monkeypatch.setattr(ua, "restablecer_clave", siempre_concurrente)
+    respuesta = client.post(f"/api/admin/usuarios/{target_id}/restablecer-clave")
+    assert respuesta.status_code == 409
+    assert respuesta.get_json() == {
+        "codigo": "OPERACION_CONCURRENTE",
+        "error": "Otro administrador está modificando esta cuenta; reintentá en unos segundos",
+    }
+
+
 PG_URL_ENV = "APP360_PRUEBAS_PG_URL"
 
 
