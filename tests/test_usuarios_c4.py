@@ -860,7 +860,7 @@ def test_visor_pantalla_y_api_permisos_y_no_store(app_seguridad, reloj):
     assert ventas.get("/admin/usuarios/auditoria").status_code == 403
     assert app.test_client().get("/admin/usuarios/auditoria").status_code == 302
     anonima = app.test_client().get("/api/admin/usuarios/auditoria")
-    assert anonima.status_code == 401 and anonima.get_json() == {"error": "Sesión requerida"}
+    assert anonima.status_code == 401 and anonima.get_json() == {"error": "Sesión requerida", "codigo": "SESION_REQUERIDA"}
     sin_permiso = ventas.get("/api/admin/usuarios/auditoria")
     assert sin_permiso.status_code == 403 and sin_permiso.headers["Cache-Control"] == "no-store"
     assert admin.get("/api/admin/usuarios/auditoria").headers["Cache-Control"] == "no-store"

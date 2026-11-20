@@ -3,7 +3,7 @@ from sqlalchemy.exc import OperationalError
 
 from config import Config
 from extensions import limiter
-from models import db
+from models import User, db
 from security import (
     SESION_HUELLA_CLAVE,
     SIN_ACCESO_ROUTE,

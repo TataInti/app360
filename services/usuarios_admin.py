@@ -569,13 +569,19 @@ def restablecer_clave(actor, usuario_id):
     return usuario, clave, vence
 
 
+@reintentar_operacion_concurrente
 def desbloquear_usuario(actor, usuario):
     """Levanta el bloqueo por intentos fallidos (A3): borra contador, ventana y fin del bloqueo.
 
-    Bloquea la fila antes de leer el estado: un fallo concurrente no queda a medio aplicar. Si la cuenta
-    no está bloqueada, responde 409 NO_BLOQUEADA y no escribe nada.
+    Se serializa con el resto de mutaciones de cuentas (bloquear_mutaciones_usuarios) y respeta la
+    jerarquía puede_administrar: un gerente no desbloquea cuentas admin ni manager. Bloquea la fila
+    antes de leer el estado. Si la cuenta no está bloqueada, responde 409 NO_BLOQUEADA y no escribe nada.
     """
-    fila = db.session.query(User).filter(User.id == usuario.id).with_for_update().populate_existing().one()
+    bloquear_mutaciones_usuarios()
+    fila = _usuario_bloqueado(_id_usuario(usuario))
+    if fila is None:
+        raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
+    _exigir_jerarquia(actor, fila)
     ahora = security.ahora()
     cantidad_pares, _ = _bloqueos_ip_vigentes(fila.id, ahora)
     if not esta_bloqueada(fila, ahora) and cantidad_pares == 0:
