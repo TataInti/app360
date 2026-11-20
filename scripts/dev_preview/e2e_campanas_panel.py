@@ -44,6 +44,8 @@ C3 = f"{PREFIJO} serie tres"
 C4 = f"{PREFIJO} <b>Serie & \"Otoño\"</b>"
 C5 = f"{PREFIJO} clasica"
 C6 = f"{PREFIJO} 1366"
+C7 = f"{PREFIJO} <em>Dos & \"B\"</em>"
+C8 = f"{PREFIJO} 1366 panel"
 CANAL = f"{PREFIJO} Mail & <i>Canal</i>"
 
 RESULTADOS = []
@@ -180,6 +182,9 @@ def escenario_escritorio(page):
     # Guardar y agregar otro: canal y plazo se conservan; nombre y costo, no; «Activa» vuelve a marcada.
     altas = [(C2, "1.000"), (C3, "250,75"), (C4, "")]
     abrir_panel(page, ".app-page-head .btn-primary")
+    page.fill("#campana-canal", CANAL)
+    page.fill("#campana-inicio", "2026-12-01")
+    page.fill("#campana-fin", "2026-12-31")
     for indice, (nombre, costo) in enumerate(altas, start=1):
         page.fill("#campana-nombre", nombre)
         if costo:
@@ -241,14 +246,14 @@ def escenario_escritorio(page):
 
     # Escapes: nombre y canal con marcado se guardan y se ven como texto.
     abrir_panel(page)
-    page.fill("#campana-nombre", C4)
+    page.fill("#campana-nombre", C7)
     page.fill("#campana-canal", "<i>Mail & \"X\"</i>")
     page.click('#campanaPanel [data-accion="guardar"]')
     expect(page.locator("#campanaPanel")).to_be_hidden(timeout=10000)
-    fila = esperar_fila(page, C4)
+    fila = esperar_fila(page, C7)
     verificar("escapes: el nombre aparece como texto literal en la lista", len(fila) == 1)
     verificar("escapes: no se genera un <b> ni un <i> en la lista", page.locator("[data-campaigns-region] b, [data-campaigns-region] i").count() == 0)
-    verificar("escapes: la base guarda el texto tal cual", consulta("SELECT count(*) FROM campaigns WHERE name=%s AND channel=%s", (C4, "<i>Mail & \"X\"</i>"))[0][0] == 1)
+    verificar("escapes: la base guarda el texto tal cual", consulta("SELECT count(*) FROM campaigns WHERE name=%s AND channel=%s", (C7, "<i>Mail & \"X\"</i>"))[0][0] == 1)
 
     # Rutas clásicas: HTML responde 302 a la lista; JSON responde 201 (mismo camino de validación).
     page.goto(BASE_URL + "/campaigns", wait_until="load")
@@ -284,7 +289,7 @@ def escenario_1366(page):
     )
     dentro = pie["bottom"] <= 768 and all(0 <= r[0] and r[1] <= 768 for r in pie["botones"])
     verificar("1366x768: pie y botones dentro de la ventana", dentro, pie)
-    page.fill("#campana-nombre", C6)
+    page.fill("#campana-nombre", C8)
     page.click('#campanaPanel [data-accion="guardar"]')
     expect(page.locator("#campanaPanel")).to_be_hidden(timeout=10000)
     verificar("1366x768: guardar cierra el panel", True)
@@ -312,7 +317,7 @@ def main():
         escenario_escritorio(page)
         escenario_1366(page)
         total = consulta("SELECT count(*) FROM campaigns WHERE name LIKE %s", (f"{PREFIJO}%",))[0][0]
-        verificar("altas exitosas del recorrido: 9 campañas en la base", total == 9, total)
+        verificar("altas exitosas del recorrido: 8 campañas en la base", total == 8, total)
         navegador.close()
 
     recursos = [m for m in CONSOLA if m.startswith("Failed to load resource")]

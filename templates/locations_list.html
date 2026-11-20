@@ -106,7 +106,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 region.replaceChildren.apply(region, Array.from(fresca.childNodes));
                 var accion = document.querySelector('[data-locations-accion]');
-                if (accion && frescaAccion) {
+                if (!accion || !frescaAccion || accion.querySelector('[data-drawer-open]')) {
+                    // El botón ya existe: se conserva el mismo nodo, porque el panel lo usa como disparador.
+                } else {
                     accion.replaceChildren.apply(accion, Array.from(frescaAccion.childNodes));
                 }
                 formatearNumeros(region);

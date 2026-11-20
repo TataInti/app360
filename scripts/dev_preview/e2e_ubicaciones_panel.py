@@ -47,6 +47,7 @@ N3 = f"{PREFIJO} sucursal sur"
 N4 = f"{PREFIJO} <b>Dep & \"Oeste\"</b>"
 N5 = f"{PREFIJO} nave 1366"
 CLASICO = f"{PREFIJO} clasico"
+N7 = f"{PREFIJO} <em>Norte & \"Dos\"</em>"
 
 RESULTADOS = []
 CONSOLA = []
@@ -265,14 +266,14 @@ def escenario_escritorio(page):
 
     # Escapes: el nombre con <b>, & y comillas se guarda y se ve como texto.
     abrir_panel(page)
-    page.fill("#ubicacion-nombre", N4)
+    page.fill("#ubicacion-nombre", N7)
     page.select_option("#ubicacion-tipo", "nave")
     page.click('#ubicacionPanel [data-accion="guardar"]')
     expect(page.locator("#ubicacionPanel")).to_be_hidden(timeout=10000)
-    fila = esperar_fila(page, N4, "nave")
+    fila = esperar_fila(page, N7, "nave")
     verificar("escapes: el nombre aparece como texto literal en la lista", len(fila) == 1, [f["celdas"][:2] for f in filas(page)][:6])
     verificar("escapes: no se genera un <b> en la lista", page.locator("[data-locations-region] b").count() == 0)
-    verificar("escapes: la base guarda el texto tal cual", consulta("SELECT count(*) FROM locations WHERE name=%s", (N4,))[0][0] == 1)
+    verificar("escapes: la base guarda el texto tal cual", consulta("SELECT count(*) FROM locations WHERE name=%s", (N7,))[0][0] == 1)
 
     # Página clásica /locations/new: sigue guardando con redirect a la lista.
     page.goto(BASE_URL + "/locations/new", wait_until="load")
@@ -333,7 +334,7 @@ def main():
         escenario_escritorio(page)
         escenario_1366(page)
         total = consulta("SELECT count(*) FROM locations WHERE name LIKE %s", (f"{PREFIJO}%",))[0][0]
-        verificar("altas exitosas del recorrido: 6 ubicaciones en la base", total == 6, total)
+        verificar("altas exitosas del recorrido: 7 ubicaciones en la base", total == 7, total)
         navegador.close()
 
     recursos = [m for m in CONSOLA if m.startswith("Failed to load resource")]
