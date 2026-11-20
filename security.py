@@ -374,6 +374,22 @@ def revalidar_sesion_web():
     return None
 
 
+def guardia_api_admin_sin_sesion():
+    """Antes del CSRF (C3, R4b): /api/admin/* sin sesión web válida responde 401 JSON uniforme.
+
+    Corre antes de Flask-WTF: una petición anónima recibe 401 aunque no lleve token CSRF, en lugar
+    de un 400 HTML. Con sesión válida no decide nada: el CSRF sigue exigiéndose y las guardias de
+    administración responden como antes.
+    """
+    ruta = request.path
+    if ruta != "/api/admin" and not ruta.startswith("/api/admin/"):
+        return None
+    if hay_sesion_web() and sesion_web_vigente():
+        return None
+    # Mismo cuerpo que el resto de /api/ sin sesión (contrato de tests/test_acceso_anonimo.py).
+    return jsonify({"error": "Sesión requerida", "codigo": "SESION_REQUERIDA"}), 401
+
+
 # =============================================================================
 # JWT Token Management
 # =============================================================================

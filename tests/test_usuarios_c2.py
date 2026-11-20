@@ -372,7 +372,7 @@ def test_ultimo_administrador_activo_no_se_desactiva(app_seguridad):
     assert _reactivar(admin, ger).status_code == 200
 
 
-def test_servicio_rechaza_el_ultimo_administrador_aunque_el_actor_no_sea_administrador(app_seguridad):
+def test_servicio_aplica_jerarquia_antes_de_proteger_al_ultimo_administrador(app_seguridad):
     app = app_seguridad
     adm = _crear(app, "probe-admin", "admin")
     ven = _crear(app, "probe-ventas", "sales")
@@ -381,9 +381,11 @@ def test_servicio_rechaza_el_ultimo_administrador_aunque_el_actor_no_sea_adminis
         objetivo = db.session.get(User, adm)
         with pytest.raises(ua.ErrorUsuarios) as info:
             ua.desactivar_usuario(actor, objetivo)
-        assert info.value.codigo == "ULTIMO_ADMINISTRADOR"
+        assert info.value.codigo == "JERARQUIA_INSUFICIENTE"
+        assert info.value.status == 403
         db.session.rollback()
     assert _estado(app, adm)["active"] is True
+    assert _estado(app, adm)["tv"] == 0
 
 
 def test_autodesactivacion_bloqueada_aunque_haya_otro_administrador(app_seguridad):

@@ -2,8 +2,9 @@
 """
 Script para configurar la base de datos PostgreSQL
 Uso:
-    python scripts/setup_database.py                         # crea tablas; un admin existente conserva su clave
+    python scripts/setup_database.py                         # crea tablas; un admin existente conserva rol y clave
     python scripts/setup_database.py --reset-admin-password  # reasigna la clave del admin con ADMIN_PASSWORD (pide confirmación)
+    python scripts/setup_database.py --forzar-roles          # aplica el rol admin a la cuenta existente
 """
 
 import os
@@ -20,14 +21,14 @@ from claves_seguras import confirmar
 from config import Config
 
 
-def ensure_admin_user(reset_password=False):
-    """Crea el admin inicial con ADMIN_PASSWORD. Una cuenta existente conserva su clave.
+def ensure_admin_user(reset_password=False, force_roles=False):
+    """Crea el admin inicial; una cuenta existente conserva clave y rol por defecto.
 
-    Devuelve "creado", "clave reasignada", "existe, sin cambio de clave" o None si
-    falta ADMIN_USERNAME o ADMIN_PASSWORD (en ese caso no se crea nada).
+    La clave cambia solo con reset_password y el rol solo con force_roles.
     """
     from models import db
     from models.core.user import User
+    from services.usuarios_admin import activar_cuenta_existente
 
     username = Config.ADMIN_USERNAME
     password = Config.ADMIN_PASSWORD
@@ -42,10 +43,9 @@ def ensure_admin_user(reset_password=False):
         db.session.commit()
         return "creado"
 
-    # La clave solo cambia con reset_password (--reset-admin-password).
-    # Activación y rol se mantienen como antes; se revisan en el corte de usuarios.
-    user.active = True
-    if not user.role:
+    # Una cuenta existente conserva el rol; --forzar-roles es la única opción que lo cambia.
+    activar_cuenta_existente(user)
+    if force_roles:
         user.role = "admin"
     if reset_password:
         user.set_password(password)
@@ -55,7 +55,7 @@ def ensure_admin_user(reset_password=False):
     db.session.commit()
     return resultado
 
-def setup_database(reset_admin_password=False):
+def setup_database(reset_admin_password=False, force_roles=False):
     """Configura la base de datos PostgreSQL"""
 
     print("🚀 Configurando base de datos PostgreSQL...")
@@ -82,7 +82,7 @@ def setup_database(reset_admin_password=False):
             ):
                 print("Sin confirmación: la clave del admin no se reasigna.")
                 reset_admin_password = False
-            resultado = ensure_admin_user(reset_password=reset_admin_password)
+            resultado = ensure_admin_user(reset_password=reset_admin_password, force_roles=force_roles)
             if resultado is None:
                 print("⚠️  ADMIN_USERNAME o ADMIN_PASSWORD no definidos: no se creó el admin inicial.")
             else:
@@ -120,5 +120,10 @@ if __name__ == "__main__":
         help="Reasigna la clave del admin con ADMIN_PASSWORD (pide confirmación). "
         "Sin este flag, un admin existente conserva su clave.",
     )
+    parser.add_argument(
+        "--forzar-roles",
+        action="store_true",
+        help="Aplica el rol admin a la cuenta existente (apagado por defecto).",
+    )
     args = parser.parse_args()
-    setup_database(reset_admin_password=args.reset_admin_password)
+    setup_database(reset_admin_password=args.reset_admin_password, force_roles=args.forzar_roles)

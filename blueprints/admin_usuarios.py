@@ -1,8 +1,9 @@
-"""Administración > Usuarios (C2): pantalla, API JSON, alta, activación y auditoría.
+"""Administración > Usuarios (C2 y C3): pantalla, API JSON, alta, activación, rol, clave y auditoría.
 
-Todas las rutas exigen administración (admin, manager, gerente). Anónimo: 401 JSON en la API y
-login en la pantalla. Sin rol de administración: 403 en la pantalla y en la API. Las respuestas
-no se guardan en caché (Cache-Control: no-store), porque el alta devuelve la clave temporal.
+Todas las rutas exigen administración (admin, manager, gerente). Anónimo: 401 JSON en la API (la
+guardia de app.py responde antes del CSRF) y login en la pantalla. Sin rol de administración: 403 en
+la pantalla y en la API. Las respuestas no se guardan en caché (Cache-Control: no-store), porque el
+alta y el restablecimiento devuelven una clave temporal.
 """
 
 from functools import wraps
@@ -21,7 +22,6 @@ from flask import (
 )
 
 from models import db
-from models.core.user import User
 from security import es_ruta_api
 from services import usuarios_admin as ua
 
@@ -39,10 +39,17 @@ def _responder_error(error):
     return _error(error.codigo, error.mensaje, error.status, error.campos)
 
 
-def _fallo_interno(accion):
-    # Sin str(e): los errores de SQLAlchemy incluyen parámetros de la consulta.
+def _fallo_interno(accion, error=None):
+    # No se registra str(error): SQLAlchemy puede incluir parámetros de la consulta.
     db.session.rollback()
-    current_app.logger.error("Falló una acción de administración de usuarios: %s", accion)
+    origen = getattr(error, "orig", None)
+    sqlstate = getattr(origen, "pgcode", None) or getattr(origen, "sqlstate", None)
+    current_app.logger.error(
+        "Falló una acción de administración de usuarios: accion=%s exception=%s sqlstate=%s",
+        accion,
+        type(error).__name__ if error is not None else "desconocida",
+        sqlstate or "n/a",
+    )
     return _error("ERROR_INTERNO", "No se pudo completar la acción. No se aplicó ningún cambio.", 500)
 
 
@@ -74,7 +81,7 @@ def _sin_cache(respuesta):
 @admin_usuarios_bp.route("/admin/usuarios")
 @admin_usuarios_required
 def pantalla():
-    return render_template("admin/usuarios.html", roles=ua.ROLES_ASIGNABLES)
+    return render_template("admin/usuarios.html", roles=ua.roles_asignables_para(g.usuario_sesion))
 
 
 @admin_usuarios_bp.route("/api/admin/usuarios", methods=["GET"])
@@ -84,7 +91,16 @@ def listar():
     if estado not in ua.ESTADOS_FILTRO:
         estado = "todos"
     usuarios = ua.listar_usuarios(q=request.args.get("q", ""), estado=estado)
-    return jsonify({"usuarios": [ua.serializar_usuario(u) for u in usuarios], "total": len(usuarios)})
+    return jsonify(
+        {
+            "usuarios": [ua.serializar_usuario(u) for u in usuarios],
+            "total": len(usuarios),
+            "roles_asignables": [
+                {"codigo": codigo, "nombre": nombre}
+                for codigo, nombre in ua.roles_asignables_para(g.usuario_sesion)
+            ],
+        }
+    )
 
 
 @admin_usuarios_bp.route("/api/admin/usuarios", methods=["POST"])
@@ -98,8 +114,8 @@ def crear():
     except ua.ErrorUsuarios as error:
         db.session.rollback()
         return _responder_error(error)
-    except Exception:
-        return _fallo_interno("alta")
+    except Exception as error:
+        return _fallo_interno("alta", error)
     # La clave temporal viaja solo en esta respuesta: no va a la URL, a los logs ni a la auditoría.
     cuerpo = {
         "usuario": ua.serializar_usuario(usuario),
@@ -110,16 +126,13 @@ def crear():
 
 
 def _cambiar_estado(usuario_id, operacion, nombre):
-    usuario = db.session.get(User, usuario_id, populate_existing=True)
-    if usuario is None:
-        return _error("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
     try:
-        operacion(g.usuario_sesion, usuario)
+        usuario = operacion(g.usuario_sesion, usuario_id)
     except ua.ErrorUsuarios as error:
         db.session.rollback()
         return _responder_error(error)
-    except Exception:
-        return _fallo_interno(nombre)
+    except Exception as error:
+        return _fallo_interno(nombre, error)
     return jsonify({"usuario": ua.serializar_usuario(usuario)})
 
 
@@ -133,6 +146,48 @@ def desactivar(usuario_id):
 @admin_usuarios_required
 def reactivar(usuario_id):
     return _cambiar_estado(usuario_id, ua.reactivar_usuario, "reactivación")
+
+
+@admin_usuarios_bp.route("/api/admin/usuarios/<int:usuario_id>/rol", methods=["POST"])
+@admin_usuarios_required
+def cambiar_rol(usuario_id):
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        datos = {}
+    try:
+        usuario, anterior, cambiado = ua.cambiar_rol(g.usuario_sesion, usuario_id, datos.get("role"))
+    except ua.ErrorUsuarios as error:
+        db.session.rollback()
+        return _responder_error(error)
+    except Exception as error:
+        return _fallo_interno("cambio de rol", error)
+    return jsonify(
+        {
+            "usuario": ua.serializar_usuario(usuario),
+            "rol_anterior": anterior,
+            "cambiado": cambiado,
+        }
+    )
+
+
+@admin_usuarios_bp.route("/api/admin/usuarios/<int:usuario_id>/restablecer-clave", methods=["POST"])
+@admin_usuarios_required
+def restablecer_clave(usuario_id):
+    try:
+        usuario, clave, vence = ua.restablecer_clave(g.usuario_sesion, usuario_id)
+    except ua.ErrorUsuarios as error:
+        db.session.rollback()
+        return _responder_error(error)
+    except Exception as error:
+        return _fallo_interno("restablecimiento de clave", error)
+    # La clave temporal viaja solo en esta respuesta (no-store): no va a la URL, a los logs ni a la auditoría.
+    return jsonify(
+        {
+            "usuario": ua.serializar_usuario(usuario),
+            "clave_temporal": clave,
+            "clave_temporal_vence": vence.isoformat(),
+        }
+    )
 
 
 @admin_usuarios_bp.route("/api/admin/usuarios/auditoria", methods=["GET"])

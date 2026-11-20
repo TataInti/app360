@@ -239,12 +239,11 @@ def seed_rrhh_data(locations):
     db.session.commit()
 
 
-def seed_users(reset_claves=False):
-    """Crea las cuentas de demo sin reasignar las claves de cuentas existentes.
+def seed_users(reset_claves=False, forzar_roles=False):
+    """Crea cuentas demo sin cambiar roles ni claves existentes por defecto.
 
-    Cuenta nueva: clave aleatoria; el admin del entorno toma ADMIN_PASSWORD.
-    Cuenta existente: su clave no cambia, salvo reset_claves=True (la regenera).
-    Devuelve una fila por cuenta. "clave" trae solo claves generadas en esta corrida.
+    Cuenta nueva: rol preset y clave aleatoria (ADMIN_USERNAME toma ADMIN_PASSWORD).
+    Cuenta existente: su rol solo cambia con forzar_roles y su clave solo con reset_claves.
     """
     # Los roles comercial, compras, rrhh y operaciones no existen en ACCESS_MAP.
     # Se dejan tal como están hasta decidir el mapeo (decisión de producto P-8).
@@ -271,15 +270,21 @@ def seed_users(reset_claves=False):
                 accion = "creado"
             db.session.add(user)
         else:
-            user.role = role  # Como antes: el rol de demo se fija en cada corrida.
+            if forzar_roles:
+                user.role = role
+            rol_conservado = user.role != role
             if reset_claves:
                 clave_generada = generar_clave()
                 user.set_password(clave_generada)
                 accion = "clave regenerada"
             else:
                 accion = "existe, clave sin cambios"
+            if rol_conservado:
+                accion += ", rol conservado"
+            elif forzar_roles:
+                accion += ", rol preset aplicado"
         resumen.append(
-            {"usuario": username, "rol": role, "accion": accion, "clave": clave_generada}
+            {"usuario": username, "rol": user.role, "accion": accion, "clave": clave_generada}
         )
 
     db.session.commit()
@@ -318,6 +323,11 @@ def main(argv=None):
         action="store_true",
         help="Regenera las claves de cuentas existentes. Pide confirmación.",
     )
+    parser.add_argument(
+        "--forzar-roles",
+        action="store_true",
+        help="Aplica los roles preset a las cuentas existentes (apagado por defecto).",
+    )
     args = parser.parse_args(argv)
 
     reset = args.reset_claves
@@ -331,7 +341,7 @@ def main(argv=None):
         units, locations, products, campaign = seed_business_data()
         seed_demo_lead(units, locations, products, campaign)
         seed_rrhh_data(locations)
-        resumen = seed_users(reset_claves=reset)
+        resumen = seed_users(reset_claves=reset, forzar_roles=args.forzar_roles)
         print("Base comercial sembrada con unidades, productos, campaña y lead demo.")
         imprimir_resumen_usuarios(resumen, mostrar_claves=args.mostrar_claves)
 

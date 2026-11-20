@@ -3,9 +3,10 @@
 Crear / actualizar usuarios para roles caja y director.
 
 Uso:
-    python scripts/setup_users.py                   # crea los faltantes; no reasigna claves existentes
+    python scripts/setup_users.py                   # crea los faltantes; conserva rol y claves existentes
     python scripts/setup_users.py --mostrar-claves  # además muestra una vez las claves generadas
     python scripts/setup_users.py --reset           # regenera claves de usuarios existentes (pide confirmación)
+    python scripts/setup_users.py --forzar-roles    # aplica los roles preset a cuentas existentes
 
 Las claves se generan con secrets.token_urlsafe(16). No se escriben en archivos ni en logs.
 """
@@ -22,6 +23,7 @@ from app import create_app
 from claves_seguras import confirmar, generar_clave
 from models import db
 from models.core.user import User
+from services.usuarios_admin import activar_cuenta_existente
 
 # Definición de usuarios a crear/actualizar
 USERS = [
@@ -30,7 +32,7 @@ USERS = [
 ]
 
 
-def setup_users(reset_passwords: bool = False, mostrar_claves: bool = False):
+def setup_users(reset_passwords: bool = False, mostrar_claves: bool = False, forzar_roles: bool = False):
     app = create_app()
     with app.app_context():
         credentials = []
@@ -48,20 +50,23 @@ def setup_users(reset_passwords: bool = False, mostrar_claves: bool = False):
                 user.set_password(password)
                 db.session.add(user)
                 print(f"  + Creado: {u['username']} ({u['role']})")
-            elif reset_passwords:
-                password = generar_clave()
-                user.set_password(password)
-                user.role = u["role"]
-                user.active = True
-                print(f"  ~ Reset: {u['username']} ({u['role']})")
             else:
-                # Asegurar rol y active
-                user.role = u["role"]
-                user.active = True
-                print(f"  = Existe: {u['username']} ({u['role']}) — sin cambio de contraseña")
+                if forzar_roles:
+                    user.role = u["role"]
+                rol_conservado = user.role != u["role"]
+                if reset_passwords:
+                    password = generar_clave()
+                    user.set_password(password)
+                activar_cuenta_existente(user)
+                if rol_conservado:
+                    print(f"  = Existe: {u['username']} ({user.role}) — rol conservado")
+                elif reset_passwords:
+                    print(f"  ~ Reset: {u['username']} ({user.role})")
+                else:
+                    print(f"  = Existe: {u['username']} ({user.role}) — sin cambio de contraseña")
 
             credentials.append(
-                {"username": u["username"], "role": u["role"], "password": password}
+                {"username": u["username"], "role": user.role, "password": password}
             )
 
         db.session.commit()
@@ -91,6 +96,11 @@ def main(argv=None):
         action="store_true",
         help="Muestra una vez las claves generadas en esta corrida.",
     )
+    parser.add_argument(
+        "--forzar-roles",
+        action="store_true",
+        help="Aplica los roles preset a las cuentas existentes (apagado por defecto).",
+    )
     args = parser.parse_args(argv)
 
     reset = args.reset
@@ -98,7 +108,7 @@ def main(argv=None):
         print("Sin confirmación: no se regeneran claves.")
         reset = False
 
-    setup_users(reset_passwords=reset, mostrar_claves=args.mostrar_claves)
+    setup_users(reset_passwords=reset, mostrar_claves=args.mostrar_claves, forzar_roles=args.forzar_roles)
 
 
 if __name__ == "__main__":

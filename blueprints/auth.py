@@ -1,4 +1,5 @@
-from flask import Blueprint, flash, g, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, g, jsonify, redirect, render_template, request, session, url_for
+from sqlalchemy.exc import OperationalError
 
 from config import Config
 from extensions import limiter
@@ -16,6 +17,7 @@ from security import (
     sesion_web_vigente,
     verificar_clave_login,
 )
+from services import usuarios_admin as ua
 from services.politica_clave import errores_clave_nueva
 
 auth_bp = Blueprint("auth", __name__)
@@ -73,21 +75,53 @@ def cambiar_clave():
         actual = request.form.get("clave_actual", "")
         nueva = request.form.get("clave_nueva", "")
         repetida = request.form.get("repetir_clave", "")
-        errores = _errores_cambio_clave(usuario, actual, nueva, repetida)
-        if errores:
-            return (
-                render_template(
-                    "cambiar_clave.html",
-                    obligatorio=usuario.must_change_password,
-                    errores=errores,
-                ),
-                400,
-            )
+        usuario_id = usuario.id
+        for intento in range(2):
+            try:
+                # Mismo lock asesor que los resets; refrescar hash y versión después de adquirirlo.
+                ua.bloquear_mutaciones_usuarios()
+                usuario = (
+                    User.query.filter_by(id=usuario_id)
+                    .populate_existing()
+                    .with_for_update()
+                    .one_or_none()
+                )
+                if usuario is None or usuario.active is not True:
+                    db.session.rollback()
+                    session.clear()
+                    flash("Iniciá sesión para cambiar tu clave.", "warning")
+                    return redirect(url_for("auth.login"))
+                g.usuario_sesion = usuario
+                obligatorio = usuario.must_change_password
+                errores = _errores_cambio_clave(usuario, actual, nueva, repetida)
+                if errores:
+                    db.session.rollback()
+                    return (
+                        render_template(
+                            "cambiar_clave.html",
+                            obligatorio=obligatorio,
+                            errores=errores,
+                        ),
+                        400,
+                    )
 
-        usuario.set_password(nueva)  # también registra password_changed_at
-        usuario.must_change_password = False
-        usuario.temp_password_expires_at = None
-        db.session.commit()
+                usuario.set_password(nueva)  # también registra password_changed_at
+                usuario.must_change_password = False
+                usuario.temp_password_expires_at = None
+                db.session.commit()
+                break
+            except OperationalError as error:
+                db.session.rollback()
+                if not ua.es_error_concurrencia(error):
+                    raise
+                if intento == 1:
+                    return jsonify(
+                        {
+                            "codigo": ua.CODIGO_OPERACION_CONCURRENTE,
+                            "error": ua.MENSAJE_OPERACION_CONCURRENTE,
+                        }
+                    ), 409
+
         # La sesión actual sigue abierta: su huella se recalcula con la clave nueva. Las otras
         # sesiones guardan la huella vieja y dejan de valer en su próxima petición (D9).
         session[SESION_HUELLA_CLAVE] = huella_sesion(usuario)
