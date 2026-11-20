@@ -53,6 +53,28 @@ def purgar(antes_de, ejecutar=False, confirmar=None):
     return cantidad, borradas
 
 
+def purgar_enlaces(antes_de, ejecutar=False, confirmar=None):
+    """Enlaces de recuperación usados o vencidos, creados antes del corte (B5). Devuelve (cantidad, borrados)."""
+    from sqlalchemy import or_
+
+    from models import db
+    from models.core.user_recovery_token import UserRecoveryToken
+
+    ahora = datetime.now(timezone.utc)
+    consulta = UserRecoveryToken.query.filter(
+        UserRecoveryToken.created_at < limite_utc(antes_de),
+        or_(UserRecoveryToken.used_at.isnot(None), UserRecoveryToken.expires_at <= ahora),
+    )
+    cantidad = consulta.count()
+    if not ejecutar:
+        return cantidad, 0
+    if confirmar != antes_de.isoformat():
+        raise ValueError("La confirmación no coincide con la fecha de corte.")
+    borrados = consulta.delete(synchronize_session=False)
+    db.session.commit()
+    return cantidad, borrados
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Purga manual de la auditoría de usuarios (simulación por defecto).")
     parser.add_argument("--antes-de", required=True, type=_fecha, help="AAAA-MM-DD; se purga lo anterior.")
@@ -69,6 +91,7 @@ def main(argv=None):
     aplicacion = create_app()
     with aplicacion.app_context():
         cantidad, borradas = purgar(args.antes_de, args.ejecutar, args.confirmar)
+        enlaces, borrados_enlaces = purgar_enlaces(args.antes_de, args.ejecutar, args.confirmar)
     if args.ejecutar:
         print(f"Borradas {borradas} filas de auditoría anteriores al {fecha}.")
     else:
@@ -76,6 +99,10 @@ def main(argv=None):
             f"Simulación: se borrarían {cantidad} filas anteriores al {fecha}. No se borró nada. "
             f"Para borrar: --ejecutar --confirmar {fecha}."
         )
+    if args.ejecutar:
+        print(f"Borrados {borrados_enlaces} enlaces de recuperación usados o vencidos anteriores al {fecha}.")
+    else:
+        print(f"Simulación: se borrarían {enlaces} enlaces de recuperación usados o vencidos anteriores al {fecha}. No se borró nada.")
     return 0
 
 

@@ -5,7 +5,7 @@
     <div class="panel-header">
         <div>
             <h1><i class="bi bi-people"></i> Usuarios</h1>
-            <span>Altas, roles, claves temporales y activación. Cada acción queda registrada.</span>
+            <span>Altas, roles, correo de contacto, claves temporales, enlaces de recuperación y activación. Cada acción queda registrada.</span>
         </div>
         <button type="button" class="btn btn-sm btn-primary" id="btnNuevoUsuario" aria-expanded="false" aria-controls="panelAltaUsuario">
             <i class="bi bi-person-plus"></i> Nuevo usuario
@@ -19,13 +19,19 @@
             <h2 class="h5">Nuevo usuario</h2>
             <p class="text-muted small">Se genera una clave temporal que vence en 72 horas. La persona la cambia al ingresar.</p>
             <div class="row g-3">
-                <div class="col-md-5">
+                <div class="col-md-4">
                     <label class="form-label" for="altaUsuario">Usuario</label>
                     <input id="altaUsuario" name="username" class="form-control" maxlength="80" autocomplete="off" aria-describedby="altaUsuarioAyuda">
                     <div id="altaUsuarioAyuda" class="form-text">De 3 a 80 caracteres: letras sin tilde, números, punto, guion y guion bajo.</div>
                     <div class="invalid-feedback" id="altaUsuarioError"></div>
                 </div>
                 <div class="col-md-4">
+                    <label class="form-label" for="altaCorreo">Correo (opcional)</label>
+                    <input id="altaCorreo" name="email" type="text" inputmode="email" class="form-control" maxlength="254" autocomplete="off" aria-describedby="altaCorreoAyuda">
+                    <div id="altaCorreoAyuda" class="form-text">Es un dato de contacto. No se envía ningún correo.</div>
+                    <div class="invalid-feedback" id="altaCorreoError"></div>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label" for="altaRol">Rol</label>
                     <select id="altaRol" name="role" class="form-select">
                         <option value="">Elegí un rol</option>
@@ -56,6 +62,19 @@
         </div>
     </div>
 
+    <div class="table-card mb-3 d-none" id="panelEnlaceRecuperacion" role="status" aria-live="polite">
+        <div class="p-3">
+            <h2 class="h5">Enlace de recuperación de <span id="enlaceUsuarioNombre"></span></h2>
+            <p>Pasáselo a la persona por un canal seguro. Vence el <strong id="enlaceVence"></strong>. Al abrirlo, elige su clave nueva y el enlace se usa una sola vez.</p>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <code id="enlace_recuperacion_nuevo" class="px-3 py-2 border rounded user-select-all text-break small"></code>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btnCopiarEnlace"><i class="bi bi-clipboard"></i> Copiar</button>
+            </div>
+            <p class="mt-3 fw-semibold text-danger">Guardalo ahora: no se vuelve a mostrar.</p>
+            <button type="button" class="btn btn-sm btn-primary" id="btnCerrarEnlace">Ya lo guardé</button>
+        </div>
+    </div>
+
     <div class="table-card">
         <div class="d-flex flex-wrap gap-2 p-3 align-items-end">
             <div>
@@ -79,6 +98,7 @@
                 <thead>
                     <tr>
                         <th>Usuario</th>
+                        <th>Correo</th>
                         <th>Rol</th>
                         <th>Estado</th>
                         <th>Último acceso</th>
@@ -140,6 +160,58 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-primary btn-sm" id="btnGuardarRol">Guardar rol</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade app-modal" id="modalCorreo" tabindex="-1" aria-labelledby="modalCorreoTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="formCorreo" novalidate>
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="modalCorreoTitulo">Correo de contacto</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small">Es un dato de contacto para el administrador. No se envía ningún correo. Dejalo vacío para borrarlo.</p>
+                    <label class="form-label" for="modalCorreoInput">Correo</label>
+                    <input id="modalCorreoInput" type="text" inputmode="email" class="form-control" maxlength="254" autocomplete="off" aria-describedby="modalCorreoError">
+                    <div class="invalid-feedback" id="modalCorreoError" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm" id="btnGuardarCorreo">Guardar correo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade app-modal" id="modalRecuperacion" tabindex="-1" aria-labelledby="modalRecuperacionTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="formRecuperacion" novalidate>
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="modalRecuperacionTitulo">Generar enlace de recuperación</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small">
+                        Se genera un enlace de un solo uso para <strong id="modalRecuperacionNombre"></strong>.
+                        <strong>Efecto:</strong> la clave actual deja de funcionar y se cierran sus sesiones activas.
+                        La cuenta quedará sin clave hasta que use el enlace, o hasta que generes otro enlace o restablezcas la clave.
+                    </p>
+                    <p class="small text-muted">Un enlace nuevo reemplaza al anterior. El enlace se muestra una sola vez.</p>
+                    <label class="form-label" for="modalRecuperacionTtl">Vigencia (minutos)</label>
+                    <input id="modalRecuperacionTtl" type="number" class="form-control" min="5" max="1440" step="1" value="30" aria-describedby="modalRecuperacionAyuda modalRecuperacionError">
+                    <div id="modalRecuperacionAyuda" class="form-text">De 5 a 1440 minutos. Por defecto, 30.</div>
+                    <div class="invalid-feedback" id="modalRecuperacionError" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm" id="btnGenerarRecuperacion">Generar enlace</button>
                 </div>
             </form>
         </div>

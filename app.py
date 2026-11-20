@@ -165,7 +165,8 @@ def create_app():
         # Habilitar XSS filter del navegador
         response.headers['X-XSS-Protection'] = '1; mode=block'
         # Referrer policy
-        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        # setdefault: el blueprint de recuperación fija no-referrer y no debe pisarse.
+        response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
         # Content Security Policy básica
         response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:; font-src 'self' https://cdn.jsdelivr.net"
         # Strict Transport Security (solo en HTTPS)
@@ -190,6 +191,10 @@ def create_app():
     from blueprints.auth import auth_bp
 
     app.register_blueprint(auth_bp)
+    # Canje público de recuperación de clave (C5): sin sesión, con su propio límite por IP.
+    from blueprints.recuperacion_clave import recuperacion_bp
+
+    app.register_blueprint(recuperacion_bp)
     # Apply rate limiting to login routes
     if app.config.get('RATELIMIT_ENABLED', True):
         limiter.limit("10 per minute")(auth_bp)

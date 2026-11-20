@@ -20,6 +20,8 @@ Reglas que cumple el servidor (la pantalla solo las refleja):
 - C4: el login (services/acceso_login.py) registra login_ok y login_failed como mejor esfuerzo y
   aplica el bloqueo por cuenta. Desbloquear (user_unlocked) es atómico. El visor filtra y pagina la
   auditoría (consultar_auditoria).
+- C5: correo de contacto opcional (alta y editar_correo), enlace de recuperación de clave (emisión con
+  efecto D2, revocación y canje en services/recuperacion_clave.py). Los enlaces guardan solo su hash.
 """
 
 import re
@@ -34,6 +36,7 @@ import security
 from models import db
 from models.core.user import User
 from models.core.user_audit_log import UserAuditLog
+from models.core.user_recovery_token import UserRecoveryToken
 from services.acceso_login import ETIQUETAS_MOTIVO, esta_bloqueada
 
 # Roles con acceso total (admin_required). Son los únicos que cuentan como administradores.
@@ -93,16 +96,43 @@ ACCIONES_AUDITADAS = {
     "user_unlocked": "Desbloqueo",
     "login_ok": "Login correcto",
     "login_failed": "Login fallido",
+    "user_email_changed": "Cambio de correo",
+    "user_recovery_issued": "Enlace de recuperación emitido",
+    "user_recovery_revoked": "Enlace de recuperación revocado",
+    "user_recovery_redeemed": "Recuperación de clave canjeada",
+    "recovery_failed": "Canje de recuperación fallido",
 }
 ACCIONES_FILTRO = (("todas", "Todas las acciones"), *ACCIONES_AUDITADAS.items())
 # Solo estos datos de contexto entran al detalle de auditoría. Nunca claves, hashes ni tokens.
 CAMPOS_DETALLE_PERMITIDOS = frozenset(
-    {"rol", "vence", "de", "a", "motivo", "canal", "intentos", "cambio_clave_pendiente"}
+    {
+        "rol",
+        "vence",
+        "de",
+        "a",
+        "motivo",
+        "canal",
+        "intentos",
+        "cambio_clave_pendiente",
+        "correo",
+        "ttl",
+        "recuperacion_id",
+        "reemplazados",
+    }
 )
 LIMITE_AUDITORIA = 50
 PATRON_FECHA = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
 PATRON_PAGINA = re.compile(r"[0-9]{1,12}")
 ETIQUETAS_CANAL = {"web": "web", "api": "API"}
+ETIQUETAS_MOTIVO_RECUPERACION = {
+    "formato": "token con formato inválido",
+    "inexistente": "enlace inexistente",
+    "revocado": "enlace revocado",
+    "usado": "enlace ya usado",
+    "vencido": "enlace vencido",
+    "usuario_inactivo": "cuenta desactivada",
+    "ya_consumido": "canje simultáneo",
+}
 # Hora de la pantalla: Argentina (UTC-3, sin horario de verano).
 ZONA_VISUAL = timezone(timedelta(hours=-3))
 
@@ -179,7 +209,62 @@ def _texto_hora(valor):
     return None if valor is None else _con_zona(valor).astimezone(ZONA_VISUAL).strftime("%H:%M")
 
 
-def serializar_usuario(usuario):
+_SIN_DATO = object()
+
+
+def revocar_enlaces_vigentes(usuario, ahora):
+    """Revoca los enlaces de recuperación vigentes de una cuenta. Devuelve cuántos cambiaron."""
+    vigentes = UserRecoveryToken.query.filter(
+        UserRecoveryToken.user_id == usuario.id,
+        UserRecoveryToken.used_at.is_(None),
+        UserRecoveryToken.revoked_at.is_(None),
+        UserRecoveryToken.expires_at > ahora,
+    ).all()
+    for enlace in vigentes:
+        enlace.revoked_at = ahora
+    return len(vigentes)
+
+
+def ultimos_enlaces(ids):
+    """Último enlace de recuperación de cada cuenta, en una sola consulta. Devuelve {usuario_id: fila}."""
+    ids = list(ids)
+    if not ids:
+        return {}
+    ultimo = (
+        db.session.query(db.func.max(UserRecoveryToken.id).label("id"))
+        .filter(UserRecoveryToken.user_id.in_(ids))
+        .group_by(UserRecoveryToken.user_id)
+        .subquery()
+    )
+    filas = UserRecoveryToken.query.join(ultimo, UserRecoveryToken.id == ultimo.c.id).all()
+    return {fila.user_id: fila for fila in filas}
+
+
+def estado_recuperacion(enlace, ahora=None):
+    """Estado del último enlace: vigente (con hora), vencido o pendiente (revocado). None si no aplica.
+
+    Un enlace nuevo revoca los anteriores: el último es el único que puede estar vigente.
+    """
+    if enlace is None or enlace.used_at is not None:
+        return None
+    if enlace.revoked_at is not None:
+        return {"estado": "pendiente", "nombre": "Recuperación pendiente", "id": None, "vence": None}
+    ahora = ahora or security.ahora()
+    vence = _con_zona(enlace.expires_at)
+    if vence > ahora:
+        hora = _texto_hora(vence)
+        return {
+            "estado": "vigente",
+            "nombre": f"Enlace de recuperación vigente hasta {hora}",
+            "id": enlace.id,
+            "vence": vence.isoformat(),
+        }
+    return {"estado": "vencido", "nombre": "Enlace vencido", "id": None, "vence": vence.isoformat()}
+
+
+def serializar_usuario(usuario, enlace=_SIN_DATO):
+    if enlace is _SIN_DATO:
+        enlace = ultimos_enlaces([usuario.id]).get(usuario.id)
     estado = estado_usuario(usuario)
     bloqueada = esta_bloqueada(usuario)
     vence = usuario.temp_password_expires_at if usuario.must_change_password else None
@@ -197,6 +282,8 @@ def serializar_usuario(usuario):
         "bloqueada": bloqueada,
         "bloqueada_hasta": _iso(usuario.locked_until) if bloqueada else None,
         "bloqueada_hasta_texto": _texto_hora(usuario.locked_until) if bloqueada else None,
+        "correo": usuario.email,
+        "recuperacion": estado_recuperacion(enlace),
     }
 
 
@@ -246,6 +333,107 @@ def registrar_auditoria(actor, accion, target=None, detalle=None):
     return evento
 
 
+LARGO_MAXIMO_CORREO = 254
+CARACTERES_CORREO_LOCAL = frozenset("abcdefghijklmnopqrstuvwxyz0123456789_%+-.")
+CARACTERES_DOMINIO = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-.")
+MENSAJE_CORREO_FORMATO = "Revisá el correo: usá la forma nombre@dominio.com, sin espacios ni tildes."
+MENSAJE_CORREO_LARGO = "El correo no puede tener más de 254 caracteres."
+MENSAJE_CORREO_DUPLICADO = "Ese correo ya está cargado en otro usuario. Revisalo o dejá el campo vacío."
+
+
+def normalizar_correo(valor):
+    """(correo, error). Vacío o ausente → (None, None): sin correo. Se guarda en minúsculas y sin espacios.
+
+    Sin expresiones regulares y con el largo máximo verificado antes de procesar: el tiempo es lineal.
+    Solo ASCII (sin dominios internacionalizados).
+    """
+    if valor is None:
+        return None, None
+    if not isinstance(valor, str):
+        return None, MENSAJE_CORREO_FORMATO
+    texto = valor.strip()
+    if not texto:
+        return None, None
+    if len(texto) > LARGO_MAXIMO_CORREO:
+        return None, MENSAJE_CORREO_LARGO
+    texto = texto.lower()
+    if not _correo_con_forma_valida(texto):
+        return None, MENSAJE_CORREO_FORMATO
+    return texto, None
+
+
+def _correo_con_forma_valida(texto):
+    partes = texto.split("@")
+    if len(partes) != 2:
+        return False
+    local, dominio = partes
+    if not 1 <= len(local) <= 64 or not all(caracter in CARACTERES_CORREO_LOCAL for caracter in local):
+        return False
+    if local.startswith(".") or local.endswith(".") or ".." in local:
+        return False
+    etiquetas = dominio.split(".")
+    if len(etiquetas) < 2 or len(dominio) > 253:
+        return False
+    for etiqueta in etiquetas:
+        if not 1 <= len(etiqueta) <= 63 or etiqueta[0] == "-" or etiqueta[-1] == "-":
+            return False
+        if not all(caracter in CARACTERES_DOMINIO for caracter in etiqueta):
+            return False
+    return len(etiquetas[-1]) >= 2 and etiquetas[-1].isalpha()
+
+
+def enmascarar_correo(correo):
+    """«a***@dominio.com»: primera letra del nombre y el dominio. Es lo único que va a la auditoría."""
+    if not correo:
+        return "(sin correo)"
+    local, _, dominio = correo.partition("@")
+    return f"{local[:1]}***@{dominio}"
+
+
+def _correo_en_uso(correo, excepto_id):
+    consulta = db.session.query(User.id).filter(db.func.lower(User.email) == correo)
+    if excepto_id is not None:
+        consulta = consulta.filter(User.id != excepto_id)
+    return consulta.first() is not None
+
+
+def _error_correo_duplicado():
+    return ErrorUsuarios("CORREO_DUPLICADO", MENSAJE_CORREO_DUPLICADO, 409, {"email": MENSAJE_CORREO_DUPLICADO})
+
+
+def cambiar_correo(actor, usuario_id, correo):
+    """Edita el correo de contacto (B1). Devuelve (usuario, cambiado). Vacío borra el correo.
+
+    La auditoría user_email_changed va en la misma transacción y guarda el correo enmascarado.
+    Si el correo no cambia, no escribe nada.
+    """
+    nuevo, error = normalizar_correo(correo)
+    if error:
+        raise ErrorUsuarios("DATOS_INVALIDOS", "Revisá el correo marcado.", 400, {"email": error})
+    usuario = User.query.filter_by(id=usuario_id).with_for_update().populate_existing().one_or_none()
+    if usuario is None:
+        raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
+    if (usuario.email or None) == nuevo:
+        db.session.rollback()
+        return usuario, False
+    if nuevo is not None and _correo_en_uso(nuevo, usuario.id):
+        db.session.rollback()
+        raise _error_correo_duplicado()
+    usuario.email = nuevo
+    try:
+        registrar_auditoria(
+            actor,
+            "user_email_changed",
+            usuario,
+            {"correo": enmascarar_correo(nuevo) if nuevo else "(borrado)"},
+        )
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        raise _error_correo_duplicado()
+    return usuario, True
+
+
 def _error_usuario_existente():
     return ErrorUsuarios(
         "USERNAME_TAKEN",
@@ -255,19 +443,24 @@ def _error_usuario_existente():
     )
 
 
-def crear_usuario(actor, username, role):
+def crear_usuario(actor, username, role, correo=None):
     """Alta con clave temporal. Devuelve (usuario, clave, vence). La clave no se vuelve a mostrar."""
     nombre = normalizar_usuario(username)
     rol = role.strip() if isinstance(role, str) else ""
     errores = validar_alta(nombre, rol)
+    correo_normalizado, error_correo = normalizar_correo(correo)
+    if error_correo:
+        errores["email"] = error_correo
     if errores:
         raise ErrorUsuarios("DATOS_INVALIDOS", "Revisá los datos marcados.", 400, errores)
     if db.session.query(User.id).filter(db.func.lower(User.username) == nombre).first() is not None:
         raise _error_usuario_existente()
+    if correo_normalizado is not None and _correo_en_uso(correo_normalizado, None):
+        raise _error_correo_duplicado()
 
     clave = generar_clave_temporal()
     vence = security.ahora() + timedelta(hours=HORAS_CLAVE_TEMPORAL)
-    usuario = User(username=nombre, role=rol, active=True)
+    usuario = User(username=nombre, role=rol, active=True, email=correo_normalizado)
     usuario.set_password(clave)
     usuario.must_change_password = True
     usuario.password_changed_at = None
@@ -279,8 +472,13 @@ def crear_usuario(actor, username, role):
         db.session.flush()
     except IntegrityError:
         db.session.rollback()
+        if correo_normalizado is not None and _correo_en_uso(correo_normalizado, None):
+            raise _error_correo_duplicado()
         raise _error_usuario_existente()
-    registrar_auditoria(actor, "user_created", usuario, {"rol": rol, "vence": vence.isoformat()})
+    detalle_alta = {"rol": rol, "vence": vence.isoformat()}
+    if correo_normalizado is not None:
+        detalle_alta["correo"] = enmascarar_correo(correo_normalizado)
+    registrar_auditoria(actor, "user_created", usuario, detalle_alta)
     db.session.commit()
     return usuario, clave, vence
 
@@ -399,6 +597,8 @@ def restablecer_clave(actor, usuario_id):
     usuario.must_change_password = True
     usuario.temp_password_expires_at = vence
     usuario.token_version = (usuario.token_version or 0) + 1
+    # Un restablecimiento revoca los enlaces de recuperación vigentes: un enlace filtrado deja de servir.
+    revocar_enlaces_vigentes(usuario, ahora)
     registrar_auditoria(actor, "user_password_reset", usuario, {"vence": vence.isoformat()})
     db.session.commit()
     return usuario, clave, vence
@@ -513,6 +713,22 @@ def _texto_detalle(fila):
         return _texto_vencimiento(detalle.get("vence"))
     if accion == "user_unlocked":
         return f"Intentos fallidos antes del desbloqueo: {detalle.get('intentos', 0)}"
+    if accion == "user_email_changed":
+        return f"Correo: {detalle.get('correo', '—')}"
+    if accion == "user_recovery_issued":
+        texto = f"Vigencia: {detalle.get('ttl', '—')} min"
+        if detalle.get("reemplazados"):
+            texto += f" · Reemplazó {detalle.get('reemplazados')} enlace(s) anterior(es)"
+        return texto
+    if accion == "user_recovery_revoked":
+        return "Se revocó el enlace vigente: la cuenta queda sin clave hasta un nuevo enlace o restablecimiento"
+    if accion == "user_recovery_redeemed":
+        return "Clave cambiada con el enlace de recuperación"
+    if accion == "recovery_failed":
+        veces = fila.repeticiones or 1
+        palabra = "intento" if veces == 1 else "intentos"
+        motivo = ETIQUETAS_MOTIVO_RECUPERACION.get(detalle.get("motivo"), "—")
+        return f"Motivo: {motivo}, {veces} {palabra}"
     if accion == "login_ok":
         texto = f"Canal: {ETIQUETAS_CANAL.get(detalle.get('canal'), '—')}"
         return texto + ". Debe cambiar la clave" if detalle.get("cambio_clave_pendiente") else texto

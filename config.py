@@ -28,6 +28,8 @@ class Config:
         "http" if _IS_LOCAL else "https"
     )
 
+    # Dirección pública para los enlaces de recuperación (C5). Sin ella se usa SERVER_NAME; nunca cabeceras.
+    APP_PUBLIC_URL = os.getenv("APP_PUBLIC_URL") or None
     SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE")
     if SESSION_COOKIE_SECURE is None:
         SESSION_COOKIE_SECURE = not _IS_LOCAL

@@ -162,3 +162,17 @@ Riesgo a validar: alguien puede bloquear a una persona real adivinando su usuari
 Visor de auditoría: `/admin/usuarios/auditoria` (admin, manager y gerente; enlace «Ver auditoría completa» desde Administración > Usuarios). Filtra por usuario (actor o destino), acción y rango de fechas (días de Argentina, incluidos); pagina de 50 y ordena del más nuevo al más viejo. La API `GET /api/admin/usuarios/auditoria` acepta `q`, `accion`, `desde` y `hasta` (AAAA-MM-DD) y `pagina`; sin parámetros devuelve las últimas 50 acciones, como antes. Los parámetros inválidos responden 400 JSON.
 
 Retención (D10): 2 años. Hoy no se purga nada. La purga es manual con `scripts/purgar_auditoria_usuarios.py --antes-de AAAA-MM-DD`: sin `--ejecutar` solo simula; para borrar hay que repetir la misma fecha en `--confirmar`. No hay tarea programada y no se corre contra producción sin autorización de Inti.
+
+### Recuperación de clave y correo de contacto (C5)
+
+Correo de contacto (opcional): el alta y la acción «Editar correo» de cada fila guardan un correo de referencia. Se guarda en minúsculas, sin espacios, con formato nombre@dominio.tld en caracteres ASCII y hasta 254 caracteres. No se repite entre usuarios sin distinguir mayúsculas. Vacío lo borra. No se envía ningún correo: es un dato de contacto para el administrador. La auditoría guarda el correo enmascarado («a***@dominio») y nunca aparece en logs.
+
+Para el administrador (admin, manager o gerente): «Generar enlace de recuperación» pide la vigencia (de 5 a 1440 minutos; 30 por defecto) y muestra el enlace una sola vez, con botón «Copiar». Emitir el enlace tiene este efecto: la clave actual deja de funcionar, se cierran las sesiones web y los JWT de esa cuenta, y la cuenta queda sin clave utilizable hasta que la persona canjee el enlace o el administrador genere otro enlace o restablezca la clave (decisión D2). Un enlace nuevo revoca el anterior. No se genera un enlace para la propia cuenta: para eso está «Cambiar mi clave». Límite: 5 enlaces cada 10 minutos por administrador. «Revocar enlace» invalida el vigente y deja la cuenta sin clave hasta un nuevo enlace o un restablecimiento. Restablecer la clave (C3) revoca los enlaces vigentes.
+
+Para la persona: abre el enlace completo en el navegador (el código va después del #), elige una clave nueva de al menos 12 caracteres con la misma política de «Cambiar mi clave» y la repite. El enlace sirve una sola vez, vence según su vigencia y no sirve si fue revocado o si la cuenta está desactivada. Al canjearlo entra con la clave nueva sin pasar por el cambio de clave temporal; las sesiones anteriores siguen cerradas. Si la clave no cumple la política, el enlace no se consume.
+
+Respuesta uniforme: un enlace inexistente, vencido, usado, revocado o de cuenta desactivada recibe la misma página y el mismo mensaje. Límite de canjes: 5 intentos cada 10 minutos por IP (por proceso de la aplicación).
+
+Auditoría: user_email_changed, user_recovery_issued, user_recovery_revoked, user_recovery_redeemed y recovery_failed (los fallos se agrupan por IP, motivo, cuenta y minuto). Purga manual: scripts/purgar_auditoria_usuarios.py también borra los enlaces usados o vencidos anteriores a la fecha, con simulación por defecto.
+
+Riesgo a validar: quien recibe un enlace puede fijar la clave de la cuenta. Por eso el enlace se muestra una sola vez, se entrega por un canal seguro y se revoca al restablecer la clave.

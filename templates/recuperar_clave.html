@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Recuperar clave · App 360</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+</head>
+<body class="bg-light d-flex align-items-center justify-content-center min-vh-100">
+    <main class="bg-white p-4 p-md-5 rounded shadow-sm w-100 mx-3" style="max-width: 440px;">
+        <h1 class="h4 mb-1"><i class="bi bi-key"></i> Recuperá tu clave</h1>
+        <p class="text-muted small mb-3">Elegí una clave nueva para ingresar a App 360.</p>
+
+        {% if mensaje %}
+        <div class="alert alert-warning" role="alert" id="mensajeRecuperacion">{{ mensaje }}</div>
+        {% endif %}
+
+        <div class="alert alert-info small" id="sinEnlace" {% if token or mensaje %}hidden{% endif %}>
+            Abrí el enlace completo que te pasó tu administrador. Si lo copiaste, revisá que esté entero.
+        </div>
+
+        <form id="formRecuperar" method="post" action="{{ url_for('recuperacion.recuperar_clave') }}" novalidate {% if not token %}hidden{% endif %}>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="token" id="token" value="{{ token }}">
+
+            <div class="mb-3">
+                <label for="new_password" class="form-label">Clave nueva</label>
+                <input type="password" id="new_password" name="new_password" autocomplete="new-password"
+                       class="form-control{% if errores.clave_nueva %} is-invalid{% endif %}"
+                       aria-describedby="ayudaClave{% if errores.clave_nueva %} errorClave{% endif %}">
+                <div id="ayudaClave" class="form-text">Mínimo 12 caracteres. No uses tu nombre de usuario ni una clave común.</div>
+                {% if errores.clave_nueva %}
+                <div id="errorClave" class="invalid-feedback d-block">{{ errores.clave_nueva }}</div>
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <label for="confirm" class="form-label">Repetir clave nueva</label>
+                <input type="password" id="confirm" name="confirm" autocomplete="new-password"
+                       class="form-control{% if errores.repetir_clave %} is-invalid{% endif %}">
+                {% if errores.repetir_clave %}
+                <div class="invalid-feedback d-block">{{ errores.repetir_clave }}</div>
+                {% endif %}
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-check2"></i> Guardar clave nueva</button>
+        </form>
+
+        <p class="small text-muted mt-3 mb-0">
+            ¿El enlace no funciona? Pedile a tu administrador uno nuevo. · <a href="{{ url_for('auth.login') }}">Volver al ingreso</a>
+        </p>
+    </main>
+    <script src="{{ asset('js/recuperar_clave.js') }}" defer></script>
+</body>
+</html>

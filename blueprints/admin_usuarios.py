@@ -24,6 +24,7 @@ from flask import (
 from models import db
 from models.core.user import User
 from security import es_ruta_api
+from services import recuperacion_clave as rc
 from services import usuarios_admin as ua
 
 admin_usuarios_bp = Blueprint("admin_usuarios", __name__)
@@ -85,7 +86,8 @@ def listar():
     if estado not in ua.ESTADOS_FILTRO:
         estado = "todos"
     usuarios = ua.listar_usuarios(q=request.args.get("q", ""), estado=estado)
-    return jsonify({"usuarios": [ua.serializar_usuario(u) for u in usuarios], "total": len(usuarios)})
+    enlaces = ua.ultimos_enlaces([u.id for u in usuarios])
+    return jsonify({"usuarios": [ua.serializar_usuario(u, enlaces.get(u.id)) for u in usuarios], "total": len(usuarios)})
 
 
 @admin_usuarios_bp.route("/api/admin/usuarios", methods=["POST"])
@@ -95,7 +97,9 @@ def crear():
     if not isinstance(datos, dict):
         return _error("DATOS_INVALIDOS", "Enviá el alta como JSON con usuario y rol.", 400)
     try:
-        usuario, clave, vence = ua.crear_usuario(g.usuario_sesion, datos.get("username"), datos.get("role"))
+        usuario, clave, vence = ua.crear_usuario(
+            g.usuario_sesion, datos.get("username"), datos.get("role"), datos.get("email")
+        )
     except ua.ErrorUsuarios as error:
         db.session.rollback()
         return _responder_error(error)
@@ -204,3 +208,51 @@ def auditoria():
     except ua.ErrorUsuarios as error:
         return _responder_error(error)
     return jsonify(datos)
+
+
+@admin_usuarios_bp.route("/api/admin/usuarios/<int:usuario_id>/correo", methods=["POST"])
+@admin_usuarios_required
+def cambiar_correo(usuario_id):
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict) or "email" not in datos:
+        mensaje = "Enviá el correo en el campo email. Vacío lo borra."
+        return _error("DATOS_INVALIDOS", mensaje, 400, {"email": mensaje})
+    try:
+        usuario, cambiado = ua.cambiar_correo(g.usuario_sesion, usuario_id, datos.get("email"))
+    except ua.ErrorUsuarios as error:
+        db.session.rollback()
+        return _responder_error(error)
+    except Exception:
+        return _fallo_interno("cambio de correo")
+    return jsonify({"usuario": ua.serializar_usuario(usuario), "cambiado": cambiado})
+
+
+@admin_usuarios_bp.route("/api/admin/usuarios/<int:usuario_id>/recuperacion", methods=["POST"])
+@admin_usuarios_required
+def emitir_recuperacion(usuario_id):
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        datos = {}
+    try:
+        usuario, enlace = rc.emitir(g.usuario_sesion, usuario_id, datos.get("ttl", rc.TTL_DEFAULT))
+    except ua.ErrorUsuarios as error:
+        db.session.rollback()
+        return _responder_error(error)
+    except Exception:
+        return _fallo_interno("emisión de enlace de recuperación")
+    # El enlace viaja solo en esta respuesta (no-store): no va a la URL, a los logs ni a la auditoría.
+    return jsonify({"usuario": ua.serializar_usuario(usuario), **enlace}), 201
+
+
+@admin_usuarios_bp.route("/api/admin/usuarios/<int:usuario_id>/recuperacion/<int:recuperacion_id>/revocar", methods=["POST"])
+@admin_usuarios_required
+def revocar_recuperacion(usuario_id, recuperacion_id):
+    try:
+        usuario = rc.revocar(g.usuario_sesion, usuario_id, recuperacion_id)
+    except ua.ErrorUsuarios as error:
+        db.session.rollback()
+        return _responder_error(error)
+    except Exception:
+        return _fallo_interno("revocación de enlace de recuperación")
+    return jsonify({"usuario": ua.serializar_usuario(usuario)})
+

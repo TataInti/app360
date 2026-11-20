@@ -144,6 +144,7 @@ SESION_HUELLA_CLAVE = "sesion_huella"
 # dentro de su vista, para que una sesión vencida no impida iniciar sesión.
 ENDPOINTS_SIN_REVALIDACION = frozenset({
     "auth.login",
+    "recuperacion.recuperar_clave",
     "static",
     "api_rest.health_check",
     "api_rest.login",
@@ -161,6 +162,8 @@ ENDPOINTS_SIN_REVALIDACION = frozenset({
 # Endpoints que sirven aunque el usuario deba cambiar su clave. Todo lo demás se bloquea.
 ENDPOINTS_CON_CLAVE_TEMPORAL = frozenset({
     "auth.cambiar_clave",
+    # Canje público de recuperación (C5): sin sesión. El guard de clave temporal no lo bloquea.
+    "recuperacion.recuperar_clave",
     "auth.logout",
     "static",
     "api_rest.health_check",

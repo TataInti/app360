@@ -13,6 +13,15 @@ class User(db.Model):
         # Unicidad sin distinguir mayúsculas (A4): la base la garantiza además de la aplicación.
         # Migración 20261119_usuarios_c2_admin.
         db.Index("ix_users_username_lower", db.func.lower(db.literal_column("username")), unique=True),
+        # Correo de contacto sin distinguir mayúsculas, solo filas con correo (C5, migración
+        # 20261120_usuarios_c5_recuperacion).
+        db.Index(
+            "ix_users_email_lower",
+            db.func.lower(db.literal_column("email")),
+            unique=True,
+            postgresql_where=db.text("email IS NOT NULL"),
+            sqlite_where=db.text("email IS NOT NULL"),
+        ),
     )
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
@@ -39,6 +48,8 @@ class User(db.Model):
     failed_login_count = db.Column(db.Integer, nullable=False, default=0, server_default="0")
     failed_login_window_start = db.Column(db.DateTime(timezone=True), nullable=True)
     locked_until = db.Column(db.DateTime(timezone=True), nullable=True)
+    # Correo de contacto opcional (C5, migración 20261120_usuarios_c5_recuperacion). No se envían correos.
+    email = db.Column(db.String(254), nullable=True)
 
     def __init__(self, **kwargs):
         if not kwargs.get("role"):
