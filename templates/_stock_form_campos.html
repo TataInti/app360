@@ -1,0 +1,41 @@
+{#
+  Campos de stock compartidos por /stock/new (página), /stock/edit/<id> y el panel lateral de Stock.
+  Requiere: products y locations (listas) y, en edición, stock. Los nombres e ids de campo no cambian:
+  los E2E y los enlaces existentes los usan.
+  Cada aviso por campo es un <small data-error-campo="..."> oculto; static/js/app_drawer_form.js lo completa.
+  El contenedor (grilla o panel) lo pone quien incluye el parcial.
+#}
+<div class="app-field" data-campo="product_id">
+    <label class="app-field__label" for="product_id">Producto</label>
+    {% if not products %}<div class="alert alert-warning mb-0">Todavía no hay productos. <a href="/products/new">Creá uno en Productos</a>.</div>{% endif %}
+    <select id="product_id" name="product_id" class="form-control app-field__control" required {% if not products %}disabled{% endif %}>
+        {% for p in products %}
+            <option value="{{ p.id }}"
+                {% if stock and stock.product_id == p.id %}selected{% endif %}>
+                {{ p.sku }} - {{ p.name }}
+            </option>
+        {% endfor %}
+    </select>
+    <small class="app-field__error" id="stock-error-product_id" data-error-campo="product_id" hidden></small>
+</div>
+
+<div class="app-field" data-campo="location_id">
+    <label class="app-field__label" for="location_id">Ubicación</label>
+    {% if not locations %}<div class="alert alert-warning mb-0">Todavía no hay ubicaciones. <a href="/locations/new">Creá una en Ubicaciones</a>.</div>{% endif %}
+    <select id="location_id" name="location_id" class="form-control app-field__control" required {% if not locations %}disabled{% endif %}>
+        {% for l in locations %}
+            <option value="{{ l.id }}"
+                {% if stock and stock.location_id == l.id %}selected{% endif %}>
+                {{ l.name }} ({{ l.type }})
+            </option>
+        {% endfor %}
+    </select>
+    <small class="app-field__error" id="stock-error-location_id" data-error-campo="location_id" hidden></small>
+</div>
+
+<div class="app-field" data-campo="quantity">
+    <label class="app-field__label" for="stock-cantidad">Cantidad</label>
+    <input type="number" id="stock-cantidad" name="quantity" class="form-control app-field__control" min="0" step="1"
+           value="{{ stock.quantity if stock else 0 }}" required>
+    <small class="app-field__error" id="stock-error-quantity" data-error-campo="quantity" hidden></small>
+</div>

@@ -826,6 +826,16 @@ Patrón de referencia de foco y Escape: `static/js/objetivos_comerciales.js` (pa
 **Decisión.** D3 (Inti): altas repetitivas en panel lateral. En «Guardar y agregar otro» se conservan la
 unidad de negocio y la categoría (se repiten en una carga por lote) y se limpian SKU y nombre.
 
+**Stock (SIS-2B, corte 2).** El panel de `templates/stock_list.html` usa `templates/_stock_form_campos.html`, el
+mismo parcial que `/stock/new` y `/stock/edit/<id>`. Con «Guardar y agregar otro» se conserva la ubicación
+(en una carga de stock por lote la ubicación se repite y cambian el producto y la cantidad) y se limpian
+producto y cantidad (la cantidad vuelve a 0). El aviso de éxito dice «Stock guardado: <producto> en <ubicación>».
+La ruta JSON es `POST /stock/new` con `Accept: application/json`: `201 {"ok": true, "id", "producto",
+"ubicacion", "cantidad"}`; `422 {"ok": false, "errors": {…}}` con `product_id`, `location_id` (también para el
+par producto×ubicación repetido, que el HTML responde 409) o `quantity`. La validación y la persistencia son
+las mismas (`crear_stock_desde_pedido` en `blueprints/stock.py`). Tras guardar, la región
+`[data-stock-region]` se reemplaza con `/stock` y la fila nueva (`tr[data-stock-id]`) queda resaltada.
+
 ### 3.14 Tabla de resumen por entidad
 
 **Receta.** Mostrar una entidad por fila y definir las columnas una sola vez con anchos explícitos.
