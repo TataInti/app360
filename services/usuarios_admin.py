@@ -1,4 +1,4 @@
-"""Administración de usuarios de App360 (C2): alta con clave temporal, activación y auditoría.
+"""Administración de usuarios de App360 (C2 y C3): alta, activación, rol, clave y auditoría.
 
 Reglas que cumple el servidor (la pantalla solo las refleja):
 - Alta: usuario único sin distinguir mayúsculas, rol asignable y clave temporal de 16 caracteres
@@ -9,6 +9,12 @@ Reglas que cumple el servidor (la pantalla solo las refleja):
   JWT) y se registra deactivated_at.
 - Reactivar: limpia deactivated_at y suma token_version: la sesión web y los JWT de antes de la
   baja quedan revocados. No restablece la clave.
+- Cambiar rol (C3): solo roles asignables; nadie cambia su propio rol (D5); el último administrador
+  activo no pasa a un rol sin administración (409, con el mismo bloqueo). No suma token_version:
+  el rol se lee de la base en cada petición y rige desde la siguiente acción.
+- Restablecer clave (C3): clave temporal nueva de 72 h, mostrada una vez. Suma token_version (corta
+  las sesiones web y los JWT previos) y obliga a cambiarla al ingresar. No se hace a uno mismo ni a
+  una cuenta desactivada.
 - Cada acción escribe su fila en user_audit_log dentro de la misma transacción: si la auditoría
   falla, la acción no se aplica.
 """
@@ -17,6 +23,7 @@ import re
 import secrets
 from datetime import timedelta, timezone
 
+import sqlalchemy as sa
 from flask import has_request_context, request
 from sqlalchemy.exc import IntegrityError
 
@@ -28,7 +35,7 @@ from models.core.user_audit_log import UserAuditLog
 # Roles con acceso total (admin_required). Son los únicos que cuentan como administradores.
 ROLES_ADMINISTRACION = ("admin", "manager", "gerente")
 
-# Roles que se ofrecen en el alta. «manager» no se asigna a altas nuevas (D12); si ya existe, se muestra.
+# Roles que se ofrecen en el alta y en el cambio de rol. «manager» no se asigna (D12); si ya existe, se muestra.
 ROLES_ASIGNABLES = (
     ("admin", "Administrador"),
     ("gerente", "Gerente"),
@@ -44,15 +51,18 @@ ROLES_ASIGNABLES = (
 ROLES_ASIGNABLES_CODIGOS = frozenset(codigo for codigo, _ in ROLES_ASIGNABLES)
 ROL_NO_ASIGNABLE = "manager"
 ETIQUETAS_ROL = {**dict(ROLES_ASIGNABLES), ROL_NO_ASIGNABLE: "Administrador (manager)"}
+MENSAJE_ROL_NO_ASIGNABLE = "Ese rol ya no se asigna. Elegí «Administrador» u otro rol de la lista."
 
 ESTADO_ACTIVO = "activo"
 ESTADO_DESACTIVADO = "desactivado"
 ESTADO_CAMBIAR_CLAVE = "cambiar_clave"
-ESTADOS_FILTRO = ("todos", ESTADO_ACTIVO, ESTADO_DESACTIVADO, ESTADO_CAMBIAR_CLAVE)
+ESTADO_CLAVE_VENCIDA = "clave_vencida"
+ESTADOS_FILTRO = ("todos", ESTADO_ACTIVO, ESTADO_DESACTIVADO, ESTADO_CAMBIAR_CLAVE, ESTADO_CLAVE_VENCIDA)
 ETIQUETAS_ESTADO = {
     ESTADO_ACTIVO: "Activo",
     ESTADO_DESACTIVADO: "Desactivado",
     ESTADO_CAMBIAR_CLAVE: "Debe cambiar la clave",
+    ESTADO_CLAVE_VENCIDA: "Clave temporal vencida",
 }
 
 HORAS_CLAVE_TEMPORAL = 72
@@ -66,9 +76,11 @@ ACCIONES_AUDITADAS = {
     "user_created": "Alta de usuario",
     "user_deactivated": "Desactivación",
     "user_reactivated": "Reactivación",
+    "user_role_changed": "Cambio de rol",
+    "user_password_reset": "Restablecimiento de clave",
 }
 # Solo estos datos de contexto entran al detalle de auditoría. Nunca claves, hashes ni tokens.
-CAMPOS_DETALLE_PERMITIDOS = frozenset({"rol", "vence"})
+CAMPOS_DETALLE_PERMITIDOS = frozenset({"rol", "vence", "de", "a"})
 LIMITE_AUDITORIA = 50
 # Hora de la pantalla: Argentina (UTC-3, sin horario de verano).
 ZONA_VISUAL = timezone(timedelta(hours=-3))
@@ -120,7 +132,7 @@ def estado_usuario(usuario):
     if usuario.active is not True:
         return ESTADO_DESACTIVADO
     if usuario.must_change_password:
-        return ESTADO_CAMBIAR_CLAVE
+        return ESTADO_CLAVE_VENCIDA if security.clave_temporal_vencida(usuario) else ESTADO_CAMBIAR_CLAVE
     return ESTADO_ACTIVO
 
 
@@ -136,8 +148,14 @@ def _texto_fecha(valor):
     return None if valor is None else _con_zona(valor).astimezone(ZONA_VISUAL).strftime("%d/%m/%Y %H:%M")
 
 
+def _texto_corto(valor):
+    """Vencimiento de la clave temporal para la lista: dd/mm hh:mm, hora de Argentina."""
+    return None if valor is None else _con_zona(valor).astimezone(ZONA_VISUAL).strftime("%d/%m %H:%M")
+
+
 def serializar_usuario(usuario):
     estado = estado_usuario(usuario)
+    vence = usuario.temp_password_expires_at if usuario.must_change_password else None
     return {
         "id": usuario.id,
         "username": usuario.username,
@@ -147,7 +165,8 @@ def serializar_usuario(usuario):
         "estado_nombre": ETIQUETAS_ESTADO[estado],
         "ultimo_acceso": _iso(usuario.last_login_at),
         "ultimo_acceso_texto": _texto_fecha(usuario.last_login_at) or "Nunca",
-        "clave_temporal_vence": _iso(usuario.temp_password_expires_at) if usuario.must_change_password else None,
+        "clave_temporal_vence": _iso(vence),
+        "clave_temporal_vence_texto": _texto_corto(vence),
     }
 
 
@@ -170,7 +189,8 @@ def registrar_auditoria(actor, accion, target=None, detalle=None):
     """Escribe la acción en user_audit_log y emite un evento de seguridad.
 
     Hace flush, no commit: la fila se confirma junto con la acción que describe. Si la escritura
-    falla, la excepción llega al llamador, que deshace la transacción entera.
+    falla, la excepción llega al llamador, que deshace la transacción entera. Sin actor (scripts),
+    la acción queda como «Sistema».
     """
     if accion not in ACCIONES_AUDITADAS:
         raise ValueError(f"Acción de auditoría desconocida: {accion}")
@@ -189,7 +209,7 @@ def registrar_auditoria(actor, accion, target=None, detalle=None):
     security.log_security_event(
         "USER_ADMIN_ACTION",
         f"Administración de usuarios: {accion}",
-        user=evento.actor_username,
+        user=evento.actor_username or "Sistema",
         ip=evento.ip,
         extra={"accion": accion, "objetivo": evento.target_username},
     )
@@ -236,7 +256,7 @@ def crear_usuario(actor, username, role):
 
 
 def _administradores_activos_bloqueados():
-    """Administradores activos con bloqueo de fila (FOR UPDATE): dos bajas simultáneas se serializan."""
+    """Administradores activos con bloqueo de fila (FOR UPDATE): dos cambios simultáneos se serializan."""
     return (
         User.query.filter(User.role.in_(ROLES_ADMINISTRACION), User.active.is_(True))
         .order_by(User.id)
@@ -282,19 +302,109 @@ def reactivar_usuario(actor, usuario):
     return usuario
 
 
+def cambiar_rol(actor, usuario_id, nuevo_rol):
+    """Cambia el rol de una cuenta. Devuelve (usuario, rol_anterior, cambiado).
+
+    Reglas: solo roles asignables; nadie cambia su propio rol; el último administrador activo no
+    pasa a un rol sin administración. Si el rol no cambia, no escribe nada (ni auditoría ni versión).
+    Los administradores se bloquean antes de leer la cuenta objetivo: dos cambios simultáneos se
+    serializan y el segundo ve el estado que dejó el primero. No suma token_version: el rol se lee
+    de la base en cada petición.
+    """
+    rol = nuevo_rol.strip() if isinstance(nuevo_rol, str) else ""
+    administradores = _administradores_activos_bloqueados()
+    usuario = db.session.get(User, usuario_id, populate_existing=True)
+    if usuario is None:
+        raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
+    if actor.id == usuario.id:
+        raise ErrorUsuarios(
+            "AUTOCAMBIO_ROL",
+            "No podés cambiar tu propio rol. Pedile a otro administrador que lo haga.",
+            403,
+        )
+    anterior = usuario.role
+    if rol == anterior:
+        db.session.rollback()
+        return usuario, anterior, False
+    if not rol:
+        raise ErrorUsuarios("DATOS_INVALIDOS", "Revisá los datos marcados.", 400, {"role": "Elegí un rol."})
+    if rol not in ROLES_ASIGNABLES_CODIGOS:
+        mensaje = MENSAJE_ROL_NO_ASIGNABLE if rol == ROL_NO_ASIGNABLE else "Elegí un rol de la lista."
+        raise ErrorUsuarios("ROL_INVALIDO", "Ese rol no está disponible para asignar.", 400, {"role": mensaje})
+    if usuario.active is True and anterior in ROLES_ADMINISTRACION and rol not in ROLES_ADMINISTRACION:
+        if not any(a.id != usuario.id for a in administradores):
+            raise ErrorUsuarios(
+                "ULTIMO_ADMINISTRADOR",
+                "No se puede: el sistema debe conservar al menos un administrador activo.",
+                409,
+            )
+    usuario.role = rol
+    registrar_auditoria(actor, "user_role_changed", usuario, {"de": anterior, "a": rol})
+    db.session.commit()
+    return usuario, anterior, True
+
+
+def restablecer_clave(actor, usuario_id):
+    """Genera una clave temporal nueva para otra cuenta activa. Devuelve (usuario, clave, vence).
+
+    La clave viaja solo en la respuesta de esta acción. Suma token_version: las sesiones web y los
+    JWT previos dejan de valer, y la clave anterior deja de servir. Obliga a cambiarla al ingresar.
+    """
+    usuario = db.session.get(User, usuario_id, populate_existing=True)
+    if usuario is None:
+        raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
+    if actor.id == usuario.id:
+        raise ErrorUsuarios("AUTORESET", "Para cambiar tu clave usá «Cambiar mi clave» en tu menú.", 403)
+    if usuario.active is not True:
+        raise ErrorUsuarios(
+            "USUARIO_INACTIVO",
+            "Ese usuario está desactivado. Reactivalo primero y después restablecé su clave.",
+            409,
+        )
+    clave = generar_clave_temporal()
+    ahora = security.ahora()
+    vence = ahora + timedelta(hours=HORAS_CLAVE_TEMPORAL)
+    usuario.set_password(clave)
+    usuario.password_changed_at = ahora
+    usuario.must_change_password = True
+    usuario.temp_password_expires_at = vence
+    usuario.token_version = (usuario.token_version or 0) + 1
+    registrar_auditoria(actor, "user_password_reset", usuario, {"vence": vence.isoformat()})
+    db.session.commit()
+    return usuario, clave, vence
+
+
+def _tabla_auditoria_existe():
+    return sa.inspect(db.session.connection()).has_table(UserAuditLog.__tablename__)
+
+
+def activar_cuenta_existente(usuario):
+    """Pone active=True sobre una cuenta que ya existe (scripts de alta). Devuelve True si cambió.
+
+    Solo una reactivación suma token_version (corta los JWT y las sesiones de antes de la baja) y,
+    si la tabla de auditoría existe, se registra. Una cuenta ya activa no cambia.
+    """
+    if usuario.active is True:
+        return False
+    usuario.active = True
+    usuario.deactivated_at = None
+    usuario.token_version = (usuario.token_version or 0) + 1
+    if _tabla_auditoria_existe():
+        registrar_auditoria(None, "user_reactivated", usuario, {"rol": usuario.role})
+    return True
+
+
 def listar_usuarios(q="", estado="todos"):
     consulta = User.query
     texto = q.strip().lower()[:80] if isinstance(q, str) else ""
     if texto:
         escapado = texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         consulta = consulta.filter(User.username.ilike(f"%{escapado}%", escape="\\"))
-    if estado == ESTADO_ACTIVO:
-        consulta = consulta.filter(User.active.is_(True), User.must_change_password.is_(False))
-    elif estado == ESTADO_DESACTIVADO:
-        consulta = consulta.filter(User.active.isnot(True))
-    elif estado == ESTADO_CAMBIAR_CLAVE:
-        consulta = consulta.filter(User.active.is_(True), User.must_change_password.is_(True))
-    return consulta.order_by(User.username).all()
+    usuarios = consulta.order_by(User.username).all()
+    if estado in ESTADOS_FILTRO and estado != "todos":
+        # El estado depende del reloj (clave temporal vencida): se filtra con la misma regla que la columna.
+        usuarios = [usuario for usuario in usuarios if estado_usuario(usuario) == estado]
+    return usuarios
 
 
 def auditoria_reciente(limite=LIMITE_AUDITORIA):

@@ -1,8 +1,9 @@
-"""Administración > Usuarios (C2): pantalla, API JSON, alta, activación y auditoría.
+"""Administración > Usuarios (C2 y C3): pantalla, API JSON, alta, activación, rol, clave y auditoría.
 
-Todas las rutas exigen administración (admin, manager, gerente). Anónimo: 401 JSON en la API y
-login en la pantalla. Sin rol de administración: 403 en la pantalla y en la API. Las respuestas
-no se guardan en caché (Cache-Control: no-store), porque el alta devuelve la clave temporal.
+Todas las rutas exigen administración (admin, manager, gerente). Anónimo: 401 JSON en la API (la
+guardia de app.py responde antes del CSRF) y login en la pantalla. Sin rol de administración: 403 en
+la pantalla y en la API. Las respuestas no se guardan en caché (Cache-Control: no-store), porque el
+alta y el restablecimiento devuelven una clave temporal.
 """
 
 from functools import wraps
@@ -133,6 +134,48 @@ def desactivar(usuario_id):
 @admin_usuarios_required
 def reactivar(usuario_id):
     return _cambiar_estado(usuario_id, ua.reactivar_usuario, "reactivación")
+
+
+@admin_usuarios_bp.route("/api/admin/usuarios/<int:usuario_id>/rol", methods=["POST"])
+@admin_usuarios_required
+def cambiar_rol(usuario_id):
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        datos = {}
+    try:
+        usuario, anterior, cambiado = ua.cambiar_rol(g.usuario_sesion, usuario_id, datos.get("role"))
+    except ua.ErrorUsuarios as error:
+        db.session.rollback()
+        return _responder_error(error)
+    except Exception:
+        return _fallo_interno("cambio de rol")
+    return jsonify(
+        {
+            "usuario": ua.serializar_usuario(usuario),
+            "rol_anterior": anterior,
+            "cambiado": cambiado,
+        }
+    )
+
+
+@admin_usuarios_bp.route("/api/admin/usuarios/<int:usuario_id>/restablecer-clave", methods=["POST"])
+@admin_usuarios_required
+def restablecer_clave(usuario_id):
+    try:
+        usuario, clave, vence = ua.restablecer_clave(g.usuario_sesion, usuario_id)
+    except ua.ErrorUsuarios as error:
+        db.session.rollback()
+        return _responder_error(error)
+    except Exception:
+        return _fallo_interno("restablecimiento de clave")
+    # La clave temporal viaja solo en esta respuesta (no-store): no va a la URL, a los logs ni a la auditoría.
+    return jsonify(
+        {
+            "usuario": ua.serializar_usuario(usuario),
+            "clave_temporal": clave,
+            "clave_temporal_vence": vence.isoformat(),
+        }
+    )
 
 
 @admin_usuarios_bp.route("/api/admin/usuarios/auditoria", methods=["GET"])

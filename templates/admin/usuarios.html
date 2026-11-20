@@ -5,7 +5,7 @@
     <div class="panel-header">
         <div>
             <h1><i class="bi bi-people"></i> Usuarios</h1>
-            <span>Altas, activación y desactivación de cuentas. Cada acción queda registrada.</span>
+            <span>Altas, roles, claves temporales y activación. Cada acción queda registrada.</span>
         </div>
         <button type="button" class="btn btn-sm btn-primary" id="btnNuevoUsuario" aria-expanded="false" aria-controls="panelAltaUsuario">
             <i class="bi bi-person-plus"></i> Nuevo usuario
@@ -45,7 +45,7 @@
 
     <div class="table-card mb-3 d-none" id="panelClaveTemporal" role="status" aria-live="polite">
         <div class="p-3">
-            <h2 class="h5">Usuario creado: <span id="claveUsuarioNombre"></span></h2>
+            <h2 class="h5"><span id="claveTitulo">Usuario creado</span>: <span id="claveUsuarioNombre"></span></h2>
             <p>Entregale esta clave temporal por un canal seguro. Vence el <strong id="claveVence"></strong>. Al ingresar, tiene que cambiarla.</p>
             <div class="d-flex align-items-center gap-2 flex-wrap">
                 <code id="clave_temporal_nueva" class="fs-5 px-3 py-2 border rounded user-select-all"></code>
@@ -69,6 +69,7 @@
                     <option value="activo">Activos</option>
                     <option value="desactivado">Desactivados</option>
                     <option value="cambiar_clave">Debe cambiar la clave</option>
+                    <option value="clave_vencida">Clave temporal vencida</option>
                 </select>
             </div>
         </div>
@@ -80,7 +81,7 @@
                         <th>Rol</th>
                         <th>Estado</th>
                         <th>Último acceso</th>
-                        <th class="text-center">Acción</th>
+                        <th class="text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="cuerpoUsuarios"></tbody>
@@ -113,6 +114,33 @@
             </table>
         </div>
         <div id="estadoVacioAuditoria" class="p-3 text-muted d-none">Todavía no hay acciones registradas.</div>
+    </div>
+</div>
+
+<div class="modal fade app-modal" id="modalRol" tabindex="-1" aria-labelledby="modalRolTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="formRol" novalidate>
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="modalRolTitulo">Cambiar rol</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small" id="modalRolTexto"></p>
+                    <label class="form-label" for="modalRolSelect">Nuevo rol</label>
+                    <select id="modalRolSelect" class="form-select" aria-describedby="modalRolError">
+                        {% for codigo, nombre in roles %}
+                        <option value="{{ codigo }}">{{ nombre }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="invalid-feedback" id="modalRolError" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary btn-sm" id="btnGuardarRol">Guardar rol</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
