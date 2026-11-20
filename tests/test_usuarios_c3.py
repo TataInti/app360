@@ -273,7 +273,7 @@ def test_anonimo_y_jwt_reciben_401_json_en_rol_y_reseteo(app_seguridad):
 
     for respuesta in (rol, reseteo, con_jwt):
         assert respuesta.status_code == 401 and respuesta.is_json
-        assert respuesta.get_json() == {"error": "Sesión requerida"}
+        assert respuesta.get_json() == {"error": "Sesión requerida", "codigo": "SESION_REQUERIDA"}
     assert _estado(app, objetivo)["rol"] == "sales"
 
 
@@ -297,12 +297,12 @@ def test_autocambio_de_rol_y_autorreseteo_responden_403(app_seguridad):
 
 @pytest.mark.parametrize("rol_unico", ["admin", "manager", "gerente"])
 def test_servicio_rechaza_bajar_al_ultimo_administrador_activo(app_seguridad, rol_unico):
-    """El servicio no confía en el actor: aunque no sea administrador, el último activo no baja."""
+    """El servicio mantiene el último administrador aunque el actor no esté activo."""
     app = app_seguridad
     unico = _crear(app, "probe.unico", rol_unico)
-    ventas = _crear(app, "probe.ventas", "sales")
+    actor_inactivo = _crear(app, "probe.actor-inactivo", "admin", active=False)
     with app.app_context():
-        actor = db.session.get(User, ventas)
+        actor = db.session.get(User, actor_inactivo)
         with pytest.raises(ua.ErrorUsuarios) as info:
             ua.cambiar_rol(actor, unico, "sales")
         assert info.value.codigo == "ULTIMO_ADMINISTRADOR" and info.value.status == 409
@@ -315,9 +315,9 @@ def test_ultimo_administrador_puede_pasar_a_otro_rol_de_administracion(app_segur
     """admin → gerente no deja al sistema sin administradores: ambos cuentan como administración."""
     app = app_seguridad
     unico = _crear(app, "probe.admin", "admin")
-    ventas = _crear(app, "probe.ventas", "sales")
+    actor_inactivo = _crear(app, "probe.actor-inactivo", "admin", active=False)
     with app.app_context():
-        usuario, anterior, cambiado = ua.cambiar_rol(db.session.get(User, ventas), unico, "gerente")
+        usuario, anterior, cambiado = ua.cambiar_rol(db.session.get(User, actor_inactivo), unico, "gerente")
         assert usuario.role == "gerente" and anterior == "admin" and cambiado is True
 
 
@@ -338,11 +338,12 @@ def test_segundo_cambio_ve_el_estado_que_dejo_el_primero(app_seguridad):
     app = app_seguridad
     x = _crear(app, "probe.admin-x", "admin")
     y = _crear(app, "probe.admin-y", "gerente")
-    actor = _crear(app, "probe.ventas", "sales")
+    actor_inactivo = _crear(app, "probe.actor-inactivo", "admin", active=False)
     with app.app_context():
-        ua.cambiar_rol(db.session.get(User, actor), x, "sales")
+        actor = db.session.get(User, actor_inactivo)
+        ua.cambiar_rol(actor, x, "sales")
         with pytest.raises(ua.ErrorUsuarios) as info:
-            ua.cambiar_rol(db.session.get(User, actor), y, "sales")
+            ua.cambiar_rol(actor, y, "sales")
         assert info.value.codigo == "ULTIMO_ADMINISTRADOR"
         db.session.rollback()
     assert _estado(app, y)["rol"] == "gerente" and _estado(app, x)["rol"] == "sales"
@@ -364,48 +365,73 @@ def test_carrera_en_postgresql_dos_administradores_nunca_dejan_cero_activos(monk
 
     app = create_app()
     app.config["TESTING"] = True
-    with app.app_context():
-        db.drop_all()
-        db.create_all()
-        a = User(username="probe.carrera-a", role="admin", active=True)
-        a.set_password(CLAVE)
-        b = User(username="probe.carrera-b", role="gerente", active=True)
-        b.set_password(CLAVE)
-        db.session.add_all([a, b])
-        db.session.commit()
-        ids = (a.id, b.id)
-
-    barrera = threading.Barrier(2)
-    resultados = {}
-
-    def cambiar(nombre, actor_id, objetivo_id):
+    rondas = []
+    try:
         with app.app_context():
-            try:
-                actor = db.session.get(User, actor_id)
-                barrera.wait(timeout=30)
-                ua.cambiar_rol(actor, objetivo_id, "sales")
-                resultados[nombre] = "ok"
-            except ua.ErrorUsuarios as error:
-                db.session.rollback()
-                resultados[nombre] = error.codigo
-            finally:
-                db.session.remove()
+            db.drop_all()
+            db.create_all()
+            a = User(username="probe.carrera-a", role="admin", active=True)
+            a.set_password(CLAVE)
+            b = User(username="probe.carrera-b", role="manager", active=True)
+            b.set_password(CLAVE)
+            db.session.add_all([a, b])
+            db.session.commit()
+            ids = (a.id, b.id)
 
-    hilos = [
-        threading.Thread(target=cambiar, args=("a", ids[0], ids[1])),
-        threading.Thread(target=cambiar, args=("b", ids[1], ids[0])),
-    ]
-    for hilo in hilos:
-        hilo.start()
-    for hilo in hilos:
-        hilo.join(timeout=120)
-    with app.app_context():
-        activos = User.query.filter(User.role.in_(ua.ROLES_ADMINISTRACION), User.active.is_(True)).count()
-        db.session.remove()
-        db.drop_all()
-        db.engine.dispose()
-    assert sorted(resultados.values()) == ["ULTIMO_ADMINISTRADOR", "ok"], resultados
-    assert activos >= 1
+        for _ in range(8):
+            with app.app_context():
+                a = db.session.get(User, ids[0], populate_existing=True)
+                b = db.session.get(User, ids[1], populate_existing=True)
+                a.role, a.active, a.deactivated_at = "admin", True, None
+                b.role, b.active, b.deactivated_at = "manager", True, None
+                db.session.commit()
+
+            barrera = threading.Barrier(2)
+            resultados = {}
+
+            def cambiar(nombre, actor_id, objetivo_id):
+                with app.app_context():
+                    try:
+                        actor = db.session.get(User, actor_id)
+                        barrera.wait(timeout=30)
+                        ua.cambiar_rol(actor, objetivo_id, "sales")
+                        resultados[nombre] = "ok"
+                    except ua.ErrorUsuarios as error:
+                        db.session.rollback()
+                        resultados[nombre] = error.codigo
+                    except Exception as error:
+                        db.session.rollback()
+                        resultados[nombre] = type(error).__name__
+                    finally:
+                        db.session.remove()
+
+            hilos = [
+                threading.Thread(target=cambiar, args=("a", ids[0], ids[1])),
+                threading.Thread(target=cambiar, args=("b", ids[1], ids[0])),
+            ]
+            for hilo in hilos:
+                hilo.start()
+            for hilo in hilos:
+                hilo.join(timeout=120)
+            with app.app_context():
+                activos = User.query.filter(
+                    User.role.in_(ua.ROLES_ADMINISTRACION), User.active.is_(True)
+                ).count()
+                db.session.remove()
+            rondas.append({
+                "resultado": sorted(resultados.values()),
+                "sin_hilos_vivos": all(not hilo.is_alive() for hilo in hilos),
+                "administradores_activos": activos,
+            })
+        assert len(rondas) == 8
+        assert all(ronda["sin_hilos_vivos"] for ronda in rondas)
+        assert all(ronda["resultado"] == ["ULTIMO_ADMINISTRADOR", "ok"] for ronda in rondas), rondas
+        assert all(ronda["administradores_activos"] >= 1 for ronda in rondas), rondas
+    finally:
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
 
 
 def test_cambio_de_rol_rige_en_la_siguiente_peticion_web(app_seguridad):
@@ -664,7 +690,10 @@ def test_api_admin_sin_sesion_responde_401_json_aunque_falte_el_token_csrf(csrf_
         llamada = getattr(anonimo, metodo)
         respuesta = llamada(ruta, json=cuerpo) if cuerpo is not None else llamada(ruta)
         assert respuesta.status_code == 401, (metodo, ruta)
-        assert respuesta.is_json and respuesta.get_json() == {"error": "Sesión requerida"}, (metodo, ruta)
+        assert respuesta.is_json and respuesta.get_json() == {
+            "error": "Sesión requerida",
+            "codigo": "SESION_REQUERIDA",
+        }, (metodo, ruta)
 
 
 def test_sesion_valida_sin_token_csrf_sigue_recibiendo_400(csrf_activo):

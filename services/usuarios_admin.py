@@ -26,9 +26,11 @@ import re
 import secrets
 from datetime import date, datetime, timedelta, timezone
 
+from functools import wraps
+
 import sqlalchemy as sa
-from flask import has_request_context, request
-from sqlalchemy.exc import IntegrityError
+from flask import current_app, has_app_context, has_request_context, request
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 import security
 from models import db
@@ -37,8 +39,13 @@ from models.core.user_audit_log import UserAuditLog
 from models.core.user_login_attempt import UserLoginAttempt
 from services.acceso_login import ETIQUETAS_MOTIVO, esta_bloqueada
 
-# Roles con acceso total (admin_required). Son los únicos que cuentan como administradores.
+# Los tres roles siguen contando para conservar al último administrador activo.
 ROLES_ADMINISTRACION = ("admin", "manager", "gerente")
+ROLES_ADMINISTRADORES = ("admin", "manager")
+CODIGO_JERARQUIA_INSUFICIENTE = "JERARQUIA_INSUFICIENTE"
+MENSAJE_JERARQUIA_INSUFICIENTE = (
+    "Esta cuenta la administra un administrador. Pedile a un administrador que haga este cambio."
+)
 
 # Roles que se ofrecen en el alta y en el cambio de rol. «manager» no se asigna (D12); si ya existe, se muestra.
 ROLES_ASIGNABLES = (
@@ -117,6 +124,108 @@ class ErrorUsuarios(Exception):
         self.mensaje = mensaje
         self.status = status
         self.campos = campos or {}
+
+
+# Identificador estable y reservado para serializar TODAS las mutaciones de cuentas.
+# Se pasa como bigint con signo a pg_advisory_xact_lock; no cambiarlo sin coordinar a los cortes C4/C5/C6.
+BLOQUEO_ADVISORY_USUARIOS_KEY = 714_360_036_043
+SQLSTATES_CONCURRENCIA = frozenset({"40P01", "40001"})
+CODIGO_OPERACION_CONCURRENTE = "OPERACION_CONCURRENTE"
+MENSAJE_OPERACION_CONCURRENTE = (
+    "Otro administrador está modificando esta cuenta; reintentá en unos segundos"
+)
+
+
+def bloquear_mutaciones_usuarios():
+    """Adquiere el lock transaccional común antes de cualquier FOR UPDATE de usuarios.
+
+    PostgreSQL serializa con una constante bigint compartida por administración, cambio propio
+    de clave y futuros flujos de recuperación/desbloqueo/MFA. En SQLite es un no-op. La base
+    libera el lock al commit o rollback de esta transacción.
+    """
+    if db.session.get_bind().dialect.name == "postgresql":
+        db.session.execute(
+            sa.text("SELECT pg_advisory_xact_lock(:lock_key)"),
+            {"lock_key": BLOQUEO_ADVISORY_USUARIOS_KEY},
+        )
+
+
+def _sqlstate_operacional(error):
+    original = getattr(error, "orig", None)
+    return getattr(original, "pgcode", None) or getattr(original, "sqlstate", None)
+
+
+def es_error_concurrencia(error):
+    """True solo para deadlock/serialization de PostgreSQL, no para cualquier OperationalError."""
+    if not isinstance(error, OperationalError):
+        return False
+    return str(_sqlstate_operacional(error) or "").upper() in SQLSTATES_CONCURRENCIA
+
+
+def reintentar_operacion_concurrente(func):
+    """Reejecuta una vez la operación completa ante deadlock/serialización.
+
+    Rollback libera primero locks y escrituras parciales. Si el segundo intento falla, el caller
+    recibe OPERACION_CONCURRENTE (409), nunca el texto/parametría interna del error SQL.
+    """
+    @wraps(func)
+    def envuelta(*args, **kwargs):
+        for intento in range(2):
+            try:
+                return func(*args, **kwargs)
+            except OperationalError as error:
+                db.session.rollback()
+                if not es_error_concurrencia(error):
+                    raise
+                if has_app_context():
+                    current_app.logger.warning(
+                        "Conflicto concurrente en administración de usuarios: exception=%s sqlstate=%s intento=%s",
+                        type(error).__name__,
+                        _sqlstate_operacional(error) or "n/a",
+                        intento + 1,
+                    )
+                if intento == 1:
+                    raise ErrorUsuarios(
+                        CODIGO_OPERACION_CONCURRENTE,
+                        MENSAJE_OPERACION_CONCURRENTE,
+                        409,
+                    ) from None
+        raise AssertionError("bucle de reintentos agotado")
+
+    return envuelta
+
+
+def puede_administrar(actor, objetivo, rol_nuevo=None):
+    """Autoriza la jerarquía común a toda acción administrativa sobre cuentas ajenas.
+
+    admin y el alias legacy manager administran cualquier cuenta. gerente solo administra
+    cuentas que no sean admin/manager y no puede asignar esos roles. `objetivo=None` permite
+    validar altas. La función no reemplaza reglas propias (autocambio, último admin, estado)
+    ni la guardia de autenticación; centraliza únicamente la jerarquía para reutilizarla en
+    cambios futuros de recuperación, desbloqueo y MFA. Devuelve (ok, código, mensaje).
+    """
+    rol_actor = getattr(actor, "role", None)
+    if rol_actor in ROLES_ADMINISTRADORES:
+        return True, None, None
+    if rol_actor == "gerente":
+        rol_objetivo = getattr(objetivo, "role", None)
+        if rol_objetivo in ROLES_ADMINISTRADORES or rol_nuevo in ROLES_ADMINISTRADORES:
+            return False, CODIGO_JERARQUIA_INSUFICIENTE, MENSAJE_JERARQUIA_INSUFICIENTE
+        return True, None, None
+    return False, CODIGO_JERARQUIA_INSUFICIENTE, MENSAJE_JERARQUIA_INSUFICIENTE
+
+
+def _exigir_jerarquia(actor, objetivo, rol_nuevo=None):
+    ok, codigo, mensaje = puede_administrar(actor, objetivo, rol_nuevo)
+    if not ok:
+        raise ErrorUsuarios(codigo, mensaje, 403)
+
+
+def roles_asignables_para(actor):
+    """Lista de roles que el actor puede asignar, compartida por la API y la pantalla."""
+    if getattr(actor, "role", None) == "gerente":
+        return [(codigo, nombre) for codigo, nombre in ROLES_ASIGNABLES if codigo not in ROLES_ADMINISTRADORES]
+    return list(ROLES_ASIGNABLES)
 
 
 def normalizar_usuario(valor):
@@ -275,10 +384,13 @@ def _error_usuario_existente():
     )
 
 
+@reintentar_operacion_concurrente
 def crear_usuario(actor, username, role):
     """Alta con clave temporal. Devuelve (usuario, clave, vence). La clave no se vuelve a mostrar."""
+    bloquear_mutaciones_usuarios()
     nombre = normalizar_usuario(username)
     rol = role.strip() if isinstance(role, str) else ""
+    _exigir_jerarquia(actor, None, rol)
     errores = validar_alta(nombre, rol)
     if errores:
         raise ErrorUsuarios("DATOS_INVALIDOS", "Revisá los datos marcados.", 400, errores)
@@ -316,8 +428,28 @@ def _administradores_activos_bloqueados():
     )
 
 
+def _id_usuario(objetivo):
+    return getattr(objetivo, "id", objetivo)
+
+
+def _usuario_bloqueado(usuario_id):
+    """Lee el estado vigente de una cuenta y serializa sus escrituras PostgreSQL."""
+    return (
+        User.query.filter_by(id=usuario_id)
+        .populate_existing()
+        .with_for_update()
+        .one_or_none()
+    )
+
+
+@reintentar_operacion_concurrente
 def desactivar_usuario(actor, usuario):
+    bloquear_mutaciones_usuarios()
     administradores = _administradores_activos_bloqueados()
+    usuario = _usuario_bloqueado(_id_usuario(usuario))
+    if usuario is None:
+        raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
+    _exigir_jerarquia(actor, usuario)
     if usuario.active is not True:
         raise ErrorUsuarios("YA_DESACTIVADO", "Ese usuario ya está desactivado.", 409)
     if usuario.role in ROLES_ADMINISTRACION and not any(a.id != usuario.id for a in administradores):
@@ -340,7 +472,13 @@ def desactivar_usuario(actor, usuario):
     return usuario
 
 
+@reintentar_operacion_concurrente
 def reactivar_usuario(actor, usuario):
+    bloquear_mutaciones_usuarios()
+    usuario = _usuario_bloqueado(_id_usuario(usuario))
+    if usuario is None:
+        raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
+    _exigir_jerarquia(actor, usuario)
     if usuario.active is True:
         raise ErrorUsuarios("YA_ACTIVO", "Ese usuario ya está activo.", 409)
     usuario.active = True
@@ -352,6 +490,7 @@ def reactivar_usuario(actor, usuario):
     return usuario
 
 
+@reintentar_operacion_concurrente
 def cambiar_rol(actor, usuario_id, nuevo_rol):
     """Cambia el rol de una cuenta. Devuelve (usuario, rol_anterior, cambiado).
 
@@ -361,9 +500,10 @@ def cambiar_rol(actor, usuario_id, nuevo_rol):
     serializan y el segundo ve el estado que dejó el primero. No suma token_version: el rol se lee
     de la base en cada petición.
     """
+    bloquear_mutaciones_usuarios()
     rol = nuevo_rol.strip() if isinstance(nuevo_rol, str) else ""
     administradores = _administradores_activos_bloqueados()
-    usuario = db.session.get(User, usuario_id, populate_existing=True)
+    usuario = _usuario_bloqueado(usuario_id)
     if usuario is None:
         raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
     if actor.id == usuario.id:
@@ -372,6 +512,7 @@ def cambiar_rol(actor, usuario_id, nuevo_rol):
             "No podés cambiar tu propio rol. Pedile a otro administrador que lo haga.",
             403,
         )
+    _exigir_jerarquia(actor, usuario, rol)
     anterior = usuario.role
     if rol == anterior:
         db.session.rollback()
@@ -394,15 +535,19 @@ def cambiar_rol(actor, usuario_id, nuevo_rol):
     return usuario, anterior, True
 
 
+@reintentar_operacion_concurrente
 def restablecer_clave(actor, usuario_id):
     """Genera una clave temporal nueva para otra cuenta activa. Devuelve (usuario, clave, vence).
 
     La clave viaja solo en la respuesta de esta acción. Suma token_version: las sesiones web y los
     JWT previos dejan de valer, y la clave anterior deja de servir. Obliga a cambiarla al ingresar.
     """
-    usuario = db.session.get(User, usuario_id, populate_existing=True)
+    # Primero el lock advisory global; después FOR UPDATE y lectura del estado vigente.
+    bloquear_mutaciones_usuarios()
+    usuario = _usuario_bloqueado(usuario_id)
     if usuario is None:
         raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
+    _exigir_jerarquia(actor, usuario)
     if actor.id == usuario.id:
         raise ErrorUsuarios("AUTORESET", "Para cambiar tu clave usá «Cambiar mi clave» en tu menú.", 403)
     if usuario.active is not True:
@@ -455,6 +600,7 @@ def activar_cuenta_existente(usuario):
     Solo una reactivación suma token_version (corta los JWT y las sesiones de antes de la baja) y,
     si la tabla de auditoría existe, se registra. Una cuenta ya activa no cambia.
     """
+    bloquear_mutaciones_usuarios()
     if usuario.active is True:
         return False
     usuario.active = True

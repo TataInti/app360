@@ -8,6 +8,8 @@
   const $ = (id) => document.getElementById(id);
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
   const yo = Number($("pantallaUsuarios").dataset.yo || "0");
+  const rolActor = $("pantallaUsuarios").dataset.rolActor || "";
+  const MOTIVO_JERARQUIA = "Esta cuenta la administra un administrador. Pedile a un administrador que haga este cambio.";
   const CLASES_ESTADO = {
     activo: "bg-success",
     desactivado: "bg-secondary",
@@ -134,19 +136,23 @@
 
     const propia = usuario.id === yo;
     const desactivado = usuario.estado === "desactivado";
+    const jerarquiaInsuficiente = rolActor === "gerente" && ["admin", "manager"].includes(usuario.rol);
+    const motivoAccion = propia ? MOTIVO_PROPIA : jerarquiaInsuficiente ? MOTIVO_JERARQUIA : "";
     const datos = { id: String(usuario.id), usuario: usuario.username };
     const tdAccion = document.createElement("td");
     tdAccion.className = "text-center";
     const grupo = document.createElement("div");
     grupo.className = "d-flex flex-wrap gap-1 justify-content-center";
-    grupo.appendChild(botonAccion("Cambiar rol", "btn-outline-primary", { ...datos, accion: "rol" }, propia, MOTIVO_PROPIA));
+    grupo.appendChild(
+      botonAccion("Cambiar rol", "btn-outline-primary", { ...datos, accion: "rol" }, propia || jerarquiaInsuficiente, motivoAccion)
+    );
     grupo.appendChild(
       botonAccion(
         "Restablecer clave",
         "btn-outline-warning",
         { ...datos, accion: "restablecer" },
-        propia || desactivado,
-        propia ? MOTIVO_PROPIA : "Reactivalo primero para restablecer su clave."
+        propia || desactivado || jerarquiaInsuficiente,
+        motivoAccion || "Reactivalo primero para restablecer su clave."
       )
     );
     grupo.appendChild(
@@ -154,8 +160,8 @@
         desactivado ? "Reactivar" : "Desactivar",
         desactivado ? "btn-outline-success" : "btn-outline-danger",
         { ...datos, accion: desactivado ? "reactivar" : "desactivar" },
-        propia,
-        MOTIVO_PROPIA
+        propia || jerarquiaInsuficiente,
+        motivoAccion
       )
     );
     if (usuario.bloqueada) {
@@ -164,6 +170,8 @@
     tdAccion.appendChild(grupo);
     if (propia) {
       tdAccion.appendChild(notaFila(MOTIVO_PROPIA));
+    } else if (jerarquiaInsuficiente) {
+      tdAccion.appendChild(notaFila(MOTIVO_JERARQUIA));
     }
     tr.appendChild(tdAccion);
     return tr;

@@ -166,3 +166,23 @@ El limitador por IP preexistente usa memoria por worker (no un contador comparti
 Visor de auditoría: `/admin/usuarios/auditoria` (admin, manager y gerente; enlace «Ver auditoría completa» desde Administración > Usuarios). Filtra por usuario (actor o destino), acción y rango de fechas (días de Argentina, incluidos); pagina de 50 y ordena del más nuevo al más viejo. La API `GET /api/admin/usuarios/auditoria` acepta `q`, `accion`, `desde` y `hasta` (AAAA-MM-DD) y `pagina`; sin parámetros devuelve las últimas 50 acciones, como antes. Los parámetros inválidos responden 400 JSON.
 
 Retención (D10): 2 años. Hoy no se purga nada. La purga es manual con `scripts/purgar_auditoria_usuarios.py --antes-de AAAA-MM-DD`: sin `--ejecutar` solo simula; para borrar hay que repetir la misma fecha en `--confirmar`. No hay tarea programada y no se corre contra producción sin autorización de Inti.
+## Jerarquía de Administración de Usuarios (C3)
+
+La API es la fuente de verdad para las acciones; la pantalla refleja los permisos y no los reemplaza.
+
+- `admin` y `manager` (alias legacy) pueden administrar cualquier cuenta.
+- `gerente` puede administrar cuentas cuyo rol actual no sea `admin` ni `manager`. Puede administrar a otro `gerente`.
+- `gerente` no puede asignar los roles `admin` ni `manager`, tanto al crear como al cambiar una cuenta.
+- La limitación se aplica a cambios de rol, restablecimiento de clave, desactivación y reactivación. El servidor responde 403 con código `JERARQUIA_INSUFICIENTE` y el mensaje «Esta cuenta la administra un administrador. Pedile a un administrador que haga este cambio.»
+- Para `gerente`, los selectores no ofrecen `admin` ni `manager` y las acciones de filas `admin`/`manager` quedan deshabilitadas con explicación. El servidor vuelve a validar cada operación.
+- El conteo del último administrador sigue considerando las cuentas activas `admin`, `manager` y `gerente`.
+
+`services.usuarios_admin.puede_administrar(actor, objetivo, rol_nuevo=None)` concentra la regla reutilizable de jerarquía y devuelve `(ok, codigo, mensaje)`. `objetivo=None` permite validar altas. No reemplaza las reglas propias de cada acción, como no actuar sobre sí mismo, mantener un administrador activo o exigir que la cuenta esté activa. Está pensada para que los cortes de recuperación, desbloqueo y MFA reusen la misma decisión.
+
+## Escrituras simultáneas y scripts
+
+El reset de clave y `/cambiar-clave` bloquean la fila del usuario y vuelven a leerla tras obtener el bloqueo. Si el reset ocurre primero, el cambio propio valida la clave temporal vigente y limpia `must_change_password` y su vencimiento; si el cambio propio ocurre primero, el reset final deja la clave temporal y el cambio obligatorio. Los incrementos de `token_version` quedan serializados también con desactivación y reactivación.
+
+Todas las mutaciones de cuentas pasan primero por `services.usuarios_admin.bloquear_mutaciones_usuarios()`. En PostgreSQL usa el advisory xact lock bigint `714360036043`; en SQLite no hace nada. Debe tomarse antes de cualquier `FOR UPDATE` y es la primitiva común para los cortes de recuperación, desbloqueo y MFA. Los deadlocks (`40P01`) y errores de serialización (`40001`) reintentan una vez la operación completa; si vuelve a fallar, la API devuelve 409 `OPERACION_CONCURRENTE` sin mostrar detalles SQL.
+
+Las cuentas existentes conservan rol por defecto en `setup_users.py`, `setup_database.py` y `setup_comercial.py`. `--forzar-roles` habilita expresamente aplicar los roles preset. Las claves existentes se regeneran solo con sus opciones explícitas (`--reset`, `--reset-admin-password` o `--reset-claves`), apagadas por defecto.
