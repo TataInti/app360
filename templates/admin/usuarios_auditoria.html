@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid" id="pantallaAuditoria">
+    <div class="panel-header">
+        <div>
+            <h1><i class="bi bi-journal-text"></i> Auditoría de usuarios</h1>
+            <span>Accesos, bloqueos y cambios de administración. Se conserva 2 años.</span>
+        </div>
+        <a class="btn btn-sm btn-outline-secondary" href="/admin/usuarios" id="enlaceVolverUsuarios">Volver a Usuarios</a>
+    </div>
+
+    <div id="avisoAuditoria" class="alert alert-danger d-none" role="alert"></div>
+
+    <div class="table-card mb-3">
+        <form id="formFiltrosAuditoria" class="d-flex flex-wrap gap-2 p-3 align-items-end" novalidate>
+            <div>
+                <label class="form-label small mb-1" for="filtroUsuarioAuditoria">Usuario</label>
+                <input type="search" id="filtroUsuarioAuditoria" class="form-control form-control-sm" maxlength="80" placeholder="Actor o destino" autocomplete="off">
+            </div>
+            <div>
+                <label class="form-label small mb-1" for="filtroAccionAuditoria">Acción</label>
+                <select id="filtroAccionAuditoria" class="form-select form-select-sm">
+                    {% for codigo, nombre in acciones %}
+                    <option value="{{ codigo }}">{{ nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="form-label small mb-1" for="filtroDesdeAuditoria">Desde</label>
+                <input type="date" id="filtroDesdeAuditoria" class="form-control form-control-sm" lang="es-AR">
+            </div>
+            <div>
+                <label class="form-label small mb-1" for="filtroHastaAuditoria">Hasta</label>
+                <input type="date" id="filtroHastaAuditoria" class="form-control form-control-sm" lang="es-AR">
+            </div>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnLimpiarAuditoria">Limpiar filtros</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="table-card">
+        <div class="scroll-table">
+            <table class="table table-sm align-middle mb-0" id="tablaAuditoriaCompleta">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Quién</th>
+                        <th>Acción</th>
+                        <th>A quién</th>
+                        <th>Detalle</th>
+                        <th>IP</th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpoAuditoriaCompleta"></tbody>
+            </table>
+        </div>
+        <div id="cargandoAuditoria" class="p-3 text-muted">Cargando auditoría…</div>
+        <div id="estadoVacioAuditoria" class="empty-state d-none">
+            <i class="bi bi-journal-check empty-icon"></i>
+            <div class="empty-title" id="tituloVacioAuditoria">Todavía no hay acciones registradas</div>
+            <div class="empty-text">Probá con otro usuario, otra acción o un rango de fechas más amplio.</div>
+        </div>
+        <nav class="d-flex justify-content-between align-items-center p-3" aria-label="Paginación de la auditoría">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnPaginaAnterior">Anterior</button>
+            <span id="textoPaginaAuditoria" class="small text-muted" aria-live="polite"></span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnPaginaSiguiente">Siguiente</button>
+        </nav>
+    </div>
+</div>
+
+<script src="{{ asset('js/admin_usuarios_auditoria.js') }}" defer></script>
+{% endblock %}

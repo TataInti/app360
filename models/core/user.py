@@ -34,6 +34,11 @@ class User(db.Model):
     token_version = db.Column(db.Integer, nullable=False, default=0, server_default="0")
     temp_password_expires_at = db.Column(db.DateTime(timezone=True), nullable=True)
     deactivated_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    # Bloqueo por cuenta (C4, migración 20261120_usuarios_c4_auditoria_bloqueo): fallos de la ventana
+    # vigente, inicio de la ventana y fin del bloqueo (D6). Sin bloqueo: 0 fallos y fechas nulas.
+    failed_login_count = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    failed_login_window_start = db.Column(db.DateTime(timezone=True), nullable=True)
+    locked_until = db.Column(db.DateTime(timezone=True), nullable=True)
 
     def __init__(self, **kwargs):
         if not kwargs.get("role"):

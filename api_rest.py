@@ -14,11 +14,12 @@ from models import (
 from security import (
     generate_access_token, generate_refresh_token, decode_token,
     jwt_required, jwt_modulo, jwt_o_sesion, log_login_attempt, log_security_event,
-    registrar_ultimo_acceso, token_anterior_al_cambio_de_clave, verificar_clave_login,
+    token_anterior_al_cambio_de_clave,
     clave_temporal_vencida,
     MENSAJE_CAMBIO_CLAVE, CODIGO_CAMBIO_CLAVE
 )
 from extensions import limiter
+from services.acceso_login import autenticar, esquema_faltante, nombre_auditado
 
 api_rest = Blueprint('api_rest', __name__, url_prefix='/api')
 
@@ -98,7 +99,19 @@ def paginate_query(query):
 # -----------------------------------------------------------------------------
 @api_rest.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint"""
+    """Health check endpoint. Responde 503 con el detalle si falta esquema de C4; el login no cambia."""
+    try:
+        faltantes = esquema_faltante()
+    except Exception:
+        faltantes = ['base no verificable']
+    if faltantes:
+        return jsonify({
+            'status': 'degraded',
+            'codigo': 'ESQUEMA_INCOMPLETO',
+            'faltantes': faltantes,
+            'timestamp': datetime.now().isoformat(),
+            'version': '1.0.0'
+        }), 503
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
@@ -121,23 +134,23 @@ def login():
     username = data.get('username')
     password = data.get('password')
     
-    user = User.query.filter_by(username=username, active=True).first()
-    if verificar_clave_login(user, password):
+    resultado = autenticar(username, password, canal="api", ip=request.remote_addr)
+    if resultado.ok:
+        user = resultado.usuario
         if user.must_change_password:
             # Clave temporal pendiente: sin token hasta que el usuario cambie su clave (M2).
             log_security_event(
                 'LOGIN_CAMBIO_CLAVE_PENDIENTE',
                 'Login de API sin token: cambio de clave pendiente',
-                user=username,
+                user=nombre_auditado(username, password),
                 ip=request.remote_addr,
             )
             return jsonify({'error': MENSAJE_CAMBIO_CLAVE, 'codigo': CODIGO_CAMBIO_CLAVE}), 403
-        registrar_ultimo_acceso(user)
         # Generate JWT tokens
         access_token = generate_access_token(user.id, user.username, user.role, user.token_version or 0)
         refresh_token = generate_refresh_token(user.id, user.username, user.token_version or 0)
         
-        log_login_attempt(username, success=True, ip=request.remote_addr)
+        log_login_attempt(nombre_auditado(username, password), success=True, ip=request.remote_addr)
         
         return jsonify({
             'user': user.username,
@@ -149,7 +162,7 @@ def login():
             'message': 'Login successful'
         }), 200
     
-    log_login_attempt(username, success=False, ip=request.remote_addr)
+    log_login_attempt(nombre_auditado(username, password), success=False, ip=request.remote_addr)
     return error_response(401, "Invalid credentials")
 
 

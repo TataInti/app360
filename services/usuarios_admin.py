@@ -17,11 +17,14 @@ Reglas que cumple el servidor (la pantalla solo las refleja):
   una cuenta desactivada.
 - Cada acción escribe su fila en user_audit_log dentro de la misma transacción: si la auditoría
   falla, la acción no se aplica.
+- C4: el login (services/acceso_login.py) registra login_ok y login_failed como mejor esfuerzo y
+  aplica el bloqueo por cuenta. Desbloquear (user_unlocked) es atómico. El visor filtra y pagina la
+  auditoría (consultar_auditoria).
 """
 
 import re
 import secrets
-from datetime import timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from functools import wraps
 
@@ -33,6 +36,8 @@ import security
 from models import db
 from models.core.user import User
 from models.core.user_audit_log import UserAuditLog
+from models.core.user_login_attempt import UserLoginAttempt
+from services.acceso_login import ETIQUETAS_MOTIVO, esta_bloqueada
 
 # Los tres roles siguen contando para conservar al último administrador activo.
 ROLES_ADMINISTRACION = ("admin", "manager", "gerente")
@@ -64,7 +69,15 @@ ESTADO_ACTIVO = "activo"
 ESTADO_DESACTIVADO = "desactivado"
 ESTADO_CAMBIAR_CLAVE = "cambiar_clave"
 ESTADO_CLAVE_VENCIDA = "clave_vencida"
-ESTADOS_FILTRO = ("todos", ESTADO_ACTIVO, ESTADO_DESACTIVADO, ESTADO_CAMBIAR_CLAVE, ESTADO_CLAVE_VENCIDA)
+ESTADO_BLOQUEADA = "bloqueada"
+ESTADOS_FILTRO = (
+    "todos",
+    ESTADO_ACTIVO,
+    ESTADO_DESACTIVADO,
+    ESTADO_CAMBIAR_CLAVE,
+    ESTADO_CLAVE_VENCIDA,
+    ESTADO_BLOQUEADA,
+)
 ETIQUETAS_ESTADO = {
     ESTADO_ACTIVO: "Activo",
     ESTADO_DESACTIVADO: "Desactivado",
@@ -85,10 +98,19 @@ ACCIONES_AUDITADAS = {
     "user_reactivated": "Reactivación",
     "user_role_changed": "Cambio de rol",
     "user_password_reset": "Restablecimiento de clave",
+    "user_unlocked": "Desbloqueo",
+    "login_ok": "Login correcto",
+    "login_failed": "Login fallido",
 }
+ACCIONES_FILTRO = (("todas", "Todas las acciones"), *ACCIONES_AUDITADAS.items())
 # Solo estos datos de contexto entran al detalle de auditoría. Nunca claves, hashes ni tokens.
-CAMPOS_DETALLE_PERMITIDOS = frozenset({"rol", "vence", "de", "a"})
+CAMPOS_DETALLE_PERMITIDOS = frozenset(
+    {"rol", "vence", "de", "a", "motivo", "canal", "intentos", "cambio_clave_pendiente"}
+)
 LIMITE_AUDITORIA = 50
+PATRON_FECHA = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+PATRON_PAGINA = re.compile(r"[0-9]{1,12}")
+ETIQUETAS_CANAL = {"web": "web", "api": "API"}
 # Hora de la pantalla: Argentina (UTC-3, sin horario de verano).
 ZONA_VISUAL = timezone(timedelta(hours=-3))
 
@@ -262,8 +284,29 @@ def _texto_corto(valor):
     return None if valor is None else _con_zona(valor).astimezone(ZONA_VISUAL).strftime("%d/%m %H:%M")
 
 
+def _texto_hora(valor):
+    """Hora de Argentina (hh:mm) para «Bloqueada hasta»."""
+    return None if valor is None else _con_zona(valor).astimezone(ZONA_VISUAL).strftime("%H:%M")
+
+
+def _bloqueos_ip_vigentes(usuario_id, ahora=None):
+    """Cantidad de IPs con bloqueo por par activo y su vencimiento más lejano."""
+    ahora = ahora or security.ahora()
+    cantidad, hasta = (
+        db.session.query(sa.func.count(UserLoginAttempt.ip), sa.func.max(UserLoginAttempt.locked_until))
+        .filter(UserLoginAttempt.user_id == usuario_id, UserLoginAttempt.locked_until > ahora)
+        .one()
+    )
+    return int(cantidad or 0), _con_zona(hasta) if hasta is not None else None
+
+
 def serializar_usuario(usuario):
+    ahora = security.ahora()
     estado = estado_usuario(usuario)
+    global_bloqueada = esta_bloqueada(usuario, ahora)
+    bloqueadas_ips, bloqueo_ip_hasta = _bloqueos_ip_vigentes(usuario.id, ahora)
+    bloqueada = global_bloqueada or bloqueadas_ips > 0
+    bloqueo_hasta = usuario.locked_until if global_bloqueada else bloqueo_ip_hasta
     vence = usuario.temp_password_expires_at if usuario.must_change_password else None
     return {
         "id": usuario.id,
@@ -276,6 +319,11 @@ def serializar_usuario(usuario):
         "ultimo_acceso_texto": _texto_fecha(usuario.last_login_at) or "Nunca",
         "clave_temporal_vence": _iso(vence),
         "clave_temporal_vence_texto": _texto_corto(vence),
+        "bloqueada": bloqueada,
+        "bloqueo_global": global_bloqueada,
+        "bloqueadas_ips": bloqueadas_ips,
+        "bloqueada_hasta": _iso(bloqueo_hasta) if bloqueada else None,
+        "bloqueada_hasta_texto": _texto_hora(bloqueo_hasta) if bloqueada else None,
     }
 
 
@@ -303,6 +351,8 @@ def registrar_auditoria(actor, accion, target=None, detalle=None):
     """
     if accion not in ACCIONES_AUDITADAS:
         raise ValueError(f"Acción de auditoría desconocida: {accion}")
+    ip = request.remote_addr if has_request_context() else None
+    ip = ip[:45] if isinstance(ip, str) else None
     evento = UserAuditLog(
         created_at=security.ahora(),
         actor_user_id=getattr(actor, "id", None),
@@ -311,7 +361,7 @@ def registrar_auditoria(actor, accion, target=None, detalle=None):
         target_user_id=getattr(target, "id", None),
         target_username=getattr(target, "username", None),
         detalle=_detalle_seguro(detalle),
-        ip=request.remote_addr if has_request_context() else None,
+        ip=ip,
     )
     db.session.add(evento)
     db.session.flush()
@@ -519,6 +569,33 @@ def restablecer_clave(actor, usuario_id):
     return usuario, clave, vence
 
 
+@reintentar_operacion_concurrente
+def desbloquear_usuario(actor, usuario):
+    """Levanta el bloqueo por intentos fallidos (A3): borra contador, ventana y fin del bloqueo.
+
+    Se serializa con el resto de mutaciones de cuentas (bloquear_mutaciones_usuarios) y respeta la
+    jerarquía puede_administrar: un gerente no desbloquea cuentas admin ni manager. Bloquea la fila
+    antes de leer el estado. Si la cuenta no está bloqueada, responde 409 NO_BLOQUEADA y no escribe nada.
+    """
+    bloquear_mutaciones_usuarios()
+    fila = _usuario_bloqueado(_id_usuario(usuario))
+    if fila is None:
+        raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
+    _exigir_jerarquia(actor, fila)
+    ahora = security.ahora()
+    cantidad_pares, _ = _bloqueos_ip_vigentes(fila.id, ahora)
+    if not esta_bloqueada(fila, ahora) and cantidad_pares == 0:
+        raise ErrorUsuarios("NO_BLOQUEADA", "Esa cuenta no está bloqueada.", 409)
+    intentos = fila.failed_login_count or 0
+    fila.failed_login_count = 0
+    fila.failed_login_window_start = None
+    fila.locked_until = None
+    db.session.query(UserLoginAttempt).filter_by(user_id=fila.id).delete(synchronize_session=False)
+    registrar_auditoria(actor, "user_unlocked", fila, {"intentos": intentos})
+    db.session.commit()
+    return fila
+
+
 def _tabla_auditoria_existe():
     return sa.inspect(db.session.connection()).has_table(UserAuditLog.__tablename__)
 
@@ -548,24 +625,147 @@ def listar_usuarios(q="", estado="todos"):
         consulta = consulta.filter(User.username.ilike(f"%{escapado}%", escape="\\"))
     usuarios = consulta.order_by(User.username).all()
     if estado in ESTADOS_FILTRO and estado != "todos":
-        # El estado depende del reloj (clave temporal vencida): se filtra con la misma regla que la columna.
-        usuarios = [usuario for usuario in usuarios if estado_usuario(usuario) == estado]
+        # El estado depende del reloj (clave temporal vencida y bloqueo): se filtra con la misma regla que la columna.
+        if estado == ESTADO_BLOQUEADA:
+            ahora = security.ahora()
+            usuarios = [
+                usuario
+                for usuario in usuarios
+                if esta_bloqueada(usuario, ahora) or _bloqueos_ip_vigentes(usuario.id, ahora)[0] > 0
+            ]
+        else:
+            usuarios = [usuario for usuario in usuarios if estado_usuario(usuario) == estado]
     return usuarios
 
 
-def auditoria_reciente(limite=LIMITE_AUDITORIA):
+def _fecha_o_error(valor, campo, errores):
+    """Fecha AAAA-MM-DD entre 2000 y 2999. Vacía → None. Inválida → anota el error y devuelve None."""
+    if valor in (None, ""):
+        return None
+    if isinstance(valor, str) and PATRON_FECHA.fullmatch(valor):
+        try:
+            fecha = date.fromisoformat(valor)
+        except ValueError:
+            fecha = None
+        if fecha is not None and 2000 <= fecha.year <= 2999:
+            return fecha
+    errores[campo] = "Usá una fecha válida (día, mes y año)."
+    return None
+
+
+def _pagina_o_error(valor, errores):
+    if valor in (None, ""):
+        return 1
+    if isinstance(valor, str) and PATRON_PAGINA.fullmatch(valor) and int(valor) >= 1:
+        return int(valor)
+    errores["pagina"] = "La página tiene que ser un número mayor que cero."
+    return 1
+
+
+def _inicio_local(dia):
+    """Medianoche de Argentina de ese día, en UTC."""
+    return datetime(dia.year, dia.month, dia.day, tzinfo=ZONA_VISUAL).astimezone(timezone.utc)
+
+
+def _rol(codigo):
+    return ETIQUETAS_ROL.get(codigo, codigo or "—")
+
+
+def _texto_vencimiento(iso):
+    if not iso:
+        return ""
+    try:
+        vence = datetime.fromisoformat(iso)
+    except (TypeError, ValueError):
+        return ""
+    return f"Clave temporal válida hasta {_texto_fecha(vence)}"
+
+
+def _texto_detalle(fila):
+    """Detalle legible en español, sin JSON crudo. Solo usa los campos permitidos."""
+    detalle = fila.detalle if isinstance(fila.detalle, dict) else {}
+    accion = fila.accion
+    if accion == "user_role_changed":
+        return f"Rol: {_rol(detalle.get('de'))} → {_rol(detalle.get('a'))}"
+    if accion in ("user_created", "user_deactivated", "user_reactivated"):
+        return f"Rol: {_rol(detalle.get('rol'))}" if detalle.get("rol") else ""
+    if accion == "user_password_reset":
+        return _texto_vencimiento(detalle.get("vence"))
+    if accion == "user_unlocked":
+        return f"Intentos fallidos antes del desbloqueo: {detalle.get('intentos', 0)}"
+    if accion == "login_ok":
+        texto = f"Canal: {ETIQUETAS_CANAL.get(detalle.get('canal'), '—')}"
+        return texto + ". Debe cambiar la clave" if detalle.get("cambio_clave_pendiente") else texto
+    if accion == "login_failed":
+        veces = fila.repeticiones or 1
+        palabra = "intento" if veces == 1 else "intentos"
+        motivo = ETIQUETAS_MOTIVO.get(detalle.get("motivo"), "—")
+        canal = ETIQUETAS_CANAL.get(detalle.get("canal"), "—")
+        return f"Motivo: {motivo}, {veces} {palabra} · Canal: {canal}"
+    return ""
+
+
+def _evento(fila):
+    return {
+        "id": fila.id,
+        "fecha": _texto_fecha(fila.created_at),
+        "fecha_iso": _iso(fila.created_at),
+        "quien": fila.actor_username or "Sistema",
+        "accion": ACCIONES_AUDITADAS.get(fila.accion, fila.accion),
+        "accion_codigo": fila.accion,
+        "a_quien": fila.target_username or "—",
+        "detalle": _texto_detalle(fila),
+        "ip": fila.ip or "—",
+        "repeticiones": fila.repeticiones or 1,
+    }
+
+
+def consultar_auditoria(q="", accion="todas", desde=None, hasta=None, pagina=None):
+    """Eventos de auditoría, del más nuevo al más viejo, de 50 en 50 (A4).
+
+    Filtros: usuario (actor o destino, sin distinguir mayúsculas), acción y fechas (días de Argentina,
+    incluidos). Página fuera de rango → lista vacía. Parámetros inválidos → ErrorUsuarios 400.
+    """
+    errores = {}
+    texto = q.strip().lower()[:80] if isinstance(q, str) else ""
+    codigo = accion if accion not in (None, "") else "todas"
+    if codigo != "todas" and codigo not in ACCIONES_AUDITADAS:
+        errores["accion"] = "Elegí una acción de la lista."
+    dia_desde = _fecha_o_error(desde, "desde", errores)
+    dia_hasta = _fecha_o_error(hasta, "hasta", errores)
+    if dia_desde and dia_hasta and dia_desde > dia_hasta:
+        errores["hasta"] = "La fecha hasta no puede ser anterior a la fecha desde."
+    numero = _pagina_o_error(pagina, errores)
+    if errores:
+        raise ErrorUsuarios("PARAMETROS_INVALIDOS", "Revisá los filtros marcados.", 400, errores)
+
+    consulta = UserAuditLog.query
+    if texto:
+        escapado = texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        patron = f"%{escapado}%"
+        consulta = consulta.filter(
+            sa.or_(
+                UserAuditLog.actor_username.ilike(patron, escape="\\"),
+                UserAuditLog.target_username.ilike(patron, escape="\\"),
+            )
+        )
+    if codigo != "todas":
+        consulta = consulta.filter(UserAuditLog.accion == codigo)
+    if dia_desde:
+        consulta = consulta.filter(UserAuditLog.created_at >= _inicio_local(dia_desde))
+    if dia_hasta:
+        consulta = consulta.filter(UserAuditLog.created_at < _inicio_local(dia_hasta + timedelta(days=1)))
+    total = consulta.count()
     filas = (
-        UserAuditLog.query.order_by(UserAuditLog.created_at.desc(), UserAuditLog.id.desc())
-        .limit(limite)
+        consulta.order_by(UserAuditLog.created_at.desc(), UserAuditLog.id.desc())
+        .offset((numero - 1) * LIMITE_AUDITORIA)
+        .limit(LIMITE_AUDITORIA)
         .all()
     )
-    return [
-        {
-            "fecha": _texto_fecha(fila.created_at),
-            "fecha_iso": _iso(fila.created_at),
-            "quien": fila.actor_username or "Sistema",
-            "accion": ACCIONES_AUDITADAS.get(fila.accion, fila.accion),
-            "a_quien": fila.target_username or "—",
-        }
-        for fila in filas
-    ]
+    return {
+        "eventos": [_evento(fila) for fila in filas],
+        "total": total,
+        "pagina": numero,
+        "por_pagina": LIMITE_AUDITORIA,
+        "paginas": max(1, -(-total // LIMITE_AUDITORIA)),
+    }

@@ -190,7 +190,29 @@ def restablecer_clave(usuario_id):
     )
 
 
+@admin_usuarios_bp.route("/api/admin/usuarios/<int:usuario_id>/desbloquear", methods=["POST"])
+@admin_usuarios_required
+def desbloquear(usuario_id):
+    return _cambiar_estado(usuario_id, ua.desbloquear_usuario, "desbloqueo")
+
+
+@admin_usuarios_bp.route("/admin/usuarios/auditoria")
+@admin_usuarios_required
+def pantalla_auditoria():
+    return render_template("admin/usuarios_auditoria.html", acciones=ua.ACCIONES_FILTRO)
+
+
 @admin_usuarios_bp.route("/api/admin/usuarios/auditoria", methods=["GET"])
 @admin_usuarios_required
 def auditoria():
-    return jsonify({"eventos": ua.auditoria_reciente()})
+    try:
+        datos = ua.consultar_auditoria(
+            q=request.args.get("q", ""),
+            accion=request.args.get("accion", "todas"),
+            desde=request.args.get("desde"),
+            hasta=request.args.get("hasta"),
+            pagina=request.args.get("pagina"),
+        )
+    except ua.ErrorUsuarios as error:
+        return _responder_error(error)
+    return jsonify(datos)
