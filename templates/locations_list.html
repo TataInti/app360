@@ -6,13 +6,14 @@
         <h1>Ubicaciones</h1>
         <span class="panel-subtitle">Administrá las ubicaciones de stock.</span>
     </div>
-    {% if locations %}
-    <div class="action-bar">
-        <a href="/locations/new" class="btn btn-sm btn-primary">Nueva Ubicación</a>
+    <div class="action-bar" data-locations-accion>
+        {% if locations %}
+        <button type="button" class="btn btn-sm btn-primary" data-drawer-open="ubicacionPanel" aria-controls="ubicacionPanel">Nueva Ubicación</button>
+        {% endif %}
     </div>
-    {% endif %}
 </header>
 
+<div data-locations-region>
 {% if locations %}
 <div class="table-responsive">
     <table class="app-table" aria-label="Ubicaciones">
@@ -26,7 +27,7 @@
         </thead>
         <tbody>
             {% for l in locations %}
-            <tr class="app-table__row">
+            <tr class="app-table__row" data-location-id="{{ l.id }}">
                 <td class="app-table__cell app-table__numeric">{{ l.id }}</td>
                 <td class="app-table__cell">{{ l.name }}</td>
                 <td class="app-table__cell">{{ l.type }}</td>
@@ -51,17 +52,97 @@
     <i class="bi bi-inbox empty-icon" aria-hidden="true"></i>
     <div class="empty-title" id="locations-empty-title">Todavía no hay ubicaciones</div>
     <p class="empty-text">Creá una ubicación para poder registrar stock en el lugar correcto.</p>
-    <a href="/locations/new" class="btn btn-sm btn-primary">Crear primera ubicación</a>
+    <button type="button" class="btn btn-sm btn-primary" data-drawer-open="ubicacionPanel">Crear primera ubicación</button>
 </section>
 {% endif %}
+</div>
+
+<form id="ubicacionPanel" class="app-drawer" method="POST" action="/locations/new"
+      role="dialog" aria-modal="true" aria-labelledby="ubicacionPanelTitulo" aria-describedby="ubicacionPanelAyuda" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <header class="app-drawer__header">
+        <h2 class="app-drawer__title" id="ubicacionPanelTitulo">Nueva ubicación</h2>
+        <p class="app-drawer__description" id="ubicacionPanelAyuda">Cargá el nombre y el tipo de la ubicación. Con «Guardar y agregar otro» el tipo queda para la siguiente, porque suele repetirse en una misma tanda.</p>
+    </header>
+    <div class="app-drawer__body app-drawer__form">
+        {% include "_location_form_campos.html" %}
+    </div>
+    <p class="app-drawer__status" data-drawer-status aria-live="polite"></p>
+    <footer class="app-drawer__footer">
+        {% with pie_agregar_otro=true %}
+        {% include "_drawer_pie.html" %}
+        {% endwith %}
+    </footer>
+</form>
 
 <script src="{{ asset('js/app_format.js') }}" defer></script>
+<script src="{{ asset('js/app_drawer_form.js') }}" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    document.querySelectorAll('[data-format-number]').forEach(function (element) {
-        element.textContent = window.App360Format.formatNumber(element.dataset.formatNumber);
+    var region = document.querySelector('[data-locations-region]');
+    var panel = document.getElementById('ubicacionPanel');
+
+    function formatearNumeros(raiz) {
+        raiz.querySelectorAll('[data-format-number]').forEach(function (element) {
+            element.textContent = window.App360Format.formatNumber(element.dataset.formatNumber);
+        });
+    }
+
+    // Reemplaza la tabla (o el estado vacío) y la acción de cabecera con la lista fresca del servidor, y resalta el alta.
+    function refrescarLista(idNuevo) {
+        return fetch('/locations', { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
+            .then(function (respuesta) {
+                if (!respuesta.ok) {
+                    throw new Error('lista');
+                }
+                return respuesta.text();
+            })
+            .then(function (html) {
+                var documento = new DOMParser().parseFromString(html, 'text/html');
+                var fresca = documento.querySelector('[data-locations-region]');
+                var frescaAccion = documento.querySelector('[data-locations-accion]');
+                if (!fresca || !region) {
+                    return;
+                }
+                region.replaceChildren.apply(region, Array.from(fresca.childNodes));
+                var accion = document.querySelector('[data-locations-accion]');
+                if (!accion || !frescaAccion || accion.querySelector('[data-drawer-open]')) {
+                    // El botón ya existe: se conserva el mismo nodo, porque el panel lo usa como disparador.
+                } else {
+                    accion.replaceChildren.apply(accion, Array.from(frescaAccion.childNodes));
+                }
+                formatearNumeros(region);
+                if (/^\d+$/.test(String(idNuevo))) {
+                    var fila = region.querySelector('tr[data-location-id="' + idNuevo + '"]');
+                    if (fila) {
+                        fila.classList.add('app-table__row--resaltada');
+                        setTimeout(function () { fila.classList.remove('app-table__row--resaltada'); }, 4000);
+                    }
+                }
+            });
+    }
+
+    formatearNumeros(document);
+    window.ubicacionesPanel = App360DrawerForm.crear({
+        panel: panel,
+        primerCampo: '#ubicacion-nombre',
+        conservar: ['type'],
+        textoGuardado: function (cuerpo) { return 'Ubicación «' + cuerpo.nombre + '» guardada'; },
+        mensajeDescarte: 'Hay datos de la ubicación sin guardar. Si cerrás el panel, se pierden.',
+        alGuardar: function (cuerpo) {
+            refrescarLista(cuerpo.id).catch(function () {
+                // Si no se puede refrescar la tabla, el alta ya quedó guardada: la lista se ve al recargar.
+            }).then(function () {
+                // Si el disparador era el estado vacío, se reemplazó y el foco quedó en el cuerpo: vuelve al botón de cabecera.
+                if (!document.activeElement || document.activeElement === document.body) {
+                    var disparador = document.querySelector('[data-locations-accion] [data-drawer-open="ubicacionPanel"]');
+                    if (disparador) {
+                        disparador.focus();
+                    }
+                }
+            });
+        }
     });
 });
 </script>
 {% endblock %}
-

@@ -4,87 +4,130 @@
 {% block content %}
 {% call page_head('Campañas') %}
     <a href="/leads" class="btn btn-outline-secondary">Volver a leads</a>
+    <button type="button" class="btn btn-primary" data-drawer-open="campanaPanel" aria-controls="campanaPanel">Nueva campaña</button>
 {% endcall %}
 
-<div class="row">
-    <div class="col-md-7">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Campañas activas / recientes</h5>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover">
-                        <thead>
-                            <tr>
-                                <th>Nombre</th>
-                                <th>Canal</th>
-                                <th>Costo estimado</th>
-                                <th>Plazo</th>
-                                <th>Leads</th>
-                                <th>Activo</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for campaign in campaigns %}
-                            <tr>
-                                <td>{{ campaign.name }}</td>
-                                <td>{{ campaign.channel or '-' }}</td>
-                                <td>{{ campaign.cost_estimate or '-' }}</td>
-                                <td>
-                                    {% if campaign.start_date and campaign.end_date %}
-                                        {{ campaign.start_date.strftime("%Y-%m-%d") }}
-                                        – {{ campaign.end_date.strftime("%Y-%m-%d") }}
-                                    {% elif campaign.start_date %}
-                                        Desde {{ campaign.start_date.strftime("%Y-%m-%d") }}
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                                <td>{{ campaign.leads|length }}</td>
-                                <td>{{ 'Sí' if campaign.active else 'No' }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-5">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Crear campaña</h5>
-                <form action="{{ url_for('crm.campaigns_new') }}" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <div class="mb-3">
-                        <label>Nombre</label>
-                        <input type="text" name="name" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label>Canal</label>
-                        <input type="text" name="channel" class="form-control">
-                    </div>
-                    <div class="mb-3">
-                        <label>Costo estimado</label>
-                        <input type="text" name="cost_estimate" class="form-control" placeholder="12345.00">
-                    </div>
-                    <div class="mb-3">
-                        <label>Inicio</label>
-                        <input type="date" name="start_date" class="form-control">
-                    </div>
-                    <div class="mb-3">
-                        <label>Fin</label>
-                        <input type="date" name="end_date" class="form-control">
-                    </div>
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" name="active" id="campaignActive" checked>
-                        <label class="form-check-label" for="campaignActive">Activa</label>
-                    </div>
-                    <button class="btn btn-primary w-100">Guardar campaña</button>
-                </form>
-            </div>
+<div data-campaigns-region>
+{% if campaigns %}
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Campañas activas / recientes</h5>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover" aria-label="Campañas">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Canal</th>
+                        <th>Costo estimado</th>
+                        <th>Plazo</th>
+                        <th>Leads</th>
+                        <th>Activo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for campaign in campaigns %}
+                    <tr data-campaign-id="{{ campaign.id }}">
+                        <td>{{ campaign.name }}</td>
+                        <td>{{ campaign.channel or '-' }}</td>
+                        <td>{{ campaign.cost_estimate or '-' }}</td>
+                        <td>
+                            {% if campaign.start_date and campaign.end_date %}
+                                {{ campaign.start_date.strftime("%Y-%m-%d") }}
+                                – {{ campaign.end_date.strftime("%Y-%m-%d") }}
+                            {% elif campaign.start_date %}
+                                Desde {{ campaign.start_date.strftime("%Y-%m-%d") }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ campaign.leads|length }}</td>
+                        <td>{{ 'Sí' if campaign.active else 'No' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
+{% else %}
+<section class="empty-state" aria-labelledby="campaigns-empty-title">
+    <i class="bi bi-inbox empty-icon" aria-hidden="true"></i>
+    <div class="empty-title" id="campaigns-empty-title">Todavía no hay campañas</div>
+    <p class="empty-text">Creá una campaña para asociarle leads y seguir su costo y su plazo.</p>
+    <button type="button" class="btn btn-sm btn-primary" data-drawer-open="campanaPanel">Crear primera campaña</button>
+</section>
+{% endif %}
+</div>
 
+<form id="campanaPanel" class="app-drawer" method="POST" action="/campaigns/new" role="dialog" aria-modal="true"
+      aria-labelledby="campanaPanelTitulo" aria-describedby="campanaPanelAyuda" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <header class="app-drawer__header">
+        <h2 class="app-drawer__title" id="campanaPanelTitulo">Nueva campaña</h2>
+        <p class="app-drawer__description" id="campanaPanelAyuda">Cargá la campaña. Con «Guardar y agregar otro» el canal y el plazo quedan para la siguiente, porque suelen repetirse en una misma serie.</p>
+    </header>
+    <div class="app-drawer__body app-drawer__form">
+        {% include "_campaign_form_campos.html" %}
+    </div>
+    <p class="app-drawer__status" data-drawer-status aria-live="polite"></p>
+    <footer class="app-drawer__footer">
+        {% with pie_agregar_otro=true %}
+        {% include "_drawer_pie.html" %}
+        {% endwith %}
+    </footer>
+</form>
+
+<script src="{{ asset('js/app_drawer_form.js') }}" defer></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var region = document.querySelector('[data-campaigns-region]');
+    var panel = document.getElementById('campanaPanel');
+
+    // Reemplaza solo la tabla (o el estado vacío) con la lista fresca del servidor y resalta el alta.
+    function refrescarLista(idNuevo) {
+        return fetch('/campaigns', { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
+            .then(function (respuesta) {
+                if (!respuesta.ok) {
+                    throw new Error('lista');
+                }
+                return respuesta.text();
+            })
+            .then(function (html) {
+                var fresca = new DOMParser().parseFromString(html, 'text/html').querySelector('[data-campaigns-region]');
+                if (!fresca || !region) {
+                    return;
+                }
+                region.replaceChildren.apply(region, Array.from(fresca.childNodes));
+                if (/^\d+$/.test(String(idNuevo))) {
+                    var fila = region.querySelector('tr[data-campaign-id="' + idNuevo + '"]');
+                    if (fila) {
+                        fila.classList.add('app-table__row--resaltada');
+                        setTimeout(function () { fila.classList.remove('app-table__row--resaltada'); }, 4000);
+                    }
+                }
+            });
+    }
+
+    window.campanasPanel = App360DrawerForm.crear({
+        panel: panel,
+        primerCampo: '#campana-nombre',
+        conservar: ['channel', 'start_date', 'end_date'],
+        textoGuardado: function (cuerpo) { return 'Campaña «' + cuerpo.nombre + '» guardada'; },
+        mensajeDescarte: 'Hay datos de la campaña sin guardar. Si cerrás el panel, se pierden.',
+        alGuardar: function (cuerpo) {
+            refrescarLista(cuerpo.id).catch(function () {
+                // Si no se puede refrescar la tabla, el alta ya quedó guardada: la lista se ve al recargar.
+            }).then(function () {
+                // Si el disparador era el estado vacío, se reemplazó y el foco quedó en el cuerpo: vuelve al botón de cabecera.
+                if (!document.activeElement || document.activeElement === document.body) {
+                    var disparador = document.querySelector('.app-page-head [data-drawer-open="campanaPanel"]');
+                    if (disparador) {
+                        disparador.focus();
+                    }
+                }
+            });
+        }
+    });
+});
+</script>
 {% endblock %}

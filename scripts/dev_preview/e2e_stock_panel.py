@@ -253,6 +253,10 @@ def escenario_escritorio(page, productos, ubicaciones):
     )
     abrir_panel(page)
     verificar("panel: foco en el primer campo al abrir", page.evaluate("document.activeElement.id") == "product_id")
+    verificar(
+        "panel: primera opción «Elegí un producto» con valor vacío y obligatoria",
+        page.evaluate("(() => { const s = document.querySelector('#stockPanel #product_id'); return s.required && s.options[0].value === '' && s.options[0].textContent.trim() === 'Elegí un producto'; })()"),
+    )
     captura(page, "1440x900", "panel_vacio")
     primarios = page.locator("#stockPanel .app-actions__primary:visible").count()
     verificar("panel: una sola acción primaria en el pie", primarios == 1, primarios)
@@ -295,6 +299,7 @@ def escenario_escritorio(page, productos, ubicaciones):
         )
         verificar(f"agregar otro {indice}: la cantidad vuelve a 0", page.input_value("#stock-cantidad") == "0")
         verificar(f"agregar otro {indice}: foco en el primer campo", page.evaluate("document.activeElement.id") == "product_id")
+        verificar(f"agregar otro {indice}: el producto vuelve a la opción vacía", page.input_value("#product_id") == "")
         expect(page.locator("[data-stock-region] tr[data-stock-id]").first).to_be_visible(timeout=10000)
         fila = esperar_fila(page, nombre_p, nombre_l, cantidad)
         verificar(f"agregar otro {indice}: la lista muestra {nombre_p} en {nombre_l} con {cantidad}", len(fila) == 1 and fila[0]["celdas"][5] == str(cantidad), fila)

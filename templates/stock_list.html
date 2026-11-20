@@ -71,7 +71,7 @@
         <p class="app-drawer__description" id="stockPanelAyuda">Cargá el producto, la ubicación y la cantidad. Con «Guardar y agregar otro» la ubicación queda para el siguiente.</p>
     </header>
     <div class="app-drawer__body app-drawer__form">
-        {% with products=catalogo_productos, locations=catalogo_ubicaciones %}
+        {% with products=catalogo_productos, locations=catalogo_ubicaciones, con_opcion_vacia=true %}
         {% include "_stock_form_campos.html" %}
         {% endwith %}
     </div>
