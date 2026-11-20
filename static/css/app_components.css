@@ -67,6 +67,18 @@
     font-size: var(--font-size-label);
 }
 
+.app-field__error[hidden] {
+    display: none;
+}
+
+.app-drawer__footer .app-actions {
+    flex-wrap: wrap;
+}
+
+.app-drawer__footer .app-actions > button {
+    flex: 1 1 auto;
+}
+
 .app-field__help {
     color: var(--color-text-muted);
 }
