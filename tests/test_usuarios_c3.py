@@ -403,7 +403,7 @@ def test_carrera_en_postgresql_dos_administradores_nunca_dejan_cero_activos(monk
         activos = User.query.filter(User.role.in_(ua.ROLES_ADMINISTRACION), User.active.is_(True)).count()
         db.session.remove()
         db.drop_all()
-    db.engine.dispose()
+        db.engine.dispose()
     assert sorted(resultados.values()) == ["ULTIMO_ADMINISTRADOR", "ok"], resultados
     assert activos >= 1
 
