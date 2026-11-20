@@ -122,7 +122,11 @@ def login():
     username = data.get('username')
     password = data.get('password')
     
-    resultado = autenticar(username, password, canal="api", ip=request.remote_addr)
+    codigo_mfa = data.get("mfa_code") or None
+    resultado = autenticar(username, password, canal="api", ip=request.remote_addr, codigo_mfa=codigo_mfa)
+    if not resultado.ok and resultado.motivo == "mfa_requerido":
+        # Clave correcta de una cuenta con MFA: se pide el segundo paso (solo después de validar la clave).
+        return jsonify({'error': 'Se requiere el código de la aplicación o un código de respaldo', 'codigo': 'MFA_REQUERIDO'}), 401
     if resultado.ok:
         user = resultado.usuario
         if user.must_change_password:

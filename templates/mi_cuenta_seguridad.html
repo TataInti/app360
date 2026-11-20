@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block content %}
+<main class="container py-4" style="max-width: 720px;">
+    <h1 class="h3 mb-3">Seguridad de la cuenta</h1>
+
+    {% if mensaje %}
+    <div class="alert alert-warning" role="alert">{{ mensaje }}</div>
+    {% endif %}
+
+    <p class="mb-4">
+        Autenticación en dos pasos (MFA): <strong>{{ "Activado" if estado.activo else "Desactivado" }}</strong>.
+        Es opcional. Con MFA activo, al ingresar te pedimos un código de tu aplicación de códigos o un código de respaldo.
+    </p>
+
+    {% if paso == "inicio" %}
+        {% if not estado.activo %}
+        <section aria-labelledby="activar-titulo" class="card card-body mb-3">
+            <h2 class="h5" id="activar-titulo">Activar MFA</h2>
+            <p class="small text-muted">Te pedimos tu clave actual. Después te mostramos una clave para cargar en tu aplicación de códigos.</p>
+            <form method="post" action="{{ url_for('mfa_bp.activar') }}" novalidate>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <label class="form-label" for="clave_actual_activar">Clave actual</label>
+                <input class="form-control mb-2" type="password" id="clave_actual_activar" name="clave_actual" autocomplete="current-password" required {% if errores.clave_actual %}aria-invalid="true" aria-describedby="error-clave-activar"{% endif %}>
+                {% if errores.clave_actual %}<div class="invalid-feedback d-block" id="error-clave-activar">{{ errores.clave_actual }}</div>{% endif %}
+                <button class="btn btn-primary" type="submit">Activar MFA</button>
+            </form>
+        </section>
+        {% else %}
+        <section aria-labelledby="desactivar-titulo" class="card card-body mb-3">
+            <h2 class="h5" id="desactivar-titulo">Desactivar MFA</h2>
+            <p class="small text-muted">Pedimos tu clave y un código de tu aplicación o un código de respaldo.</p>
+            <form method="post" action="{{ url_for('mfa_bp.desactivar') }}" novalidate>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <label class="form-label" for="clave_actual_desactivar">Clave actual</label>
+                <input class="form-control mb-2" type="password" id="clave_actual_desactivar" name="clave_actual" autocomplete="current-password" required>
+                <label class="form-label" for="codigo_desactivar">Código de la aplicación o de respaldo</label>
+                <input class="form-control mb-2" type="text" id="codigo_desactivar" name="codigo" autocomplete="one-time-code" inputmode="text" required>
+                <button class="btn btn-outline-danger" type="submit">Desactivar MFA</button>
+            </form>
+        </section>
+        <section aria-labelledby="regenerar-titulo" class="card card-body mb-3">
+            <h2 class="h5" id="regenerar-titulo">Regenerar códigos de respaldo</h2>
+            <p class="small text-muted">Los códigos anteriores dejan de servir. Pedimos tu clave y un código de tu aplicación.</p>
+            <form method="post" action="{{ url_for('mfa_bp.regenerar') }}" novalidate>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <label class="form-label" for="clave_actual_regenerar">Clave actual</label>
+                <input class="form-control mb-2" type="password" id="clave_actual_regenerar" name="clave_actual" autocomplete="current-password" required>
+                <label class="form-label" for="codigo_regenerar">Código de tu aplicación</label>
+                <input class="form-control mb-2" type="text" id="codigo_regenerar" name="codigo" autocomplete="one-time-code" inputmode="numeric" maxlength="6" required>
+                <button class="btn btn-outline-primary" type="submit">Regenerar códigos</button>
+            </form>
+        </section>
+        {% endif %}
+    {% elif paso == "confirmar" %}
+        <section aria-labelledby="confirmar-titulo" class="card card-body mb-3">
+            <h2 class="h5" id="confirmar-titulo">Cargá la clave en tu aplicación</h2>
+            <p>En tu aplicación de códigos elegí «Ingresar clave manualmente» y escribí esta clave. Se muestra una sola vez.</p>
+            <p class="mb-2"><code class="fs-5" aria-label="Clave para tu aplicación">{{ secreto }}</code></p>
+            <p class="small">Si tu aplicación acepta enlaces: <a href="{{ uri }}">abrir en la aplicación</a>.</p>
+            <form method="post" action="{{ url_for('mfa_bp.confirmar') }}" novalidate>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <label class="form-label" for="codigo_confirmar">Código de 6 dígitos de tu aplicación</label>
+                <input class="form-control mb-2" type="text" id="codigo_confirmar" name="codigo" autocomplete="one-time-code" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" required autofocus {% if errores.codigo %}aria-invalid="true" aria-describedby="error-codigo-confirmar"{% endif %}>
+                {% if errores.codigo %}<div class="invalid-feedback d-block" id="error-codigo-confirmar">{{ errores.codigo }}</div>{% endif %}
+                <button class="btn btn-primary" type="submit">Confirmar y activar</button>
+            </form>
+            <p class="small text-muted mt-3">Si perdiste la clave, volvé a «Activar MFA» con tu clave: reemplaza la anterior.</p>
+        </section>
+    {% elif paso == "respaldos" %}
+        <section aria-labelledby="respaldos-titulo" class="card card-body mb-3">
+            <h2 class="h5" id="respaldos-titulo">Códigos de respaldo</h2>
+            <p>Guardalos en un lugar seguro. Cada uno sirve una sola vez y no se vuelven a mostrar.</p>
+            <ol class="font-monospace" aria-label="Códigos de respaldo">
+                {% for codigo in respaldos %}<li>{{ codigo }}</li>{% endfor %}
+            </ol>
+            <a class="btn btn-primary" href="{{ url_for('mfa_bp.seguridad') }}">Listo, ya los guardé</a>
+        </section>
+    {% endif %}
+</main>
+{% endblock %}

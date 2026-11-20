@@ -2375,6 +2375,7 @@
         <!-- Footer -->
         <div class="sidebar-foot">
             {% if current_user %}
+            <a href="{{ url_for('mfa_bp.seguridad') }}" class="cambiar-clave-btn" aria-label="Seguridad de la cuenta" title="Seguridad de la cuenta"><i class="bi bi-shield-lock"></i> <span class="link-text">Seguridad de la cuenta</span></a>
             <a href="{{ url_for('auth.cambiar_clave') }}" class="cambiar-clave-btn" aria-label="Cambiar mi clave" title="Cambiar mi clave">
                 <span class="nav-icon"><i class="bi bi-key"></i></span>
                 <span class="link-text">Cambiar mi clave</span>
