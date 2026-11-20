@@ -316,3 +316,26 @@
 .app-actions__secondary:hover {
     background: var(--color-hover);
 }
+
+/* SIS-1B: el primario de Bootstrap usa la acción institucional. */
+.btn-primary:not(.com-primary):not(.btn-save):not(.criterio-btn):not(.btn-outline-primary):not(.btn-secondary):not(.btn-success):not(.btn-warning):not(.app-modal .btn-primary) {
+    --bs-btn-color: var(--color-surface);
+    --bs-btn-bg: var(--color-action);
+    --bs-btn-border-color: var(--color-action);
+    --bs-btn-hover-color: var(--color-surface);
+    --bs-btn-hover-bg: var(--color-action-hover);
+    --bs-btn-hover-border-color: var(--color-action-hover);
+    --bs-btn-active-color: var(--color-surface);
+    --bs-btn-active-bg: var(--color-action-hover);
+    --bs-btn-active-border-color: var(--color-action-hover);
+    --bs-btn-disabled-color: var(--color-text-muted);
+    --bs-btn-disabled-bg: var(--color-surface-muted);
+    --bs-btn-disabled-border-color: var(--color-border);
+    --bs-btn-disabled-opacity: 1;
+}
+
+.btn-primary:not(.com-primary):not(.btn-save):not(.criterio-btn):not(.btn-outline-primary):not(.btn-secondary):not(.btn-success):not(.btn-warning):not(.app-modal .btn-primary):focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+    box-shadow: none;
+}

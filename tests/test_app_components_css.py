@@ -5,6 +5,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CSS_PATH = ROOT / "static" / "css" / "app_components.css"
 BASE_PATH = ROOT / "templates" / "base.html"
+GLOBAL_PRIMARY_SELECTOR = (
+    ".btn-primary:not(.com-primary):not(.btn-save):not(.criterio-btn)"
+    ":not(.btn-outline-primary):not(.btn-secondary):not(.btn-success)"
+    ":not(.btn-warning):not(.app-modal .btn-primary)"
+)
+ALLOWED_GLOBAL_PRIMARY_SELECTORS = {
+    GLOBAL_PRIMARY_SELECTOR,
+    f"{GLOBAL_PRIMARY_SELECTOR}:focus-visible",
+}
 
 
 def test_css_exists_and_base_links_it_once():
@@ -22,6 +31,8 @@ def test_css_selectors_only_use_app_classes():
         for selector in selector_block.split(","):
             selector = selector.strip()
             if not selector:
+                continue
+            if selector in ALLOWED_GLOBAL_PRIMARY_SELECTORS:
                 continue
             classes = re.findall(r"\.([A-Za-z_][A-Za-z0-9_-]*)", selector)
             assert classes, f"Selector sin clase: {selector}"
@@ -52,3 +63,48 @@ def test_new_state_and_drawer_tokens_are_present_once():
     base = BASE_PATH.read_text(encoding="utf-8")
     assert len(re.findall(r"^\s*--state-dot-size:\s*8px;\s*$", base, flags=re.M)) == 1
     assert len(re.findall(r"^\s*--drawer-width-form:\s*440px;\s*$", base, flags=re.M)) == 1
+
+
+def test_bootstrap_primary_maps_states_to_tokens_and_preserves_exceptions():
+    css = re.sub(r"/\*.*?\*/", "", CSS_PATH.read_text(encoding="utf-8"), flags=re.S)
+
+    def rule_body(selector):
+        match = re.search(re.escape(selector) + r"\s*\{([^{}]*)\}", css, flags=re.S)
+        assert match, f"Falta la regla global de botón primario: {selector}"
+        return match.group(1)
+
+    primary_body = rule_body(GLOBAL_PRIMARY_SELECTOR)
+    declarations = dict(re.findall(r"(--[A-Za-z0-9_-]+)\s*:\s*([^;{}]+);", primary_body))
+    expected = {
+        "--bs-btn-color": "var(--color-surface)",
+        "--bs-btn-bg": "var(--color-action)",
+        "--bs-btn-border-color": "var(--color-action)",
+        "--bs-btn-hover-color": "var(--color-surface)",
+        "--bs-btn-hover-bg": "var(--color-action-hover)",
+        "--bs-btn-hover-border-color": "var(--color-action-hover)",
+        "--bs-btn-active-color": "var(--color-surface)",
+        "--bs-btn-active-bg": "var(--color-action-hover)",
+        "--bs-btn-active-border-color": "var(--color-action-hover)",
+        "--bs-btn-disabled-color": "var(--color-text-muted)",
+        "--bs-btn-disabled-bg": "var(--color-surface-muted)",
+        "--bs-btn-disabled-border-color": "var(--color-border)",
+        "--bs-btn-disabled-opacity": "1",
+    }
+    assert {name: declarations.get(name, "").strip() for name in expected} == expected
+
+    for excluded in (
+        ".com-primary",
+        ".btn-save",
+        ".criterio-btn",
+        ".btn-outline-primary",
+        ".btn-secondary",
+        ".btn-success",
+        ".btn-warning",
+        ".app-modal .btn-primary",
+    ):
+        assert f":not({excluded})" in GLOBAL_PRIMARY_SELECTOR
+
+    focus_body = rule_body(f"{GLOBAL_PRIMARY_SELECTOR}:focus-visible")
+    assert re.search(r"outline:\s*3px\s+solid\s+var\(--color-focus\)", focus_body)
+    assert re.search(r"outline-offset:\s*2px", focus_body)
+    assert re.search(r"box-shadow:\s*none", focus_body)
