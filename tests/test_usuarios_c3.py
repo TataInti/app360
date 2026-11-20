@@ -496,7 +496,11 @@ def test_la_clave_vieja_y_las_sesiones_previas_dejan_de_valer(app_seguridad):
     admin = _cliente(app, _crear(app, "probe-admin", "admin"))
     objetivo = _crear(app, "probe.caen", "sales")
     sesion_previa = _cliente(app, objetivo)
-    cookie = sesion_previa.get_cookie("session").value
+    # La cookie queda en el host de SERVER_NAME (fuera de desarrollo) o en localhost (desarrollo).
+    # Se la busca en ese host para que la prueba no dependa de FLASK_ENV.
+    cookie_previa = sesion_previa.get_cookie("session", domain=app.config.get("SERVER_NAME") or "localhost")
+    assert cookie_previa is not None, "la sesión de prueba no dejó cookie"
+    cookie = cookie_previa.value
     cabecera = _bearer(_tokens(app, objetivo))
     assert sesion_previa.get("/api/admin/usuarios").status_code == 403
     assert app.test_client(use_cookies=False).get("/api/rrhh/empleados", headers=cabecera).status_code == 403
