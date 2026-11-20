@@ -117,6 +117,12 @@
     if (usuario.estado === "clave_vencida") {
       tdEstado.appendChild(notaFila("Usá «Restablecer clave» para generar una nueva."));
     }
+    if (usuario.bloqueada) {
+      const bloqueo = document.createElement("span");
+      bloqueo.className = "badge bg-danger ms-1";
+      bloqueo.textContent = "Bloqueada hasta " + usuario.bloqueada_hasta_texto;
+      tdEstado.appendChild(bloqueo);
+    }
     tr.appendChild(tdEstado);
 
     tr.appendChild(celda(usuario.ultimo_acceso_texto));
@@ -147,6 +153,9 @@
         MOTIVO_PROPIA
       )
     );
+    if (usuario.bloqueada) {
+      grupo.appendChild(botonAccion("Desbloquear", "btn-outline-danger", { ...datos, accion: "desbloquear" }, false));
+    }
     tdAccion.appendChild(grupo);
     if (propia) {
       tdAccion.appendChild(notaFila(MOTIVO_PROPIA));
@@ -349,6 +358,28 @@
     $("panelClaveTemporal").classList.add("d-none");
   }
 
+  async function desbloquearUsuario(boton) {
+    const nombre = boton.dataset.usuario;
+    const confirmado = await confirmar({
+      variant: "warning",
+      title: "Desbloquear cuenta",
+      message: "¿Desbloquear a " + nombre + "? Se borran los intentos fallidos y puede entrar de inmediato con su clave actual.",
+      confirmText: "Desbloquear",
+    });
+    if (!confirmado) {
+      return;
+    }
+    sinAviso();
+    const res = await llamar("/api/admin/usuarios/" + boton.dataset.id + "/desbloquear", "POST");
+    if (!res.ok) {
+      mostrarAviso(res.datos.error || "No se pudo desbloquear la cuenta. No se aplicó ningún cambio.", "error");
+      await recargar();
+      return;
+    }
+    mostrarAviso("La cuenta de " + nombre + " quedó desbloqueada.", "ok");
+    await recargar();
+  }
+
   async function restablecerClave(boton) {
     const nombre = boton.dataset.usuario;
     const confirmado = await confirmar({
@@ -449,6 +480,8 @@
         }
       } else if (boton.dataset.accion === "restablecer") {
         restablecerClave(boton);
+      } else if (boton.dataset.accion === "desbloquear") {
+        desbloquearUsuario(boton);
       } else {
         alternarUsuario(boton);
       }
