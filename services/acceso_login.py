@@ -20,6 +20,7 @@ con el contador en repeticiones. Las IP largas nunca hacen fallar el login.
 
 from dataclasses import dataclass
 from datetime import timedelta, timezone
+import secrets
 import sqlalchemy as sa
 from sqlalchemy import delete, func, select, text, tuple_, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -199,20 +200,29 @@ def _tocar_par_sin_fallo(user_id, ip, ahora, *, crear=True):
     return True
 
 
-def _escritura_de_rechazo_sin_cuenta(canal, ip, nombre, usuario, motivo, ahora):
-    """Ejecuta la escritura de estado equivalente y la revierte antes del único registro real."""
+def _escritura_de_rechazo_sin_cuenta(ip, ahora):
+    """Actualiza contadores ficticios bajo savepoint y revierte todo antes del COMMIT real."""
     _limpiar_pares_vencidos(ahora)
-    agrupacion = _agrupacion(canal, ip, motivo, usuario, ahora)
-    valores = _valores_evento(
-        "login_failed", canal, ip, nombre, usuario, ahora,
-        {"motivo": motivo, "canal": canal}, agrupacion,
-    )
+    candidatos = db.session.execute(select(User.id).order_by(User.id).limit(64)).scalars().all()
+    if not candidatos:
+        return
+    user_id = secrets.choice(candidatos)
+    ip_ficticia = f"__c4_timing_{secrets.token_hex(8)}"
     savepoint = db.session.begin_nested()
     try:
-        _escribir_evento(valores)
-    except Exception:
-        savepoint.rollback()
-    else:
+        fila = (
+            User.query.filter_by(id=user_id)
+            .with_for_update()
+            .populate_existing()
+            .one_or_none()
+        )
+        if fila is None:
+            return
+        _sumar_fallo(fila, ahora)
+        _par_de_usuario(fila.id, ip_ficticia)
+        _upsert_intento_par(fila.id, ip_ficticia, ahora)
+        db.session.flush()
+    finally:
         savepoint.rollback()
 
 
@@ -270,11 +280,11 @@ def autenticar(username, password, canal, ip=None):
         coincide, vencida = security.comprobar_clave_login(activa, clave)
         if existente is None:
             ahora = security.ahora()
-            _escritura_de_rechazo_sin_cuenta(canal, ip, nombre, None, USUARIO_INEXISTENTE, ahora)
+            _escritura_de_rechazo_sin_cuenta(ip, ahora)
             return _rechazar(canal, ip, nombre, None, USUARIO_INEXISTENTE, ahora)
         if activa is None:
             ahora = security.ahora()
-            _escritura_de_rechazo_sin_cuenta(canal, ip, nombre, existente, CUENTA_INACTIVA, ahora)
+            _escritura_de_rechazo_sin_cuenta(ip, ahora)
             return _rechazar(canal, ip, nombre, existente, CUENTA_INACTIVA, ahora)
         return _decidir_cuenta_activa(canal, ip, nombre, activa, coincide, vencida)
     except Exception:
@@ -295,7 +305,7 @@ def _decidir_cuenta_activa(canal, ip, nombre, usuario, coincide, vencida):
     fila = User.query.filter_by(id=usuario.id).with_for_update().populate_existing().one_or_none()
     if fila is None or fila.active is not True:
         db.session.rollback()
-        _escritura_de_rechazo_sin_cuenta(canal, ip, nombre, None, CUENTA_INACTIVA, ahora)
+        _escritura_de_rechazo_sin_cuenta(ip, ahora)
         return _rechazar(canal, ip, nombre, None, CUENTA_INACTIVA, ahora)
     _limpiar_pares_vencidos(ahora)
     if esta_bloqueada(fila, ahora):
