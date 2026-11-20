@@ -852,8 +852,8 @@
     text-decoration: none;
 }
 
-.btn-group .app-admin-row-action--danger,
-.btn-group .app-admin-row-action--danger:hover,
-.btn-group .app-admin-row-action--danger:focus-visible {
+.app-admin-row-action.app-admin-row-action--danger,
+.app-admin-row-action.app-admin-row-action--danger:hover,
+.app-admin-row-action.app-admin-row-action--danger:focus-visible {
     color: var(--state-error-ink);
 }

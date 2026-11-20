@@ -502,14 +502,16 @@ def cleanup_synthetic(page, checks: Checks) -> None:
                     f"{BASE_URL}/api/admin/{module}/{entity}/{row['id']}",
                     headers={"X-CSRFToken": csrf_token},
                 )
-                check(checks, f"limpieza T- previa {module}/{entity}", response.status == 200,
-                      f"id={row['id']}; HTTP={response.status}")
+                absent = not any(item.get("id") == row["id"] for item in api_list(page, module, entity)["items"])
+                check(checks, f"limpieza T- previa {module}/{entity}", response.status == 200 and absent,
+                      f"id={row['id']}; HTTP={response.status}; ausente={absent}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--capture-only", action="store_true", help="solo captura dos módulos y mide primarios")
     parser.add_argument("--seed-visual-fixtures", action="store_true", help="crea dos fixtures T- para las capturas comparativas")
+    parser.add_argument("--cleanup-only", action="store_true", help="elimina solo los registros con prefijo T-SIS2A de la base propia")
     args = parser.parse_args()
 
     parsed = urlparse(os.environ.get("DATABASE_URL", ""))
@@ -549,7 +551,9 @@ def main() -> int:
         except Exception as error:
             check(checks, "sesión admin verificada por API", False, str(error))
 
-        if args.seed_visual_fixtures:
+        if args.cleanup_only:
+            cleanup_synthetic(page, checks)
+        elif args.seed_visual_fixtures:
             seed_visual_fixtures(page, checks)
         elif args.capture_only:
             run_capture_only(page, checks)
