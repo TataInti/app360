@@ -201,6 +201,11 @@
     );
     if (usuario.bloqueada) {
       grupo.appendChild(botonAccion("Desbloquear", "btn-outline-danger", { ...datos, accion: "desbloquear" }, false));
+      if (usuario.mfa_activo) {
+        grupo.appendChild(
+          botonAccion("Restablecer MFA", "btn-outline-warning", { ...datos, accion: "restablecer-mfa" }, propia || jerarquiaInsuficiente, motivoAccion)
+        );
+      }
     }
     tdAccion.appendChild(grupo);
     if (propia) {
@@ -537,6 +542,28 @@
     await recargar();
   }
 
+  async function restablecerMfa(boton) {
+    const nombre = boton.dataset.usuario;
+    const confirmado = await confirmar({
+      variant: "warning",
+      title: "Restablecer MFA",
+      message: "¿Quitar el MFA de " + nombre + "? Se borran su aplicación de códigos y sus códigos de respaldo, se cierran sus sesiones y deberá ingresar solo con su clave. Podrá activar el MFA de nuevo.",
+      confirmText: "Restablecer MFA",
+    });
+    if (!confirmado) {
+      return;
+    }
+    sinAviso();
+    const res = await llamar("/api/admin/usuarios/" + boton.dataset.id + "/restablecer-mfa", "POST");
+    if (!res.ok) {
+      mostrarAviso(res.datos.error || "No se pudo restablecer el MFA. No se aplicó ningún cambio.", "error");
+      await recargar();
+      return;
+    }
+    mostrarAviso("MFA restablecido para " + nombre + ".", "success");
+    await recargar();
+  }
+
   async function restablecerClave(boton) {
     const nombre = boton.dataset.usuario;
     const confirmado = await confirmar({
@@ -691,6 +718,8 @@
         revocarEnlace(boton);
       } else if (boton.dataset.accion === "restablecer") {
         restablecerClave(boton);
+      } else if (boton.dataset.accion === "restablecer-mfa") {
+        restablecerMfa(boton);
       } else if (boton.dataset.accion === "desbloquear") {
         desbloquearUsuario(boton);
       } else {

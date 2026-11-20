@@ -77,6 +77,7 @@ ESTADOS_FILTRO = (
     ESTADO_CAMBIAR_CLAVE,
     ESTADO_CLAVE_VENCIDA,
     ESTADO_BLOQUEADA,
+    "con_mfa",
 )
 ETIQUETAS_ESTADO = {
     ESTADO_ACTIVO: "Activo",
@@ -106,6 +107,10 @@ ACCIONES_AUDITADAS = {
     "user_recovery_revoked": "Enlace de recuperación revocado",
     "user_recovery_redeemed": "Recuperación de clave canjeada",
     "recovery_failed": "Canje de recuperación fallido",
+    "user_mfa_enabled": "MFA activado",
+    "user_mfa_disabled": "MFA desactivado",
+    "user_mfa_backup_regenerated": "Códigos de respaldo regenerados",
+    "user_mfa_reset": "Restablecimiento de MFA",
 }
 ACCIONES_FILTRO = (("todas", "Todas las acciones"), *ACCIONES_AUDITADAS.items())
 # Solo estos datos de contexto entran al detalle de auditoría. Nunca claves, hashes ni tokens.
@@ -123,6 +128,7 @@ CAMPOS_DETALLE_PERMITIDOS = frozenset(
         "ttl",
         "recuperacion_id",
         "reemplazados",
+        "metodo",
     }
 )
 LIMITE_AUDITORIA = 50
@@ -322,6 +328,7 @@ def serializar_usuario(usuario, enlace=_SIN_DATO):
         "bloqueada_hasta_texto": _texto_hora(usuario.locked_until) if bloqueada else None,
         "correo": usuario.email,
         "recuperacion": estado_recuperacion(enlace),
+        "mfa_activo": usuario.mfa_enabled is True,
     }
 
 
@@ -665,6 +672,36 @@ def restablecer_clave(actor, usuario_id):
     return usuario, clave, vence
 
 
+def restablecer_mfa(actor, usuario_id):
+    """Quita el MFA de otra cuenta (C6, D8): borra secreto y códigos, suma token_version y cierra sus sesiones.
+
+    La persona entra de nuevo con su clave y puede activar el MFA otra vez. Sobre uno mismo no se permite.
+    """
+    usuario = _usuario_bloqueado(usuario_id)
+    if usuario is None:
+        raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
+    if actor.id == usuario.id:
+        raise ErrorUsuarios(
+            "AUTORESET_MFA",
+            "Pedile a otro administrador, o usá tus códigos de respaldo.",
+            403,
+        )
+    _exigir_jerarquia(actor, usuario)
+    if usuario.mfa_enabled is not True:
+        raise ErrorUsuarios("SIN_MFA", "Esa cuenta no tiene el MFA activado.", 409)
+    from models.core.user_mfa_backup_code import UserMfaBackupCode
+
+    UserMfaBackupCode.query.filter_by(user_id=usuario.id).delete(synchronize_session=False)
+    usuario.mfa_enabled = False
+    usuario.mfa_secret = None
+    usuario.mfa_secret_pendiente = None
+    usuario.mfa_pendiente_expira = None
+    usuario.token_version = (usuario.token_version or 0) + 1
+    registrar_auditoria(actor, "user_mfa_reset", usuario, {})
+    db.session.commit()
+    return usuario
+
+
 def desbloquear_usuario(actor, usuario):
     """Levanta el bloqueo por intentos fallidos (A3): borra contador, ventana y fin del bloqueo.
 
@@ -710,7 +747,9 @@ def listar_usuarios(q="", estado="todos"):
         escapado = texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         consulta = consulta.filter(User.username.ilike(f"%{escapado}%", escape="\\"))
     usuarios = consulta.order_by(User.username).all()
-    if estado in ESTADOS_FILTRO and estado != "todos":
+    if estado == "con_mfa":
+        usuarios = [usuario for usuario in usuarios if usuario.mfa_enabled is True]
+    elif estado in ESTADOS_FILTRO and estado != "todos":
         # El estado depende del reloj (clave temporal vencida y bloqueo): se filtra con la misma regla que la columna.
         if estado == ESTADO_BLOQUEADA:
             usuarios = [usuario for usuario in usuarios if esta_bloqueada(usuario)]

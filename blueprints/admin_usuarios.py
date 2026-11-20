@@ -191,6 +191,19 @@ def restablecer_clave(usuario_id):
     )
 
 
+@admin_usuarios_bp.route("/api/admin/usuarios/<int:usuario_id>/restablecer-mfa", methods=["POST"])
+@admin_usuarios_required
+def restablecer_mfa(usuario_id):
+    try:
+        usuario = ua.restablecer_mfa(g.usuario_sesion, usuario_id)
+    except ua.ErrorUsuarios as error:
+        db.session.rollback()
+        return _responder_error(error)
+    except Exception:
+        return _fallo_interno("restablecimiento de MFA")
+    return jsonify({"usuario": ua.serializar_usuario(usuario)})
+
+
 @admin_usuarios_bp.route("/api/admin/usuarios/<int:usuario_id>/desbloquear", methods=["POST"])
 @admin_usuarios_required
 def desbloquear(usuario_id):
