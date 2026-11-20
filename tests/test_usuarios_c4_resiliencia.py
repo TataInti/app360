@@ -205,6 +205,7 @@ def test_carrera_pg_aciertos_y_fallos_simultaneos_no_fallan_los_aciertos(monkeyp
         hilo.join(timeout=120)
     with app.app_context():
         pares_bloqueados = UserLoginAttempt.query.filter(UserLoginAttempt.locked_until.isnot(None)).count()
+        db.session.remove()  # cerrar la transacción antes de DROP: si no, la prueba se espera a sí misma
         db.drop_all()
         db.engine.dispose()
     assert errores == []
