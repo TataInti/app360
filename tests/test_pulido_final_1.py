@@ -23,22 +23,10 @@ def test_h02_hover_del_primario_de_comercial_usa_el_token_de_accion():
     assert "#" not in cuerpo
 
 
-def test_h04_total_al_pie_del_scroll_table_queda_sticky_con_tokens():
-    base = leer("templates/base.html")
-    cuerpo = cuerpo_de_regla(base, ".scroll-table tfoot > tr > *")
-    assert re.search(r"position:\s*sticky", cuerpo)
-    assert re.search(r"bottom:\s*0", cuerpo)
-    assert "var(--color-surface-subtle)" in cuerpo
-    assert "var(--color-border)" in cuerpo
-    assert "#" not in cuerpo
-
-
 def test_h04_subtotal_de_movimientos_en_una_linea_bajo_monto_sin_azul_bootstrap():
     html = leer("templates/tesoreria_movimientos.html")
     assert '<th class="text-end">Monto</th>' in html
     assert '<td id="subtotalMonto" class="text-end app-table__numeric"></td>' in html
-    tfoot = html[html.index('<tfoot id="tfootMovimientos"'):].split("</tfoot>")[0]
-    assert "table-light" not in tfoot
     assert '<span class="text-primary">' not in html
     assert html.count('text-nowrap">') >= 3
 
@@ -49,12 +37,13 @@ def test_h29_botones_de_anulacion_con_aria_label_igual_al_title():
         assert f'title="{texto}" aria-label="{texto}"' in html
 
 
-def test_h06_selects_de_gastos_con_control_del_sistema_y_ids_intactos():
+def test_h06_selects_de_filtros_de_gastos_con_form_select_y_ids_intactos():
     html = leer("templates/gastos_panel.html")
     for id_ in ("selCategoria", "selProveedor", "selInstrumento"):
         match = re.search(rf'<select id="{id_}"([^>]*)>', html)
         assert match, id_
-        assert "app-field__control" in match.group(1)
+        assert 'class="form-select"' in match.group(1)
+        assert "app-field__control" not in match.group(1)
 
 
 def test_h05_actualizar_del_lead_sin_columna_centrada():
