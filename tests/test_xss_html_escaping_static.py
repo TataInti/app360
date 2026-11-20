@@ -251,3 +251,10 @@ def test_every_innerhtml_interpolation_is_escaped_or_explicitly_safe():
 def test_static_checker_detects_unescaped_innerhtml_payload():
     source = 'row.innerHTML = `<div>${comment}</div>`;'
     assert _unescaped_interpolations("templates/probe.html", source) == ["comment"]
+
+
+def test_admin_accesos_keeps_api_text_out_of_html_sinks():
+    """Accesos renders usernames/errors from the API through textContent, not HTML strings."""
+    source = (ROOT / "static" / "js" / "admin_accesos.js").read_text(encoding="utf-8")
+    assert "innerHTML" not in source
+    assert "textContent" in source

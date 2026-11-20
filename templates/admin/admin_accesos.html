@@ -1,140 +1,78 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="panel-header">
-        <div>
-            <h1><i class="bi bi-shield-lock"></i> Control de Accesos por Usuario</h1>
-            <span>Los permisos individuales <strong>suman</strong> al rol base. Las celdas con <span class="badge bg-secondary">rol</span> son heredadas.</span>
+<div class="container-fluid app-access-page">
+    <header class="panel-header app-access-header">
+        <div class="app-access-heading">
+            <h1 class="app-access-title"><i class="bi bi-shield-lock" aria-hidden="true"></i> Accesos</h1>
+            <p class="panel-subtitle">Los permisos individuales se suman a los del rol.</p>
         </div>
-        <a href="/admin" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Volver
-        </a>
-    </div>
+        <div class="app-access-header-actions">
+            <a class="app-access-back" href="/admin"><i class="bi bi-arrow-left" aria-hidden="true"></i> Volver</a>
+            <span id="accessChangeCount" class="app-access-change-count" aria-live="polite">0 usuarios con cambios</span>
+            <div class="app-actions">
+                <button type="button" id="accessDiscard" class="app-actions__secondary" disabled>Descartar cambios</button>
+                <button type="button" id="accessSave" class="app-actions__primary" disabled>Guardar cambios (0)</button>
+            </div>
+        </div>
+    </header>
 
-    <div class="table-card">
-        <div class="scroll-table">
-            <table class="table table-hover align-middle mb-0" id="tblAccesos">
+    <p id="accessLoadStatus" class="app-status app-status--neutral app-access-load-status" role="status" aria-live="polite">
+        <span class="app-status__dot" aria-hidden="true"></span>
+        <span class="app-status__text">Cargando permisos…</span>
+    </p>
+    <p id="accessSummary" class="app-access-summary" role="status" aria-live="polite" hidden></p>
+
+    <section class="table-card app-access-card" aria-label="Permisos de usuarios">
+        <p class="app-access-scroll-hint">Deslizá horizontalmente para ver todos los módulos; la columna Usuario queda fija.</p>
+        <div class="scroll-table app-access-scroll" id="accessTableScroll">
+            <table class="table table-hover align-middle mb-0 app-access-table" id="tblAccesos">
                 <thead>
                     <tr>
-                        <th>Usuario</th>
-                        <th>Rol</th>
+                        <th scope="col" class="app-access-user-heading">Usuario</th>
+                        <th scope="col" class="app-access-role-heading">Rol</th>
                         {% for mod, label in managed_modules.items() %}
-                        <th class="text-center" style="min-width:110px">{{ label }}</th>
+                        <th scope="col" class="app-access-module-heading" title="{{ label }}">{{ label }}</th>
                         {% endfor %}
-                        <th class="text-center">Acción</th>
+                        <th scope="col" class="app-access-status-heading">Estado</th>
                     </tr>
                 </thead>
-            <tbody>
-                {% for user in users %}
-                {% set role_mods = access_map.get(user.role, []) %}
-                {% set has_all = 'all' in role_mods %}
-                <tr data-user-id="{{ user.id }}">
-                    <td><strong>{{ user.username }}</strong></td>
-                    <td><span class="badge bg-primary">{{ user.role }}</span></td>
-                    {% for mod, label in managed_modules.items() %}
-                    <td class="text-center">
-                        {% if has_all or mod in role_mods %}
-                        {# Heredado del rol — no editable #}
-                        <span class="badge bg-success">Editar</span>
-                        <span class="badge bg-secondary">rol</span>
-                        <input type="hidden" name="{{ mod }}" value="inherited">
-                        {% else %}
-                        <select class="form-select form-select-sm perm-select" name="{{ mod }}">
-                            <option value="none">Sin acceso</option>
-                            <option value="view">Ver</option>
-                            <option value="edit">Editar</option>
-                        </select>
-                        {% endif %}
-                    </td>
+                <tbody>
+                    {% for user in users %}
+                    {% set role_mods = access_map.get(user.role, []) %}
+                    {% set has_all = 'all' in role_mods %}
+                    <tr data-user-id="{{ user.id }}">
+                        <td class="app-access-user"><strong>{{ user.username }}</strong></td>
+                        <td class="app-access-role">{{ user.role }}</td>
+                        {% for mod, label in managed_modules.items() %}
+                        <td class="app-access-permission">
+                            {% if has_all or mod in role_mods %}
+                            <span class="app-status app-status--neutral app-access-inherited">
+                                <span class="app-status__dot" aria-hidden="true"></span>
+                                <span class="app-status__text">Editar · del rol</span>
+                            </span>
+                            {% else %}
+                            <select class="form-select form-select-sm perm-select app-access-select" name="{{ mod }}" aria-label="{{ label }} para {{ user.username }}" disabled>
+                                <option value="none">Sin acceso</option>
+                                <option value="view">Ver</option>
+                                <option value="edit">Editar</option>
+                            </select>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                        <td class="app-access-row-state">
+                            <span class="app-status app-status--neutral app-access-row-status" data-row-status hidden>
+                                <span class="app-status__dot" aria-hidden="true"></span>
+                                <span class="app-status__text" data-row-status-text></span>
+                            </span>
+                            <button type="button" class="app-access-retry" data-row-retry hidden>Reintentar</button>
+                        </td>
+                    </tr>
                     {% endfor %}
-                    <td class="text-center">
-                        <button class="btn btn-sm btn-primary btn-save" data-user-id="{{ user.id }}">
-                            <i class="bi bi-check-lg"></i> Guardar
-                        </button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
+                </tbody>
             </table>
         </div>
-    </div>
+    </section>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
-    function getUI() {
-        return window.App360UI;
-    }
-
-    function notify(message, variant = 'info', options = {}) {
-        const ui = getUI();
-        if (ui && typeof ui.notify === 'function') {
-            ui.notify(message, variant, options);
-            return;
-        }
-        window.alert(message);
-    }
-
-    // Load current permissions
-    fetch('/api/admin/accesos')
-        .then(r => r.json())
-        .then(data => {
-            data.forEach(u => {
-                const row = document.querySelector('tr[data-user-id="' + u.id + '"]');
-                if (!row) return;
-                for (const [mod, level] of Object.entries(u.permissions)) {
-                    const sel = row.querySelector('select[name="' + mod + '"]');
-                    if (sel) sel.value = level;
-                }
-            });
-        });
-
-    // Save per-row
-    document.querySelectorAll('.btn-save').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const userId = this.dataset.userId;
-            const row = document.querySelector('tr[data-user-id="' + userId + '"]');
-            const perms = {};
-            row.querySelectorAll('select.perm-select').forEach(sel => {
-                perms[sel.name] = sel.value;
-            });
-            this.disabled = true;
-            this.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-            fetch('/api/admin/accesos/' + userId, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken || ''
-                },
-                body: JSON.stringify({permissions: perms})
-            })
-            .then(async (r) => {
-                if (!r.ok) {
-                    let text = '';
-                    try { text = await r.text(); } catch (e) { text = ''; }
-                    throw new Error(text || ('HTTP ' + r.status));
-                }
-                return r.json();
-            })
-            .then((res) => {
-                if (res.success) {
-                    notify('Permisos guardados correctamente.', 'success', { title: 'Accesos actualizados' });
-                } else {
-                    notify('Error: ' + (res.error || 'desconocido'), 'danger');
-                }
-            })
-            .catch((err) => {
-                notify('Error: ' + (err?.message || 'de red'), 'danger');
-            })
-            .finally(() => {
-                this.disabled = false;
-                this.innerHTML = '<i class="bi bi-check-lg"></i> Guardar';
-            });
-        });
-    });
-});
-</script>
+<script src="{{ asset('js/admin_accesos.js') }}" defer></script>
 {% endblock %}
