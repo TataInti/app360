@@ -292,6 +292,11 @@
     color: var(--state-error-ink);
 }
 
+.app-tipo--ambos {
+    background: var(--color-surface-sunken);
+    color: var(--color-text-body);
+}
+
 /* Monto con signo (+ ingreso, − egreso) en el color del tipo; cifras tabulares a la derecha. */
 .app-tipo__monto {
     font-variant-numeric: tabular-nums;
@@ -845,4 +850,10 @@
 
 .app-admin-primary:hover {
     text-decoration: none;
+}
+
+.app-admin-row-action.app-admin-row-action--danger,
+.app-admin-row-action.app-admin-row-action--danger:hover,
+.app-admin-row-action.app-admin-row-action--danger:focus-visible {
+    color: var(--state-error-ink);
 }
