@@ -412,6 +412,7 @@ def recorrido_admin(page, informe, carpeta, contexto):
     metas_ana_esperadas = dict(linea_ana_json["metas"])
     metas_ana_esperadas["importe"] = 1600000
     cantidad_ana_antes = ana_antes["cantidad_lineas"]
+    linea_ana.locator("[data-edit-line]").click()
     linea_ana.locator('[data-meta="importe"]').fill("1600000")
     respuesta = enviar_linea(page, linea_ana, "PATCH", "/api/objetivos-comerciales/")
     informe.verificar(
@@ -724,12 +725,12 @@ def recorrido_tabla_equipo(page, informe, carpeta, contexto):
         boton.click()
         page.wait_for_timeout(120)
         abierto = boton.get_attribute("aria-expanded") == "true" and zona.is_visible()
-        visibles = zona.locator("form.oc-line").evaluate_all(
+        visibles = zona.locator("[data-line-row]").evaluate_all(
             "els => els.filter(e => e.offsetParent !== null).length"
         )
-        valores_medida += zona.locator("form.oc-line").evaluate_all(
-            "forms => forms.flatMap(f => [f.querySelector('[data-meta=cajas]').value, "
-            "f.querySelector('[data-meta=kilos]').value])"
+        valores_medida += zona.locator("[data-line-row]").evaluate_all(
+            "filas => filas.flatMap(f => [f.querySelector('[data-medida=cajas]').innerText, "
+            "f.querySelector('[data-medida=kilos]').innerText])"
         )
         boton.click()
         page.wait_for_timeout(120)
@@ -775,6 +776,7 @@ def recorrido_tabla_equipo(page, informe, carpeta, contexto):
     # Guardar otra línea (PATCH de ANA) no cierra ni cambia el borrador abierto.
     ui.expandir(ANA)
     linea_ana = ui.linea(ANA)
+    linea_ana.locator("[data-edit-line]").click()
     linea_ana.locator('[data-meta="importe"]').fill("1700000")
     respuesta = enviar_linea(page, linea_ana, "PATCH", "/api/objetivos-comerciales/")
     esperar_carga(page)
@@ -1373,6 +1375,263 @@ def recorrido_panel_alta(page, informe, carpeta, contexto):
     )
 
 
+def mensaje_linea(linea):
+    """Aviso de la línea: la fila de mensaje que sigue a la fila de la línea ([data-line-error], oculta si no hay)."""
+    return linea.locator("xpath=following-sibling::tr[1]").locator("[data-line-error]")
+
+
+def contar_respuestas(informe, metodo, patron):
+    return sum(1 for r in informe.respuestas if r["metodo"] == metodo and patron in r["ruta"])
+
+
+def recorrido_edicion_linea(page, informe, carpeta, contexto):
+    """Edición en línea de las metas (corte 4): Editar, Guardar, Cancelar, Enter, Escape, foco, borradores de
+    otras filas, validación en la fila, medidas con 6 líneas y eliminar con confirmación. La verdad es el GET."""
+    print("== Edición en línea de líneas", flush=True)
+    ui = ObjetivosDOM(page)
+    page.goto(f"{BASE_URL}/comercial/objetivos?mes={MES}", wait_until="domcontentloaded")
+    esperar_carga(page)
+    page.wait_for_timeout(300)
+
+    datos = leer_objetivos(contexto, BASE_URL, MES)
+    con_lineas = sorted(
+        (v for v in datos.get("objetivos", []) if v.get("lineas")),
+        key=lambda v: (-len(v["lineas"]), v["nombre_visible"]),
+    )
+    if len(con_lineas) < 2:
+        raise AssertionError("La edición en línea necesita al menos dos vendedores con líneas")
+    A, B = con_lineas[0], con_lineas[1]
+    ref_a, ref_b = f"id:{A['vendedor_id']}", f"id:{B['vendedor_id']}"
+    ui.expandir(ref_a)
+    ui.expandir(ref_b)
+
+    # Medidas: «Agregar objetivo» visible sin scroll con el vendedor de más líneas (6 con SEED_EQUIPO=1).
+    medidas = []
+    for ancho, alto in ((1366, 768), (1440, 900)):
+        page.set_viewport_size({"width": ancho, "height": alto})
+        page.goto(f"{BASE_URL}/comercial/objetivos?mes={MES}", wait_until="domcontentloaded")
+        esperar_carga(page)
+        page.wait_for_timeout(300)
+        ui.expandir(ref_a)
+        boton = ui.zona_de(ref_a).locator("[data-add-line]")
+        caja = boton.bounding_box()
+        medidas.append({
+            "viewport": f"{ancho}x{alto}",
+            "lineas": ui.lineas_de(ref_a).count(),
+            "agregar_visible_sin_scroll": bool(caja) and caja["y"] >= 0 and caja["y"] + caja["height"] <= alto,
+            "scrollY": page.evaluate("window.scrollY"),
+        })
+        tomar(page, carpeta, f"11-agregar-visible-{ancho}x{alto}")
+    informe.verificar(
+        f"«Agregar objetivo» visible sin scroll con {medidas[0]['lineas']} líneas (1366×768 y 1440×900)",
+        all(m["agregar_visible_sin_scroll"] and m["scrollY"] == 0 for m in medidas),
+        medidas,
+    )
+    page.set_viewport_size({"width": 1280, "height": 900})  # viewport del contexto principal del E2E
+    page.goto(f"{BASE_URL}/comercial/objetivos?mes={MES}", wait_until="domcontentloaded")
+    esperar_carga(page)
+    page.wait_for_timeout(300)
+    ui.expandir(ref_a)
+    ui.expandir(ref_b)
+
+    linea_a = next(l for l in A["lineas"] if l["capacidades"].get("supports_cajas") and l["capacidades"].get("supports_kilos"))
+    fila_a = ui.linea(ref_a, line_id=linea_a["id"])
+    campo_importe = fila_a.locator('[data-meta="importe"]')
+
+    # Vista: sin campos hasta «Editar». Al editar: importe, cajas y kilos con su unidad, sin «$» en cajas y kilos.
+    informe.verificar(
+        "vista: la línea muestra las metas como texto (sin campos) y ofrece «Editar»",
+        fila_a.locator("[data-meta]").count() == 0 and fila_a.locator("[data-edit-line]").count() == 1,
+    )
+    fila_a.locator("[data-edit-line]").click()
+    expect(campo_importe).to_be_visible(timeout=5000)
+    unidades = [normalizar(t) for t in fila_a.locator(".oc-cell-unit small").all_inner_texts()]
+    informe.verificar("Editar: campos de importe, cajas y kilos con unidad (ARS, cajas, kg)",
+                      unidades == ["ARS", "cajas", "kg"], unidades)
+    informe.verificar(
+        "Editar: cajas y kilos sin «$»",
+        all("$" not in fila_a.locator(f'[data-meta="{m}"]').input_value() for m in ("cajas", "kilos")),
+    )
+    informe.verificar("Editar: «Guardar» deshabilitado sin cambios",
+                      fila_a.locator('button[type="submit"]').is_disabled())
+    informe.verificar(
+        "Editar: realizado y avance siguen siendo texto (sin campos)",
+        fila_a.locator('td[data-medida="realizado"] input, td[data-medida="avance"] input').count() == 0,
+    )
+
+    # Cambiar y volver al valor guardado: «Guardar» vuelve a deshabilitarse. Cancelar no toca el servidor.
+    antes = leer_objetivos(contexto, BASE_URL, MES)
+    guardado_importe = str(int(linea_a["metas"]["importe"]))
+    campo_importe.fill("1234")
+    informe.verificar("cambio en importe: «Guardar» se habilita",
+                      fila_a.locator('button[type="submit"]').is_enabled())
+    campo_importe.fill(guardado_importe)
+    informe.verificar("volver al valor guardado: «Guardar» vuelve a deshabilitarse",
+                      fila_a.locator('button[type="submit"]').is_disabled())
+    campo_importe.fill("1234")
+    fila_a.locator("[data-cancel-edit]").click()
+    informe.verificar("Cancelar: la fila vuelve a texto (sin campos)", fila_a.locator("[data-meta]").count() == 0)
+    despues = leer_objetivos(contexto, BASE_URL, MES)
+    informe.verificar(
+        "Cancelar: el GET de objetivos no cambia (ninguna meta cambió)",
+        json.dumps(antes["objetivos"], sort_keys=True) == json.dumps(despues["objetivos"], sort_keys=True),
+    )
+    informe.verificar("Cancelar: el foco queda en la fila de la línea", enfocado(page, fila_a))
+
+    # Escape cancela sin petición.
+    posts_antes = contar_respuestas(informe, "PATCH", "/api/objetivos-comerciales/")
+    fila_a.locator("[data-edit-line]").click()
+    campo_importe.fill("777")
+    campo_importe.press("Escape")
+    informe.verificar(
+        "Escape: cancela la edición, sin petición y con el GET igual",
+        fila_a.locator("[data-meta]").count() == 0
+        and contar_respuestas(informe, "PATCH", "/api/objetivos-comerciales/") == posts_antes
+        and json.dumps(antes["objetivos"], sort_keys=True)
+        == json.dumps(leer_objetivos(contexto, BASE_URL, MES)["objetivos"], sort_keys=True),
+    )
+
+    # Enter guarda: PATCH 200 + readback de la línea, del resumen del vendedor y de la fila Equipo.
+    fila_a.locator("[data-edit-line]").click()
+    nueva_importe = int(linea_a["metas"]["importe"]) + 1000
+    campo_importe.fill(str(nueva_importe))
+    with page.expect_response(
+        lambda r: r.request.method == "PATCH" and "/api/objetivos-comerciales/" in r.url, timeout=15000
+    ) as info:
+        campo_importe.press("Enter")
+    esperar_carga(page)
+    page.wait_for_timeout(300)
+    datos_post = leer_objetivos(contexto, BASE_URL, MES)
+    ok, detalle = comparar_linea_readback(
+        datos_post,
+        linea_a["id"],
+        {"importe": nueva_importe, "cajas": linea_a["metas"]["cajas"], "kilos": linea_a["metas"]["kilos"]},
+        len(A["lineas"]),
+        vendedor_id=A["vendedor_id"],
+    )
+    informe.verificar("Enter guarda: PATCH 200 y readback confirma id, metas y cantidad de líneas",
+                      info.value.status == 200 and ok, detalle)
+    vendedor_post = vendedor_en(datos_post, vendedor_id=A["vendedor_id"])
+    total_post = totales_equipo(datos_post)
+    celdas_a = ui.fila_vendedor(ref_a).evaluate(JS_CELDAS)
+    informe.verificar(
+        "Guardar la línea: el total del vendedor y la fila Equipo son los que indica la API",
+        numero_visible(celdas_a[2]) == entero(vendedor_post["metas"]["importe"])
+        and numero_visible(page.locator("#equipoMeta").inner_text()) == entero(total_post["importe"]["meta"]),
+        {"vendedor": celdas_a[2], "api": vendedor_post["metas"]["importe"]},
+    )
+    informe.verificar("Guardar: la fila vuelve a texto y el foco queda en la fila",
+                      fila_a.locator("[data-meta]").count() == 0 and enfocado(page, fila_a))
+
+    # Cajas y kilos: se guardan como cantidades (sin «$») y el total de cajas y kilos sale de la API.
+    fila_a.locator("[data-edit-line]").click()
+    fila_a.locator('[data-meta="cajas"]').fill("123")
+    fila_a.locator('[data-meta="kilos"]').fill("456")
+    with page.expect_response(
+        lambda r: r.request.method == "PATCH" and "/api/objetivos-comerciales/" in r.url, timeout=15000
+    ) as info:
+        fila_a.locator('button[type="submit"]').click()
+    esperar_carga(page)
+    page.wait_for_timeout(300)
+    datos_ck = leer_objetivos(contexto, BASE_URL, MES)
+    ok, detalle = comparar_linea_readback(
+        datos_ck,
+        linea_a["id"],
+        {"importe": nueva_importe, "cajas": 123, "kilos": 456},
+        len(A["lineas"]),
+        vendedor_id=A["vendedor_id"],
+    )
+    informe.verificar("cajas y kilos: PATCH 200 y readback confirma las cantidades guardadas",
+                      info.value.status == 200 and ok, detalle)
+    total_ck = totales_equipo(datos_ck)
+    equipo_cajas = partir_real_meta(page.locator("#equipoCajas").inner_text())
+    equipo_kilos = partir_real_meta(page.locator("#equipoKilos").inner_text())
+    informe.verificar(
+        "cajas y kilos: la fila Equipo muestra los totales que indica la API",
+        equipo_cajas == (entero(total_ck["cajas"]["real"]), entero(total_ck["cajas"]["meta"]))
+        and equipo_kilos == (entero(total_ck["kilos"]["real"]), entero(total_ck["kilos"]["meta"])),
+        {"cajas": equipo_cajas, "kilos": equipo_kilos},
+    )
+    tomar(page, carpeta, "12-tras-guardar-cajas-kilos")
+
+    # Borradores: dos filas en edición; guardar una no pierde lo escrito en la otra.
+    linea_x = A["lineas"][-1] if len(A["lineas"]) > 1 else None
+    linea_y = B["lineas"][0]
+    fila_y = ui.linea(ref_b, line_id=linea_y["id"])
+    if linea_x is not None:
+        fila_x = ui.linea(ref_a, line_id=linea_x["id"])
+        fila_x.locator("[data-edit-line]").click()
+        fila_x.locator('[data-meta="importe"]').fill("5555")
+    fila_y.locator("[data-edit-line]").click()
+    fila_y.locator('[data-meta="importe"]').fill(str(int(linea_y["metas"]["importe"]) + 500))
+    with page.expect_response(
+        lambda r: r.request.method == "PATCH" and "/api/objetivos-comerciales/" in r.url, timeout=15000
+    ) as info:
+        fila_y.locator('button[type="submit"]').click()
+    esperar_carga(page)
+    page.wait_for_timeout(300)
+    if linea_x is not None:
+        conservado = fila_x.locator('[data-meta="importe"]')
+        informe.verificar(
+            "borradores: al guardar otra fila, la fila en edición sigue en edición con lo escrito",
+            info.value.status == 200 and conservado.count() == 1 and numero_visible(conservado.input_value()) == 5555,
+            conservado.input_value() if conservado.count() else "sin campo",
+        )
+        fila_x.locator("[data-cancel-edit]").click()
+    informe.verificar("borradores: la fila guardada vuelve a texto", fila_y.locator("[data-meta]").count() == 0)
+
+    # Validación en la fila: sin metas mayores que cero, el aviso sale en la fila y no se envía nada.
+    if linea_x is not None:
+        fila_x.locator("[data-edit-line]").click()
+        fila_x.locator('[data-meta="importe"]').fill("0")
+        for medida in ("cajas", "kilos"):
+            campo = fila_x.locator(f'[data-meta="{medida}"]')
+            if campo.is_enabled():
+                campo.fill("0")
+        posts_val = contar_respuestas(informe, "PATCH", "/api/objetivos-comerciales/")
+        fila_x.locator('button[type="submit"]').click()
+        aviso = mensaje_linea(fila_x)
+        mostrado = visible_en(aviso)
+        texto_aviso = normalizar(aviso.inner_text()) if mostrado else ""
+        informe.verificar(
+            "validación en la fila: sin metas mayores que cero, el aviso aparece y no se envía nada",
+            mostrado and "mayor que cero" in texto_aviso
+            and contar_respuestas(informe, "PATCH", "/api/objetivos-comerciales/") == posts_val,
+            texto_aviso,
+        )
+        tomar(page, carpeta, "13-linea-con-error")
+        fila_x.locator("[data-cancel-edit]").click()
+        informe.verificar("Cancelar tras el aviso: el aviso se oculta", not visible_en(aviso, 1))
+
+    # Eliminar con confirmación: sin DELETE hasta confirmar; luego readback.
+    if len(A["lineas"]) > 1:
+        linea_del = A["lineas"][0]
+        fila_del = ui.linea(ref_a, line_id=linea_del["id"])
+        antes_del = leer_objetivos(contexto, BASE_URL, MES)
+        borrados_antes = contar_respuestas(informe, "DELETE", "/api/objetivos-comerciales/")
+        fila_del.locator("[data-delete-line]").click()
+        pidio = visible_en(page.locator("#app360ConfirmAccept"))
+        informe.verificar(
+            "eliminar: pide confirmación y no envía el DELETE hasta confirmar",
+            pidio and contar_respuestas(informe, "DELETE", "/api/objetivos-comerciales/") == borrados_antes,
+        )
+        with page.expect_response(
+            lambda r: r.request.method == "DELETE" and "/api/objetivos-comerciales/" in r.url, timeout=15000
+        ) as info:
+            page.locator("#app360ConfirmAccept").click()
+        esperar_carga(page)
+        page.wait_for_timeout(300)
+        despues_del = leer_objetivos(contexto, BASE_URL, MES)
+        ok, detalle = comparar_borrado(
+            antes_del, despues_del, A["vendedor_id"], linea_del["id"], len(A["lineas"]) - 1
+        )
+        informe.verificar(
+            "eliminar confirmado: DELETE 200 y readback sin la línea (las demás no cambian)",
+            info.value.status == 200 and ok and fila_del.count() == 0,
+            detalle,
+        )
+
+
 def sembrar_si_corresponde(sin_reset):
     if not sin_reset:
         subprocess.run([RUN_LOCAL, "reset"], check=True, stdout=subprocess.DEVNULL)
@@ -1409,6 +1668,8 @@ def main():
                 recorrido_admin(page, informe, SHOTS_DIR, contexto)
                 recorrido_tabla_equipo(page, informe, SHOTS_DIR, contexto)
                 recorrido_panel_alta(page, informe, SHOTS_DIR, contexto)
+                if os.environ.get("SEED_EQUIPO"):
+                    recorrido_edicion_linea(page, informe, SHOTS_DIR, contexto)
             contexto.close()
         finally:
             navegador.close()

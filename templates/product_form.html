@@ -1,39 +1,52 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>{{ 'Editar Producto' if product else 'Nuevo Producto' }}</h1>
-
-<form method="POST">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="mb-3">
-        <label>SKU</label>
-        <input type="text" name="sku" class="form-control" value="{{ product.sku if product else '' }}" required>
+<header class="panel-header">
+    <div>
+        <h1>{{ 'Editar Producto' if product else 'Nuevo Producto' }}</h1>
+        <span class="panel-subtitle">Completá los datos del producto.</span>
     </div>
+</header>
 
-    <div class="mb-3">
-        <label>Nombre</label>
-        <input type="text" name="name" class="form-control" value="{{ product.name if product else '' }}" required>
+<div class="row">
+    <div class="col-12 col-lg-8">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="app-form-grid app-form-grid--cols-2">
+                <label class="app-field">
+                    <span class="app-field__label">SKU</span>
+                    <input type="text" name="sku" class="form-control app-field__control" value="{{ product.sku if product else '' }}" required>
+                </label>
+
+                <label class="app-field">
+                    <span class="app-field__label">Nombre</span>
+                    <input type="text" name="name" class="form-control app-field__control" value="{{ product.name if product else '' }}" required>
+                </label>
+
+                <div class="app-field">
+                    <label class="app-field__label" for="business_unit_id">Unidad de Negocio</label>
+                    {% if not units %}<div class="alert alert-warning mb-0">Todavía no hay unidades de negocio. <a href="/admin">Creá una en Administración</a>.</div>{% endif %}
+                    <select id="business_unit_id" name="business_unit_id" class="form-control app-field__control" required {% if not units %}disabled{% endif %}>
+                        {% for u in units %}
+                            <option value="{{ u.id }}"
+                                {% if product and product.business_unit_id == u.id %}selected{% endif %}>
+                                {{ u.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <label class="app-field">
+                    <span class="app-field__label">Categoría (opcional)</span>
+                    <input type="text" name="category" class="form-control app-field__control" value="{{ product.category if product else '' }}">
+                </label>
+
+                <div class="app-form-grid__full app-actions">
+                    <button type="submit" class="btn btn-primary" {% if not units %}disabled{% endif %}>Guardar</button>
+                    <a href="/products" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </div>
+        </form>
     </div>
-
-    <div class="mb-3">
-        <label>Unidad de Negocio</label>
-        {% if not units %}<div class="alert alert-warning mb-2">Todavía no hay unidades de negocio. <a href="/admin">Creá una en Administración</a>.</div>{% endif %}
-        <select name="business_unit_id" class="form-control" required {% if not units %}disabled{% endif %}>
-            {% for u in units %}
-                <option value="{{ u.id }}" 
-                    {% if product and product.business_unit_id == u.id %}selected{% endif %}>
-                    {{ u.name }}
-                </option>
-            {% endfor %}
-        </select>
-    </div>
-
-    <div class="mb-3">
-        <label>Categoría (opcional)</label>
-        <input type="text" name="category" class="form-control" value="{{ product.category if product else '' }}">
-    </div>
-
-    <button type="submit" class="btn btn-primary" {% if not units %}disabled{% endif %}>Guardar</button>
-    <a href="/products" class="btn btn-secondary">Volver</a>
-</form>
+</div>
 {% endblock %}

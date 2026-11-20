@@ -1,7 +1,5 @@
-/* Objetivos comerciales: tabla de equipo con filas expandibles, período en una línea y formularios de línea.
-   Tokens reales de templates/base.html. --state-dot-size (8px) es nuevo: se declara aquí porque
-   base.html no se toca en este corte (informe UX §6). */
-:root{--state-dot-size:8px;--drawer-width-form:440px}
+/* Objetivos comerciales: tabla de equipo con filas expandibles; cada línea es una fila de la zona expandida.
+   Los tokens (incluidos --state-dot-size y --drawer-width-form) vienen de templates/base.html. */
 .oc-page{--oc-border:var(--color-border,#dce3eb);--oc-muted:var(--color-text-muted,#58677a)}
 .oc-page input,.oc-page select{min-height:40px}
 
@@ -17,20 +15,20 @@
 /* Tabla de equipo: una fila por vendedor, zona expandible y fila Equipo. Importes sin centavos, porcentajes enteros. */
 .oc-page .oc-team-wrap{border:1px solid var(--oc-border);border-radius:var(--radius-table,7px);background:var(--color-surface,#fff);overflow-x:auto}
 .oc-page .oc-team{width:100%;min-width:960px;border-collapse:collapse;table-layout:fixed;font-size:var(--font-size-body,14px)}
-.oc-page .oc-team col.c-vendedor{width:19%}
-.oc-page .oc-team col.c-lineas{width:5%}
-.oc-page .oc-team col.c-meta{width:11%}
-.oc-page .oc-team col.c-real{width:11%}
-.oc-page .oc-team col.c-avance{width:13%}
-.oc-page .oc-team col.c-cajas{width:9%}
-.oc-page .oc-team col.c-kilos{width:9%}
-.oc-page .oc-team col.c-estado{width:23%}
+.oc-page .oc-team col.c-vendedor,.oc-page .oc-lines-table col.c-vendedor{width:19%}
+.oc-page .oc-team col.c-lineas,.oc-page .oc-lines-table col.c-lineas{width:5%}
+.oc-page .oc-team col.c-meta,.oc-page .oc-lines-table col.c-meta{width:13%}
+.oc-page .oc-team col.c-real,.oc-page .oc-lines-table col.c-real{width:11%}
+.oc-page .oc-team col.c-avance,.oc-page .oc-lines-table col.c-avance{width:11%}
+.oc-page .oc-team col.c-cajas,.oc-page .oc-lines-table col.c-cajas{width:9%}
+.oc-page .oc-team col.c-kilos,.oc-page .oc-lines-table col.c-kilos{width:9%}
+.oc-page .oc-team col.c-estado,.oc-page .oc-lines-table col.c-estado{width:23%}
 .oc-page .oc-team th,.oc-page .oc-team td{padding:var(--space-cell-y,10px) var(--space-cell-x,12px);border-bottom:1px solid var(--oc-border);vertical-align:middle;text-align:left;white-space:nowrap;line-height:1.35;color:var(--color-text-body,#334155)}
 .oc-page .oc-team thead th{font-size:var(--font-size-label,12px);font-weight:var(--font-weight-strong,650);background:var(--color-surface-subtle,#f3f6fa);color:var(--color-text-primary,#25364a)}
 .oc-page .oc-team .num{text-align:right;font-variant-numeric:tabular-nums}
 .oc-page .oc-team .oc-row > *{height:44px}
 .oc-page .oc-team .oc-name{font-weight:var(--font-weight-strong,650);min-width:0;background:transparent}
-.oc-page .oc-team .oc-details > td{white-space:normal;padding:4px var(--space-cell-x,12px) 16px 36px}
+.oc-page .oc-team .oc-details > td{white-space:normal;padding:0}
 .oc-page .oc-team .oc-row.oc-group-draft > *{background:var(--color-surface-muted,#f8fafc)}
 .oc-page .oc-team tfoot th,.oc-page .oc-team tfoot td{font-weight:var(--font-weight-strong,650);color:var(--color-text-primary,#25364a);background:var(--color-surface-subtle,#f8fafc);border-top:2px solid var(--oc-border);border-bottom:0;height:44px}
 .oc-foot{margin:8px 0 0;color:var(--oc-muted);font-size:var(--font-size-note,13px)}
@@ -56,8 +54,7 @@
 .oc-name .ts-wrapper{width:100%;min-width:0}
 .oc-page .oc-draft-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:var(--font-weight-strong,650)}
 .oc-name .ts-control{min-height:34px}
-.oc-group-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px 18px;margin-top:12px}
-.oc-lines{display:grid;gap:12px}
+.oc-group-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px 18px;padding:var(--space-cell-y,10px) var(--space-cell-x,12px) var(--space-cell-y,10px) 36px;border-bottom:1px solid var(--oc-border)}
 
 /* Acciones: una sola primaria por pantalla («Agregar vendedor»). Las demás son texto o secundarias. */
 .oc-page .oc-text-action{background:none;border:0;padding:0;min-height:0;color:var(--color-action,#234e70);font-size:var(--font-size-note,13px);font-weight:600;cursor:pointer;white-space:nowrap}
@@ -69,24 +66,35 @@
 .oc-page .oc-page .oc-save:disabled{color:var(--color-text-faint,#8a97a6);cursor:default}
 .oc-page .oc-page .oc-toggle:focus-visible,.oc-page .oc-text-action:focus-visible,.oc-page .oc-save:focus-visible{outline:3px solid var(--color-focus,#3d7aa9);outline-offset:2px}
 
-/* Formularios de línea (grilla del corte 1). */
-.oc-line{border:1px solid var(--oc-border);border-radius:var(--radius-panel,8px);padding:14px;background:var(--color-surface,#fff)}
-.oc-line-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
-.oc-line-head h3{font-size:1rem;margin:0}
-.oc-line-meta{display:grid;grid-template-columns:minmax(150px,1.15fr) minmax(190px,1.5fr) repeat(3,minmax(120px,1fr));gap:10px;align-items:start}
-.oc-line-guardada .oc-line-meta{grid-template-columns:repeat(3,minmax(120px,1fr))}
-.oc-product-hint{margin:0 0 12px}
-.oc-line-meta label,.oc-legacy-form label{display:grid;gap:5px;font-size:.88rem;font-weight:600}
-.oc-line-meta input,.oc-line-meta select,.oc-legacy-form input,.oc-legacy-form select{width:100%;border:1px solid var(--oc-border);border-radius:var(--radius-control,6px);padding:8px 10px;background:var(--color-surface,#fff)}
+/* Líneas: cada línea es una fila de la tabla anidada de su zona expandida, con las mismas columnas que la fila
+   del vendedor (anchos en col.c-*). Cifras a la derecha con tabulares. «Editar» pasa las metas de la fila a
+   campos con su unidad dentro; realizado y avance siguen siendo lectura. */
+.oc-page .oc-lines-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:var(--font-size-body,14px)}
+.oc-page .oc-lines-table .oc-line-dim{padding-left:36px;min-width:0}
+.oc-line-form{display:block;margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oc-line-dim .oc-dim{color:var(--oc-muted)}
+.oc-line-dim .oc-val{color:var(--color-text-primary)}
+.oc-page .oc-lines-table .oc-line-row:focus{outline:none}
+.oc-page .oc-lines-table .oc-line-row:focus-visible{outline:2px solid var(--color-focus);outline-offset:-2px}
+.oc-page .oc-lines-table .oc-line-msg > td{padding:0 var(--space-cell-x,12px) var(--space-cell-y,10px) 36px;white-space:normal}
+.oc-page .oc-lines-table .oc-line-error{margin:0}
+.oc-line-acciones{white-space:nowrap}
+.oc-line-acciones .oc-sep{color:var(--oc-muted);font-size:var(--font-size-note,13px)}
+.oc-cell-unit{display:flex;align-items:center;box-sizing:border-box;width:100%;min-width:0;height:34px;border:1px solid var(--color-border-control);border-radius:var(--radius-control,6px);background:var(--color-surface)}
+.oc-cell-unit:focus-within{outline:2px solid var(--color-focus);outline-offset:1px}
+.oc-page .oc-cell-unit input{flex:1 1 auto;box-sizing:border-box;width:100%;min-width:0;height:100%;min-height:0;margin:0;padding:0 0 0 4px;border:0;outline:0;background:transparent;color:var(--color-text-body);font:inherit;text-align:right}
+.oc-page .oc-cell-unit input:disabled{color:var(--color-text-faint);cursor:not-allowed}
+.oc-cell-unit small{flex:0 0 auto;padding:0 4px 0 2px;color:var(--oc-muted);font-size:var(--font-size-label,12px);font-weight:400;white-space:nowrap;pointer-events:none}
+.oc-line-saving{opacity:.7;pointer-events:none}
+/* Fila en edición: los campos de metas usan el ancho disponible (la unidad queda dentro del campo, a 1366 px). */
+.oc-page .oc-lines-table .oc-line-editing > td[data-medida="importe"],.oc-page .oc-lines-table .oc-line-editing > td[data-medida="cajas"],.oc-page .oc-lines-table .oc-line-editing > td[data-medida="kilos"]{padding-left:4px;padding-right:4px}
+/* Formulario legado (objetivos históricos de RRHH) y campos con unidad del panel de alta. */
+.oc-legacy-form label{display:grid;gap:5px;font-size:.88rem;font-weight:600}
+.oc-legacy-form input,.oc-legacy-form select{width:100%;border:1px solid var(--oc-border);border-radius:var(--radius-control,6px);padding:8px 10px;background:var(--color-surface,#fff)}
 .oc-unit-field{position:relative;display:block}
 .oc-unit-field input{padding-right:58px}
 .oc-unit-field small{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:var(--font-size-label,12px);font-weight:400;color:var(--oc-muted);pointer-events:none}
-.oc-line-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px}
-.oc-line-realizado{font-size:.88rem;color:var(--oc-muted)}
-.oc-line-actions{display:flex;gap:8px;align-items:center}
-.oc-line-actions button{white-space:nowrap}
 .oc-line-error{color:var(--state-error-ink,#8c3027);font-size:.9rem;margin:8px 0 0}
-.oc-line-saving{opacity:.7;pointer-events:none}
 
 /* Objetivos históricos de RRHH (sección plegada). */
 .oc-legacy{margin-top:24px}
@@ -97,13 +105,13 @@
 .oc-page .ts-wrapper{width:100%}
 .oc-page .ts-control{min-height:40px;border-color:var(--oc-border)}
 
-@media(max-width:900px){.oc-line-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.oc-legacy-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:600px){.oc-line-meta{grid-template-columns:1fr}.oc-line-guardada .oc-line-meta{grid-template-columns:1fr}.oc-line-footer{align-items:flex-start;flex-direction:column}.oc-line-actions{width:100%;justify-content:flex-end}.oc-legacy-form{grid-template-columns:1fr;min-width:0}}
+@media(max-width:900px){.oc-legacy-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.oc-legacy-form{grid-template-columns:1fr;min-width:0}}
 
 /* Panel lateral de alta (corte 3): reutiliza .com-drawer de comercial_paneles.css y solo cambia el ancho
    (--drawer-width-form, 440 px) y el contenido. Grilla de 2 columnas: Nivel y Valor; Importe a fila
    completa; Cajas y Kilos. Unidades dentro del campo. Una sola primaria en el pie («Guardar»). */
-.com-drawer.oc-drawer{width:min(var(--drawer-width-form,440px),100%);display:flex;flex-direction:column;padding:24px;background:var(--color-surface,#fff)}
+.com-drawer.oc-drawer{width:min(var(--drawer-width-form),100%);display:flex;flex-direction:column;padding:24px;background:var(--color-surface,#fff)}
 .com-drawer.oc-drawer[hidden]{display:none}
 .oc-goal-form{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
 .oc-drawer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:20px}

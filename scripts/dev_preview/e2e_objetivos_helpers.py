@@ -2,9 +2,11 @@
 
 La pantalla es una tabla de equipo. Cada vendedor son dos filas hermanas dentro de #listaVendedores:
 la fila de resumen ([data-seller-row]; [data-seller-draft] si es borrador) con sus datos, y la fila
-siguiente (tr.oc-details), su zona expandible con el botón «Agregar objetivo» ([data-add-line]) y las
-líneas guardadas (form.oc-line). La línea nueva se carga en el panel lateral de alta ([data-goal-drawer]),
-con el formulario [data-goal-form] y los campos [data-campo="nivel"] y [data-campo="valor"].
+siguiente (tr.oc-details), su zona expandible con el encabezado «Agregar objetivo» ([data-add-line]) y una
+tabla anidada cuyas filas son las líneas ([data-line-row], con [data-line-id]; «Editar» la pasa a campos
+[data-meta]). Cada línea tiene su fila de aviso debajo ([data-line-error], oculta si no hay). La línea nueva
+se carga en el panel lateral de alta ([data-goal-drawer]), con el formulario [data-goal-form] y los campos
+[data-campo="nivel"] y [data-campo="valor"].
 """
 import re
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
@@ -73,9 +75,9 @@ class ObjetivosDOM:
         return self.zona_de(fila)
 
     def lineas_de(self, ref):
-        """Formularios de línea del vendedor. ref: nombre, referencia o zona de líneas."""
+        """Filas de línea del vendedor ([data-line-row]). ref: nombre, referencia o zona de líneas."""
         zona = ref if hasattr(ref, "locator") else self.zona_de(ref)
-        return zona.locator("form.oc-line")
+        return zona.locator("[data-line-row]")
 
     def linea(self, ref, line_id=None, index=0):
         if line_id is not None:

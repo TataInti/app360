@@ -31,24 +31,29 @@
     row.append(cell);
   }
 
+  function formatARS(value) {
+    return window.App360Format.formatARS(value, { decimales: 2 });
+  }
+
   function renderMetrics(kpis) {
     const definitions = [
-      ['Tickets', 'tickets', true],
-      ['Importe', 'importe', false],
-      ['Cajas', 'cajas', false],
-      ['Kilos', 'kilos', false],
+      ['Tickets', 'tickets', 'count'],
+      ['Importe', 'importe', 'money'],
+      ['Cajas', 'cajas', 'number'],
+      ['Kilos', 'kilos', 'number'],
     ];
     metrics.replaceChildren();
-    definitions.forEach(([label, key, isCount]) => {
+    definitions.forEach(([label, key, format]) => {
       const value = kpis[key];
       const card = document.createElement('article');
       card.className = 'com-metric';
       const title = document.createElement('span');
       title.textContent = label;
       const actual = document.createElement('strong');
-      actual.textContent = formatNumber(value.actual, isCount);
+      actual.textContent = format === 'money' ? formatARS(value.actual) : formatNumber(value.actual, format === 'count');
       const comparison = document.createElement('small');
-      comparison.textContent = `Anterior: ${formatNumber(value.anterior, isCount)} · ${value.variacion_texto}`;
+      const anterior = format === 'money' ? formatARS(value.anterior) : formatNumber(value.anterior, format === 'count');
+      comparison.textContent = `Anterior: ${anterior} · ${value.variacion_texto}`;
       card.append(title, actual, comparison);
       metrics.append(card);
     });
@@ -88,7 +93,7 @@
       appendCell(row, ticket.numero);
       appendCell(row, ticket.cliente, 'salon-client-cell');
       appendCell(row, ticket.vendedor);
-      appendCell(row, formatNumber(ticket.importe), 'salon-number-cell');
+      appendCell(row, formatARS(ticket.importe), 'salon-number-cell');
       appendCell(row, formatNumber(ticket.cajas), 'salon-number-cell');
       appendCell(row, formatNumber(ticket.kilos), 'salon-number-cell');
       tbody.append(row);

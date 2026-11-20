@@ -1,7 +1,16 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid">
+<style>
+  .bi-dashboard-page :is(.kpi-value, .salary-source__value, .salary-impact__formula strong, .financial-metric__value, .concept-breakdown__total, .text-end) {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .bi-dashboard-page .salary-impact { border-radius: var(--radius-panel); }
+  .bi-dashboard-page :is(.salary-source, .financial-metric, .financial-chart-empty) { border-radius: var(--radius-table); }
+  .bi-dashboard-page .salary-impact__formula > div { border-radius: var(--radius-control); }
+</style>
+<div class="container-fluid bi-dashboard-page">
   <div class="panel-header">
     <div>
       <h1>Resultado comercial</h1>
