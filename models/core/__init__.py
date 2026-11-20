@@ -5,6 +5,7 @@ from .stock_level import StockLevel
 from .user import User
 from .user_audit_log import UserAuditLog
 from .user_recovery_token import UserRecoveryToken
+from .user_mfa_backup_code import UserMfaBackupCode
 from .user_permission import UserModulePermission
 
-__all__ = ["BusinessUnit", "Location", "Product", "StockLevel", "User", "UserAuditLog", "UserModulePermission", "UserRecoveryToken"]
+__all__ = ["BusinessUnit", "Location", "Product", "StockLevel", "User", "UserAuditLog", "UserModulePermission", "UserRecoveryToken", "UserMfaBackupCode"]

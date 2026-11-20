@@ -273,6 +273,8 @@ def huella_sesion(usuario):
     version = usuario.token_version or 0
     if version:
         mensaje = f"{mensaje}|tv={version}"
+    if usuario.mfa_activado_en is not None:
+        mensaje = f"{mensaje}|mfa={int(usuario.mfa_activado_en.timestamp())}"
     return hmac.new(clave, mensaje.encode("utf-8"), hashlib.sha256).hexdigest()
 
 

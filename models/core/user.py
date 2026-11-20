@@ -50,6 +50,13 @@ class User(db.Model):
     locked_until = db.Column(db.DateTime(timezone=True), nullable=True)
     # Correo de contacto opcional (C5, migración 20261120_usuarios_c5_recuperacion). No se envían correos.
     email = db.Column(db.String(254), nullable=True)
+    # MFA opcional (C6, migración 20261120_usuarios_c6_mfa). El secreto va en claro: sin cryptography.
+    mfa_enabled = db.Column(db.Boolean, nullable=False, default=False, server_default=false())
+    mfa_secret = db.Column(db.String(64), nullable=True)
+    mfa_secret_pendiente = db.Column(db.String(64), nullable=True)
+    mfa_pendiente_expira = db.Column(db.DateTime(timezone=True), nullable=True)
+    mfa_last_step = db.Column(db.BigInteger, nullable=True)
+    mfa_activado_en = db.Column(db.DateTime(timezone=True), nullable=True)
 
     def __init__(self, **kwargs):
         if not kwargs.get("role"):

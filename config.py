@@ -31,6 +31,8 @@ class Config:
     # Dirección pública para los enlaces de recuperación (C5). Sin ella se usa SERVER_NAME; nunca cabeceras.
     APP_PUBLIC_URL = os.getenv("APP_PUBLIC_URL") or None
     SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE")
+    # MFA obligatorio para admin, manager y gerente (C6, M6). Apagado por defecto.
+    MFA_OBLIGATORIO_ADMIN = os.getenv("MFA_OBLIGATORIO_ADMIN", "0").strip() == "1"
     if SESSION_COOKIE_SECURE is None:
         SESSION_COOKIE_SECURE = not _IS_LOCAL
     else:
