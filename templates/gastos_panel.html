@@ -1,30 +1,50 @@
 {% extends "base.html" %}
 {% block title %}Panel de Gastos{% endblock %}
 {% block content %}
+<style>
+    .gastos-filtros select {
+        width: 6.5rem;
+        min-width: 0;
+    }
+    .gastos-filtros #selInstrumento {
+        width: 7.5rem;
+    }
+    .gastos-filtros .period-pills .pp {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+    .gastos-filtros .date-group input[type="date"] {
+        width: 7.5rem;
+    }
+    .gastos-fecha {
+        white-space: nowrap;
+    }
+</style>
+<script src="{{ asset('js/app_format.js') }}" defer></script>
 <div class="container-fluid">
-    <!-- Header -->
-    <div class="panel-header">
+    <!-- Encabezado: una sola acción primaria -->
+    <header class="panel-header">
         <div>
             <h1><i class="bi bi-cash-stack"></i> Panel de Gastos</h1>
-            <span>Seguimiento diario de egresos por categoría, proveedor e instrumento.</span>
+            <span class="panel-subtitle">Seguimiento diario de egresos por categoría, proveedor e instrumento.</span>
         </div>
-        <div class="action-bar">
-            <button class="btn btn-outline-secondary btn-sm" onclick="exportarGastos()">
+        <div class="app-actions">
+            <button class="btn btn-sm btn-outline-secondary" onclick="exportarGastos()">
                 <i class="bi bi-file-earmark-excel"></i> Exportar
             </button>
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoGasto">
-                <i class="bi bi-plus-circle"></i> Registrar Gasto
+            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoGasto">
+                <i class="bi bi-plus-circle"></i> Registrar gasto
             </button>
         </div>
-    </div>
+    </header>
 
     <div id="gastosAviso" class="alert alert-warning" role="alert" hidden></div>
 
-    <!-- Filtros -->
-    <div class="period-bar dim-bar mb-3">
-        <select id="selCategoria" style="min-width:130px"><option value="">Categoría</option></select>
-        <select id="selProveedor" style="min-width:130px"><option value="">Proveedor</option></select>
-        <select id="selInstrumento" style="min-width:120px"><option value="">Instrumento</option></select>
+    <!-- Filtros en una fila -->
+    <div class="period-bar dim-bar mb-3 gastos-filtros">
+        <select id="selCategoria" aria-label="Categoría"><option value="">Categoría</option></select>
+        <select id="selProveedor" aria-label="Proveedor"><option value="">Proveedor</option></select>
+        <select id="selInstrumento" aria-label="Instrumento"><option value="">Instrumento</option></select>
         <span class="filter-sep"></span>
         <div class="period-pills">
             <button class="pp active" data-period="30">30d</button>
@@ -48,71 +68,74 @@
 
     <!-- Skeleton -->
     <div id="gastos-skeleton">
-        <div class="kpi-grid"><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div></div>
+        <div class="kpi-grid"><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div><div class="skeleton skeleton-kpi"></div></div>
         <div class="charts-grid"><div class="skeleton skeleton-chart"></div><div class="skeleton skeleton-chart"></div><div class="skeleton skeleton-chart"></div></div>
     </div>
 
-    <!-- KPIs -->
     <div id="gastos-content" style="display:none">
-        <div class="kpi-grid">
-            <div class="kpi-card accent-red">
-                <span class="kpi-label">Total Gastos</span>
-                <span class="kpi-value" id="kpiTotal">$0</span>
+        <!-- Resumen del período: se oculta cuando el listado está vacío (un solo estado vacío) -->
+        <div id="gastosResumen">
+            <div class="kpi-grid">
+                <div class="kpi-card accent-amber">
+                    <span class="kpi-label">Cantidad</span>
+                    <span class="kpi-value" id="kpiCantidad">0</span>
+                </div>
+                <div class="kpi-card accent-blue">
+                    <span class="kpi-label">Promedio x gasto</span>
+                    <span class="kpi-value" id="kpiPromedio">$0</span>
+                </div>
+                <div class="kpi-card accent-purple">
+                    <span class="kpi-label">Top categoría</span>
+                    <span class="kpi-value" id="kpiTopCat">-</span>
+                </div>
             </div>
-            <div class="kpi-card accent-amber">
-                <span class="kpi-label">Cantidad</span>
-                <span class="kpi-value" id="kpiCantidad">0</span>
-            </div>
-            <div class="kpi-card accent-blue">
-                <span class="kpi-label">Promedio x Gasto</span>
-                <span class="kpi-value" id="kpiPromedio">$0</span>
-            </div>
-            <div class="kpi-card accent-purple">
-                <span class="kpi-label">Top Categoría</span>
-                <span class="kpi-value" id="kpiTopCat">-</span>
+
+            <!-- Gráficos -->
+            <div class="charts-grid">
+                <div class="chart-card-v2">
+                    <h3><i class="bi bi-bar-chart"></i> Por Categoría</h3>
+                    <div class="chart-stage"><canvas id="chartCat"></canvas></div>
+                </div>
+                <div class="chart-card-v2">
+                    <h3><i class="bi bi-pie-chart"></i> Por Proveedor</h3>
+                    <div class="chart-stage"><canvas id="chartProv"></canvas></div>
+                </div>
+                <div class="chart-card-v2">
+                    <h3><i class="bi bi-graph-up"></i> Evolución Diaria</h3>
+                    <div class="chart-stage"><canvas id="chartEvo"></canvas></div>
+                </div>
             </div>
         </div>
 
-        <!-- Gráficos -->
-        <div class="charts-grid">
-            <div class="chart-card-v2">
-                <h3><i class="bi bi-bar-chart"></i> Por Categoría</h3>
-                <div class="chart-stage"><canvas id="chartCat"></canvas></div>
-            </div>
-            <div class="chart-card-v2">
-                <h3><i class="bi bi-pie-chart"></i> Por Proveedor</h3>
-                <div class="chart-stage"><canvas id="chartProv"></canvas></div>
-            </div>
-            <div class="chart-card-v2">
-                <h3><i class="bi bi-graph-up"></i> Evolución Diaria</h3>
-                <div class="chart-stage"><canvas id="chartEvo"></canvas></div>
-            </div>
-        </div>
-
-        <!-- Tabla -->
+        <!-- Tabla con importes a la derecha y fila de total -->
         <div class="table-card">
             <div class="table-card-head">
                 <h3><i class="bi bi-table"></i> Gastos registrados</h3>
             </div>
             <div class="scroll-table">
-                <table class="table table-hover table-sm mb-0">
-                    <thead>
+                <table class="app-table">
+                    <thead class="app-table__head">
                         <tr>
-                            <th>Fecha</th>
-                            <th>Descripción</th>
-                            <th>Categoría</th>
-                            <th>Proveedor</th>
-                            <th>Instrumento</th>
-                            <th>Portador</th>
-                            <th class="text-end">Monto</th>
-                            <th>Usuario</th>
+                            <th scope="col" class="app-table__head-cell">Fecha</th>
+                            <th scope="col" class="app-table__head-cell">Descripción</th>
+                            <th scope="col" class="app-table__head-cell">Categoría</th>
+                            <th scope="col" class="app-table__head-cell">Proveedor</th>
+                            <th scope="col" class="app-table__head-cell">Instrumento</th>
+                            <th scope="col" class="app-table__head-cell">Portador</th>
+                            <th scope="col" class="app-table__head-cell app-table__numeric">Monto</th>
+                            <th scope="col" class="app-table__head-cell">Usuario</th>
                         </tr>
                     </thead>
                     <tbody id="tbodyGastos">
-                        <tr><td colspan="8" class="text-center text-muted">
-                            <span class="loading-text">Cargando datos...</span>
-                        </td></tr>
+                        <tr><td colspan="8" class="app-table__cell"><span class="loading-text">Cargando datos...</span></td></tr>
                     </tbody>
+                    <tfoot id="tfootGastos" hidden>
+                        <tr class="app-table__total">
+                            <th scope="row" colspan="6" class="app-table__cell">Total del listado</th>
+                            <td class="app-table__cell app-table__numeric" id="gastosTotal">—</td>
+                            <td class="app-table__cell"></td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
@@ -121,7 +144,7 @@
 
 <!-- Modal Nuevo Gasto -->
 <div class="modal fade app-modal app-modal--blue" id="modalNuevoGasto" tabindex="-1" aria-labelledby="modalNuevoGastoTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header app-modal__header">
                 <div class="app-modal__title-group">
@@ -133,46 +156,44 @@
             </div>
             <form id="formGasto">
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Descripción *</label>
-                        <input type="text" class="form-control" name="descripcion" required>
-                    </div>
-                    <div class="row g-2">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Categoría *</label>
-                            <select class="form-select" name="categoria_gasto_id" id="frmCategoria" required>
+                    <div class="app-form-grid app-form-grid--cols-2">
+                        <div class="app-field app-form-grid__full">
+                            <label class="app-field__label" for="frmDescripcion">Descripción *</label>
+                            <input type="text" class="form-control app-field__control" id="frmDescripcion" name="descripcion" required>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="frmCategoria">Categoría *</label>
+                            <select class="form-select app-field__control" name="categoria_gasto_id" id="frmCategoria" required>
                                 <option value="">Seleccionar...</option>
                             </select>
                             <div id="frmCategoriaAviso" class="form-text" hidden><a href="/admin/gastos">Crear categorías en Administración</a></div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Proveedor *</label>
-                            <select class="form-select" name="proveedor_id" id="frmProveedor" required>
+                        <div class="app-field">
+                            <label class="app-field__label" for="frmProveedor">Proveedor *</label>
+                            <select class="form-select app-field__control" name="proveedor_id" id="frmProveedor" required>
                                 <option value="">Seleccionar...</option>
                             </select>
                         </div>
-                    </div>
-                    <div class="row g-2">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Monto *</label>
-                            <input type="number" class="form-control" name="monto" step="0.01" min="0.01" data-money-input required>
+                        <div class="app-field">
+                            <label class="app-field__label" for="frmMonto">Monto *</label>
+                            <input type="number" class="form-control app-field__control" id="frmMonto" name="monto" step="0.01" min="0.01" data-money-input required>
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Instrumento *</label>
-                            <select class="form-select" name="instrumento_id" id="frmInstrumento" required>
+                        <div class="app-field">
+                            <label class="app-field__label" for="frmInstrumento">Instrumento *</label>
+                            <select class="form-select app-field__control" name="instrumento_id" id="frmInstrumento" required>
                                 <option value="">Seleccionar...</option>
                             </select>
                         </div>
-                        <div class="col-md-4 mb-3" id="portadorGroup" style="display:none">
-                            <label class="form-label">Portador *</label>
-                            <select class="form-select" name="portador_id" id="frmPortador">
+                        <div class="app-field" id="portadorGroup" style="display:none">
+                            <label class="app-field__label" for="frmPortador">Portador *</label>
+                            <select class="form-select app-field__control" name="portador_id" id="frmPortador">
                                 <option value="">Seleccionar...</option>
                             </select>
                         </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Referencia (nro cheque, etc.)</label>
-                        <input type="text" class="form-control" name="referencia">
+                        <div class="app-field app-form-grid__full">
+                            <label class="app-field__label" for="frmReferencia">Referencia (nro cheque, etc.)</label>
+                            <input type="text" class="form-control app-field__control" id="frmReferencia" name="referencia">
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -191,6 +212,10 @@ let _instrumentos = [];
 
 const MENSAJE_ACCESO = 'Tu sesión terminó o no tenés acceso a esta sección';
 
+// Un único formateador es-AR (App360Format). Tablas con centavos; KPI y gráficos sin decimales.
+const dinero = (valor) => App360Format.formatARS(valor);
+const importeTabla = (valor) => App360Format.formatARS(valor, {decimales: 2});
+
 function mostrarAviso(texto) {
     const aviso = document.getElementById('gastosAviso');
     aviso.textContent = texto;
@@ -208,13 +233,6 @@ async function pedirJson(url) {
     const datos = await respuesta.json();
     if (!respuesta.ok) throw new Error(datos.error || 'No se pudieron cargar los datos.');
     return datos;
-}
-
-function fmtAbbr(n) {
-    const a = Math.abs(n);
-    if (a >= 1e6) return '$'+(n/1e6).toFixed(1)+'M';
-    if (a >= 1e3) return '$'+Math.round(n/1e3)+'K';
-    return '$'+Math.round(n).toLocaleString('es-AR');
 }
 
 const COLORES = window.App360Charts.palette;
@@ -353,6 +371,13 @@ async function cargarPortadoresPorInstrumento(instrumentoId, selectId) {
     }
 }
 
+function destruirGraficos() {
+    [chartCat, chartProv, chartEvo].forEach(grafico => { if (grafico) grafico.destroy(); });
+    chartCat = null;
+    chartProv = null;
+    chartEvo = null;
+}
+
 async function load(period) {
     // Show skeleton, hide content
     const skel = document.getElementById('gastos-skeleton');
@@ -389,42 +414,47 @@ async function load(period) {
         return;
     }
 
-    // KPIs
-    document.getElementById('kpiTotal').textContent = fmtAbbr(resD.total || 0);
-    document.getElementById('kpiCantidad').textContent = resD.cantidad || 0;
-    document.getElementById('kpiPromedio').textContent = fmtAbbr(resD.promedio || 0);
-    const cats = resD.por_categoria || {};
-    const topCat = Object.entries(cats).sort((a,b) => b[1]-a[1])[0];
-    document.getElementById('kpiTopCat').textContent = topCat ? topCat[0] : '-';
-
     // Hide skeleton, show content
     if (skel) skel.style.display = 'none';
     if (content) content.style.display = '';
 
-    // Table
     const gastos = listD.gastos || [];
+    const hayGastos = gastos.length > 0;
     const tbody = document.getElementById('tbodyGastos');
-    if (!gastos.length) {
-        tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state">
-            <div class="empty-icon"><i class="bi bi-inbox"></i></div>
+    document.getElementById('gastosResumen').hidden = !hayGastos;
+    document.getElementById('tfootGastos').hidden = !hayGastos;
+
+    if (!hayGastos) {
+        tbody.innerHTML = `<tr><td colspan="8" class="app-table__cell"><div class="empty-state">
+            <div class="empty-icon"><i class="bi bi-inbox" aria-hidden="true"></i></div>
             <div class="empty-title">Sin gastos en el período</div>
             <div class="empty-text">Probá ajustando los filtros o registrá un nuevo gasto.</div>
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoGasto">
-                <i class="bi bi-plus-circle"></i> Registrar Gasto
-            </button>
         </div></td></tr>`;
-    } else {
-        tbody.innerHTML = gastos.map(g => `<tr>
-            <td>${escapeHtml(g.fecha)}</td>
-            <td>${escapeHtml(g.descripcion)}</td>
-            <td>${escapeHtml(g.categoria_nombre)}</td>
-            <td>${escapeHtml(g.proveedor_nombre)}</td>
-            <td>${escapeHtml(g.instrumento)}</td>
-            <td>${escapeHtml(g.portador || '-')}</td>
-            <td class="text-end">$${escapeHtml(parseFloat(g.monto).toLocaleString('es-AR'))}</td>
-            <td>${escapeHtml(g.usuario || '-')}</td>
-        </tr>`).join('');
+        destruirGraficos();
+        return;
     }
+
+    // KPIs
+    document.getElementById('kpiCantidad').textContent = resD.cantidad || 0;
+    document.getElementById('kpiPromedio').textContent = dinero(resD.promedio || 0);
+    const cats = resD.por_categoria || {};
+    const topCat = Object.entries(cats).sort((a,b) => b[1]-a[1])[0];
+    document.getElementById('kpiTopCat').textContent = topCat ? topCat[0] : '-';
+
+    // Table
+    tbody.innerHTML = gastos.map(g => `<tr>
+        <td class="app-table__cell gastos-fecha">${escapeHtml(g.fecha)}</td>
+        <td class="app-table__cell">${escapeHtml(g.descripcion)}</td>
+        <td class="app-table__cell">${escapeHtml(g.categoria_nombre)}</td>
+        <td class="app-table__cell">${escapeHtml(g.proveedor_nombre)}</td>
+        <td class="app-table__cell">${escapeHtml(g.instrumento)}</td>
+        <td class="app-table__cell">${escapeHtml(g.portador || '-')}</td>
+        <td class="app-table__cell app-table__numeric">${escapeHtml(importeTabla(g.monto))}</td>
+        <td class="app-table__cell">${escapeHtml(g.usuario || '-')}</td>
+    </tr>`).join('');
+
+    const total = gastos.reduce((suma, g) => suma + (Number(g.monto) || 0), 0);
+    document.getElementById('gastosTotal').textContent = importeTabla(Math.round(total * 100) / 100);
 
     // Charts
     renderCharts(resD);
@@ -441,7 +471,7 @@ function renderCharts(d) {
     chartCat = C.create(document.getElementById('chartCat'), {
         type:'bar',
         data:{ labels:catL, datasets:[{data:catV, backgroundColor:COLORES.slice(0,catL.length), borderRadius:4}] },
-        options:{ plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmtAbbr(c.parsed.y)}}} }
+        options:{ plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>dinero(c.parsed.y)}}} }
     });
 
     // Por proveedor (doughnut)
@@ -451,7 +481,7 @@ function renderCharts(d) {
     chartProv = C.create(document.getElementById('chartProv'), {
         type:'doughnut',
         data:{ labels:provL, datasets:[{data:provV, backgroundColor:COLORES.slice(0,provL.length), borderColor:'#fff', borderWidth:2}] },
-        options:{ plugins:{ tooltip:{callbacks:{label:c=>`${c.label}: ${fmtAbbr(c.parsed)}`}} } }
+        options:{ scales:{x:{display:false}, y:{display:false}}, plugins:{ tooltip:{callbacks:{label:c=>`${c.label}: ${dinero(c.parsed)}`}} } }
     });
 
     // Evolución diaria (line)
@@ -463,7 +493,7 @@ function renderCharts(d) {
             label:'Gastos', data:evoEntries.map(e=>e[1]),
             borderColor:S.negative, backgroundColor:'rgba(220,38,38,0.1)', fill:true, tension:0.3
         }] },
-        options:{ plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmtAbbr(c.parsed.y)}}} }
+        options:{ plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>dinero(c.parsed.y)}}} }
     });
 }
 
