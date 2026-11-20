@@ -226,7 +226,7 @@ def _escritura_de_rechazo_sin_cuenta(ip, ahora):
         savepoint.rollback()
 
 
-def _escritura_de_rechazo_bloqueado(fila, ip, ahora):
+def _escritura_de_rechazo_bloqueado(fila, ip, ahora, par=None):
     """Iguala el trabajo de escritura sin sumar ni extender contadores durante el bloqueo."""
     tabla_usuario = User.__table__
     db.session.execute(
@@ -234,7 +234,10 @@ def _escritura_de_rechazo_bloqueado(fila, ip, ahora):
         .where(tabla_usuario.c.id == fila.id)
         .values(failed_login_count=tabla_usuario.c.failed_login_count)
     )
-    _tocar_par_sin_fallo(fila.id, ip, ahora, crear=False)
+    if par is None:
+        _tocar_par_sin_fallo(fila.id, ip, ahora, crear=False)
+    else:
+        par.updated_at = ahora
 
 
 def _par_de_usuario(user_id, ip):
@@ -313,7 +316,7 @@ def _decidir_cuenta_activa(canal, ip, nombre, usuario, coincide, vencida):
         return _rechazar(canal, ip, nombre, fila, CUENTA_BLOQUEADA, ahora)
     par = _par_de_usuario(fila.id, ip)
     if par is not None and par.locked_until is not None and _aware(par.locked_until) > ahora:
-        _escritura_de_rechazo_bloqueado(fila, ip, ahora)
+        _escritura_de_rechazo_bloqueado(fila, ip, ahora, par=par)
         return _rechazar(canal, ip, nombre, fila, CUENTA_BLOQUEADA, ahora)
     if coincide and not vencida:
         pendiente = bool(fila.must_change_password)
