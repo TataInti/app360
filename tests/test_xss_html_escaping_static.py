@@ -259,3 +259,28 @@ def test_admin_accesos_keeps_api_text_out_of_html_sinks():
     assert "innerHTML" not in source
     assert "textContent" in source
     assert "text.textContent = message" in source
+
+
+def test_admin_modulo_keeps_catalog_actions_and_uses_status_components():
+    source = (ROOT / "templates" / "admin" / "admin_modulo.html").read_text(encoding="utf-8")
+    assert not re.search(r'class="[^"]*\bbadge\s+bg-(?:success|secondary|danger|primary|warning)\b', source)
+    assert "app-status__dot" in source
+    assert "app-tipo--ambos" in source
+
+    for contract in (
+        'id="modalEntidad"',
+        'id="modalTurnoDias"',
+        'id="modalInstrumentoPortadores"',
+        'id="tabla-{{ entidad }}"',
+        'data-entidad="{{ entidad }}"',
+        'data-id="{{ item.id }}"',
+        "data-fields='{{ data.fields|tojson }}'",
+        "data-required='{{ data.required|tojson }}'",
+        'onclick="abrirModalNuevoFromBtn(this)"',
+        'onclick="editarDesdeBtn(this)"',
+        'onclick="toggleItem(\'{{ entidad }}\', {{ item.id }})"',
+        'onclick="abrirModalTurnoDias({{ item.id }}, {{ item.nombre|tojson|forceescape }})"',
+        'onclick="abrirModalPortadoresInstrumento({{ item.id }}, {{ item.nombre|tojson|forceescape }})"',
+        'onclick="eliminarItem(\'{{ entidad }}\', {{ item.id }})"',
+    ):
+        assert contract in source

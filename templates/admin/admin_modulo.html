@@ -2,22 +2,13 @@
 
 {% block content %}
 <div class="container-fluid">
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="/admin">Administración</a></li>
-            <li class="breadcrumb-item active">{{ titulo_modulo }}</li>
-        </ol>
-    </nav>
-
-    <div class="panel-header">
+    <header class="panel-header">
         <div>
-            <h1><i class="bi bi-gear"></i> Administrar {{ titulo_modulo }}</h1>
-            <span>Gestión de catálogos del módulo {{ titulo_modulo }}</span>
+            <h1>Administrar {{ titulo_modulo }}</h1>
+            <span class="panel-subtitle">Gestión de catálogos del módulo {{ titulo_modulo }}</span>
         </div>
-        <a href="/admin" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Volver
-        </a>
-    </div>
+        <a href="/admin" class="app-admin-link">Volver</a>
+    </header>
 
     <!-- Tabs para cada entidad -->
     <ul class="nav nav-tabs" id="entidadTabs" role="tablist">
@@ -29,7 +20,6 @@
                     data-bs-target="#content-{{ entidad }}" 
                     type="button" role="tab">
                 {{ data.name }}
-                <span class="badge bg-secondary">{{ data.registros|length }}</span>
             </button>
         </li>
         {% endfor %}
@@ -44,59 +34,59 @@
             <div class="table-card">
                 <div class="table-card-head d-flex justify-content-between align-items-center">
                     <h3 class="mb-0">{{ data.name }}</h3>
-                    <button class="btn btn-primary btn-sm" 
+                    <button class="btn btn-primary btn-sm"
                             data-entidad="{{ entidad }}"
                             data-fields='{{ data.fields|tojson }}'
                             data-required='{{ data.required|tojson }}'
                             onclick="abrirModalNuevoFromBtn(this)">
-                        <i class="bi bi-plus-circle"></i> Nuevo
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i> Nuevo registro
                     </button>
                 </div>
                 {% if data.error %}
                 <div class="alert alert-danger m-3">Error: {{ data.error }}</div>
                 {% else %}
                 <div class="scroll-table">
-                    <table class="table table-hover mb-0" id="tabla-{{ entidad }}">
-                        <thead>
+                    <table class="app-table table-hover mb-0" id="tabla-{{ entidad }}">
+                        <thead class="app-table__head">
                             <tr>
-                                    <th>ID</th>
+                                    <th class="app-table__head-cell app-table__numeric" scope="col">ID</th>
                                     {% for field in data.fields %}
                                     {% if modulo == 'movimientos' and entidad == 'conceptos' and field == 'incluye_resultado' %}
-                                    <th title="Incluir en el resultado comercial">Participa</th>
+                                    <th class="app-table__head-cell" scope="col" title="Incluir en el resultado comercial">Participa</th>
                                     {% else %}
-                                    <th>{{ field_labels.get(field, field)|replace('_', ' ')|capitalize }}</th>
+                                    <th class="app-table__head-cell" scope="col">{{ field_labels.get(field, field)|replace('_', ' ')|capitalize }}</th>
                                     {% endif %}
                                     {% endfor %}
                                     {% if modulo == 'movimientos' and entidad == 'conceptos' %}
-                                    <th>Efecto</th>
-                                    <th>Movimientos</th>
-                                    <th>Conflictos</th>
+                                    <th class="app-table__head-cell" scope="col">Efecto</th>
+                                    <th class="app-table__head-cell app-table__numeric" scope="col">Movimientos</th>
+                                    <th class="app-table__head-cell app-table__numeric" scope="col">Conflictos</th>
                                     {% endif %}
-                                    <th>Acciones</th>
+                                    <th class="app-table__head-cell" scope="col">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for item in data.registros %}
                                 <tr data-id="{{ item.id }}">
-                                    <td>{{ item.id }}</td>
+                                    <td class="app-table__cell app-table__numeric">{{ item.id }}</td>
                                     {% for field in data.fields %}
-                                    <td>
-                                        {% set val = item[field] if item[field] is defined else '' %}
+                                    {% set val = item[field] if item[field] is defined else '' %}
+                                    <td class="app-table__cell{% if val is number and val is not boolean %} app-table__numeric{% endif %}">
                                         {% if field == 'activo' or field == 'is_active' %}
                                             {% if val %}
-                                            <span class="badge bg-success">Activo</span>
+                                            <span class="app-status app-status--ok"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">Activo</span></span>
                                             {% else %}
-                                            <span class="badge bg-secondary">Inactivo</span>
+                                            <span class="app-status app-status--neutral"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">Inactivo</span></span>
                                             {% endif %}
                                         {% elif field == 'naturaleza' %}
                                             {% if val == 'ingreso' %}
-                                            <span class="badge bg-success">Ingreso</span>
+                                            <span class="app-tipo app-tipo--ingreso">Ingreso</span>
                                             {% elif val == 'egreso' %}
-                                            <span class="badge bg-danger">Egreso</span>
+                                            <span class="app-tipo app-tipo--egreso">Egreso</span>
                                             {% elif val == 'ambos' %}
-                                            <span class="badge bg-primary">Ambos</span>
+                                            <span class="app-tipo app-tipo--ambos">Ambos</span>
                                             {% else %}
-                                            <span class="badge bg-warning text-dark">Pendiente</span>
+                                            <span class="app-status app-status--warn"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">Pendiente</span></span>
                                             {% endif %}
                                         {% elif field == 'incluye_resultado' %}
                                             {{ 'Sí' if val else 'No' }}
@@ -111,70 +101,86 @@
                                     {% endfor %}
                                     {% if modulo == 'movimientos' and entidad == 'conceptos' %}
                                     {% set stat = concepto_stats.get(item.id, {}) %}
-                                    <td>
+                                    <td class="app-table__cell">
                                         {% if stat.get('efecto') == 'suma' %}
-                                        <span class="badge bg-success">Suma</span>
+                                        <span class="app-status app-status--ok"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">Suma</span></span>
                                         {% elif stat.get('efecto') == 'resta' %}
-                                        <span class="badge bg-danger">Resta</span>
+                                        <span class="app-status app-status--error"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">Resta</span></span>
                                         {% elif stat.get('efecto') == 'segun_movimiento' %}
-                                        <span class="badge bg-primary">Según movimiento</span>
+                                        <span class="app-status app-status--neutral"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">Según movimiento</span></span>
                                         {% elif stat.get('efecto') == 'pendiente' %}
-                                        <span class="badge bg-warning text-dark">Pendiente</span>
+                                        <span class="app-status app-status--warn"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">Pendiente</span></span>
                                         {% else %}
-                                        <span class="badge bg-secondary">No participa</span>
+                                        <span class="app-status app-status--neutral"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">No participa</span></span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ stat.get('movimientos', 0) }}</td>
-                                    <td>
+                                    <td class="app-table__cell app-table__numeric">{{ stat.get('movimientos', 0) }}</td>
+                                    <td class="app-table__cell app-table__numeric">
                                         {% if stat.get('conflictos', 0) %}
-                                        <span class="badge bg-danger">{{ stat.get('conflictos') }}</span>
+                                        <span class="app-status app-status--error"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">{{ stat.get('conflictos') }}</span></span>
                                         {% else %}
-                                        <span class="text-muted">0</span>
+                                        <span class="app-status app-status--neutral"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">0</span></span>
                                         {% endif %}
                                     </td>
                                     {% endif %}
-                                    <td>
+                                    <td class="app-table__cell">
                                         <div class="btn-group btn-group-sm">
-                                            <button class="btn btn-outline-primary"
+                                            <button class="btn btn-sm btn-outline-secondary app-admin-row-action"
                                                     data-entidad="{{ entidad }}"
                                                     data-id="{{ item.id }}"
                                                     data-fields='{{ data.fields|tojson }}'
-                                                    onclick="editarDesdeBtn(this)">
-                                                <i class="bi bi-pencil"></i>
+                                                    onclick="editarDesdeBtn(this)"
+                                                    aria-label="Editar registro" title="Editar registro">
+                                                <i class="bi bi-pencil" aria-hidden="true"></i>
                                             </button>
                                             {% if 'activo' in data.fields %}
-                                            <button class="btn btn-outline-warning" onclick="toggleItem('{{ entidad }}', {{ item.id }})">
-                                                <i class="bi bi-toggle-on"></i>
+                                            <button class="btn btn-sm btn-outline-secondary app-admin-row-action" onclick="toggleItem('{{ entidad }}', {{ item.id }})" aria-label="Activar o desactivar registro" title="Activar o desactivar registro">
+                                                <i class="bi bi-toggle-on" aria-hidden="true"></i>
                                             </button>
                                             {% endif %}
                                             {% if entidad == 'turnos' %}
-                                            <button class="btn btn-outline-info" onclick="abrirModalTurnoDias({{ item.id }}, {{ item.nombre|tojson|forceescape }})" title="Configurar Horarios">
-                                                <i class="bi bi-clock"></i> Horarios
+                                            <button class="btn btn-sm btn-outline-secondary app-admin-row-action" onclick="abrirModalTurnoDias({{ item.id }}, {{ item.nombre|tojson|forceescape }})" aria-label="Configurar horarios" title="Configurar horarios">
+                                                <i class="bi bi-clock" aria-hidden="true"></i>
                                             </button>
                                             {% endif %}
                                             {% if entidad == 'instrumentos' and modulo == 'tesoreria' %}
-                                            <button class="btn btn-outline-secondary" onclick="abrirModalPortadoresInstrumento({{ item.id }}, {{ item.nombre|tojson|forceescape }})" title="Configurar Portadores">
-                                                <i class="bi bi-people"></i> Portadores
+                                            <button class="btn btn-sm btn-outline-secondary app-admin-row-action" onclick="abrirModalPortadoresInstrumento({{ item.id }}, {{ item.nombre|tojson|forceescape }})" aria-label="Configurar portadores" title="Configurar portadores">
+                                                <i class="bi bi-people" aria-hidden="true"></i>
                                             </button>
                                             {% endif %}
-                                            <button class="btn btn-outline-danger" onclick="eliminarItem('{{ entidad }}', {{ item.id }})">
-                                                <i class="bi bi-trash"></i>
+                                            <button class="btn btn-sm btn-outline-secondary app-admin-row-action app-admin-row-action--danger" onclick="eliminarItem('{{ entidad }}', {{ item.id }})" aria-label="Eliminar registro" title="Eliminar registro">
+                                                <i class="bi bi-trash" aria-hidden="true"></i>
                                             </button>
                                         </div>
                                     </td>
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="{{ data.fields|length + (5 if modulo == 'movimientos' and entidad == 'conceptos' else 2) }}">
+                                    <td class="app-table__cell" colspan="{{ data.fields|length + (5 if modulo == 'movimientos' and entidad == 'conceptos' else 2) }}">
                                         <div class="empty-state">
-                                            <i class="bi bi-inbox empty-icon"></i>
+                                            <i class="bi bi-inbox empty-icon" aria-hidden="true"></i>
                                             <div class="empty-title">Todavía no hay registros</div>
                                             <div class="empty-text">Creá el primero para completar este catálogo.</div>
+                                            <button class="btn btn-sm btn-outline-secondary"
+                                                    data-entidad="{{ entidad }}"
+                                                    data-fields='{{ data.fields|tojson }}'
+                                                    data-required='{{ data.required|tojson }}'
+                                                    onclick="abrirModalNuevoFromBtn(this)">Crear primer registro</button>
                                         </div>
                                     </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
+                            <tfoot>
+                                <tr class="app-table__total">
+                                    <th class="app-table__cell" scope="row" colspan="{{ data.fields|length + (5 if modulo == 'movimientos' and entidad == 'conceptos' else 2) }}">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span>Total de registros</span>
+                                            <span class="app-table__numeric">{{ data.registros|length }}</span>
+                                        </div>
+                                    </th>
+                                </tr>
+                            </tfoot>
                         </table>
                 </div>
                 {% endif %}
@@ -810,7 +816,7 @@ function renderPortadoresCheckboxes(portadores) {
     portadores.forEach(p => {
         const col = document.createElement('div');
         col.className = 'col';
-        const inactiveNote = p.activo ? '' : ' <span class="text-muted small">(inactivo)</span>';
+        const inactiveNote = p.activo ? '' : ' <span class="app-status app-status--neutral"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">(inactivo)</span></span>';
         col.innerHTML = `
             <div class="form-check">
                 <input class="form-check-input instr-port-cb" type="checkbox"
