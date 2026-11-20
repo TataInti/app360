@@ -73,17 +73,17 @@
 .oc-page .oc-lines-table .oc-line-dim{padding-left:36px;min-width:0}
 .oc-line-form{display:block;margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .oc-line-dim .oc-dim{color:var(--oc-muted)}
-.oc-line-dim .oc-val{color:var(--color-text-primary,#25364a)}
+.oc-line-dim .oc-val{color:var(--color-text-primary)}
 .oc-page .oc-lines-table .oc-line-row:focus{outline:none}
-.oc-page .oc-lines-table .oc-line-row:focus-visible{outline:2px solid var(--color-focus,#3d7aa9);outline-offset:-2px}
+.oc-page .oc-lines-table .oc-line-row:focus-visible{outline:2px solid var(--color-focus);outline-offset:-2px}
 .oc-page .oc-lines-table .oc-line-msg > td{padding:0 var(--space-cell-x,12px) var(--space-cell-y,10px) 36px;white-space:normal}
 .oc-page .oc-lines-table .oc-line-error{margin:0}
 .oc-line-acciones{white-space:nowrap}
 .oc-line-acciones .oc-sep{color:var(--oc-muted);font-size:var(--font-size-note,13px)}
-.oc-cell-unit{display:flex;align-items:center;box-sizing:border-box;width:100%;min-width:0;height:34px;border:1px solid var(--color-border-control,#bcc9d6);border-radius:var(--radius-control,6px);background:var(--color-surface,#fff)}
-.oc-cell-unit:focus-within{outline:2px solid var(--color-focus,#3d7aa9);outline-offset:1px}
-.oc-page .oc-cell-unit input{flex:1 1 auto;box-sizing:border-box;width:100%;min-width:0;height:100%;min-height:0;margin:0;padding:0 0 0 4px;border:0;outline:0;background:transparent;color:var(--color-text-body,#334155);font:inherit;text-align:right}
-.oc-page .oc-cell-unit input:disabled{color:var(--color-text-faint,#8a97a6);cursor:not-allowed}
+.oc-cell-unit{display:flex;align-items:center;box-sizing:border-box;width:100%;min-width:0;height:34px;border:1px solid var(--color-border-control);border-radius:var(--radius-control,6px);background:var(--color-surface)}
+.oc-cell-unit:focus-within{outline:2px solid var(--color-focus);outline-offset:1px}
+.oc-page .oc-cell-unit input{flex:1 1 auto;box-sizing:border-box;width:100%;min-width:0;height:100%;min-height:0;margin:0;padding:0 0 0 4px;border:0;outline:0;background:transparent;color:var(--color-text-body);font:inherit;text-align:right}
+.oc-page .oc-cell-unit input:disabled{color:var(--color-text-faint);cursor:not-allowed}
 .oc-cell-unit small{flex:0 0 auto;padding:0 4px 0 2px;color:var(--oc-muted);font-size:var(--font-size-label,12px);font-weight:400;white-space:nowrap;pointer-events:none}
 .oc-line-saving{opacity:.7;pointer-events:none}
 /* Fila en edición: los campos de metas usan el ancho disponible (la unidad queda dentro del campo, a 1366 px). */
