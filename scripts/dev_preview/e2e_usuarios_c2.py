@@ -305,13 +305,32 @@ def escenario_alta(navegador, admin):
     return clave, primer, pagina
 
 
+def accion_api(pagina, usuario_id, verbo):
+    """Llama a la acción en la API con la sesión de la pantalla. La pantalla no ofrece la propia cuenta (R4a)."""
+    token = pagina.get_attribute('meta[name="csrf-token"]', "content")
+    respuesta = pagina.request.post(
+        BASE + f"/api/admin/usuarios/{usuario_id}/{verbo}", headers={"X-CSRFToken": token}, max_redirects=0
+    )
+    try:
+        cuerpo = respuesta.json()
+    except Exception:
+        cuerpo = {}
+    return respuesta.status, cuerpo.get("error", "")
+
+
 def escenario_activar(navegador, admin, pagina_probe):
     """Autodesactivación, desactivar con sesión abierta, reactivar, y último administrador."""
     ir(admin, "/admin/usuarios")
     esperar_lista(admin)
 
-    texto = accion(admin, "admin", "desactivar")
-    verificar("(c) autodesactivación bloqueada con mensaje claro", AUTODESACTIVACION in texto, texto[:120])
+    id_admin = int(admin.get_attribute("#pantallaUsuarios", "data-yo"))
+    estado_api, texto = accion_api(admin, id_admin, "desactivar")
+    deshabilitado = admin.locator("#cuerpoUsuarios button[data-usuario='admin'][data-accion='desactivar']").is_disabled()
+    verificar(
+        "(c) autodesactivación: el botón de su fila está deshabilitado y el servidor la rechaza con mensaje claro",
+        deshabilitado and estado_api == 403 and AUTODESACTIVACION in texto,
+        f"deshabilitado={deshabilitado} status={estado_api}",
+    )
     captura(admin, "05_autodesactivacion_bloqueada")
 
     texto = accion(admin, PROBE, "desactivar")
@@ -344,8 +363,8 @@ def escenario_activar(navegador, admin, pagina_probe):
     esperar_lista(admin)
     texto = accion(admin, "gerente", "desactivar")
     verificar("(d) con otro administrador activo, sí se puede desactivar a gerente", "quedó desactivado" in texto)
-    texto = accion(admin, "admin", "desactivar")
-    verificar("(d) desactivar al último administrador activo queda bloqueado", ULTIMO_ADMIN in texto, texto[:140])
+    estado_api, texto = accion_api(admin, id_admin, "desactivar")
+    verificar("(d) desactivar al último administrador activo queda bloqueado en el servidor", estado_api == 409 and ULTIMO_ADMIN in texto, texto[:140])
     captura(admin, "07_ultimo_administrador_bloqueado")
     texto = accion(admin, "gerente", "reactivar")
     verificar("(d) gerente vuelve a quedar activo", "volvió a tener acceso" in texto)
