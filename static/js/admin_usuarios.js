@@ -120,7 +120,12 @@
     if (usuario.bloqueada) {
       const bloqueo = document.createElement("span");
       bloqueo.className = "badge bg-danger ms-1";
-      bloqueo.textContent = "Bloqueada hasta " + usuario.bloqueada_hasta_texto;
+      const cantidadIps = Number(usuario.bloqueadas_ips || 0);
+      const hasta = usuario.bloqueada_hasta_texto ? " hasta " + usuario.bloqueada_hasta_texto : "";
+      const ips = cantidadIps
+        ? " · " + cantidadIps + " IP" + (cantidadIps === 1 ? " bloqueada" : "s bloqueadas")
+        : "";
+      bloqueo.textContent = "Bloqueada" + hasta + ips;
       tdEstado.appendChild(bloqueo);
     }
     tr.appendChild(tdEstado);

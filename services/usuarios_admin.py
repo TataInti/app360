@@ -34,6 +34,7 @@ import security
 from models import db
 from models.core.user import User
 from models.core.user_audit_log import UserAuditLog
+from models.core.user_login_attempt import UserLoginAttempt
 from services.acceso_login import ETIQUETAS_MOTIVO, esta_bloqueada
 
 # Roles con acceso total (admin_required). Son los únicos que cuentan como administradores.
@@ -179,9 +180,24 @@ def _texto_hora(valor):
     return None if valor is None else _con_zona(valor).astimezone(ZONA_VISUAL).strftime("%H:%M")
 
 
+def _bloqueos_ip_vigentes(usuario_id, ahora=None):
+    """Cantidad de IPs con bloqueo por par activo y su vencimiento más lejano."""
+    ahora = ahora or security.ahora()
+    cantidad, hasta = (
+        db.session.query(sa.func.count(UserLoginAttempt.ip), sa.func.max(UserLoginAttempt.locked_until))
+        .filter(UserLoginAttempt.user_id == usuario_id, UserLoginAttempt.locked_until > ahora)
+        .one()
+    )
+    return int(cantidad or 0), _con_zona(hasta) if hasta is not None else None
+
+
 def serializar_usuario(usuario):
+    ahora = security.ahora()
     estado = estado_usuario(usuario)
-    bloqueada = esta_bloqueada(usuario)
+    global_bloqueada = esta_bloqueada(usuario, ahora)
+    bloqueadas_ips, bloqueo_ip_hasta = _bloqueos_ip_vigentes(usuario.id, ahora)
+    bloqueada = global_bloqueada or bloqueadas_ips > 0
+    bloqueo_hasta = usuario.locked_until if global_bloqueada else bloqueo_ip_hasta
     vence = usuario.temp_password_expires_at if usuario.must_change_password else None
     return {
         "id": usuario.id,
@@ -195,8 +211,10 @@ def serializar_usuario(usuario):
         "clave_temporal_vence": _iso(vence),
         "clave_temporal_vence_texto": _texto_corto(vence),
         "bloqueada": bloqueada,
-        "bloqueada_hasta": _iso(usuario.locked_until) if bloqueada else None,
-        "bloqueada_hasta_texto": _texto_hora(usuario.locked_until) if bloqueada else None,
+        "bloqueo_global": global_bloqueada,
+        "bloqueadas_ips": bloqueadas_ips,
+        "bloqueada_hasta": _iso(bloqueo_hasta) if bloqueada else None,
+        "bloqueada_hasta_texto": _texto_hora(bloqueo_hasta) if bloqueada else None,
     }
 
 
@@ -224,6 +242,8 @@ def registrar_auditoria(actor, accion, target=None, detalle=None):
     """
     if accion not in ACCIONES_AUDITADAS:
         raise ValueError(f"Acción de auditoría desconocida: {accion}")
+    ip = request.remote_addr if has_request_context() else None
+    ip = ip[:45] if isinstance(ip, str) else None
     evento = UserAuditLog(
         created_at=security.ahora(),
         actor_user_id=getattr(actor, "id", None),
@@ -232,7 +252,7 @@ def registrar_auditoria(actor, accion, target=None, detalle=None):
         target_user_id=getattr(target, "id", None),
         target_username=getattr(target, "username", None),
         detalle=_detalle_seguro(detalle),
-        ip=request.remote_addr if has_request_context() else None,
+        ip=ip,
     )
     db.session.add(evento)
     db.session.flush()
@@ -411,12 +431,15 @@ def desbloquear_usuario(actor, usuario):
     no está bloqueada, responde 409 NO_BLOQUEADA y no escribe nada.
     """
     fila = db.session.query(User).filter(User.id == usuario.id).with_for_update().populate_existing().one()
-    if not esta_bloqueada(fila):
+    ahora = security.ahora()
+    cantidad_pares, _ = _bloqueos_ip_vigentes(fila.id, ahora)
+    if not esta_bloqueada(fila, ahora) and cantidad_pares == 0:
         raise ErrorUsuarios("NO_BLOQUEADA", "Esa cuenta no está bloqueada.", 409)
     intentos = fila.failed_login_count or 0
     fila.failed_login_count = 0
     fila.failed_login_window_start = None
     fila.locked_until = None
+    db.session.query(UserLoginAttempt).filter_by(user_id=fila.id).delete(synchronize_session=False)
     registrar_auditoria(actor, "user_unlocked", fila, {"intentos": intentos})
     db.session.commit()
     return fila
@@ -452,7 +475,12 @@ def listar_usuarios(q="", estado="todos"):
     if estado in ESTADOS_FILTRO and estado != "todos":
         # El estado depende del reloj (clave temporal vencida y bloqueo): se filtra con la misma regla que la columna.
         if estado == ESTADO_BLOQUEADA:
-            usuarios = [usuario for usuario in usuarios if esta_bloqueada(usuario)]
+            ahora = security.ahora()
+            usuarios = [
+                usuario
+                for usuario in usuarios
+                if esta_bloqueada(usuario, ahora) or _bloqueos_ip_vigentes(usuario.id, ahora)[0] > 0
+            ]
         else:
             usuarios = [usuario for usuario in usuarios if estado_usuario(usuario) == estado]
     return usuarios

@@ -29,6 +29,7 @@ from config import Config
 from models import db
 from models.core.user import User
 from models.core.user_audit_log import UserAuditLog
+from models.core.user_login_attempt import UserLoginAttempt
 from security import generate_access_token, huella_sesion
 from services import acceso_login as al
 from services import usuarios_admin as ua
@@ -102,12 +103,14 @@ def _sesion(app, usuario, rol):
     return cliente
 
 
-def _api(cliente, usuario, clave):
-    return cliente.post("/api/login", json={"username": usuario, "password": clave})
+def _api(cliente, usuario, clave, ip=None):
+    opciones = {"environ_overrides": {"REMOTE_ADDR": ip}} if ip else {}
+    return cliente.post("/api/login", json={"username": usuario, "password": clave}, **opciones)
 
 
-def _web(cliente, usuario, clave):
-    return cliente.post("/", data={"username": usuario, "password": clave})
+def _web(cliente, usuario, clave, ip=None):
+    opciones = {"environ_overrides": {"REMOTE_ADDR": ip}} if ip else {}
+    return cliente.post("/", data={"username": usuario, "password": clave}, **opciones)
 
 
 def _aware(valor):
@@ -126,6 +129,28 @@ def _estado(app, usuario):
             "activo": cuenta.active is True,
             "tv": cuenta.token_version,
         }
+
+
+
+def _par_estado(app, usuario, ip="127.0.0.1"):
+    with app.app_context():
+        cuenta = User.query.filter_by(username=usuario).one()
+        par = db.session.get(UserLoginAttempt, (cuenta.id, ip[:45] if ip else "-"))
+        if par is None:
+            return None
+        return {
+            "ip": par.ip,
+            "fallos": par.failed_count,
+            "ventana": _aware(par.window_start),
+            "bloqueo": _aware(par.locked_until),
+            "actualizado": _aware(par.updated_at),
+        }
+
+
+def _pares_usuario(app, usuario):
+    with app.app_context():
+        cuenta = User.query.filter_by(username=usuario).one()
+        return UserLoginAttempt.query.filter_by(user_id=cuenta.id).count()
 
 
 def _filas(app, accion=None):
@@ -247,6 +272,19 @@ def test_html_en_el_nombre_se_guarda_como_texto(app_seguridad, reloj):
     assert _fallos(app)[0]["actor"] == "<img src=x onerror=alert(1)>"
 
 
+def test_ip_de_doscientos_caracteres_se_trunca_en_auditoria_y_par(app_seguridad, reloj):
+    app = app_seguridad
+    _crear(app, "probe.ip.larga")
+    ip_larga = "A" * 200
+    respuesta = _api(app.test_client(), "probe.ip.larga", "PROBE-mal", ip=ip_larga)
+    assert respuesta.status_code == 401
+    auditoria = [fila for fila in _filas(app, "login_failed") if fila["objetivo"] == "probe.ip.larga"]
+    assert len(auditoria) == 1 and auditoria[0]["ip"] == ip_larga[:45]
+    assert len(auditoria[0]["ip"]) == 45
+    par = _par_estado(app, "probe.ip.larga", ip_larga)
+    assert par["fallos"] == 1 and par["ip"] == ip_larga[:45] and len(par["ip"]) == 45
+
+
 def test_inundacion_de_500_nombres_deja_una_fila_y_el_login_responde(app_seguridad, reloj):
     app = app_seguridad
     cliente = app.test_client()
@@ -314,7 +352,9 @@ def test_diez_fallos_bloquean_y_el_intento_11_con_clave_correcta_falla_igual(app
     for _ in range(10):
         assert _api(cliente_bloq, "probe.bloq", "PROBE-mal").status_code == 401
     estado = _estado(app, "probe.bloq")
-    assert estado["intentos"] == 10 and estado["bloqueo"] == INSTANTE + timedelta(minutes=15)
+    par = _par_estado(app, "probe.bloq")
+    assert estado["intentos"] == 10 and estado["bloqueo"] is None
+    assert par["fallos"] == 10 and par["bloqueo"] == INSTANTE + timedelta(minutes=15)
     once = _api(cliente_bloq, "probe.bloq", CLAVE)
     assert once.status_code == referencia.status_code == 401
     assert once.get_json() == referencia.get_json()
@@ -322,7 +362,7 @@ def test_diez_fallos_bloquean_y_el_intento_11_con_clave_correcta_falla_igual(app
     web_ref = _web(app.test_client(), "probe.ref", "PROBE-mal")
     assert web.status_code == web_ref.status_code == 200
     assert MENSAJE_LOGIN in _texto(web) and MENSAJE_LOGIN in _texto(web_ref)
-    assert _estado(app, "probe.bloq")["bloqueo"] == INSTANTE + timedelta(minutes=15)
+    assert _par_estado(app, "probe.bloq")["bloqueo"] == INSTANTE + timedelta(minutes=15)
     motivos = {f["detalle"]["motivo"] for f in _fallos(app, "probe.bloq")}
     assert {"clave_incorrecta", "cuenta_bloqueada"} <= motivos
 
@@ -335,7 +375,9 @@ def test_durante_el_bloqueo_no_se_extiende_el_tiempo(app_seguridad, reloj):
     for _ in range(3):
         assert _api(cliente, "probe.fijo", "PROBE-mal").status_code == 401
     estado = _estado(app, "probe.fijo")
-    assert estado["bloqueo"] == INSTANTE + timedelta(minutes=15) and estado["intentos"] == 10
+    par = _par_estado(app, "probe.fijo")
+    assert estado["bloqueo"] is None and estado["intentos"] == 10
+    assert par["bloqueo"] == INSTANTE + timedelta(minutes=15) and par["fallos"] == 10
 
 
 def test_a_los_15_minutos_entra_con_la_clave_correcta_y_reinicia(app_seguridad, reloj):
@@ -347,7 +389,9 @@ def test_a_los_15_minutos_entra_con_la_clave_correcta_y_reinicia(app_seguridad, 
     reloj["ahora"] = INSTANTE + timedelta(minutes=15)
     assert _api(cliente, "probe.vuelve", CLAVE).status_code == 200
     estado = _estado(app, "probe.vuelve")
+    par = _par_estado(app, "probe.vuelve")
     assert estado["intentos"] == 0 and estado["bloqueo"] is None and estado["ventana"] is None
+    assert par["fallos"] == 0 and par["bloqueo"] is None
 
 
 def test_acierto_fuera_del_bloqueo_reinicia_el_contador(app_seguridad, reloj):
@@ -359,6 +403,7 @@ def test_acierto_fuera_del_bloqueo_reinicia_el_contador(app_seguridad, reloj):
     assert _estado(app, "probe.reinicia")["intentos"] == 9
     assert _api(cliente, "probe.reinicia", CLAVE).status_code == 200
     assert _estado(app, "probe.reinicia")["intentos"] == 0
+    assert _par_estado(app, "probe.reinicia")["fallos"] == 0
     for _ in range(9):
         _api(cliente, "probe.reinicia", "PROBE-mal")
     estado = _estado(app, "probe.reinicia")
@@ -388,7 +433,84 @@ def test_diez_fallos_dentro_de_la_ventana_bloquean_aunque_sean_espaciados(app_se
     reloj["ahora"] = INSTANTE + timedelta(minutes=14)
     _api(cliente, "probe.espaciado", "PROBE-mal")
     estado = _estado(app, "probe.espaciado")
-    assert estado["intentos"] == 10 and estado["bloqueo"] == INSTANTE + timedelta(minutes=29)
+    par = _par_estado(app, "probe.espaciado")
+    assert estado["intentos"] == 10 and estado["bloqueo"] is None
+    assert par["fallos"] == 10 and par["bloqueo"] == INSTANTE + timedelta(minutes=29)
+
+
+def test_bloqueo_por_par_no_afecta_otra_ip_y_acierto_reinicia_global(app_seguridad, reloj):
+    app = app_seguridad
+    _crear(app, "probe.par")
+    cliente = app.test_client()
+    ip_atacante = "203.0.113.10"
+    ip_legitima = "203.0.113.20"
+    for _ in range(5):
+        assert _web(cliente, "probe.par", "PROBE-mal", ip=ip_atacante).status_code == 200
+        assert _api(cliente, "probe.par", "PROBE-mal", ip=ip_atacante).status_code == 401
+    par = _par_estado(app, "probe.par", ip_atacante)
+    assert par["fallos"] == 10 and par["bloqueo"] == INSTANTE + timedelta(minutes=15)
+    assert _api(cliente, "probe.par", CLAVE, ip=ip_legitima).status_code == 200
+    assert _api(cliente, "probe.par", CLAVE, ip=ip_atacante).status_code == 401
+    estado = _estado(app, "probe.par")
+    assert estado["intentos"] == 0 and estado["bloqueo"] is None
+    assert _par_estado(app, "probe.par", ip_atacante)["bloqueo"] == INSTANTE + timedelta(minutes=15)
+
+
+def test_tope_global_cuarenta_fallos_de_ocho_ips_bloquea_a_todas(app_seguridad, reloj):
+    app = app_seguridad
+    _crear(app, "probe.global")
+    cliente = app.test_client()
+    ips = [f"192.0.2.{i}" for i in range(1, 9)]
+    for ip in ips:
+        for _ in range(5):
+            respuesta = _api(cliente, "probe.global", "PROBE-mal", ip=ip)
+            assert respuesta.status_code == 401
+    estado = _estado(app, "probe.global")
+    assert estado["intentos"] == 40
+    assert estado["bloqueo"] == INSTANTE + timedelta(minutes=15)
+    for ip in ips:
+        par = _par_estado(app, "probe.global", ip)
+        assert par["fallos"] == 5 and par["bloqueo"] is None
+    bloqueada = _api(cliente, "probe.global", CLAVE, ip="198.51.100.9")
+    incorrecta = _api(cliente, "probe.ref.global", "PROBE-mal", ip="198.51.100.9")
+    assert bloqueada.status_code == incorrecta.status_code == 401
+    assert bloqueada.get_json() == incorrecta.get_json() == {"error": "Invalid credentials"}
+    reloj["ahora"] = INSTANTE + timedelta(minutes=5)
+    assert _api(cliente, "probe.global", CLAVE, ip="198.51.100.10").status_code == 401
+    estado = _estado(app, "probe.global")
+    assert estado["intentos"] == 40 and estado["bloqueo"] == INSTANTE + timedelta(minutes=15)
+
+
+def test_setenta_fallos_de_una_ip_no_bloquean_las_otras_ips(app_seguridad, reloj):
+    app = app_seguridad
+    cuentas = [f"probe.a{i}" for i in range(7)]
+    for nombre in cuentas:
+        _crear(app, nombre)
+    atacante = "192.0.2.70"
+    legitima = "198.51.100.70"
+    cliente = app.test_client()
+    for nombre in cuentas:
+        for _ in range(10):
+            assert _api(cliente, nombre, "PROBE-mal", ip=atacante).status_code == 401
+    for nombre in cuentas:
+        estado = _estado(app, nombre)
+        par = _par_estado(app, nombre, atacante)
+        assert estado["intentos"] == 10 and estado["bloqueo"] is None
+        assert par["fallos"] == 10 and par["bloqueo"] == INSTANTE + timedelta(minutes=15)
+        assert _api(cliente, nombre, CLAVE, ip=legitima).status_code == 200
+        assert _api(cliente, nombre, CLAVE, ip=atacante).status_code == 401
+
+
+def test_tope_de_pares_no_crea_nuevos_y_sigue_sumando_global(app_seguridad, reloj, monkeypatch):
+    app = app_seguridad
+    _crear(app, "probe.cap")
+    monkeypatch.setattr(al, "LIMITE_PARES_IP", 1)
+    cliente = app.test_client()
+    assert _api(cliente, "probe.cap", "PROBE-mal", ip="198.51.100.1").status_code == 401
+    assert _api(cliente, "probe.cap", "PROBE-mal", ip="198.51.100.2").status_code == 401
+    assert _pares_usuario(app, "probe.cap") == 1
+    assert _par_estado(app, "probe.cap", "198.51.100.2") is None
+    assert _estado(app, "probe.cap")["intentos"] == 2
 
 
 def test_cuenta_inexistente_responde_igual_que_clave_incorrecta(app_seguridad, reloj):
@@ -418,6 +540,27 @@ def test_cuenta_inactiva_responde_igual_y_no_suma_fallos(app_seguridad, reloj):
     assert {f["detalle"]["motivo"] for f in _fallos(app, "probe.baja")} == {"cuenta_inactiva"}
 
 
+def test_rechazos_inexistente_inactiva_e_incorrecta_hacen_un_commit_cada_uno(app_seguridad, reloj, monkeypatch):
+    app = app_seguridad
+    _crear(app, "probe.commit")
+    _crear(app, "probe.commit.inactiva", activo=False)
+    from sqlalchemy.orm import Session
+
+    original = Session.commit
+    commits = []
+
+    def contar_commit(session, *args, **kwargs):
+        commits.append(1)
+        return original(session, *args, **kwargs)
+
+    monkeypatch.setattr(Session, "commit", contar_commit)
+    cliente = app.test_client()
+    assert _api(cliente, "probe.commit.nadie", "PROBE-mal").status_code == 401
+    assert _api(cliente, "probe.commit.inactiva", "PROBE-mal").status_code == 401
+    assert _api(cliente, "probe.commit", "PROBE-mal").status_code == 401
+    assert len(commits) == 3
+
+
 def test_web_y_api_comparten_el_mismo_bloqueo(app_seguridad, reloj):
     app = app_seguridad
     _crear(app, "probe.compartida")
@@ -425,7 +568,10 @@ def test_web_y_api_comparten_el_mismo_bloqueo(app_seguridad, reloj):
     for _ in range(5):
         _web(cliente, "probe.compartida", "PROBE-mal")
         _api(cliente, "probe.compartida", "PROBE-mal")
-    assert _estado(app, "probe.compartida")["bloqueo"] == INSTANTE + timedelta(minutes=15)
+    estado = _estado(app, "probe.compartida")
+    assert estado["intentos"] == 10 and estado["bloqueo"] is None
+    par = _par_estado(app, "probe.compartida")
+    assert par is not None and par["bloqueo"] == INSTANTE + timedelta(minutes=15)
     assert MENSAJE_LOGIN in _texto(_web(app.test_client(), "probe.compartida", CLAVE))
     assert _api(app.test_client(), "probe.compartida", CLAVE).status_code == 401
 
@@ -511,13 +657,17 @@ def test_carrera_en_postgresql_veinte_intentos_bloquean_una_sola_vez(monkeypatch
         hilo.join(timeout=120)
     with app.app_context():
         estado = User.query.populate_existing().filter_by(username="probe.carrera").one()
-        intentos, bloqueo = estado.failed_login_count, _aware(estado.locked_until)
+        intentos, bloqueo_global = estado.failed_login_count, _aware(estado.locked_until)
+        par = UserLoginAttempt.query.filter_by(user_id=estado.id, ip="10.0.0.9").one()
+        pares = UserLoginAttempt.query.filter(UserLoginAttempt.user_id == estado.id, UserLoginAttempt.locked_until.isnot(None)).count()
+        intentos_par, bloqueo_par = par.failed_count, _aware(par.locked_until)
         suma = sum(f.repeticiones for f in UserAuditLog.query.filter_by(accion="login_failed").all())
         db.session.remove()
         db.drop_all()
         db.engine.dispose()
     assert resultados == [False] * 20
-    assert intentos == 10 and bloqueo is not None
+    assert intentos == 10 and bloqueo_global is None
+    assert intentos_par == 10 and bloqueo_par is not None and pares == 1
     assert suma == 20
 
 
@@ -535,7 +685,8 @@ def test_desbloquear_permisos_y_respuestas(app_seguridad, reloj):
     assert anonimo.post(f"/api/admin/usuarios/{uid}/desbloquear").status_code == 401
     assert ventas.post(f"/api/admin/usuarios/{uid}/desbloquear").status_code == 403
     assert rrhh.post(f"/api/admin/usuarios/{uid}/desbloquear").status_code == 403
-    assert _estado(app, "probe.objetivo")["bloqueo"] is not None
+    assert _estado(app, "probe.objetivo")["bloqueo"] is None
+    assert _par_estado(app, "probe.objetivo")["bloqueo"] is not None
     gerente = _sesion(app, "probe.gerente.dl", "gerente")
     respuesta = gerente.post(f"/api/admin/usuarios/{uid}/desbloquear")
     assert respuesta.status_code == 200 and respuesta.get_json()["usuario"]["bloqueada"] is False
@@ -548,10 +699,11 @@ def test_desbloquear_exige_csrf_y_no_cambia_nada_sin_el(csrf_activo, reloj):
     uid = _estado(app, "probe.csrf")["id"]
     admin = _sesion(app, "probe.admin.csrf", "admin")
     assert admin.post(f"/api/admin/usuarios/{uid}/desbloquear").status_code == 400
-    assert _estado(app, "probe.csrf")["bloqueo"] is not None
+    assert _par_estado(app, "probe.csrf")["bloqueo"] is not None
     token = _token_pantalla(admin)
     assert admin.post(f"/api/admin/usuarios/{uid}/desbloquear", headers={"X-CSRFToken": token}).status_code == 200
     assert _estado(app, "probe.csrf")["bloqueo"] is None
+    assert _pares_usuario(app, "probe.csrf") == 0
 
 
 def test_desbloquear_cuenta_no_bloqueada_responde_409(app_seguridad, reloj):
@@ -572,6 +724,7 @@ def test_desbloquear_limpia_contador_ventana_y_bloqueo_y_audita(app_seguridad, r
     assert admin.post(f"/api/admin/usuarios/{uid}/desbloquear").status_code == 200
     estado = _estado(app, "probe.limpia")
     assert estado["intentos"] == 0 and estado["ventana"] is None and estado["bloqueo"] is None
+    assert _pares_usuario(app, "probe.limpia") == 0
     auditoria = _filas(app, "user_unlocked")
     assert len(auditoria) == 1 and auditoria[0]["detalle"] == {"intentos": 10}
     assert auditoria[0]["actor"] == "probe.admin.limpia" and auditoria[0]["objetivo"] == "probe.limpia"
@@ -600,8 +753,14 @@ def test_si_falla_la_auditoria_el_desbloqueo_no_se_aplica(app_seguridad, reloj, 
 
     monkeypatch.setattr(ua, "registrar_auditoria", auditoria_rota)
     respuesta = admin.post(f"/api/admin/usuarios/{uid}/desbloquear")
-    assert respuesta.status_code == 500 and respuesta.get_json()["codigo"] == "ERROR_INTERNO"
-    assert _estado(app, "probe.atomico")["bloqueo"] == INSTANTE + timedelta(minutes=15)
+    assert respuesta.status_code == 500
+    assert respuesta.get_json() == {
+        "error": "No se pudo completar la acción. No se aplicó ningún cambio.",
+        "codigo": "ERROR_INTERNO",
+    }
+    assert "fallo simulado" not in _texto(respuesta)
+    assert _estado(app, "probe.atomico")["bloqueo"] is None
+    assert _par_estado(app, "probe.atomico")["bloqueo"] == INSTANTE + timedelta(minutes=15)
 
 
 def test_lista_filtra_bloqueadas_y_muestra_la_hora_argentina(app_seguridad, reloj):
@@ -613,7 +772,8 @@ def test_lista_filtra_bloqueadas_y_muestra_la_hora_argentina(app_seguridad, relo
     datos = admin.get("/api/admin/usuarios?estado=bloqueada").get_json()
     assert [u["username"] for u in datos["usuarios"]] == ["probe.lista.uno"]
     fila = datos["usuarios"][0]
-    assert fila["bloqueada"] is True and fila["bloqueada_hasta_texto"] == "09:15"
+    assert fila["bloqueada"] is True and fila["bloqueadas_ips"] == 1 and fila["bloqueo_global"] is False
+    assert fila["bloqueada_hasta_texto"] == "09:15"
     assert fila["bloqueada_hasta"] == (INSTANTE + timedelta(minutes=15)).isoformat()
     # «Activo» es el estado de la columna: la cuenta bloqueada sigue activa y aparece con su marca.
     otros = admin.get("/api/admin/usuarios?estado=activo").get_json()["usuarios"]
@@ -920,6 +1080,12 @@ def test_migracion_upgrade_downgrade_upgrade_con_las_8_replicas(tmp_path):
 
     _ejecutar(motor, modulo.upgrade)
     assert nuevas_usuarios <= _columnas(motor, "users") and nuevas_auditoria <= _columnas(motor, "user_audit_log")
+    assert sa.inspect(motor).has_table("user_login_attempts")
+    assert {"user_id", "ip", "failed_count", "window_start", "locked_until", "updated_at"} <= _columnas(
+        motor, "user_login_attempts"
+    )
+    claves_foraneas = sa.inspect(motor).get_foreign_keys("user_login_attempts")
+    assert any(clave["referred_table"] == "users" and clave["options"].get("ondelete") == "CASCADE" for clave in claves_foraneas)
     with motor.connect() as conexion:
         defaults = conexion.execute(
             sa.text(
@@ -933,6 +1099,7 @@ def test_migracion_upgrade_downgrade_upgrade_con_las_8_replicas(tmp_path):
     _ejecutar(motor, modulo.downgrade)
     assert not (nuevas_usuarios & _columnas(motor, "users"))
     assert not (nuevas_auditoria & _columnas(motor, "user_audit_log"))
+    assert not sa.inspect(motor).has_table("user_login_attempts")
     assert _foto(motor) == antes
 
     _ejecutar(motor, modulo.upgrade)

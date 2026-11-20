@@ -8,7 +8,7 @@ Aditiva y sin UPDATE masivos. users gana failed_login_count (NOT NULL, default 0
 failed_login_window_start y locked_until (NULL): los usuarios existentes quedan sin fallos ni
 bloqueo. user_audit_log gana clave_agrupacion (NULL) y repeticiones (NOT NULL, default 1). El índice
 único parcial ix_user_audit_log_agrupacion (solo filas con clave) hace atómica la agrupación de los
-fallos de login. No se tocan password_hash, role, active, token_version ni deactivated_at. La versión
+fallos de login. La tabla user_login_attempts guarda las ventanas por cuenta e IP, con límite de 50 000 pares y borrado en cascada. No se tocan password_hash, role, active, token_version ni deactivated_at. La versión
 anterior de la aplicación no lee estas columnas, así que puede convivir con esta migración.
 """
 
@@ -54,10 +54,33 @@ def upgrade():
         postgresql_where=sa.text("clave_agrupacion IS NOT NULL"),
         sqlite_where=sa.text("clave_agrupacion IS NOT NULL"),
     )
+    op.create_table(
+        "user_login_attempts",
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("ip", sa.String(length=45), nullable=False),
+        sa.Column("failed_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("window_start", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("locked_until", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+        ),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("user_id", "ip", name="pk_user_login_attempts"),
+    )
+    op.create_index(
+        "ix_user_login_attempts_updated_at",
+        "user_login_attempts",
+        ["updated_at"],
+    )
 
 
 def downgrade():
     _espera_acotada()
+    op.drop_index("ix_user_login_attempts_updated_at", table_name="user_login_attempts")
+    op.drop_table("user_login_attempts")
     op.drop_index("ix_user_audit_log_agrupacion", table_name="user_audit_log")
     with op.batch_alter_table("user_audit_log") as lote:
         lote.drop_column("repeticiones")

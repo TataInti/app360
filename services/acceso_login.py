@@ -1,34 +1,42 @@
-"""Registro de accesos y bloqueo por cuenta (C4): el login web y el de la API usan estas reglas.
+"""Registro de accesos y bloqueo por cuenta/IP (C4): web y API comparten las mismas reglas.
 
-Bloqueo (D6): 10 intentos fallidos dentro de una ventana de 15 minutos bloquean la cuenta durante
-15 minutos. La ventana empieza en el primer fallo y se reinicia al vencer; no es deslizante por
-fallo, porque eso obligaría a guardar cada fallo. Durante el bloqueo, cualquier intento recibe el
-mismo rechazo que una clave incorrecta, aunque la clave sea la correcta, y no cambia el contador ni
-extiende el bloqueo. Los usuarios inexistentes y las cuentas desactivadas no tienen estado: no
-suman fallos ni se bloquean.
+Bloqueo (D6): 10 fallos en 15 minutos desde una IP bloquean ese par (cuenta, IP) durante 15 minutos.
+Además, 40 fallos en 15 minutos sumando las IP bloquean la cuenta globalmente durante 15 minutos.
+Las ventanas son fijas. Durante cualquiera de los bloqueos todo intento recibe el mismo rechazo que
+una clave incorrecta, aunque la clave sea correcta, y no se extiende el bloqueo. Un acierto reinicia
+el par de esa IP y el contador global si no está bloqueado. Inexistentes e inactivos no acumulan estado.
 
-Transacción (igualación de tiempos): cada intento se confirma con un único COMMIT. El estado de la
-cuenta y la fila de auditoría van juntos; la auditoría va en un punto de guardado, así que si falla
-solo ella se deshace, el estado se conserva y el login responde igual. Así el camino de una cuenta
-existente no hace más confirmaciones que el de una cuenta inexistente.
+Transacción (igualación de tiempos): cada intento se confirma con un único COMMIT. El estado y la fila
+de auditoría van juntos; la auditoría va en un punto de guardado, así que si falla solo ella se deshace.
+Inexistentes e inactivos verifican el mismo hash ficticio y siguen la misma escritura/COMMIT de
+rechazo; el UPDATE no-op del agregado de auditoría es común a todos los rechazos.
 
 Auditoría (A1): login_ok y login_failed se escriben en user_audit_log con el usuario tal como se
-escribió (sin caracteres no imprimibles, hasta 80), la IP y un motivo genérico. La clave no entra en
-ningún campo. Los fallos se agrupan por IP, canal, motivo, cuenta y minuto: una sola fila con el
-contador en repeticiones. Así una ráfaga de nombres inexistentes ocupa una fila por minuto y por IP.
+escribió (sin caracteres no imprimibles, hasta 80), la IP truncada a 45 y un motivo genérico. La clave
+no entra en ningún campo. Los fallos se agrupan por IP, canal, motivo, cuenta y minuto: una sola fila
+con el contador en repeticiones. Las IP largas nunca hacen fallar el login.
 """
 
 from dataclasses import dataclass
 from datetime import timedelta, timezone
+import sqlalchemy as sa
+from sqlalchemy import delete, func, select, text, tuple_, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 import security
 from models import db
 from models.core.user import User
 from models.core.user_audit_log import UserAuditLog
+from models.core.user_login_attempt import UserLoginAttempt
 
 UMBRAL_FALLOS = 10
+UMBRAL_FALLOS_GLOBALES = 40
 VENTANA_FALLOS = timedelta(minutes=15)
 DURACION_BLOQUEO = timedelta(minutes=15)
+LIMITE_PARES_IP = 50_000
+LIMPIEZA_PARES_MAXIMA = 100
+CLAVE_BLOQUEO_CAPACIDAD_PARES = 1_331_897_168
 
 CLAVE_INCORRECTA = "clave_incorrecta"
 USUARIO_INEXISTENTE = "usuario_inexistente"
@@ -62,6 +70,159 @@ def _aware(valor):
     return valor if valor.tzinfo is not None else valor.replace(tzinfo=timezone.utc)
 
 
+def _ip_normalizada(ip):
+    """La columna ip es VARCHAR(45); el login nunca falla por una IP más larga."""
+    return ip[:45] if isinstance(ip, str) else None
+
+
+def _ip_par(ip):
+    return ip if ip is not None else "-"
+
+
+def _limpiar_pares_vencidos(ahora):
+    """Limpia hasta 100 pares inactivos por más de un día, dentro de la transacción actual."""
+    tabla = UserLoginAttempt.__table__
+    candidatos = (
+        select(tabla.c.user_id, tabla.c.ip)
+        .where(tabla.c.updated_at < ahora - timedelta(days=1))
+        .order_by(tabla.c.updated_at.asc())
+        .limit(LIMPIEZA_PARES_MAXIMA)
+    )
+    db.session.execute(
+        delete(tabla).where(tuple_(tabla.c.user_id, tabla.c.ip).in_(candidatos))
+    )
+
+
+def _hay_capacidad_para_par(user_id, ip):
+    """Reserva el límite global de 50 000 pares sin sobrepasarlo bajo concurrencia PostgreSQL."""
+    tabla = UserLoginAttempt.__table__
+    existe = db.session.execute(
+        select(tabla.c.user_id).where(tabla.c.user_id == user_id, tabla.c.ip == ip).limit(1)
+    ).first()
+    if existe:
+        return True
+    if db.session.get_bind().dialect.name == "postgresql":
+        db.session.execute(
+            text("SELECT pg_advisory_xact_lock(CAST(:clave AS BIGINT))"),
+            {"clave": CLAVE_BLOQUEO_CAPACIDAD_PARES},
+        )
+        existe = db.session.execute(
+            select(tabla.c.user_id).where(tabla.c.user_id == user_id, tabla.c.ip == ip).limit(1)
+        ).first()
+        if existe:
+            return True
+    cantidad = db.session.execute(select(func.count()).select_from(tabla)).scalar_one()
+    return cantidad < LIMITE_PARES_IP
+
+
+def _upsert_intento_par(user_id, ip, ahora):
+    """Suma un fallo por par con UPSERT condicional; devuelve False si se alcanzó el tope."""
+    ip = _ip_par(ip)
+    tabla = UserLoginAttempt.__table__
+    if not _hay_capacidad_para_par(user_id, ip):
+        return False
+    insertar = pg_insert if db.session.get_bind().dialect.name == "postgresql" else sqlite_insert
+    sentencia = insertar(tabla).values(
+        user_id=user_id,
+        ip=ip,
+        failed_count=1,
+        window_start=ahora,
+        locked_until=None,
+        updated_at=ahora,
+    )
+    bloqueo_vigente = sa.and_(tabla.c.locked_until.isnot(None), tabla.c.locked_until > ahora)
+    ventana_vencida = sa.or_(
+        tabla.c.window_start <= ahora - VENTANA_FALLOS,
+        tabla.c.locked_until.isnot(None),
+    )
+    contador = sa.case(
+        (bloqueo_vigente, tabla.c.failed_count),
+        (ventana_vencida, 1),
+        else_=tabla.c.failed_count + 1,
+    )
+    inicio = sa.case(
+        (bloqueo_vigente, tabla.c.window_start),
+        (ventana_vencida, ahora),
+        else_=tabla.c.window_start,
+    )
+    bloqueo = sa.case(
+        (bloqueo_vigente, tabla.c.locked_until),
+        (ventana_vencida, None),
+        ((tabla.c.failed_count + 1) >= UMBRAL_FALLOS, ahora + DURACION_BLOQUEO),
+        else_=None,
+    )
+    sentencia = sentencia.on_conflict_do_update(
+        index_elements=[tabla.c.user_id, tabla.c.ip],
+        set_={
+            "failed_count": contador,
+            "window_start": inicio,
+            "locked_until": bloqueo,
+            "updated_at": ahora,
+        },
+    )
+    db.session.execute(sentencia)
+    return True
+
+
+def _tocar_par_sin_fallo(user_id, ip, ahora, *, crear=True):
+    """Escritura de costo equivalente sin alterar contadores ni extender un bloqueo."""
+    ip = _ip_par(ip)
+    tabla = UserLoginAttempt.__table__
+    existe = db.session.execute(
+        select(tabla.c.user_id).where(tabla.c.user_id == user_id, tabla.c.ip == ip).limit(1)
+    ).first()
+    if existe:
+        db.session.execute(
+            update(tabla)
+            .where(tabla.c.user_id == user_id, tabla.c.ip == ip)
+            .values(updated_at=ahora)
+        )
+        return True
+    if not crear or not _hay_capacidad_para_par(user_id, ip):
+        return False
+    insertar = pg_insert if db.session.get_bind().dialect.name == "postgresql" else sqlite_insert
+    sentencia = insertar(tabla).values(
+        user_id=user_id,
+        ip=ip,
+        failed_count=0,
+        window_start=ahora,
+        locked_until=None,
+        updated_at=ahora,
+    )
+    db.session.execute(
+        sentencia.on_conflict_do_update(
+            index_elements=[tabla.c.user_id, tabla.c.ip],
+            set_={"updated_at": ahora},
+        )
+    )
+    return True
+
+
+def _escritura_de_rechazo_sin_cuenta(ahora):
+    """Limpieza acotada; el UPDATE común de auditoría iguala la escritura de los caminos con estado."""
+    _limpiar_pares_vencidos(ahora)
+
+
+def _escritura_de_rechazo_bloqueado(fila, ip, ahora):
+    """Iguala el trabajo de escritura sin sumar ni extender contadores durante el bloqueo."""
+    tabla_usuario = User.__table__
+    db.session.execute(
+        update(tabla_usuario)
+        .where(tabla_usuario.c.id == fila.id)
+        .values(failed_login_count=tabla_usuario.c.failed_login_count)
+    )
+    _tocar_par_sin_fallo(fila.id, ip, ahora, crear=False)
+
+
+def _par_de_usuario(user_id, ip):
+    return (
+        UserLoginAttempt.query.filter_by(user_id=user_id, ip=_ip_par(ip))
+        .with_for_update()
+        .populate_existing()
+        .one_or_none()
+    )
+
+
 def esta_bloqueada(usuario, ahora=None):
     """True mientras locked_until siga en el futuro."""
     if usuario is None or usuario.locked_until is None:
@@ -84,23 +245,24 @@ def nombre_auditado(texto, clave):
 
 
 def autenticar(username, password, canal, ip=None):
-    """Decide un inicio de sesión, aplica el bloqueo y registra el acceso en una sola transacción.
-
-    canal: "web" o "api". Los rechazos son iguales para todos los motivos: solo el registro interno
-    distingue el motivo. Si el estado no se puede leer o confirmar, el login se rechaza igual.
-    """
+    """Decide un login por par (cuenta, IP) y por tope global; web y API comparten la regla."""
     texto = username if isinstance(username, str) else ""
     clave = password if isinstance(password, str) else ""
+    ip = _ip_normalizada(ip)
     nombre = nombre_auditado(texto, clave)
     try:
         existente = User.query.filter_by(username=texto).first()
         activa = existente if existente is not None and existente.active is True else None
-        # Mismo trabajo de hash en todos los casos (M4): el tiempo no revela si la cuenta existe ni si está bloqueada.
+        # Todo caso realiza una verificación de hash con el mismo costo, aun si no hay cuenta activa.
         coincide, vencida = security.comprobar_clave_login(activa, clave)
         if existente is None:
-            return _rechazar(canal, ip, nombre, None, USUARIO_INEXISTENTE)
+            ahora = security.ahora()
+            _escritura_de_rechazo_sin_cuenta(ahora)
+            return _rechazar(canal, ip, nombre, None, USUARIO_INEXISTENTE, ahora)
         if activa is None:
-            return _rechazar(canal, ip, nombre, existente, CUENTA_INACTIVA)
+            ahora = security.ahora()
+            _escritura_de_rechazo_sin_cuenta(ahora)
+            return _rechazar(canal, ip, nombre, existente, CUENTA_INACTIVA, ahora)
         return _decidir_cuenta_activa(canal, ip, nombre, activa, coincide, vencida)
     except Exception:
         db.session.rollback()
@@ -116,19 +278,30 @@ def autenticar(username, password, canal, ip=None):
 
 def _decidir_cuenta_activa(canal, ip, nombre, usuario, coincide, vencida):
     ahora = security.ahora()
-    # Bloqueo de fila: los intentos de una cuenta se serializan y cada uno ve el contador del anterior.
+    # Se serializa por usuario; el UPSERT del par protege además su clave compuesta entre workers.
     fila = User.query.filter_by(id=usuario.id).with_for_update().populate_existing().one_or_none()
     if fila is None or fila.active is not True:
         db.session.rollback()
+        _escritura_de_rechazo_sin_cuenta(ahora)
         return _rechazar(canal, ip, nombre, None, CUENTA_INACTIVA, ahora)
+    _limpiar_pares_vencidos(ahora)
     if esta_bloqueada(fila, ahora):
-        # Durante el bloqueo no se cambia el contador ni se extiende el bloqueo.
+        _escritura_de_rechazo_bloqueado(fila, ip, ahora)
+        return _rechazar(canal, ip, nombre, fila, CUENTA_BLOQUEADA, ahora)
+    par = _par_de_usuario(fila.id, ip)
+    if par is not None and par.locked_until is not None and _aware(par.locked_until) > ahora:
+        _escritura_de_rechazo_bloqueado(fila, ip, ahora)
         return _rechazar(canal, ip, nombre, fila, CUENTA_BLOQUEADA, ahora)
     if coincide and not vencida:
         pendiente = bool(fila.must_change_password)
         fila.failed_login_count = 0
         fila.failed_login_window_start = None
         fila.locked_until = None
+        if par is not None:
+            par.failed_count = 0
+            par.window_start = ahora
+            par.locked_until = None
+            par.updated_at = ahora
         if canal == "web" or not pendiente:
             fila.last_login_at = ahora
         detalle = {"canal": canal, "cambio_clave_pendiente": pendiente}
@@ -137,21 +310,21 @@ def _decidir_cuenta_activa(canal, ip, nombre, usuario, coincide, vencida):
         return Resultado(ok=True, usuario=fila, cambio_clave_pendiente=pendiente)
     motivo = CLAVE_TEMPORAL_VENCIDA if coincide else CLAVE_INCORRECTA
     _sumar_fallo(fila, ahora)
+    _upsert_intento_par(fila.id, ip, ahora)
     return _rechazar(canal, ip, nombre, fila, motivo, ahora)
 
 
 def _sumar_fallo(fila, ahora):
-    """Suma un fallo a la ventana vigente. Al llegar al umbral, bloquea la cuenta."""
+    """Suma un fallo global a la ventana vigente; 40 fallos bloquean la cuenta para todas las IPs."""
     inicio = fila.failed_login_window_start
     ventana_vencida = inicio is None or _aware(inicio) + VENTANA_FALLOS <= ahora
     if ventana_vencida or fila.locked_until is not None:
-        # Ventana nueva: el primer fallo la abre. Un bloqueo ya vencido se levanta aquí.
         fila.failed_login_window_start = ahora
         fila.failed_login_count = 1
         fila.locked_until = None
     else:
         fila.failed_login_count = (fila.failed_login_count or 0) + 1
-    if fila.failed_login_count >= UMBRAL_FALLOS:
+    if fila.failed_login_count >= UMBRAL_FALLOS_GLOBALES:
         fila.locked_until = ahora + DURACION_BLOQUEO
 
 
@@ -207,6 +380,14 @@ def _escribir_evento(valores):
             set_={"repeticiones": tabla.c.repeticiones + 1},
         )
     db.session.execute(sentencia)
+    if valores.get("accion") == "login_failed" and valores.get("clave_agrupacion") is not None:
+        # Escritura de costo equivalente en todos los rechazos, incluso si no existe una fila de users.
+        # No cambia el agregado y queda dentro del mismo savepoint/COMMIT de auditoría.
+        db.session.execute(
+            update(tabla)
+            .where(tabla.c.clave_agrupacion == valores["clave_agrupacion"])
+            .values(repeticiones=tabla.c.repeticiones)
+        )
 
 
 def _cerrar_intento(valores, canal, ip, nombre):
