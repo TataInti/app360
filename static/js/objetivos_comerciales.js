@@ -16,6 +16,7 @@
     kilos: { label: 'Kilos', unidad: 'kg', format: value => `${number(value)} kg` },
   };
   const MEDIDAS_EQUIPO = ['importe', 'cajas', 'kilos'];
+  const COLUMNAS = ['c-vendedor', 'c-lineas', 'c-meta', 'c-real', 'c-avance', 'c-cajas', 'c-kilos', 'c-estado'];
   // Tono del punto de estado según el texto que devuelve la API. El texto se muestra tal cual.
   const TONO_ESTADO = {
     'Cumplido': 'ok',
@@ -132,8 +133,9 @@
     }
   }
 
-  // Un grupo es un vendedor: fila de resumen, zona expandible con sus líneas y, si es borrador,
-  // el selector de vendedor. Los datos de la fila se escriben con pintarResumen.
+  // Un grupo es un vendedor: su fila de resumen y su fila de zona. La zona lleva el encabezado con «Agregar
+  // objetivo» (y «Cancelar» del borrador) arriba de todo, y una tabla anidada con las mismas columnas que la
+  // tabla principal, donde cada línea es una fila. El selector de vendedor solo existe en los borradores.
   function crearGrupo({ref = '', id = null, nombre = '', draft = false} = {}) {
     state.secuencia += 1;
     const detalleId = `oc-detalle-${state.secuencia}`;
@@ -145,20 +147,24 @@
       el('td', {className: 'num'}), el('td', {className: 'num'}), el('td', {className: 'num'}), el('td'),
       el('td', {className: 'num'}), el('td', {className: 'num'}), el('td'));
     const [, lineas, meta, real, avance, cajas, kilos, estado] = grupo.children;
-    const zonaLineas = el('div', {className: 'oc-lines', data: {lines: ''}});
     const agregar = el('button', {type: 'button', className: 'oc-text-action', data: {addLine: ''}, text: '＋ Agregar objetivo'});
     agregar.disabled = draft;
     const cancelar = draft
       ? el('button', {type: 'button', className: 'oc-text-action oc-mute', data: {cancelDraft: ''}, text: 'Cancelar'})
       : null;
+    const cuerpo = el('tbody', {className: 'oc-lines-body'});
+    const tablaLineas = el('table', {className: 'oc-lines-table'},
+      el('colgroup', {}, ...COLUMNAS.map(clase => el('col', {className: clase}))),
+      cuerpo);
     const detalle = el('tr', {className: 'oc-details', id: detalleId, hidden: !draft},
       el('td', {colspan: 8, 'aria-label': nombre ? `Líneas de ${nombre}` : 'Líneas del objetivo'},
-        zonaLineas, el('div', {className: 'oc-group-actions'}, agregar, cancelar)));
+        el('div', {className: 'oc-group-actions'}, agregar, cancelar),
+        tablaLineas));
     Object.assign(grupo, {
       _nombre: nombre,
       _boton: null,
       _detalle: detalle,
-      _lineas: zonaLineas,
+      _lineas: cuerpo,
       _agregar: agregar,
       _cancelar: cancelar,
       _vendedorSelect: null,
@@ -210,7 +216,7 @@
     const grupo = crearGrupo({ref: `id:${vendedor.vendedor_id}`, id: vendedor.vendedor_id, nombre});
     grupo._celdas.nombre.append(crearBotonExpandir(grupo, nombre));
     pintarResumen(grupo, vendedor);
-    (vendedor.lineas || []).forEach(linea => agregarFormularioLinea(grupo, linea));
+    (vendedor.lineas || []).forEach(linea => agregarFilaLinea(grupo, linea));
     return grupo;
   }
 
@@ -363,114 +369,236 @@
     return Number.isFinite(valor) ? valor : NaN;
   }
 
-  // Campo de meta con su unidad dentro del campo (ARS, cajas, kg) y la etiqueta en la misma grilla.
-  function crearInputMeta(measure, value = 0) {
-    const label = document.createElement('label');
-    label.className = 'oc-line-target';
-    label.innerHTML = `<span>${escapeHtml(MEDIDAS[measure].label)}</span><span class="oc-unit-field"><input type="text" inputmode="decimal" autocomplete="off" placeholder="0" data-meta="${escapeHtml(measure)}" aria-label="Meta de ${escapeHtml(MEDIDAS[measure].label)}"><small>${escapeHtml(MEDIDAS[measure].unidad)}</small></span>`;
-    activarCampoMeta(label.querySelector('[data-meta]'), measure, value);
-    return label;
+  // Columnas de la línea: las mismas que la fila del vendedor. Cada línea es una fila de la tabla anidada de su
+  // zona; la fila de mensaje, debajo y oculta, muestra los errores de guardar o eliminar esa línea.
+  function agregarFilaLinea(grupo, linea) {
+    const formulario = el('form', {id: `oc-linea-${linea.id}`, className: 'oc-line-form', novalidate: true});
+    const fila = el('tr', {className: 'oc-line-row', tabindex: '-1', data: {lineRow: '', lineId: String(linea.id)}},
+      el('td', {className: 'oc-line-dim'}, formulario),
+      el('td', {className: 'num'}),
+      el('td', {className: 'num', data: {medida: 'importe'}}),
+      el('td', {className: 'num', data: {medida: 'realizado'}}),
+      el('td', {className: 'num', data: {medida: 'avance'}}),
+      el('td', {className: 'num', data: {medida: 'cajas'}}),
+      el('td', {className: 'num', data: {medida: 'kilos'}}),
+      el('td', {className: 'oc-line-acciones'}));
+    const error = el('p', {className: 'oc-line-error', role: 'alert', hidden: true, data: {lineError: ''}});
+    const mensaje = el('tr', {className: 'oc-line-msg', hidden: true}, el('td', {colspan: 8}, error));
+    Object.assign(fila, {_linea: linea, _error: error, _mensaje: mensaje, _metasGuardadas: null});
+    formulario.addEventListener('submit', event => guardarEdicion(event, fila));
+    fila.addEventListener('input', () => sincronizarGuardar(fila));
+    pintarLinea(fila, linea, false);
+    grupo._lineas.append(fila, mensaje);
+    return fila;
   }
 
-  // Formulario de una línea guardada dentro de la zona expandida del vendedor. Las líneas nuevas se
-  // cargan en el panel lateral de alta (solicitarAbrirPanel), no en esta zona.
-  function agregarFormularioLinea(grupo, linea) {
-    const form = document.createElement('form');
-    form.className = 'oc-line oc-line-guardada';
-    form.dataset.lineId = linea?.id ? String(linea.id) : '';
-    form.innerHTML = `<div class="oc-line-head"><h3>${escapeHtml(DIMENSIONES[linea.dimension_tipo] || linea.dimension_tipo)} · ${escapeHtml(linea.dimension_valor)}</h3><button type="button" class="oc-text-action oc-mute" data-delete-line>Eliminar línea</button></div><div class="oc-line-meta"></div><div class="oc-line-footer"><span class="oc-line-realizado">Realizado leído desde PRE: ${escapeHtml(MEDIDAS.importe.format(linea.realizado_importe))} · ${escapeHtml(MEDIDAS.cajas.format(linea.realizado_cajas))} · ${escapeHtml(MEDIDAS.kilos.format(linea.realizado_kilos))}</span><div class="oc-line-actions"><button type="submit" class="oc-save">Guardar cambios</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
-    form.querySelector('.oc-line-meta').append(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, linea[`meta_${measure}`])));
-    if (linea.dimension_tipo === 'producto') {
-      const caps = linea.capacidades || {};
-      for (const measure of ['cajas', 'kilos']) {
-        const input = form.querySelector(`[data-meta="${measure}"]`);
-        const supported = Boolean(caps[`supports_${measure}`]) || Number(linea[`meta_${measure}`]) > 0;
-        input.disabled = !supported;
-        input.title = supported ? '' : `${MEDIDAS[measure].label} se habilita cuando hay cantidades del producto en staging.`;
-      }
+  // Escribe una línea en su fila. Vista: textos y «Editar» / «Eliminar». Edición: campos de meta con su unidad,
+  // «Guardar» (deshabilitado sin cambios) y «Cancelar». Realizado y avance son siempre lectura.
+  function pintarLinea(fila, linea, editando) {
+    fila._linea = linea;
+    fila.classList.toggle('oc-line-editing', editando);
+    const formulario = fila.querySelector('form.oc-line-form');
+    const dimension = DIMENSIONES[linea.dimension_tipo] || linea.dimension_tipo;
+    formulario.replaceChildren(
+      el('span', {className: 'oc-dim', text: dimension}),
+      ' · ',
+      el('span', {className: 'oc-val', text: linea.dimension_valor}));
+    formulario.title = `${dimension} · ${linea.dimension_valor}`;
+    const metas = {
+      importe: Number(linea.meta_importe || 0),
+      cajas: Number(linea.meta_cajas || 0),
+      kilos: Number(linea.meta_kilos || 0),
+    };
+    const celdas = fila.children;
+    celdas[2].replaceChildren(editando ? campoMetaFila(fila, 'importe', metas.importe, linea)
+      : (metas.importe > 0 ? pesos(metas.importe) : '—'));
+    celdas[3].textContent = pesos(linea.realizado_importe);
+    celdas[4].textContent = metas.importe > 0 ? porcentaje(Number(linea.realizado_importe || 0) / metas.importe) : '—';
+    celdas[5].replaceChildren(editando ? campoMetaFila(fila, 'cajas', metas.cajas, linea)
+      : realMeta(linea.realizado_cajas, metas.cajas > 0 ? metas.cajas : null));
+    celdas[6].replaceChildren(editando ? campoMetaFila(fila, 'kilos', metas.kilos, linea)
+      : realMeta(linea.realizado_kilos, metas.kilos > 0 ? metas.kilos : null));
+    if (editando) {
+      celdas[7].replaceChildren(
+        el('button', {type: 'submit', form: formulario.id, className: 'oc-save', text: 'Guardar'}),
+        ' ',
+        el('button', {type: 'button', className: 'oc-text-action oc-mute', data: {cancelEdit: ''}, text: 'Cancelar'}));
+      fila._metasGuardadas = {importe: metas.importe, cajas: metas.cajas, kilos: metas.kilos};
+      sincronizarGuardar(fila);
+    } else {
+      celdas[7].replaceChildren(
+        el('button', {type: 'button', className: 'oc-text-action', data: {editLine: ''}, text: 'Editar'}),
+        el('span', {className: 'oc-sep', 'aria-hidden': 'true', text: ' · '}),
+        el('button', {
+          type: 'button',
+          className: 'oc-text-action oc-mute',
+          data: {deleteLine: ''},
+          text: 'Eliminar',
+          'aria-label': `Eliminar línea ${dimension} ${linea.dimension_valor}`,
+        }));
+      fila._metasGuardadas = null;
     }
-    form.querySelector('[data-delete-line]').addEventListener('click', () => eliminarLinea(linea.id, form));
-    // Lo guardado sirve de referencia para habilitar «Guardar cambios» solo con cambios reales.
-    form._metasGuardadas = metasDelFormulario(form);
-    form.addEventListener('input', () => sincronizarGuardar(form));
-    sincronizarGuardar(form);
-    form.addEventListener('submit', event => guardarLinea(event, form, linea));
-    grupo._lineas.append(form);
-    return form;
   }
 
-  function metasDelFormulario(form) {
-    const metas = {importe: leerMeta(form.querySelector('[data-meta="importe"]'))};
-    for (const measure of ['cajas', 'kilos']) {
-      const input = form.querySelector(`[data-meta="${measure}"]`);
-      if (!input.disabled) metas[measure] = leerMeta(input);
+  // Campo de meta dentro de la fila. Importe: formato de dinero («$») con la unidad ARS. Cajas y kilos:
+  // número sin «$», con su unidad. Se deshabilitan si el producto no tiene cantidades en staging.
+  function campoMetaFila(fila, medida, valor, linea) {
+    const input = el('input', {
+      type: 'text',
+      inputmode: 'decimal',
+      autocomplete: 'off',
+      placeholder: '0',
+      form: fila.querySelector('form.oc-line-form').id,
+      'aria-label': `Meta de ${MEDIDAS[medida].label}`,
+      data: {meta: medida},
+    });
+    const soportado = medida === 'importe' || Boolean(linea?.capacidades?.[`supports_${medida}`]) || valor > 0;
+    input.disabled = !soportado;
+    if (!soportado) input.title = `${MEDIDAS[medida].label} se habilita cuando hay cantidades del producto en staging.`;
+    activarCampoMeta(input, medida, valor);
+    return el('span', {className: 'oc-cell-unit'}, input, el('small', {text: MEDIDAS[medida].unidad}));
+  }
+
+  // Metas que hay en los campos de un contenedor (fila de línea o panel de alta). Un campo deshabilitado no se envía.
+  function metasDeCampos(fila) {
+    const metas = {importe: leerMeta(fila.querySelector('[data-meta="importe"]'))};
+    for (const medida of ['cajas', 'kilos']) {
+      const input = fila.querySelector(`[data-meta="${medida}"]`);
+      if (input && !input.disabled) metas[medida] = leerMeta(input);
     }
     return metas;
   }
 
-  // Guardar cambios de una línea existente (PATCH). La línea nueva se guarda desde el panel (guardarAlta).
-  async function guardarLinea(event, form, linea) {
+  // Editar: la fila pasa a campos con lo último que dio el servidor. Varias filas pueden estar en edición a la
+  // vez: cada una conserva lo escrito hasta guardar o cancelar, porque guardar solo actualiza su propia fila.
+  function entrarEdicion(fila) {
+    ocultarErrorLinea(fila);
+    pintarLinea(fila, fila._linea, true);
+    fila.querySelector('[data-meta="importe"]')?.focus();
+  }
+
+  // Cancelar: sin petición al servidor. La fila vuelve a lo guardado y el foco queda en la fila.
+  function cancelarEdicion(fila) {
+    ocultarErrorLinea(fila);
+    pintarLinea(fila, fila._linea, false);
+    fila.focus();
+  }
+
+  function mostrarErrorLinea(fila, mensaje) {
+    fila._error.textContent = mensaje;
+    fila._error.hidden = false;
+    fila._mensaje.hidden = false;
+  }
+
+  function ocultarErrorLinea(fila) {
+    fila._error.textContent = '';
+    fila._error.hidden = true;
+    fila._mensaje.hidden = true;
+  }
+
+  // Copia de la línea con las metas enviadas. Solo se usa si el servidor guardó pero no se pudo releer.
+  function lineaConMetas(linea, payload) {
+    const copia = {...linea};
+    for (const medida of MEDIDAS_EQUIPO) {
+      if (payload[`meta_${medida}`] !== undefined) copia[`meta_${medida}`] = payload[`meta_${medida}`];
+    }
+    return copia;
+  }
+
+  // Guardar una línea (PATCH con las metas de sus campos). Al terminar se actualizan solo la fila, el resumen
+  // del vendedor y la fila Equipo, con lo que devuelve el servidor (GET del período).
+  async function guardarEdicion(event, fila) {
     event.preventDefault();
-    const grupo = grupoDeElemento(form);
-    const error = form.querySelector('[data-line-error]');
-    error.hidden = true;
-    const button = form.querySelector('button[type="submit"]');
-    button.disabled = true;
-    form.classList.add('oc-line-saving');
+    const boton = fila.querySelector('button[type="submit"]');
+    ocultarErrorLinea(fila);
+    fila.classList.add('oc-line-saving');
+    if (boton) boton.disabled = true;
     marcarCarga(1);
+    let guardado = null;
     try {
-      const metas = metasDelFormulario(form);
+      const metas = metasDeCampos(fila);
       if (Object.values(metas).some(valor => Number.isNaN(valor))) {
         throw new Error('Ingresá un valor numérico válido, por ejemplo 1.234,56.');
       }
       if (!Object.values(metas).some(valor => valor > 0)) {
         throw new Error('Cargá una meta mayor que cero en importe, cajas o kilos para guardar la línea.');
       }
-      const payload = Object.fromEntries(Object.entries(metas).map(([measure, valor]) => [`meta_${measure}`, valor]));
-      await requestJson(`/api/objetivos-comerciales/${encodeURIComponent(linea.id)}`, {
+      const payload = Object.fromEntries(Object.entries(metas).map(([medida, valor]) => [`meta_${medida}`, valor]));
+      await requestJson(`/api/objetivos-comerciales/${encodeURIComponent(fila.dataset.lineId)}`, {
         method: 'PATCH',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
         body: JSON.stringify(payload),
       });
-      form._metasGuardadas = metas;
-      await refrescarResumen(grupo);
+      guardado = payload;
+      const grupo = grupoDeElemento(fila);
+      const datos = await leerResumen();
+      const vendedor = vendedorPorId(datos, grupo.dataset.vendedorId);
+      const linea = (vendedor?.lineas || []).find(item => String(item.id) === fila.dataset.lineId);
+      if (grupo.isConnected && vendedor) pintarResumen(grupo, vendedor);
+      actualizarPresentacion();
+      pintarLinea(fila, linea || lineaConMetas(fila._linea, payload), false);
+      fila.focus();
     } catch (errorValue) {
-      error.textContent = errorValue.message || 'No se pudo guardar la línea.';
-      error.hidden = false;
+      if (guardado) {
+        pintarLinea(fila, lineaConMetas(fila._linea, guardado), false);
+        mostrarErrorLinea(fila, `La línea se guardó, pero no se pudo actualizar el resumen: ${errorValue.message}`);
+      } else {
+        mostrarErrorLinea(fila, errorValue.message || 'No se pudo guardar la línea.');
+      }
     } finally {
-      button.disabled = false;
-      form.classList.remove('oc-line-saving');
-      sincronizarGuardar(form);
+      fila.classList.remove('oc-line-saving');
+      sincronizarGuardar(fila);
       marcarCarga(-1);
     }
   }
 
-  async function eliminarLinea(id, form) {
+  // Eliminar una línea con la confirmación de la app. Si era la última del vendedor, se quita también su fila.
+  async function eliminarLinea(fila) {
     const confirmed = window.App360UI?.confirm
       ? await window.App360UI.confirm({title: 'Eliminar línea', message: 'Se eliminará esta línea del período.', confirmText: 'Eliminar', variant: 'danger'})
       : window.confirm('¿Eliminar esta línea del período?');
     if (!confirmed) return;
-    const grupo = grupoDeElemento(form);
+    const grupo = grupoDeElemento(fila);
     marcarCarga(1);
     try {
-      await requestJson(`/api/objetivos-comerciales/${encodeURIComponent(id)}`, {
+      await requestJson(`/api/objetivos-comerciales/${encodeURIComponent(fila.dataset.lineId)}`, {
         method: 'DELETE',
         headers: {'X-CSRFToken': csrfToken},
       });
-      form.remove();
-      if (grupo._lineas.querySelector('form.oc-line')) {
+      fila._mensaje.remove();
+      fila.remove();
+      if (grupo._lineas.querySelector('[data-line-row]')) {
         await refrescarResumen(grupo);
+        grupo._agregar.focus();
       } else {
         quitarGrupo(grupo);
         await refrescarResumen(null);
       }
     } catch (error) {
-      const message = form.querySelector('[data-line-error]');
-      message.textContent = error.message || 'No se pudo eliminar la línea.';
-      message.hidden = false;
+      mostrarErrorLinea(fila, error.message || 'No se pudo eliminar la línea.');
     } finally {
       marcarCarga(-1);
     }
+  }
+
+  // Lee el período de la API y lo guarda como estado de la vista.
+  async function leerResumen() {
+    const datos = await requestJson(urlObjetivos());
+    state.resumen = datos;
+    return datos;
+  }
+
+  function vendedorPorId(datos, id) {
+    return (datos?.objetivos || []).find(item => String(item.vendedor_id) === String(id)) || null;
+  }
+
+  // «Guardar» solo se habilita cuando alguna meta de la línea cambió respecto de lo guardado.
+  function sincronizarGuardar(fila) {
+    const boton = fila.querySelector('button[type="submit"]');
+    const guardadas = fila._metasGuardadas;
+    if (!boton || !guardadas || fila.classList.contains('oc-line-saving')) return;
+    const actuales = metasDeCampos(fila);
+    boton.disabled = Object.keys(actuales).every(medida => actuales[medida] === guardadas[medida]);
   }
 
   // Vuelve a leer el período y actualiza solo el vendedor afectado, la fila Equipo y el avance.
@@ -587,15 +715,6 @@
     $('objetivosEsperadoFecha').textContent = `${dia}/${mes}`;
     $('objetivosEsperadoPct').textContent = porcentaje(referencia.avance_esperado);
     bloque.hidden = false;
-  }
-
-  // «Guardar cambios» solo se habilita cuando alguna meta de la línea cambió respecto de lo guardado.
-  function sincronizarGuardar(form) {
-    const boton = form.querySelector('button[type="submit"]');
-    const guardadas = form._metasGuardadas;
-    if (!boton || !guardadas || form.classList.contains('oc-line-saving')) return;
-    const actuales = metasDelFormulario(form);
-    boton.disabled = Object.keys(actuales).every(measure => actuales[measure] === guardadas[measure]);
   }
 
   // ---------------------------------------------------------------------------
@@ -828,7 +947,7 @@
     panel.form.classList.add('oc-line-saving');
     marcarCarga(1);
     try {
-      const metas = metasDelFormulario(panel.form);
+      const metas = metasDeCampos(panel.form);
       const valor = valorElegido();
       if (!alta.tipo) throw new Error('Elegí el nivel del objetivo.');
       if (!valor) throw new Error('Elegí el valor del catálogo para esta línea.');
@@ -854,7 +973,7 @@
         body: JSON.stringify(payload),
       });
       convertirBorrador(grupo, objetivo);
-      agregarFormularioLinea(grupo, objetivo);
+      agregarFilaLinea(grupo, objetivo);
       await refrescarResumen(grupo);
       if (agregarOtro) reiniciarParaOtro();
       else cerrarPanel({restaurarFoco: true});
@@ -988,6 +1107,13 @@
   }
 
   $('listaVendedores').addEventListener('click', async event => {
+    const fila = event.target.closest('[data-line-row]');
+    if (fila) {
+      if (event.target.closest('[data-edit-line]')) entrarEdicion(fila);
+      else if (event.target.closest('[data-cancel-edit]')) cancelarEdicion(fila);
+      else if (event.target.closest('[data-delete-line]')) await eliminarLinea(fila);
+      return;
+    }
     const grupo = grupoDeElemento(event.target);
     if (!grupo) return;
     const disparador = event.target.closest('[data-add-line]');
@@ -1003,6 +1129,15 @@
       }
       quitarGrupo(grupo);
     }
+  });
+  // Escape en una fila en edición cancela esa edición; no llega al panel de alta.
+  $('listaVendedores').addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    const fila = event.target.closest?.('[data-line-row]');
+    if (!fila || !fila.classList.contains('oc-line-editing')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    cancelarEdicion(fila);
   });
   $('legacyGoals').addEventListener('submit', convertirLegacy);
   $('agregarVendedor').addEventListener('click', agregarBorrador);
