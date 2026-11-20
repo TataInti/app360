@@ -150,3 +150,22 @@ Para crear un usuario con rol distinto, editar `USERS` en [scripts/setup_users.p
 
 > La gestión de permisos por módulo está disponible en `/admin/accesos` (roles `admin`, `manager`, `gerente`).
 > Alta, desactivación y reactivación de usuarios: pantalla **Administración > Usuarios** (`/admin/usuarios`), solo para `admin`, `manager` y `gerente`. La clave temporal vence a las 72 horas y se muestra una sola vez. Cada acción queda en la tabla `user_audit_log`. Cambio de rol: solo roles de la lista; nadie cambia su propio rol y el último administrador activo no pasa a un rol sin administración. El rol rige desde la siguiente acción. Restablecimiento de clave: clave temporal de 72 horas que se muestra una sola vez; corta las sesiones y los JWT previos y obliga a cambiarla al ingresar. Reactivar una cuenta con el script suma la versión de token y queda auditado. `setup_users.py` sigue disponible para cargas por consola.
+
+## Jerarquía de Administración de Usuarios (C3)
+
+La API es la fuente de verdad para las acciones; la pantalla refleja los permisos y no los reemplaza.
+
+- `admin` y `manager` (alias legacy) pueden administrar cualquier cuenta.
+- `gerente` puede administrar cuentas cuyo rol actual no sea `admin` ni `manager`. Puede administrar a otro `gerente`.
+- `gerente` no puede asignar los roles `admin` ni `manager`, tanto al crear como al cambiar una cuenta.
+- La limitación se aplica a cambios de rol, restablecimiento de clave, desactivación y reactivación. El servidor responde 403 con código `JERARQUIA_INSUFICIENTE` y el mensaje «Esta cuenta la administra un administrador. Pedile a un administrador que haga este cambio.»
+- Para `gerente`, los selectores no ofrecen `admin` ni `manager` y las acciones de filas `admin`/`manager` quedan deshabilitadas con explicación. El servidor vuelve a validar cada operación.
+- El conteo del último administrador sigue considerando las cuentas activas `admin`, `manager` y `gerente`.
+
+`services.usuarios_admin.puede_administrar(actor, objetivo, rol_nuevo=None)` concentra la regla reutilizable de jerarquía y devuelve `(ok, codigo, mensaje)`. `objetivo=None` permite validar altas. No reemplaza las reglas propias de cada acción, como no actuar sobre sí mismo, mantener un administrador activo o exigir que la cuenta esté activa. Está pensada para que los cortes de recuperación, desbloqueo y MFA reusen la misma decisión.
+
+## Escrituras simultáneas y scripts
+
+El reset de clave y `/cambiar-clave` bloquean la fila del usuario y vuelven a leerla tras obtener el bloqueo. Si el reset ocurre primero, el cambio propio valida la clave temporal vigente y limpia `must_change_password` y su vencimiento; si el cambio propio ocurre primero, el reset final deja la clave temporal y el cambio obligatorio. Los incrementos de `token_version` quedan serializados también con desactivación y reactivación.
+
+Las cuentas existentes conservan rol por defecto en `setup_users.py`, `setup_database.py` y `setup_comercial.py`. `--forzar-roles` habilita expresamente aplicar los roles preset. Las claves existentes se regeneran solo con sus opciones explícitas (`--reset`, `--reset-admin-password` o `--reset-claves`), apagadas por defecto.

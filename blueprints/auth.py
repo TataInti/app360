@@ -73,12 +73,29 @@ def cambiar_clave():
         actual = request.form.get("clave_actual", "")
         nueva = request.form.get("clave_nueva", "")
         repetida = request.form.get("repetir_clave", "")
+        # El mismo bloqueo del restablecimiento serializa ambas operaciones y refresca
+        # password_hash/token_version antes de validar la clave actual.
+        usuario_id = usuario.id
+        usuario = (
+            User.query.filter_by(id=usuario_id)
+            .populate_existing()
+            .with_for_update()
+            .one_or_none()
+        )
+        if usuario is None or usuario.active is not True:
+            db.session.rollback()
+            session.clear()
+            flash("Iniciá sesión para cambiar tu clave.", "warning")
+            return redirect(url_for("auth.login"))
+        g.usuario_sesion = usuario
+        obligatorio = usuario.must_change_password
         errores = _errores_cambio_clave(usuario, actual, nueva, repetida)
         if errores:
+            db.session.rollback()
             return (
                 render_template(
                     "cambiar_clave.html",
-                    obligatorio=usuario.must_change_password,
+                    obligatorio=obligatorio,
                     errores=errores,
                 ),
                 400,

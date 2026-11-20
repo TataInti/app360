@@ -75,7 +75,7 @@ def _sin_cache(respuesta):
 @admin_usuarios_bp.route("/admin/usuarios")
 @admin_usuarios_required
 def pantalla():
-    return render_template("admin/usuarios.html", roles=ua.ROLES_ASIGNABLES)
+    return render_template("admin/usuarios.html", roles=ua.roles_asignables_para(g.usuario_sesion))
 
 
 @admin_usuarios_bp.route("/api/admin/usuarios", methods=["GET"])
@@ -85,7 +85,16 @@ def listar():
     if estado not in ua.ESTADOS_FILTRO:
         estado = "todos"
     usuarios = ua.listar_usuarios(q=request.args.get("q", ""), estado=estado)
-    return jsonify({"usuarios": [ua.serializar_usuario(u) for u in usuarios], "total": len(usuarios)})
+    return jsonify(
+        {
+            "usuarios": [ua.serializar_usuario(u) for u in usuarios],
+            "total": len(usuarios),
+            "roles_asignables": [
+                {"codigo": codigo, "nombre": nombre}
+                for codigo, nombre in ua.roles_asignables_para(g.usuario_sesion)
+            ],
+        }
+    )
 
 
 @admin_usuarios_bp.route("/api/admin/usuarios", methods=["POST"])
