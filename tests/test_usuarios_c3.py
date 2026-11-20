@@ -365,48 +365,73 @@ def test_carrera_en_postgresql_dos_administradores_nunca_dejan_cero_activos(monk
 
     app = create_app()
     app.config["TESTING"] = True
-    with app.app_context():
-        db.drop_all()
-        db.create_all()
-        a = User(username="probe.carrera-a", role="admin", active=True)
-        a.set_password(CLAVE)
-        b = User(username="probe.carrera-b", role="gerente", active=True)
-        b.set_password(CLAVE)
-        db.session.add_all([a, b])
-        db.session.commit()
-        ids = (a.id, b.id)
-
-    barrera = threading.Barrier(2)
-    resultados = {}
-
-    def cambiar(nombre, actor_id, objetivo_id):
+    rondas = []
+    try:
         with app.app_context():
-            try:
-                actor = db.session.get(User, actor_id)
-                barrera.wait(timeout=30)
-                ua.cambiar_rol(actor, objetivo_id, "sales")
-                resultados[nombre] = "ok"
-            except ua.ErrorUsuarios as error:
-                db.session.rollback()
-                resultados[nombre] = error.codigo
-            finally:
-                db.session.remove()
+            db.drop_all()
+            db.create_all()
+            a = User(username="probe.carrera-a", role="admin", active=True)
+            a.set_password(CLAVE)
+            b = User(username="probe.carrera-b", role="manager", active=True)
+            b.set_password(CLAVE)
+            db.session.add_all([a, b])
+            db.session.commit()
+            ids = (a.id, b.id)
 
-    hilos = [
-        threading.Thread(target=cambiar, args=("a", ids[0], ids[1])),
-        threading.Thread(target=cambiar, args=("b", ids[1], ids[0])),
-    ]
-    for hilo in hilos:
-        hilo.start()
-    for hilo in hilos:
-        hilo.join(timeout=120)
-    with app.app_context():
-        activos = User.query.filter(User.role.in_(ua.ROLES_ADMINISTRACION), User.active.is_(True)).count()
-        db.session.remove()
-        db.drop_all()
-        db.engine.dispose()
-    assert sorted(resultados.values()) == ["ULTIMO_ADMINISTRADOR", "ok"], resultados
-    assert activos >= 1
+        for _ in range(8):
+            with app.app_context():
+                a = db.session.get(User, ids[0], populate_existing=True)
+                b = db.session.get(User, ids[1], populate_existing=True)
+                a.role, a.active, a.deactivated_at = "admin", True, None
+                b.role, b.active, b.deactivated_at = "manager", True, None
+                db.session.commit()
+
+            barrera = threading.Barrier(2)
+            resultados = {}
+
+            def cambiar(nombre, actor_id, objetivo_id):
+                with app.app_context():
+                    try:
+                        actor = db.session.get(User, actor_id)
+                        barrera.wait(timeout=30)
+                        ua.cambiar_rol(actor, objetivo_id, "sales")
+                        resultados[nombre] = "ok"
+                    except ua.ErrorUsuarios as error:
+                        db.session.rollback()
+                        resultados[nombre] = error.codigo
+                    except Exception as error:
+                        db.session.rollback()
+                        resultados[nombre] = type(error).__name__
+                    finally:
+                        db.session.remove()
+
+            hilos = [
+                threading.Thread(target=cambiar, args=("a", ids[0], ids[1])),
+                threading.Thread(target=cambiar, args=("b", ids[1], ids[0])),
+            ]
+            for hilo in hilos:
+                hilo.start()
+            for hilo in hilos:
+                hilo.join(timeout=120)
+            with app.app_context():
+                activos = User.query.filter(
+                    User.role.in_(ua.ROLES_ADMINISTRACION), User.active.is_(True)
+                ).count()
+                db.session.remove()
+            rondas.append({
+                "resultado": sorted(resultados.values()),
+                "sin_hilos_vivos": all(not hilo.is_alive() for hilo in hilos),
+                "administradores_activos": activos,
+            })
+        assert len(rondas) == 8
+        assert all(ronda["sin_hilos_vivos"] for ronda in rondas)
+        assert all(ronda["resultado"] == ["ULTIMO_ADMINISTRADOR", "ok"] for ronda in rondas), rondas
+        assert all(ronda["administradores_activos"] >= 1 for ronda in rondas), rondas
+    finally:
+        with app.app_context():
+            db.session.remove()
+            db.drop_all()
+            db.engine.dispose()
 
 
 def test_cambio_de_rol_rige_en_la_siguiente_peticion_web(app_seguridad):
