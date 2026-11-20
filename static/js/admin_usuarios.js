@@ -1,7 +1,8 @@
-/* Administración > Usuarios (C2 y C3): lista con filtros, alta con clave temporal (se muestra una sola vez),
-   cambio de rol, restablecimiento de clave, desactivar y reactivar. Todo texto que viene de la API se
-   escribe con textContent. La clave temporal vive solo en el panel de confirmación del DOM: no va a la
-   URL, al almacenamiento local ni a la consola. */
+/* Administración > Usuarios (C2 a C5): lista con filtros, alta con clave temporal (se muestra una sola vez),
+   correo de contacto, cambio de rol, restablecimiento de clave, desactivar y reactivar, desbloqueo y enlace de
+   recuperación (se muestra una sola vez, con revocación). Todo texto que viene de la API se escribe con
+   textContent. La clave temporal y el enlace viven solo en el DOM de sus paneles: no van a la URL, al
+   almacenamiento local ni a la consola. */
 (function () {
   "use strict";
 
@@ -14,9 +15,17 @@
     cambiar_clave: "bg-warning text-dark",
     clave_vencida: "bg-danger",
   };
+  const CLASES_RECUPERACION = {
+    vigente: "bg-info text-dark",
+    vencido: "bg-secondary",
+    pendiente: "bg-warning text-dark",
+  };
   const MOTIVO_PROPIA = "Es tu cuenta: pedile a otro administrador que lo haga.";
+  const VIGENCIA_DEFECTO = 30;
   const usuariosPorId = new Map();
   let usuarioEnRol = null;
+  let usuarioEnCorreo = null;
+  let usuarioEnEnlace = null;
   let temporizadorBusqueda = null;
 
   function aviso(texto, tipo) {
@@ -104,6 +113,7 @@
   function filaUsuario(usuario) {
     const tr = document.createElement("tr");
     tr.appendChild(celda(usuario.username, "fw-semibold"));
+    tr.appendChild(celda(usuario.correo || "—", "small text-break"));
     tr.appendChild(celda(usuario.rol_nombre));
 
     const tdEstado = document.createElement("td");
@@ -123,6 +133,16 @@
       bloqueo.textContent = "Bloqueada hasta " + usuario.bloqueada_hasta_texto;
       tdEstado.appendChild(bloqueo);
     }
+    const recuperacion = usuario.recuperacion;
+    if (recuperacion) {
+      const enlace = document.createElement("span");
+      enlace.className = "badge ms-1 " + (CLASES_RECUPERACION[recuperacion.estado] || "bg-secondary");
+      enlace.textContent = recuperacion.nombre;
+      tdEstado.appendChild(enlace);
+      if (recuperacion.estado !== "vigente") {
+        tdEstado.appendChild(notaFila("La cuenta no tiene clave utilizable: generá otro enlace o restablecé la clave."));
+      }
+    }
     tr.appendChild(tdEstado);
 
     tr.appendChild(celda(usuario.ultimo_acceso_texto));
@@ -134,6 +154,7 @@
     tdAccion.className = "text-center";
     const grupo = document.createElement("div");
     grupo.className = "d-flex flex-wrap gap-1 justify-content-center";
+    grupo.appendChild(botonAccion("Correo", "btn-outline-secondary", { ...datos, accion: "correo" }, false));
     grupo.appendChild(botonAccion("Cambiar rol", "btn-outline-primary", { ...datos, accion: "rol" }, propia, MOTIVO_PROPIA));
     grupo.appendChild(
       botonAccion(
@@ -144,6 +165,25 @@
         propia ? MOTIVO_PROPIA : "Reactivalo primero para restablecer su clave."
       )
     );
+    grupo.appendChild(
+      botonAccion(
+        "Generar enlace",
+        "btn-outline-info",
+        { ...datos, accion: "recuperacion" },
+        propia || desactivado,
+        propia ? "Para tu clave usá «Cambiar mi clave» en tu menú." : "Reactivalo primero para generarle un enlace."
+      )
+    );
+    if (recuperacion && recuperacion.estado === "vigente") {
+      grupo.appendChild(
+        botonAccion(
+          "Revocar enlace",
+          "btn-outline-danger",
+          { ...datos, accion: "revocar", recuperacionId: String(recuperacion.id) },
+          false
+        )
+      );
+    }
     grupo.appendChild(
       botonAccion(
         desactivado ? "Reactivar" : "Desactivar",
@@ -306,23 +346,67 @@
     }
   }
 
-  function limpiarErroresAlta() {
-    for (const campo of ["altaUsuario", "altaRol"]) {
-      $(campo).classList.remove("is-invalid");
-    }
-    $("altaUsuarioError").textContent = "";
-    $("altaRolError").textContent = "";
+  function mostrarErrorCorreo(texto) {
+    const el = $("modalCorreoError");
+    el.textContent = texto || "";
+    el.classList.toggle("d-block", Boolean(texto));
+    $("modalCorreoInput").classList.toggle("is-invalid", Boolean(texto));
   }
 
-  function mostrarErroresAlta(campos) {
-    if (campos.username) {
-      $("altaUsuario").classList.add("is-invalid");
-      $("altaUsuarioError").textContent = campos.username;
+  function abrirCorreo(usuario) {
+    usuarioEnCorreo = usuario;
+    $("modalCorreoTitulo").textContent = "Correo de " + usuario.username;
+    $("modalCorreoInput").value = usuario.correo || "";
+    mostrarErrorCorreo("");
+    bootstrap.Modal.getOrCreateInstance($("modalCorreo")).show();
+  }
+
+  async function enviarCorreo(evento) {
+    evento.preventDefault();
+    if (!usuarioEnCorreo) {
+      return;
     }
-    if (campos.role) {
-      $("altaRol").classList.add("is-invalid");
-      $("altaRolError").textContent = campos.role;
+    const boton = $("btnGuardarCorreo");
+    const nombre = usuarioEnCorreo.username;
+    boton.disabled = true;
+    mostrarErrorCorreo("");
+    try {
+      const res = await llamar("/api/admin/usuarios/" + usuarioEnCorreo.id + "/correo", "POST", {
+        email: $("modalCorreoInput").value,
+      });
+      if (!res.ok) {
+        mostrarErrorCorreo(res.datos.campos?.email || res.datos.error || "No se pudo guardar el correo. No se aplicó ningún cambio.");
+        return;
+      }
+      bootstrap.Modal.getOrCreateInstance($("modalCorreo")).hide();
+      mostrarAviso(
+        res.datos.cambiado
+          ? res.datos.usuario.correo
+            ? "Correo de " + nombre + " guardado. No se envió ningún correo."
+            : "Se borró el correo de " + nombre + "."
+          : "El correo de " + nombre + " no cambió.",
+        "ok"
+      );
+      await recargar();
+    } finally {
+      boton.disabled = false;
     }
+  }
+
+  function mostrarErrorRecuperacion(texto) {
+    const el = $("modalRecuperacionError");
+    el.textContent = texto || "";
+    el.classList.toggle("d-block", Boolean(texto));
+    $("modalRecuperacionTtl").classList.toggle("is-invalid", Boolean(texto));
+  }
+
+  function abrirRecuperacion(usuario) {
+    usuarioEnEnlace = usuario;
+    $("modalRecuperacionTitulo").textContent = "Generar enlace para " + usuario.username;
+    $("modalRecuperacionNombre").textContent = usuario.username;
+    $("modalRecuperacionTtl").value = String(VIGENCIA_DEFECTO);
+    mostrarErrorRecuperacion("");
+    bootstrap.Modal.getOrCreateInstance($("modalRecuperacion")).show();
   }
 
   function textoVencimiento(iso) {
@@ -339,7 +423,72 @@
     });
   }
 
-  function mostrarClaveTemporal(datos, titulo) {
+  function mostrarEnlace(datos, nombre) {
+    $("enlaceUsuarioNombre").textContent = nombre;
+    $("enlaceVence").textContent = textoVencimiento(datos.vence);
+    $("enlace_recuperacion_nuevo").textContent = datos.enlace;
+    $("btnCopiarEnlace").textContent = "Copiar";
+    $("panelEnlaceRecuperacion").classList.remove("d-none");
+    $("panelEnlaceRecuperacion").scrollIntoView({ block: "nearest" });
+  }
+
+  function ocultarEnlace() {
+    // Al cerrar, el enlace deja de estar en el DOM: no se vuelve a mostrar.
+    $("enlace_recuperacion_nuevo").textContent = "";
+    $("enlaceUsuarioNombre").textContent = "";
+    $("enlaceVence").textContent = "";
+    $("panelEnlaceRecuperacion").classList.add("d-none");
+  }
+
+  async function enviarRecuperacion(evento) {
+    evento.preventDefault();
+    if (!usuarioEnEnlace) {
+      return;
+    }
+    const boton = $("btnGenerarRecuperacion");
+    const usuario = usuarioEnEnlace;
+    boton.disabled = true;
+    mostrarErrorRecuperacion("");
+    try {
+      const res = await llamar("/api/admin/usuarios/" + usuario.id + "/recuperacion", "POST", {
+        ttl: Number($("modalRecuperacionTtl").value),
+      });
+      if (res.status !== 201) {
+        mostrarErrorRecuperacion(res.datos.campos?.ttl || res.datos.error || "No se generó el enlace. No se aplicó ningún cambio.");
+        return;
+      }
+      bootstrap.Modal.getOrCreateInstance($("modalRecuperacion")).hide();
+      mostrarEnlace(res.datos, usuario.username);
+      await recargar();
+    } finally {
+      boton.disabled = false;
+    }
+  }
+
+  async function revocarEnlace(boton) {
+    const nombre = boton.dataset.usuario;
+    const confirmado = await confirmar({
+      variant: "danger",
+      title: "Revocar enlace de recuperación",
+      message: "¿Revocar el enlace vigente de " + nombre + "? El enlace deja de servir. La cuenta quedará sin clave hasta que generes otro enlace o restablezcas la clave.",
+      confirmText: "Revocar",
+    });
+    if (!confirmado) {
+      return;
+    }
+    sinAviso();
+    const url = "/api/admin/usuarios/" + boton.dataset.id + "/recuperacion/" + boton.dataset.recuperacionId + "/revocar";
+    const res = await llamar(url, "POST");
+    if (!res.ok) {
+      mostrarAviso(res.datos.error || "No se pudo revocar el enlace. No se aplicó ningún cambio.", "error");
+      await recargar();
+      return;
+    }
+    mostrarAviso("Se revocó el enlace de " + nombre + ". La cuenta quedará sin clave hasta que generes otro enlace o restablezcas la clave.", "ok");
+    await recargar();
+  }
+
+  function abrirPanelClave(datos, titulo) {
     $("claveTitulo").textContent = titulo;
     $("claveUsuarioNombre").textContent = datos.usuario.username;
     $("claveVence").textContent = textoVencimiento(datos.clave_temporal_vence);
@@ -385,7 +534,7 @@
     const confirmado = await confirmar({
       variant: "warning",
       title: "Restablecer clave",
-      message: "¿Restablecer la clave de " + nombre + "? Se genera una clave temporal nueva, la clave actual deja de funcionar, se cierran sus sesiones activas y deberá cambiarla al ingresar.",
+      message: "¿Restablecer la clave de " + nombre + "? Se genera una clave temporal nueva, la clave actual deja de funcionar, se cierran sus sesiones activas, se revocan sus enlaces de recuperación vigentes y deberá cambiarla al ingresar.",
       confirmText: "Restablecer",
     });
     if (!confirmado) {
@@ -398,8 +547,32 @@
       await recargar();
       return;
     }
-    mostrarClaveTemporal(res.datos, "Clave restablecida");
+    abrirPanelClave(res.datos, "Clave restablecida");
     await recargar();
+  }
+
+  function limpiarErroresAlta() {
+    for (const campo of ["altaUsuario", "altaRol", "altaCorreo"]) {
+      $(campo).classList.remove("is-invalid");
+    }
+    $("altaUsuarioError").textContent = "";
+    $("altaRolError").textContent = "";
+    $("altaCorreoError").textContent = "";
+  }
+
+  function mostrarErroresAlta(campos) {
+    if (campos.username) {
+      $("altaUsuario").classList.add("is-invalid");
+      $("altaUsuarioError").textContent = campos.username;
+    }
+    if (campos.role) {
+      $("altaRol").classList.add("is-invalid");
+      $("altaRolError").textContent = campos.role;
+    }
+    if (campos.email) {
+      $("altaCorreo").classList.add("is-invalid");
+      $("altaCorreoError").textContent = campos.email;
+    }
   }
 
   async function enviarAlta(evento) {
@@ -412,10 +585,11 @@
       const res = await llamar("/api/admin/usuarios", "POST", {
         username: $("altaUsuario").value,
         role: $("altaRol").value,
+        email: $("altaCorreo").value,
       });
       if (res.status === 201) {
         $("formAltaUsuario").reset();
-        mostrarClaveTemporal(res.datos, "Usuario creado");
+        abrirPanelClave(res.datos, "Usuario creado");
         await recargar();
         return;
       }
@@ -445,6 +619,23 @@
     }
   }
 
+  async function copiarEnlace() {
+    const texto = $("enlace_recuperacion_nuevo").textContent;
+    const boton = $("btnCopiarEnlace");
+    try {
+      await navigator.clipboard.writeText(texto);
+      boton.textContent = "Copiado";
+    } catch (_) {
+      // Sin acceso al portapapeles: se selecciona el enlace para copiarlo a mano.
+      const rango = document.createRange();
+      rango.selectNodeContents($("enlace_recuperacion_nuevo"));
+      const seleccion = window.getSelection();
+      seleccion.removeAllRanges();
+      seleccion.addRange(rango);
+      boton.textContent = "Seleccionado: copialo con Ctrl+C";
+    }
+  }
+
   function iniciar() {
     $("btnNuevoUsuario").addEventListener("click", () => {
       const panel = $("panelAltaUsuario");
@@ -463,6 +654,8 @@
     $("formAltaUsuario").addEventListener("submit", enviarAlta);
     $("btnCerrarClave").addEventListener("click", ocultarClaveTemporal);
     $("btnCopiarClave").addEventListener("click", copiarClave);
+    $("btnCerrarEnlace").addEventListener("click", ocultarEnlace);
+    $("btnCopiarEnlace").addEventListener("click", copiarEnlace);
     $("buscarUsuario").addEventListener("input", () => {
       clearTimeout(temporizadorBusqueda);
       temporizadorBusqueda = setTimeout(cargarUsuarios, 300);
@@ -473,11 +666,21 @@
       if (!boton || boton.disabled) {
         return;
       }
+      const usuario = usuariosPorId.get(Number(boton.dataset.id));
       if (boton.dataset.accion === "rol") {
-        const usuario = usuariosPorId.get(Number(boton.dataset.id));
         if (usuario) {
           abrirCambioRol(usuario);
         }
+      } else if (boton.dataset.accion === "correo") {
+        if (usuario) {
+          abrirCorreo(usuario);
+        }
+      } else if (boton.dataset.accion === "recuperacion") {
+        if (usuario) {
+          abrirRecuperacion(usuario);
+        }
+      } else if (boton.dataset.accion === "revocar") {
+        revocarEnlace(boton);
       } else if (boton.dataset.accion === "restablecer") {
         restablecerClave(boton);
       } else if (boton.dataset.accion === "desbloquear") {
@@ -488,6 +691,8 @@
     });
     $("formRol").addEventListener("submit", enviarRol);
     $("modalRolSelect").addEventListener("change", actualizarTextoRol);
+    $("formCorreo").addEventListener("submit", enviarCorreo);
+    $("formRecuperacion").addEventListener("submit", enviarRecuperacion);
     recargar();
   }
 

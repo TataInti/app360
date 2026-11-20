@@ -41,6 +41,8 @@ ESTADOS_BLOQUEADOS = {302, 401, 403, 405}
 EXCEPCIONES = {
     ("auth.login", "GET"): "Pantalla de login. La ruta es '/'; no existe '/login'.",
     ("auth.login", "POST"): "Envío del formulario de login (límite 10/min por IP).",
+    ("recuperacion.recuperar_clave", "GET"): "Canje público de recuperación de clave (C5): pantalla sin datos; el token va en el fragmento y no llega al servidor.",
+    ("recuperacion.recuperar_clave", "POST"): "Canje público de recuperación (C5): el enlace de un solo uso es la credencial; límite 5 cada 10 min por IP.",
     ("static", "GET"): "Archivos estáticos públicos.",
     ("api_rest.health_check", "GET"): "Health check sin datos (GET /api/health).",
     ("api_rest.login", "POST"): "Login de API con usuario y clave (límite 5/min).",

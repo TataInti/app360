@@ -144,6 +144,7 @@ SESION_HUELLA_CLAVE = "sesion_huella"
 # dentro de su vista, para que una sesión vencida no impida iniciar sesión.
 ENDPOINTS_SIN_REVALIDACION = frozenset({
     "auth.login",
+    "recuperacion.recuperar_clave",
     "static",
     "api_rest.health_check",
     "api_rest.login",
