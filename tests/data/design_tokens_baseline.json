@@ -1,0 +1,232 @@
+{
+  "chart_js_color_exclusions": [
+    "templates/bi_dashboard.html",
+    "templates/compras_overview.html",
+    "templates/dashboard_financiero.html",
+    "templates/gastos_panel.html",
+    "templates/panel_ejecutivo.html",
+    "templates/rrhh_ausentismo.html",
+    "templates/tesoreria_arqueos.html",
+    "templates/tesoreria_movimientos.html",
+    "templates/tesoreria_panel.html"
+  ],
+  "files": {
+    "static/css/app_components.css": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "static/css/comercial_paneles.css": {
+      "border_radius": 3,
+      "colors": 47
+    },
+    "static/css/objetivos_comerciales.css": {
+      "border_radius": 0,
+      "colors": 35
+    },
+    "static/css/paneles_normalizados.css": {
+      "border_radius": 6,
+      "colors": 8
+    },
+    "static/css/tablero_salon.css": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/_comercial_filtros.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/_comercial_filtros_inline.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/_components.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/admin/admin_accesos.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/admin/admin_dashboard.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/admin/admin_modulo.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/admin/sin_permiso_admin.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/admin/usuarios.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/base.html": {
+      "border_radius": 29,
+      "colors": 161
+    },
+    "templates/bi_dashboard.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/cambiar_clave.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/campaigns_list.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/compras_detail.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/compras_orden_nueva.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/compras_overview.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/compras_panel.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/criterio_clientes.html": {
+      "border_radius": 0,
+      "colors": 2
+    },
+    "templates/cta_cte_friar.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/dashboard_comercial.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/dashboard_financiero.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/gastos_panel.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/lead_detail.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/lead_form.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/leads_list.html": {
+      "border_radius": 1,
+      "colors": 4
+    },
+    "templates/location_form.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/locations_list.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/login.html": {
+      "border_radius": 0,
+      "colors": 6
+    },
+    "templates/objetivos_ventas_lineas.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/panel_ejecutivo.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/performance_vendedores.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/product_form.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/products_list.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/rrhh_adelantos.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/rrhh_ausentismo.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/rrhh_empleados.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/rrhh_liquidaciones.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/rrhh_panel.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/sabiogo_admin.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/seguimiento_clientes.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/sin_acceso.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/stock_form.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/stock_list.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/tablero_salon.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/tesoreria_arqueos.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/tesoreria_movimientos.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/tesoreria_panel.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/venta_detail.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/ventas_form.html": {
+      "border_radius": 0,
+      "colors": 0
+    },
+    "templates/ventas_list.html": {
+      "border_radius": 0,
+      "colors": 0
+    }
+  },
+  "version": 1
+}
