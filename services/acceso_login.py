@@ -8,8 +8,9 @@ el par de esa IP y el contador global si no está bloqueado. Inexistentes e inac
 
 Transacción (igualación de tiempos): cada intento se confirma con un único COMMIT. El estado y la fila
 de auditoría van juntos; la auditoría va en un punto de guardado, así que si falla solo ella se deshace.
-Inexistentes e inactivos verifican el mismo hash ficticio y siguen la misma escritura/COMMIT de
-rechazo; el UPDATE no-op del agregado de auditoría es común a todos los rechazos.
+Inexistentes e inactivos verifican el mismo hash ficticio y, antes de confirmar la auditoría, ejecutan un
+UPSERT ficticio de costo equivalente dentro de un savepoint que se revierte. Todos los intentos terminan
+con un único COMMIT; el UPDATE no-op del agregado de auditoría es común a todos los rechazos.
 
 Auditoría (A1): login_ok y login_failed se escriben en user_audit_log con el usuario tal como se
 escribió (sin caracteres no imprimibles, hasta 80), la IP truncada a 45 y un motivo genérico. La clave
@@ -198,9 +199,21 @@ def _tocar_par_sin_fallo(user_id, ip, ahora, *, crear=True):
     return True
 
 
-def _escritura_de_rechazo_sin_cuenta(ahora):
-    """Limpieza acotada; el UPDATE común de auditoría iguala la escritura de los caminos con estado."""
+def _escritura_de_rechazo_sin_cuenta(canal, ip, nombre, usuario, motivo, ahora):
+    """Ejecuta la escritura de estado equivalente y la revierte antes del único registro real."""
     _limpiar_pares_vencidos(ahora)
+    agrupacion = _agrupacion(canal, ip, motivo, usuario, ahora)
+    valores = _valores_evento(
+        "login_failed", canal, ip, nombre, usuario, ahora,
+        {"motivo": motivo, "canal": canal}, agrupacion,
+    )
+    savepoint = db.session.begin_nested()
+    try:
+        _escribir_evento(valores)
+    except Exception:
+        savepoint.rollback()
+    else:
+        savepoint.rollback()
 
 
 def _escritura_de_rechazo_bloqueado(fila, ip, ahora):
@@ -257,11 +270,11 @@ def autenticar(username, password, canal, ip=None):
         coincide, vencida = security.comprobar_clave_login(activa, clave)
         if existente is None:
             ahora = security.ahora()
-            _escritura_de_rechazo_sin_cuenta(ahora)
+            _escritura_de_rechazo_sin_cuenta(canal, ip, nombre, None, USUARIO_INEXISTENTE, ahora)
             return _rechazar(canal, ip, nombre, None, USUARIO_INEXISTENTE, ahora)
         if activa is None:
             ahora = security.ahora()
-            _escritura_de_rechazo_sin_cuenta(ahora)
+            _escritura_de_rechazo_sin_cuenta(canal, ip, nombre, existente, CUENTA_INACTIVA, ahora)
             return _rechazar(canal, ip, nombre, existente, CUENTA_INACTIVA, ahora)
         return _decidir_cuenta_activa(canal, ip, nombre, activa, coincide, vencida)
     except Exception:
@@ -282,7 +295,7 @@ def _decidir_cuenta_activa(canal, ip, nombre, usuario, coincide, vencida):
     fila = User.query.filter_by(id=usuario.id).with_for_update().populate_existing().one_or_none()
     if fila is None or fila.active is not True:
         db.session.rollback()
-        _escritura_de_rechazo_sin_cuenta(ahora)
+        _escritura_de_rechazo_sin_cuenta(canal, ip, nombre, None, CUENTA_INACTIVA, ahora)
         return _rechazar(canal, ip, nombre, None, CUENTA_INACTIVA, ahora)
     _limpiar_pares_vencidos(ahora)
     if esta_bloqueada(fila, ahora):
