@@ -67,6 +67,19 @@
     font-size: var(--font-size-label);
 }
 
+.app-field__error[hidden] {
+    display: none;
+}
+
+.app-drawer__footer .app-actions {
+    flex-wrap: wrap;
+}
+
+.app-drawer__footer .app-actions__primary,
+.app-drawer__footer .app-actions__secondary {
+    flex: 1 1 auto;
+}
+
 .app-field__help {
     color: var(--color-text-muted);
 }
@@ -92,6 +105,10 @@
 .app-field__control:focus-visible {
     outline: 2px solid var(--color-focus);
     outline-offset: 1px;
+}
+
+.app-field__control[aria-invalid="true"] {
+    border-color: var(--color-negative);
 }
 
 .app-input-unit {
@@ -351,8 +368,30 @@
     font-size: var(--font-size-note);
 }
 
+.app-table__row--resaltada {
+    background: var(--color-action-soft);
+    transition: background-color 0.4s ease;
+}
+
+.app-drawer[hidden] {
+    display: none;
+}
+
 .app-drawer__body {
     flex: 1 1 auto;
+}
+
+/* Alta repetitiva en el panel: una columna, con los campos apilados. */
+.app-drawer__form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-control);
+}
+
+.app-drawer__status {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-note);
 }
 
 .app-drawer__footer {
@@ -360,9 +399,12 @@
     flex: 0 0 auto;
     flex-direction: column;
     justify-content: flex-end;
+    position: sticky;
+    bottom: 0;
     margin-top: auto;
     padding-top: var(--space-control);
     border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
 }
 
 .app-page-head {

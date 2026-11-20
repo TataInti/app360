@@ -6,13 +6,12 @@
         <h1>Productos</h1>
         <span class="panel-subtitle">Administrá el catálogo de productos.</span>
     </div>
-    {% if products %}
     <div class="action-bar">
-        <a href="/products/new" class="btn btn-sm btn-primary">Nuevo Producto</a>
+        <button type="button" class="btn btn-sm btn-primary" data-drawer-open="productoPanel" aria-controls="productoPanel">Nuevo Producto</button>
     </div>
-    {% endif %}
 </header>
 
+<div data-products-region>
 {% if products %}
 <div class="table-responsive">
     <table class="app-table" aria-label="Productos">
@@ -28,7 +27,7 @@
         </thead>
         <tbody>
             {% for p in products %}
-            <tr class="app-table__row">
+            <tr class="app-table__row" data-product-id="{{ p.id }}">
                 <td class="app-table__cell app-table__numeric">{{ p.id }}</td>
                 <td class="app-table__cell">{{ p.sku }}</td>
                 <td class="app-table__cell">{{ p.name }}</td>
@@ -57,15 +56,82 @@
     <i class="bi bi-inbox empty-icon" aria-hidden="true"></i>
     <div class="empty-title" id="products-empty-title">Todavía no hay productos</div>
     <p class="empty-text">Creá el primer producto para empezar a administrar el catálogo.</p>
-    <a href="/products/new" class="btn btn-sm btn-primary">Crear primer producto</a>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-drawer-open="productoPanel">Crear primer producto</button>
 </section>
 {% endif %}
+</div>
+
+<form id="productoPanel" class="app-drawer" method="POST" action="/products/new" novalidate
+      role="dialog" aria-modal="true" aria-labelledby="productoPanelTitulo" aria-describedby="productoPanelAyuda" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <header class="app-drawer__header">
+        <h2 class="app-drawer__title" id="productoPanelTitulo">Nuevo producto</h2>
+        <p class="app-drawer__description" id="productoPanelAyuda">Cargá el producto. Con «Guardar y agregar otro» la unidad de negocio y la categoría quedan para el siguiente.</p>
+    </header>
+    <div class="app-drawer__body app-drawer__form">
+        {% with unidades=unidades %}
+        {% include "_products_form_campos.html" %}
+        {% endwith %}
+    </div>
+    <p class="app-drawer__status" data-drawer-status aria-live="polite"></p>
+    <footer class="app-drawer__footer">
+        {% with pie_agregar_otro=true, pie_guardar_deshabilitado=not unidades %}
+        {% include "_drawer_pie.html" %}
+        {% endwith %}
+    </footer>
+</form>
 
 <script src="{{ asset('js/app_format.js') }}" defer></script>
+<script src="{{ asset('js/app_drawer_form.js') }}" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    document.querySelectorAll('[data-format-number]').forEach(function (element) {
-        element.textContent = window.App360Format.formatNumber(element.dataset.formatNumber);
+    var region = document.querySelector('[data-products-region]');
+    var panel = document.getElementById('productoPanel');
+
+    function formatearNumeros(raiz) {
+        raiz.querySelectorAll('[data-format-number]').forEach(function (element) {
+            element.textContent = window.App360Format.formatNumber(element.dataset.formatNumber);
+        });
+    }
+
+    // Reemplaza solo la tabla (o el estado vacío) con la lista fresca del servidor y resalta el alta.
+    function refrescarLista(idNuevo) {
+        return fetch('/products', { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
+            .then(function (respuesta) {
+                if (!respuesta.ok) {
+                    throw new Error('lista');
+                }
+                return respuesta.text();
+            })
+            .then(function (html) {
+                var fresca = new DOMParser().parseFromString(html, 'text/html').querySelector('[data-products-region]');
+                if (!fresca || !region) {
+                    return;
+                }
+                region.replaceChildren.apply(region, Array.from(fresca.childNodes));
+                formatearNumeros(region);
+                if (/^\d+$/.test(String(idNuevo))) {
+                    var fila = region.querySelector('tr[data-product-id="' + idNuevo + '"]');
+                    if (fila) {
+                        fila.classList.add('app-table__row--resaltada');
+                        setTimeout(function () { fila.classList.remove('app-table__row--resaltada'); }, 4000);
+                    }
+                }
+            });
+    }
+
+    formatearNumeros(document);
+    window.productosPanel = App360DrawerForm.crear({
+        panel: panel,
+        primerCampo: '#producto-sku',
+        conservar: ['business_unit_id', 'category'],
+        textoGuardado: function (cuerpo) { return 'Producto «' + cuerpo.nombre + '» guardado'; },
+        mensajeDescarte: 'Hay datos del producto sin guardar. Si cerrás el panel, se pierden.',
+        alGuardar: function (cuerpo) {
+            refrescarLista(cuerpo.id).catch(function () {
+                // Si no se puede refrescar la tabla, el alta ya quedó guardada: la lista se ve al recargar.
+            });
+        }
     });
 });
 </script>

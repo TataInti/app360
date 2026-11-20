@@ -1,0 +1,15 @@
+{#
+  Pie de panel lateral de alta repetitiva (DESIGN_SYSTEM §3.13.1).
+  Variables: pie_agregar_otro (bool, por defecto falso) y pie_guardar_deshabilitado (bool).
+  Con «Guardar y agregar otro» esa acción ocupa la única primaria; «Guardar» pasa a secundaria.
+  Los botones de envío llevan data-accion; el JS del panel decide qué hacer según cuál se pulsó.
+#}
+<div class="app-actions" data-drawer-pie>
+    {% if pie_agregar_otro %}
+    <button type="submit" class="app-actions__primary" data-accion="agregar" {% if pie_guardar_deshabilitado %}disabled{% endif %}>Guardar y agregar otro</button>
+    <button type="submit" class="app-actions__secondary" data-accion="guardar" {% if pie_guardar_deshabilitado %}disabled{% endif %}>Guardar</button>
+    {% else %}
+    <button type="submit" class="app-actions__primary" data-accion="guardar" {% if pie_guardar_deshabilitado %}disabled{% endif %}>Guardar</button>
+    {% endif %}
+    <button type="button" class="app-actions__secondary" data-drawer-cancel>Cancelar</button>
+</div>

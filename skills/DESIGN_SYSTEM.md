@@ -770,6 +770,62 @@ implementar el patrón, no una capacidad que agregue el CSS por sí solo.
 
 ---
 
+### 3.13.1 Panel de alta repetitiva (SIS-2B, corte 1)
+
+**Receta.** Las altas repetitivas (Producto hoy; Stock, Ubicaciones y Campañas en cortes siguientes)
+se cargan en `.app-drawer` con el mismo formulario que su página de alta. Los campos viven en un
+parcial de Jinja compartido, para que la página `/products/new` y el panel no diverjan:
+`templates/_products_form_campos.html` (campos de producto), incluido por `templates/product_form.html`
+y `templates/products_list.html`. El pie es `templates/_drawer_pie.html`: «Guardar y agregar otro»
+ocupa la única primaria (`app-actions__primary`) y «Guardar» pasa a secundaria; «Cancelar» es secundaria.
+Con las unidades faltantes, ambas acciones quedan deshabilitadas y el aviso del campo indica dónde crearlas.
+
+**Mecanismo.** `static/js/app_drawer_form.js` expone `App360DrawerForm.crear({...})`. Por cada panel:
+
+- el formulario del panel es el propio `.app-drawer` (`<form id="…" class="app-drawer" novalidate hidden>`,
+  con `action` del endpoint de alta y `role="dialog" aria-modal="true"`);
+- los disparadores llevan `data-drawer-open="<id del panel>"` (delegación: sirven también para botones
+  que aparecen después, como el de estado vacío);
+- el aviso aria-live va en `[data-drawer-status]` dentro del panel;
+- cada campo con error tiene `<small class="app-field__error" data-error-campo="<campo>" hidden>`;
+- los botones de envío llevan `data-accion="guardar"` o `data-accion="agregar"`;
+- la configuración toma `primerCampo`, `conservar` (campos que se repiten tras «agregar otro»),
+  `textoGuardado(cuerpo)`, `alGuardar(cuerpo, accion)` y `mensajeDescarte`.
+
+Comportamiento: al abrir, el foco va al primer campo; Escape y «Cancelar» cierran; con datos sin guardar,
+la confirmación usa `App360UI.confirm()` (§3.11) y, si se cancela, el panel sigue abierto; al cerrar, el
+foco vuelve al disparador. Mientras se guarda, la acción pulsada muestra «Guardando…» y todos los botones
+quedan deshabilitados. El envío es `fetch` con JSON, `Accept: application/json` y `X-CSRFToken`.
+Si el servidor responde 422 con `errors`, cada aviso se muestra junto a su campo con `aria-invalid` y
+`aria-describedby`, y el foco va al primero. Una respuesta que no es JSON (sesión vencida o sin permiso)
+se informa en el aviso sin cerrar el panel. El texto de los avisos se asigna con `textContent`.
+
+**Contrato de la ruta JSON.** `POST /products/new` con `Accept: application/json` (y cuerpo JSON o
+formulario): `201 {"ok": true, "id": …, "nombre": …}`; datos inválidos, `422 {"ok": false,
+"errors": {"campo": "mensaje"}}` con los campos `name`, `business_unit_id` o `sku`. Sin sesión, la app
+responde con su redirección habitual; sin permiso, 403 o redirección. El formulario HTML sin esa cabecera
+conserva su redirect a la lista y el aviso con 400. Validación y persistencia son las mismas
+(`crear_producto_desde_pedido` en `blueprints/products.py`).
+
+**Lista.** Tras guardar, la región `[data-products-region]` se reemplaza con la tabla fresca de `/products`
+(el panel no se cierra al agregar otro) y la fila nueva queda resaltada unos segundos
+(`app-table__row--resaltada`). Los filtros no existen hoy: si aparecen, el refresco debe conservarlos.
+
+**Alcance de este corte.** Solo PC (1440×900 y 1366×768). Sin cambios de modelos ni migraciones.
+Para los cortes siguientes: replicar el parcial de campos, el pie y el bloque `<form class="app-drawer">`
+de `templates/products_list.html`, y configurar `App360DrawerForm.crear` con el endpoint y los campos propios.
+
+**Hoy.** Productos: la página `/products/new` y el panel comparten campos; el alta repetitiva ya no
+requiere un recorrido de pantalla por producto.
+
+**Referencia de código.** `static/js/app_drawer_form.js`; `static/css/app_components.css` (`.app-drawer`,
+`.app-drawer__footer` pegado al pie, `.app-table__row--resaltada`); `templates/products_list.html`;
+`templates/_products_form_campos.html`; `templates/_drawer_pie.html`; `blueprints/products.py`.
+Patrón de referencia de foco y Escape: `static/js/objetivos_comerciales.js` (panel de objetivos).
+
+**Decisión.** D3 (Inti): altas repetitivas en panel lateral. En «Guardar y agregar otro» se conservan la
+unidad de negocio y la categoría (se repiten en una carga por lote) y se limpian SKU y nombre.
+
 ### 3.14 Tabla de resumen por entidad
 
 **Receta.** Mostrar una entidad por fila y definir las columnas una sola vez con anchos explícitos.
