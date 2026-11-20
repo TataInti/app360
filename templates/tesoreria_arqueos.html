@@ -144,7 +144,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-warning">Guardar cambios</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar cambios</button>
                 </div>
             </form>
         </div>
@@ -436,12 +436,12 @@ async function cargarArqueos() {
                 <tr>
                     <td>${escapeHtml(a.fecha)}</td>
                     <td>${escapeHtml(a.turno || '-')}</td>
-                    <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(a.saldo_inicial, decimales))}</td>
-                    <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(a.ingresos, decimales))}</td>
-                    <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(a.egresos, decimales))}</td>
-                    <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(esperado, decimales))}</td>
-                    <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(a.saldo_final || 0, decimales))}</td>
-                    <td class="text-end tabular-nums">${TesoreriaForms.diferenciaHtml(a.diferencia)}</td>
+                    <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(a.saldo_inicial, decimales))}</td>
+                    <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(a.ingresos, decimales))}</td>
+                    <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(a.egresos, decimales))}</td>
+                    <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(esperado, decimales))}</td>
+                    <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(a.saldo_final || 0, decimales))}</td>
+                    <td class="text-end">${TesoreriaForms.celdaDiferenciaHtml(a.diferencia, decimales)}</td>
                     <td>${escapeHtml(a.usuario || '-')}</td>
                     <td>${acciones}</td>
                 </tr>
@@ -637,9 +637,9 @@ async function verDetalleInstrumentos(id) {
                 <tbody>
                     ${detalles.map(d => `<tr>
                             <td>${escapeHtml(d.instrumento)}</td>
-                            <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(d.saldo_calculado, decimales))}</td>
-                            <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(d.conteo_real, decimales))}</td>
-                            <td class="text-end tabular-nums">${TesoreriaForms.diferenciaHtml(d.diferencia)}</td>
+                            <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(d.saldo_calculado, decimales))}</td>
+                            <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(d.conteo_real, decimales))}</td>
+                            <td class="text-end">${TesoreriaForms.celdaDiferenciaHtml(d.diferencia, decimales)}</td>
                         </tr>`).join('')}
                 </tbody>
             </table></div>`;

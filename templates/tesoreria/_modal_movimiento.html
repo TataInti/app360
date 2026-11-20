@@ -1,18 +1,20 @@
-{# Modal «Registrar nuevo movimiento» (SIS-1C). Lo incluyen Tesorería (panel) y Movimientos: el mismo formulario.
-   Ids y names del formulario (contrato con el POST /api/tesoreria/movimientos):
-   #formMovimiento, #modalNuevoMovimiento, #selectCategoriaGasto, #selectTipoMovimiento, #selectInstrumento,
-   #portadorGroup, #selectPortador, #selectProveedor, y los names tipo, monto, descripcion, instrumento_id,
-   categoria_gasto_id, proveedor_id, portador_id. La lógica la conserva cada página en su propio script.
+{# Modal «Registrar nuevo movimiento» (SIS-1C). Lo incluyen Tesorería (panel) y Movimientos.
+   Parámetro mov_modo:
+   - 'movimientos' (por defecto, pantalla Movimientos): ids de siempre, portador y proveedor.
+   - 'panel' (Tesorería): ids, etiquetas y textos del panel original; sin portador ni proveedor.
    Grilla de 2 columnas; el pie («Cancelar» y «Guardar movimiento») queda fijo mientras el cuerpo se desplaza. #}
+{% set panel = (mov_modo | default('movimientos')) == 'panel' %}
+{% set ids = {'concepto': 'select-concepto-rapido', 'tipo': 'select-tipo-rapido', 'hint': 'tipo-rapido-hint', 'instrumento': 'select-instrumento'} if panel else {'concepto': 'selectCategoriaGasto', 'tipo': 'selectTipoMovimiento', 'hint': 'tipoMovimientoHint', 'instrumento': 'selectInstrumento'} %}
+{% set titulo_id = 'modalNuevoMovimientoPanelTitle' if panel else 'modalNuevoMovimientoTitle' %}
 <div class="modal fade app-modal app-modal--blue" id="modalNuevoMovimiento" tabindex="-1"
-     aria-labelledby="modalNuevoMovimientoTitle" aria-hidden="true">
+     aria-labelledby="{{ titulo_id }}" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header app-modal__header">
                 <div class="app-modal__title-group">
                     <span class="app-modal__eyebrow">Caja</span>
-                    <h5 class="modal-title" id="modalNuevoMovimientoTitle">Registrar nuevo movimiento</h5>
-                    <p class="app-modal__subtitle">Elegí el concepto para definir la naturaleza y el efecto del movimiento.</p>
+                    <h5 class="modal-title" id="{{ titulo_id }}">Registrar nuevo movimiento</h5>
+                    <p class="app-modal__subtitle">{% if panel %}Carga un ingreso o egreso rapido desde el panel principal de tesoreria.{% else %}Elegí el concepto para definir la naturaleza y el efecto del movimiento.{% endif %}</p>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
@@ -21,31 +23,32 @@
                     <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
                     <div class="app-form-grid app-form-grid--cols-2">
                         <div class="app-field app-form-grid__full">
-                            <label class="app-field__label" for="selectCategoriaGasto">Concepto *</label>
-                            <select class="app-field__control" name="categoria_gasto_id" id="selectCategoriaGasto" required>
+                            <label class="app-field__label" for="{{ ids.concepto }}">Concepto *</label>
+                            <select class="app-field__control" name="categoria_gasto_id" id="{{ ids.concepto }}" required>
                                 <option value="">Seleccionar…</option>
                             </select>
-                            <span class="tes-ayuda">La naturaleza y el efecto se administran en Configuración → Administración → Movimientos.</span>
+                            {% if not panel %}<span class="tes-ayuda">La naturaleza y el efecto se administran en Configuración → Administración → Movimientos.</span>{% endif %}
                         </div>
                         <div class="app-field">
-                            <label class="app-field__label" for="selectTipoMovimiento">Tipo *</label>
-                            <select class="app-field__control" name="tipo" id="selectTipoMovimiento" required disabled>
+                            <label class="app-field__label" for="{{ ids.tipo }}">Tipo *</label>
+                            <select class="app-field__control" name="tipo" id="{{ ids.tipo }}" required disabled>
                                 <option value="ingreso">Ingreso</option>
                                 <option value="egreso">Egreso</option>
                             </select>
-                            <span class="tes-ayuda" id="tipoMovimientoHint">Seleccioná primero un concepto.</span>
+                            <span class="tes-ayuda" id="{{ ids.hint }}">Seleccioná primero un concepto.</span>
                         </div>
                         <div class="app-field">
-                            <label class="app-field__label" for="montoMovimiento">Monto *</label>
+                            <label class="app-field__label" for="montoMovimiento">{{ 'Monto' if panel else 'Monto *' }}</label>
                             <input class="app-field__control tes-numero" type="number" id="montoMovimiento" name="monto"
                                    step="0.01" min="0.01" data-money-input required>
                         </div>
                         <div class="app-field">
-                            <label class="app-field__label" for="selectInstrumento">Instrumento *</label>
-                            <select class="app-field__control" name="instrumento_id" id="selectInstrumento" required>
+                            <label class="app-field__label" for="{{ ids.instrumento }}">{{ 'Instrumento' if panel else 'Instrumento *' }}</label>
+                            <select class="app-field__control" name="instrumento_id" id="{{ ids.instrumento }}" required>
                                 <option value="">Seleccionar...</option>
                             </select>
                         </div>
+                        {% if not panel %}
                         <div class="app-field d-none" id="portadorGroup">
                             <label class="app-field__label" id="portadorLabel" for="selectPortador">Portador</label>
                             <div class="tes-fila">
@@ -63,8 +66,9 @@
                                 <option value="">Sin proveedor</option>
                             </select>
                         </div>
+                        {% endif %}
                         <div class="app-field app-form-grid__full">
-                            <label class="app-field__label" for="descripcionMovimiento">Descripción *</label>
+                            <label class="app-field__label" for="descripcionMovimiento">{{ 'Descripción' if panel else 'Descripción *' }}</label>
                             <input class="app-field__control" type="text" id="descripcionMovimiento" name="descripcion" required>
                         </div>
                     </div>

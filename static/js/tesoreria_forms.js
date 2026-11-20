@@ -61,6 +61,22 @@
     return n < 0 ? punto('error', 'Faltante') : punto('warn', 'Sobrante');
   }
 
+  // Estado de movimiento como punto + texto: Activo, Anulado o Pend. anulación.
+  function estadoHtml(estado) {
+    if (estado === 'anulado') return punto('neutral', 'Anulado');
+    if (estado === 'pendiente_anulacion') return punto('warn', 'Pend. anulación');
+    return punto('ok', 'Activo');
+  }
+
+  // Importe alineado a la derecha (cifras tabulares) y, al lado, el estado de la diferencia.
+  // Un valor vacío cuenta como 0, igual que en la pantalla original.
+  function celdaDiferenciaHtml(diferencia, decimales) {
+    const valor = diferencia === null || diferencia === undefined || diferencia === '' ? 0 : diferencia;
+    return '<span class="d-inline-flex align-items-center justify-content-end gap-2">'
+      + `<span class="app-table__numeric">${escapeHtml(importe(valor, decimales))}</span>`
+      + `${diferenciaHtml(valor)}</span>`;
+  }
+
   function etiquetaEfecto(efecto) {
     if (efecto === 'suma') return 'Suma';
     if (efecto === 'resta') return 'Resta';
@@ -76,20 +92,25 @@
 
   let conceptosRapidos = [];
 
-  function cargarConceptos(conceptos) {
+  // Ids del modal de movimiento: Movimientos usa los del parcial; el panel pasa los suyos.
+  const IDS_MOVIMIENTO = {concepto: 'selectCategoriaGasto', tipo: 'selectTipoMovimiento', hint: 'tipoMovimientoHint', instrumento: 'selectInstrumento'};
+  const idsMovimiento = (ids) => Object.assign({}, IDS_MOVIMIENTO, ids || {});
+
+  function cargarConceptos(conceptos, ids) {
     conceptosRapidos = conceptos.filter((c) => c.naturaleza);
-    const select = document.getElementById('selectCategoriaGasto');
+    const select = document.getElementById(idsMovimiento(ids).concepto);
     if (!select) return;
     select.innerHTML = '<option value="">Seleccionar…</option>' + conceptosRapidos.map((c) =>
       `<option value="${escapeHtml(c.id)}">${escapeHtml(c.nombre)} · `
       + `${escapeHtml(etiquetaNaturaleza(c.naturaleza))} · ${escapeHtml(etiquetaEfecto(c.efecto))}</option>`).join('');
   }
 
-  function sincronizarTipoRapido() {
-    const conceptoId = Number(document.getElementById('selectCategoriaGasto').value || 0);
+  function sincronizarTipoRapido(ids) {
+    const campos = idsMovimiento(ids);
+    const conceptoId = Number(document.getElementById(campos.concepto).value || 0);
     const concepto = conceptosRapidos.find((c) => Number(c.id) === conceptoId);
-    const tipo = document.getElementById('selectTipoMovimiento');
-    const hint = document.getElementById('tipoMovimientoHint');
+    const tipo = document.getElementById(campos.tipo);
+    const hint = document.getElementById(campos.hint);
     if (!concepto) {
       tipo.disabled = true;
       hint.textContent = 'Seleccioná primero un concepto.';
@@ -104,8 +125,8 @@
     }
   }
 
-  function cargarInstrumentos(instrumentos) {
-    const select = document.getElementById('selectInstrumento');
+  function cargarInstrumentos(instrumentos, ids) {
+    const select = document.getElementById(idsMovimiento(ids).instrumento);
     if (!select) return;
     select.innerHTML = instrumentos.length
       ? instrumentos.map((i) => `<option value="${escapeHtml(i.id)}">${escapeHtml(i.nombre)}</option>`).join('')
@@ -276,16 +297,60 @@
     });
   }
 
+  // Arqueo del panel (Tesorería): mismos campos y payload que el formulario original del panel, sin conteo por
+  // instrumento ni totales del turno. Ingresos y egresos son editables, como en el panel original.
+  function montarArqueoPanel(formulario, alGuardar) {
+    formulario.addEventListener('submit', (evento) => {
+      evento.preventDefault();
+      ocultarErrorFormulario(formulario);
+      const formData = new FormData(formulario);
+      const inicial = parseFloat(formData.get('saldo_inicial')) || 0;
+      const ingresos = parseFloat(formData.get('ingresos')) || 0;
+      const egresos = parseFloat(formData.get('egresos')) || 0;
+      const real = parseFloat(formData.get('saldo_real')) || 0;
+      const data = {
+        fecha: formData.get('fecha'),
+        turno: formData.get('turno'),
+        saldo_inicial: inicial,
+        ingresos: ingresos,
+        egresos: egresos,
+        saldo_final: real,
+        diferencia: real - (inicial + ingresos - egresos),
+        observaciones: formData.get('observaciones'),
+      };
+      fetch('/api/tesoreria/arqueos', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken()},
+        body: JSON.stringify(data),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.message) {
+            alGuardar?.(formulario);
+          } else {
+            mostrarErrorFormulario(formulario, d.error || 'No se pudo guardar el arqueo. Revisá los datos e intentá de nuevo.');
+          }
+        })
+        .catch((e) => {
+          console.error('Error:', e);
+          mostrarErrorFormulario(formulario, 'No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
+        });
+    });
+  }
+
   root.TesoreriaForms = Object.freeze({
     importe,
     decimalesPara,
     tipoHtml,
     diferenciaHtml,
+    estadoHtml,
+    celdaDiferenciaHtml,
     cargarConceptos,
     sincronizarTipoRapido,
     cargarInstrumentos,
     enviarMovimiento,
     montarArqueo,
+    montarArqueoPanel,
     renderInstrumentosArqueo,
   });
 })(window);

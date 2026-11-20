@@ -114,8 +114,8 @@
     </div>
 </div>
 
-{% include "tesoreria/_modal_movimiento.html" %}
-{% include "tesoreria/_modal_arqueo.html" %}
+{% with mov_modo='panel' %}{% include "tesoreria/_modal_movimiento.html" %}{% endwith %}
+{% with arqueo_modo='panel' %}{% include "tesoreria/_modal_arqueo.html" %}{% endwith %}
 
 <script>
     let flujoChart, instrumentosChart;
@@ -127,33 +127,36 @@
     document.addEventListener('tesoreria:movimiento-guardado', cargarDatos);
     document.addEventListener('tesoreria:arqueo-guardado', cargarDatos);
 
+    // Ids del modal de movimiento del panel (los originales del panel).
+    const IDS_MOV_PANEL = {concepto: 'select-concepto-rapido', tipo: 'select-tipo-rapido', hint: 'tipo-rapido-hint', instrumento: 'select-instrumento'};
+
     function cargarFormularios() {
         fetch('/api/tesoreria/instrumentos')
             .then(r => r.json())
             .then(data => {
-                TesoreriaForms.cargarInstrumentos(data.instrumentos || []);
-                TesoreriaForms.renderInstrumentosArqueo(data.instrumentos || []);
+                TesoreriaForms.cargarInstrumentos(data.instrumentos || [], IDS_MOV_PANEL);
             })
             .catch(e => console.error('Error instrumentos:', e));
         fetch('/api/gastos/categorias')
             .then(r => r.json())
-            .then(data => TesoreriaForms.cargarConceptos(data.categorias || []))
+            .then(data => TesoreriaForms.cargarConceptos(data.categorias || [], IDS_MOV_PANEL))
             .catch(e => console.error('Error conceptos:', e));
-        document.getElementById('selectCategoriaGasto')
-            ?.addEventListener('change', TesoreriaForms.sincronizarTipoRapido);
+        document.getElementById(IDS_MOV_PANEL.concepto)
+            ?.addEventListener('change', () => TesoreriaForms.sincronizarTipoRapido(IDS_MOV_PANEL));
         document.getElementById('formMovimiento')?.addEventListener('submit', function (e) {
             e.preventDefault();
             TesoreriaForms.enviarMovimiento(this, () => {
                 bootstrap.Modal.getInstance(document.getElementById('modalNuevoMovimiento'))?.hide();
                 this.reset();
-                TesoreriaForms.sincronizarTipoRapido();
+                TesoreriaForms.sincronizarTipoRapido(IDS_MOV_PANEL);
                 cargarDatos();
             });
         });
-        const formArqueo = document.getElementById('formArqueo');
-        TesoreriaForms.montarArqueo(formArqueo, (form) => {
+        document.getElementById('arqueoFecha').value = new Date().toISOString().split('T')[0];
+        TesoreriaForms.montarArqueoPanel(document.getElementById('formArqueo'), (form) => {
             bootstrap.Modal.getInstance(document.getElementById('modalNuevoArqueo'))?.hide();
             form.reset();
+            document.getElementById('arqueoFecha').value = new Date().toISOString().split('T')[0];
             cargarDatos();
         });
     }
@@ -368,7 +371,7 @@
             <tr>
                 <td>${escapeHtml(new Date(m.fecha_hora).toLocaleString('es-AR'))}</td>
                 <td>${TesoreriaForms.tipoHtml(m.tipo)}</td>
-                <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(m.monto, decimales))}</td>
+                <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(m.monto, decimales))}</td>
                 <td>${escapeHtml(m.instrumento)}</td>
                 <td>${escapeHtml(m.descripcion)}</td>
                 <td>${escapeHtml(m.usuario || 'N/A')}</td>
@@ -398,11 +401,11 @@
             <tr>
                 <td>${escapeHtml(a.fecha)}</td>
                 <td>${escapeHtml(a.turno || '-')}</td>
-                <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(a.saldo_inicial, decimales))}</td>
-                <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(a.ingresos, decimales))}</td>
-                <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(a.egresos, decimales))}</td>
-                <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(a.saldo_final || 0, decimales))}</td>
-                <td class="text-end tabular-nums">${TesoreriaForms.diferenciaHtml(a.diferencia)}</td>
+                <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(a.saldo_inicial, decimales))}</td>
+                <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(a.ingresos, decimales))}</td>
+                <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(a.egresos, decimales))}</td>
+                <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(a.saldo_final || 0, decimales))}</td>
+                <td class="text-end">${TesoreriaForms.celdaDiferenciaHtml(a.diferencia, decimales)}</td>
             </tr>
         `).join('');
     }

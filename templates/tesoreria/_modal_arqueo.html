@@ -1,9 +1,75 @@
-{# Modal «Nuevo arqueo de caja» (SIS-1C). Lo incluyen Tesorería (panel) y Arqueos: el mismo formulario en ambas
-   pantallas. Ids y names los mantiene static/js/tesoreria_forms.js y el JS de la pantalla que lo incluye.
-   Ids que usan los E2E (no cambiar): #formArqueo, #modalNuevoArqueo, #ingresosTurnoSistema, #egresosTurnoSistema,
-   #saldoReal, #diferenciaCalc, #avisoTotalesTurno, #detalleInstrumentos, y el texto «Saldo Inicial».
-   Grilla fija de 3 columnas; conteo por instrumento en tabla (instrumento | conteo real); el pie («Cancelar» y
-   «Guardar arqueo») queda fijo mientras el cuerpo se desplaza. #}
+{# Modal «Nuevo arqueo de caja» (SIS-1C). Parámetro arqueo_modo:
+   - 'completo' (por defecto, pantalla Arqueos): saldo esperado con ingresos y egresos del sistema, diferencia
+     calculada, conteo por instrumento y detalles. Lo monta static/js/tesoreria_forms.js (montarArqueo).
+   - 'panel' (Tesorería): ingresos y egresos editables, etiquetas originales del panel, sin conteo por instrumento.
+     Lo monta montarArqueoPanel (mismo payload que el panel original).
+   Ids que usan los E2E (no cambiar): #formArqueo, #modalNuevoArqueo, #saldoReal; en completo también
+   #ingresosTurnoSistema, #egresosTurnoSistema, #diferenciaCalc, #avisoTotalesTurno, #detalleInstrumentos y el texto «Saldo Inicial». #}
+{% set panel = (arqueo_modo | default('completo')) == 'panel' %}
+{% if panel %}
+<div class="modal fade app-modal app-modal--sky" id="modalNuevoArqueo" tabindex="-1"
+     aria-labelledby="modalNuevoArqueoPanelTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header app-modal__header">
+                <div class="app-modal__title-group">
+                    <span class="app-modal__eyebrow">Cierre</span>
+                    <h5 class="modal-title" id="modalNuevoArqueoPanelTitle">Nuevo arqueo de caja</h5>
+                    <p class="app-modal__subtitle">Registra el cierre del turno con saldo esperado, saldo real y observaciones.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <form id="formArqueo">
+                <div class="modal-body tes-arqueo__cuerpo">
+                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
+                    <div class="app-form-grid app-form-grid--cols-3">
+                        <div class="app-field">
+                            <label class="app-field__label" for="arqueoFecha">Fecha *</label>
+                            <input class="app-field__control" type="date" name="fecha" id="arqueoFecha" required>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="arqueoTurno">Turno *</label>
+                            <select class="app-field__control" name="turno" id="arqueoTurno" required>
+                                <option value="mañana">Mañana</option>
+                                <option value="tarde">Tarde</option>
+                                <option value="noche">Noche</option>
+                            </select>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="arqueoSaldoInicial">Saldo Inicial *</label>
+                            <input class="app-field__control tes-numero" type="number" id="arqueoSaldoInicial" name="saldo_inicial"
+                                   step="0.01" data-money-input required>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="arqueoIngresos">Ingresos del Turno</label>
+                            <input class="app-field__control tes-numero" type="number" id="arqueoIngresos" name="ingresos"
+                                   step="0.01" data-money-input>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="arqueoEgresos">Egresos del Turno</label>
+                            <input class="app-field__control tes-numero" type="number" id="arqueoEgresos" name="egresos"
+                                   step="0.01" data-money-input>
+                        </div>
+                        <div class="app-field">
+                            <label class="app-field__label" for="saldoReal">Saldo Real (conteo físico) *</label>
+                            <input class="app-field__control tes-numero" type="number" id="saldoReal" name="saldo_real"
+                                   step="0.01" data-money-input required>
+                        </div>
+                        <div class="app-field app-form-grid__full">
+                            <label class="app-field__label" for="arqueoObservaciones">Observaciones</label>
+                            <input class="app-field__control" type="text" id="arqueoObservaciones" name="observaciones">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar arqueo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% else %}
 <div class="modal fade app-modal app-modal--blue" id="modalNuevoArqueo" tabindex="-1"
      aria-labelledby="modalNuevoArqueoTitle" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -85,6 +151,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 <style>
     /* Reglas propias de Tesorería: el sistema no las define. Solo tokens por nombre. */
     .tes-arqueo__cuerpo { max-height: calc(100vh - 16rem); overflow-y: auto; }

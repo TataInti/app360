@@ -24,20 +24,21 @@ SAFE_HTML_EXCEPTIONS = {
         "cambios": "compararCambios escapes every value and inserts only fixed strong/br markup.",
         "difClass": "CSS class is selected from fixed numeric sign branches.",
         "logs.map(": "Each audit row encodes time/user/justification; the change fragment is escaped.",
-        "TesoreriaForms.diferenciaHtml(a.diferencia)": "Returns fixed status markup (Sin diferencia / Faltante / Sobrante) from a numeric sign; no record text.",
-        "TesoreriaForms.diferenciaHtml(d.diferencia)": "Returns fixed status markup (Sin diferencia / Faltante / Sobrante) from a numeric sign; no record text.",
+        "TesoreriaForms.celdaDiferenciaHtml(a.diferencia, decimales)": "Returns the amount escaped by importe plus fixed status markup from a numeric sign; no record text.",
+        "TesoreriaForms.celdaDiferenciaHtml(d.diferencia, decimales)": "Returns the amount escaped by importe plus fixed status markup from a numeric sign; no record text.",
     },
     "templates/tesoreria_movimientos.html": {
         "acciones": "Buttons are fixed markup with numeric ids escaped before interpolation.",
         "destinoCategoria": "The fragment escapes category/nature/effect values before insertion.",
-        "estadoBadge": "The fragment contains only fixed status badges selected by enum branches.",
+        "estadoBadge": "TesoreriaForms.estadoHtml returns fixed status markup (Activo / Anulado / Pend. anulación) selected by enum; no record text.",
+        "TesoreriaForms.tipoHtml(m.tipo)": "Returns a fixed status (Ingreso / Egreso) built by TesoreriaForms.punto, which escapes its text; no record text.",
         "rowClass": "Only fixed class text selected by the movement status enum is inserted.",
     },
     "templates/tesoreria_panel.html": {
         "a.diferencia < 0 ?": "The conditional selects one of three fixed CSS class names.",
         "m.tipo === 'ingreso' ? '<span": "The conditional returns fixed status badge markup.",
         "TesoreriaForms.tipoHtml(m.tipo)": "Returns a fixed status (Ingreso / Egreso) built by TesoreriaForms.punto, which escapes its text; no record text.",
-        "TesoreriaForms.diferenciaHtml(a.diferencia)": "Returns fixed status markup (Sin diferencia / Faltante / Sobrante) from a numeric sign; no record text.",
+        "TesoreriaForms.celdaDiferenciaHtml(a.diferencia, decimales)": "Returns the amount escaped by importe plus fixed status markup from a numeric sign; no record text.",
     },
 
     # RRHH

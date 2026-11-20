@@ -424,10 +424,7 @@ async function cargarMovimientos() {
                 const esPendiente = m.estado === 'pendiente_anulacion';
                 const rowClass = esAnulado ? 'class="text-decoration-line-through text-muted"' : '';
 
-                let estadoBadge = '';
-                if (esAnulado) estadoBadge = '<span class="badge bg-secondary">Anulado</span>';
-                else if (esPendiente) estadoBadge = '<span class="badge bg-warning text-dark">Pend. anulación</span>';
-                else estadoBadge = '<span class="badge bg-primary">Activo</span>';
+                const estadoBadge = TesoreriaForms.estadoHtml(m.estado);
 
                 let acciones = '';
                 if (canEdit && !esAnulado && !esPendiente) {
@@ -436,7 +433,7 @@ async function cargarMovimientos() {
                     </button>`;
                 }
                 if (isAdmin && esPendiente) {
-                    acciones = `<button class="btn btn-sm btn-success me-1" onclick="autorizarAnulacion(${escapeHtml(m.id)})" title="Autorizar">
+                    acciones = `<button class="btn btn-sm btn-outline-primary me-1" onclick="autorizarAnulacion(${escapeHtml(m.id)})" title="Autorizar">
                         <i class="bi bi-check-circle"></i>
                     </button>
                     <button class="btn btn-sm btn-outline-secondary" onclick="rechazarAnulacion(${escapeHtml(m.id)})" title="Rechazar">
@@ -447,8 +444,8 @@ async function cargarMovimientos() {
                 return `
                 <tr ${rowClass}>
                     <td>${escapeHtml(new Date(m.fecha_hora).toLocaleString('es-AR'))}</td>
-                    <td><span class="badge ${escapeHtml(m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger')}">${escapeHtml(m.tipo)}</span></td>
-                    <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(m.monto, decimalesMov))}</td>
+                    <td>${TesoreriaForms.tipoHtml(m.tipo)}</td>
+                    <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(m.monto, decimalesMov))}</td>
                     <td>${escapeHtml(m.instrumento || '-')}</td>
                     <td>${escapeHtml(m.portador || '-')}</td>
                     <td>${destinoCategoria}</td>
@@ -467,10 +464,11 @@ async function cargarMovimientos() {
         if (movimientos.length > 0) {
             const activos = movimientos.filter(m => m.estado !== 'anulado');
             document.getElementById('subtotalCount').textContent = `(${activos.length} activos)`;
+            const decimalesSubtotal = TesoreriaForms.decimalesPara([ingresos, egresos, ingresos - egresos]);
             document.getElementById('subtotalMonto').innerHTML =
-                `<span class="text-success">+$${escapeHtml(ingresos.toLocaleString('es-AR', {maximumFractionDigits:0}))}</span> ` +
-                `<span class="text-danger">-$${escapeHtml(egresos.toLocaleString('es-AR', {maximumFractionDigits:0}))}</span> = ` +
-                `<span class="text-primary">$${escapeHtml((ingresos - egresos).toLocaleString('es-AR', {maximumFractionDigits:0}))}</span>`;
+                `<span class="text-success">+${escapeHtml(TesoreriaForms.importe(ingresos, decimalesSubtotal))}</span> ` +
+                `<span class="text-danger">-${escapeHtml(TesoreriaForms.importe(egresos, decimalesSubtotal))}</span> = ` +
+                `<span class="text-primary">${escapeHtml(TesoreriaForms.importe(ingresos - egresos, decimalesSubtotal))}</span>`;
             tfoot.classList.remove('d-none');
         } else {
             tfoot.classList.add('d-none');
