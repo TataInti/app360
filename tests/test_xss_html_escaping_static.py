@@ -11,55 +11,68 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 ASSIGNMENT = re.compile(r"\binnerHTML\s*(?:\+=|=(?!=))")
 
-# SAFE HTML fragments (each exception is documented at its point of use):
+# SAFE HTML fragments (each exception is documented at its point of use).
 SAFE_HTML_EXCEPTIONS = {
-    "static/js/objetivos_comerciales.js": {
-        "rows": "Legacy rows are built field-by-field with escapeHtml before insertion.",
-    },
-    "templates/admin/admin_modulo.html": {
-        "buildSelectOptions(": "The helper escapes each option value and label before returning markup.",
-        "field === 'incluye_resultado' ?": "Both branches are fixed literal markup, not API data.",
-        "inactiveNote": "This variable contains only a fixed '(inactivo)' span selected by a boolean.",
-    },
+    # Maestros
+    # Compras-ventas
+    # Tesorería
     "templates/cta_cte_friar.html": {
         "isAdmin ?": "The nested button is fixed markup; its numeric record id is escaped.",
     },
+    "templates/tesoreria_arqueos.html": {
+        "acciones": "Buttons are fixed markup with numeric ids escaped before interpolation.",
+        "cambios": "compararCambios escapes every value and inserts only fixed strong/br markup.",
+        "difClass": "CSS class is selected from fixed numeric sign branches.",
+        "logs.map(": "Each audit row encodes time/user/justification; the change fragment is escaped.",
+    },
+    "templates/tesoreria_movimientos.html": {
+        "acciones": "Buttons are fixed markup with numeric ids escaped before interpolation.",
+        "destinoCategoria": "The fragment escapes category/nature/effect values before insertion.",
+        "estadoBadge": "The fragment contains only fixed status badges selected by enum branches.",
+        "rowClass": "Only fixed class text selected by the movement status enum is inserted.",
+    },
+    "templates/tesoreria_panel.html": {
+        "a.diferencia < 0 ?": "The conditional selects one of three fixed CSS class names.",
+        "m.tipo === 'ingreso' ? '<span": "The conditional returns fixed status badge markup.",
+    },
+
+    # RRHH
     "templates/rrhh_adelantos.html": {
         "!a.aprobado ?": "The nested approve button is fixed markup with an escaped numeric id.",
         "estadoBadge": "The fragment contains only fixed status badges selected by boolean state.",
     },
     "templates/rrhh_ausentismo.html": {
-        "canJustify ?": "The nested button is fixed markup with an escaped numeric id.",
         "badgeEstado(r)": "Returns one of fixed status badges; it interpolates no record text.",
+        "canJustify ?": "The nested button is fixed markup with an escaped numeric id.",
         "color": "A CSS class selected only from fixed enum branches in verDetalleEmpleado.",
     },
     "templates/rrhh_liquidaciones.html": {
         "detalleLiquidacion(": "The helper escapes numeric counts and inserts only fixed <br> markup.",
     },
     "templates/rrhh_panel.html": {
-        "badgeTipoAdelanto(": "The helper returns fixed badge markup and escapes the unknown type fallback.",
         "badgeEstadoAdelanto(": "The helper returns only fixed badge markup selected by boolean state.",
+        "badgeTipoAdelanto(": "The helper returns fixed badge markup and escapes the unknown type fallback.",
         "e.is_active": "The conditional branches are fixed active/inactive badge markup.",
     },
+
+    # CRM
+    # Paneles de lectura
+    # Admin
+    "templates/admin/admin_modulo.html": {
+        "buildSelectOptions(": "The helper escapes each option value and label before returning markup.",
+        "field === 'incluye_resultado' ?": "Both branches are fixed literal markup, not API data.",
+        "inactiveNote": "This variable contains only a fixed '(inactivo)' span selected by a boolean.",
+    },
+
+    # Objetivos
+    "static/js/objetivos_comerciales.js": {
+        "rows": "Legacy rows are built field-by-field with escapeHtml before insertion.",
+    },
+
+    # SabioGo
     "templates/sabiogo_admin.html": {
         "badge": "The value is a fixed success/warning badge selected by the boolean mapeado.",
         "cell": "Coverage-cell markup is assembled from escaped counts, ids, and missing-day labels.",
-    },
-    "templates/tesoreria_arqueos.html": {
-        "acciones": "Buttons are fixed markup with numeric ids escaped before interpolation.",
-        "difClass": "CSS class is selected from fixed numeric sign branches.",
-        "cambios": "compararCambios escapes every value and inserts only fixed strong/br markup.",
-        "logs.map(": "Each audit row encodes time/user/justification; the change fragment is escaped.",
-    },
-    "templates/tesoreria_movimientos.html": {
-        "destinoCategoria": "The fragment escapes category/nature/effect values before insertion.",
-        "estadoBadge": "The fragment contains only fixed status badges selected by enum branches.",
-        "acciones": "Buttons are fixed markup with numeric ids escaped before interpolation.",
-        "rowClass": "Only fixed class text selected by the movement status enum is inserted.",
-    },
-    "templates/tesoreria_panel.html": {
-        "m.tipo === 'ingreso' ? '<span": "The conditional returns fixed status badge markup.",
-        "a.diferencia < 0 ?": "The conditional selects one of three fixed CSS class names.",
     },
 }
 
