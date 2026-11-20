@@ -1,43 +1,56 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>{{ 'Editar Stock' if stock else 'Nuevo / Actualizar Stock' }}</h1>
-
-<form method="POST">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="mb-3">
-        <label>Producto</label>
-        {% if not products %}<div class="alert alert-warning mb-2">Todavía no hay productos. <a href="/products/new">Creá uno en Productos</a>.</div>{% endif %}
-        <select name="product_id" class="form-control" required {% if not products %}disabled{% endif %}>
-            {% for p in products %}
-                <option value="{{ p.id }}"
-                    {% if stock and stock.product_id == p.id %}selected{% endif %}>
-                    {{ p.sku }} - {{ p.name }}
-                </option>
-            {% endfor %}
-        </select>
+<header class="panel-header">
+    <div>
+        <h1>{{ 'Editar Stock' if stock else 'Nuevo / Actualizar Stock' }}</h1>
+        <span class="panel-subtitle">Completá el producto, la ubicación y la cantidad.</span>
     </div>
+</header>
 
-    <div class="mb-3">
-        <label>Ubicación</label>
-        {% if not locations %}<div class="alert alert-warning mb-2">Todavía no hay ubicaciones. <a href="/locations/new">Creá una en Ubicaciones</a>.</div>{% endif %}
-        <select name="location_id" class="form-control" required {% if not locations %}disabled{% endif %}>
-            {% for l in locations %}
-                <option value="{{ l.id }}"
-                    {% if stock and stock.location_id == l.id %}selected{% endif %}>
-                    {{ l.name }} ({{ l.type }})
-                </option>
-            {% endfor %}
-        </select>
+<div class="row">
+    <div class="col-12 col-lg-8">
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="app-form-grid app-form-grid--cols-2">
+                <div class="app-field">
+                    <label class="app-field__label" for="product_id">Producto</label>
+                    {% if not products %}<div class="alert alert-warning mb-0">Todavía no hay productos. <a href="/products/new">Creá uno en Productos</a>.</div>{% endif %}
+                    <select id="product_id" name="product_id" class="form-control app-field__control" required {% if not products %}disabled{% endif %}>
+                        {% for p in products %}
+                            <option value="{{ p.id }}"
+                                {% if stock and stock.product_id == p.id %}selected{% endif %}>
+                                {{ p.sku }} - {{ p.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="app-field">
+                    <label class="app-field__label" for="location_id">Ubicación</label>
+                    {% if not locations %}<div class="alert alert-warning mb-0">Todavía no hay ubicaciones. <a href="/locations/new">Creá una en Ubicaciones</a>.</div>{% endif %}
+                    <select id="location_id" name="location_id" class="form-control app-field__control" required {% if not locations %}disabled{% endif %}>
+                        {% for l in locations %}
+                            <option value="{{ l.id }}"
+                                {% if stock and stock.location_id == l.id %}selected{% endif %}>
+                                {{ l.name }} ({{ l.type }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <label class="app-field">
+                    <span class="app-field__label">Cantidad</span>
+                    <input type="number" name="quantity" class="form-control app-field__control" min="0" step="1"
+                           value="{{ stock.quantity if stock else 0 }}" required>
+                </label>
+
+                <div class="app-form-grid__full app-actions">
+                    <button type="submit" class="btn btn-primary" {% if not products or not locations %}disabled{% endif %}>Guardar</button>
+                    <a href="/stock" class="btn btn-outline-secondary">Cancelar</a>
+                </div>
+            </div>
+        </form>
     </div>
-
-    <div class="mb-3">
-        <label>Cantidad</label>
-        <input type="number" name="quantity" class="form-control" min="0" step="1"
-               value="{{ stock.quantity if stock else 0 }}" required>
-    </div>
-
-    <button type="submit" class="btn btn-primary" {% if not products or not locations %}disabled{% endif %}>Guardar</button>
-    <a href="/stock" class="btn btn-secondary">Volver</a>
-</form>
+</div>
 {% endblock %}

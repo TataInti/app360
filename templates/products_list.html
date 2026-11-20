@@ -1,34 +1,72 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1>Productos</h1>
+<header class="panel-header">
+    <div>
+        <h1>Productos</h1>
+        <span class="panel-subtitle">Administrá el catálogo de productos.</span>
+    </div>
+    {% if products %}
+    <div class="action-bar">
+        <a href="/products/new" class="btn btn-sm btn-primary">Nuevo Producto</a>
+    </div>
+    {% endif %}
+</header>
 
-<a href="/products/new" class="btn btn-primary mb-3">Nuevo Producto</a>
+{% if products %}
+<div class="table-responsive">
+    <table class="app-table" aria-label="Productos">
+        <thead class="app-table__head">
+            <tr>
+                <th class="app-table__head-cell app-table__numeric" scope="col">ID</th>
+                <th class="app-table__head-cell" scope="col">SKU</th>
+                <th class="app-table__head-cell" scope="col">Nombre</th>
+                <th class="app-table__head-cell" scope="col">Unidad de Negocio</th>
+                <th class="app-table__head-cell" scope="col">Categoría</th>
+                <th class="app-table__head-cell" scope="col">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in products %}
+            <tr class="app-table__row">
+                <td class="app-table__cell app-table__numeric">{{ p.id }}</td>
+                <td class="app-table__cell">{{ p.sku }}</td>
+                <td class="app-table__cell">{{ p.name }}</td>
+                <td class="app-table__cell">{{ units[p.business_unit_id] }}</td>
+                <td class="app-table__cell">{{ p.category or '' }}</td>
+                <td class="app-table__cell">
+                    <a href="/products/edit/{{ p.id }}" class="btn btn-sm btn-secondary">Editar</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr class="app-table__total">
+                <th class="app-table__cell" scope="row" colspan="6">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Total de productos</span>
+                        <span class="app-table__numeric" data-format-number="{{ products|length }}">{{ products|length }}</span>
+                    </div>
+                </th>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+{% else %}
+<section class="empty-state" aria-labelledby="products-empty-title">
+    <i class="bi bi-inbox empty-icon" aria-hidden="true"></i>
+    <div class="empty-title" id="products-empty-title">Todavía no hay productos</div>
+    <p class="empty-text">Creá el primer producto para empezar a administrar el catálogo.</p>
+    <a href="/products/new" class="btn btn-sm btn-primary">Crear primer producto</a>
+</section>
+{% endif %}
 
-<table class="table table-bordered table-striped">
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>SKU</th>
-            <th>Nombre</th>
-            <th>Unidad de Negocio</th>
-            <th>Categoría</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for p in products %}
-        <tr>
-            <td>{{ p.id }}</td>
-            <td>{{ p.sku }}</td>
-            <td>{{ p.name }}</td>
-            <td>{{ units[p.business_unit_id] }}</td>
-            <td>{{ p.category or '' }}</td>
-            <td>
-                <a href="/products/edit/{{ p.id }}" class="btn btn-sm btn-secondary">Editar</a>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<script src="{{ asset('js/app_format.js') }}" defer></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('[data-format-number]').forEach(function (element) {
+        element.textContent = window.App360Format.formatNumber(element.dataset.formatNumber);
+    });
+});
+</script>
 {% endblock %}
