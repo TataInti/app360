@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 
 {% block content %}
+<script src="{{ asset('js/app_format.js') }}" defer></script>
+<script src="{{ asset('js/tesoreria_forms.js') }}" defer></script>
 <div class="container-fluid">
     <div class="panel-header">
         <div>
@@ -11,7 +13,7 @@
             <a href="/tesoreria" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Volver
             </a>
-            <button class="btn btn-sm btn-outline-success" onclick="exportarArqueos()">
+            <button class="btn btn-sm btn-outline-secondary" onclick="exportarArqueos()">
                 <i class="bi bi-file-earmark-excel"></i> Excel
             </button>
             {% if session.get('role') != 'director' %}
@@ -26,21 +28,21 @@
     <div class="period-bar dim-bar">
         <div class="row g-2 align-items-end w-100">
             <div class="col-md-3">
-                <label class="form-label mb-1">Desde</label>
+                <label class="form-label mb-1" for="filtroDesde">Desde</label>
                 <input type="date" id="filtroDesde" class="form-control form-control-sm" />
             </div>
             <div class="col-md-3">
-                <label class="form-label mb-1">Hasta</label>
+                <label class="form-label mb-1" for="filtroHasta">Hasta</label>
                 <input type="date" id="filtroHasta" class="form-control form-control-sm" />
             </div>
             <div class="col-md-3">
-                <label class="form-label mb-1">Usuario</label>
+                <label class="form-label mb-1" for="filtroUsuario">Usuario</label>
                 <select id="filtroUsuario" class="form-select form-select-sm">
                     <option value="">Todos</option>
                 </select>
             </div>
             <div class="col-md-3">
-                <button class="btn btn-sm btn-primary w-100" onclick="cargarGraficoMovimientos()">Aplicar</button>
+                <button class="btn btn-sm btn-outline-secondary w-100" onclick="cargarGraficoMovimientos()">Aplicar</button>
             </div>
         </div>
     </div>
@@ -73,12 +75,12 @@
                     <tr>
                         <th>Fecha</th>
                         <th>Turno</th>
-                        <th>Saldo Inicial</th>
-                        <th>Ingresos</th>
-                        <th>Egresos</th>
-                        <th>Saldo Esperado</th>
-                        <th>Saldo Real</th>
-                        <th>Diferencia</th>
+                        <th class="text-end">Saldo Inicial</th>
+                        <th class="text-end">Ingresos</th>
+                        <th class="text-end">Egresos</th>
+                        <th class="text-end">Saldo Esperado</th>
+                        <th class="text-end">Saldo Real</th>
+                        <th class="text-end">Diferencia</th>
                         <th>Usuario</th>
                         <th>Acciones</th>
                     </tr>
@@ -93,7 +95,7 @@
 
 <!-- Modal Editar Arqueo (solo Admin) -->
 <div class="modal fade app-modal app-modal--amber" id="modalEditarArqueo" tabindex="-1" aria-labelledby="modalEditarArqueoTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header app-modal__header">
                 <div class="app-modal__title-group">
@@ -111,38 +113,33 @@
                         <i class="bi bi-exclamation-triangle"></i>
                         <div>Solo se pueden editar arqueos del dia actual. La justificacion queda guardada en el historial.</div>
                     </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Fecha</label>
-                            <input type="text" class="form-control" id="editFecha" readonly>
+
+                    <div class="app-form-grid app-form-grid--cols-2">
+                        <div class="app-field">
+                            <label class="app-field__label" for="editFecha">Fecha</label>
+                            <input type="text" class="app-field__control" id="editFecha" readonly>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Turno</label>
-                            <input type="text" class="form-control" id="editTurno" readonly>
+                        <div class="app-field">
+                            <label class="app-field__label" for="editTurno">Turno</label>
+                            <input type="text" class="app-field__control" id="editTurno" readonly>
                         </div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Saldo Inicial *</label>
-                            <input type="number" class="form-control" name="saldo_inicial" id="editSaldoInicial" step="0.01" data-money-input required>
+                        <div class="app-field">
+                            <label class="app-field__label" for="editSaldoInicial">Saldo Inicial *</label>
+                            <input type="number" class="app-field__control" name="saldo_inicial" id="editSaldoInicial" step="0.01" data-money-input required>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Saldo Final *</label>
-                            <input type="number" class="form-control" name="saldo_final" id="editSaldoFinal" step="0.01" data-money-input required>
+                        <div class="app-field">
+                            <label class="app-field__label" for="editSaldoFinal">Saldo Final *</label>
+                            <input type="number" class="app-field__control" name="saldo_final" id="editSaldoFinal" step="0.01" data-money-input required>
                         </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Observaciones</label>
-                        <textarea class="form-control" name="observaciones" id="editObservaciones" rows="2"></textarea>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Justificación de Edición *</label>
-                        <textarea class="form-control" name="justificacion" rows="3" required 
-                            placeholder="Explica por qué es necesario modificar este arqueo..."></textarea>
+                        <div class="app-field app-form-grid__full">
+                            <label class="app-field__label" for="editObservaciones">Observaciones</label>
+                            <textarea class="app-field__control" name="observaciones" id="editObservaciones" rows="2"></textarea>
+                        </div>
+                        <div class="app-field app-form-grid__full">
+                            <label class="app-field__label" for="editJustificacion">Justificación de Edición *</label>
+                            <textarea class="app-field__control" id="editJustificacion" name="justificacion" rows="3" required
+                                placeholder="Explica por qué es necesario modificar este arqueo..."></textarea>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -175,86 +172,7 @@
     </div>
 </div>
 
-<!-- Modal Nuevo Arqueo -->
-<div class="modal fade app-modal app-modal--blue" id="modalNuevoArqueo" tabindex="-1" aria-labelledby="modalNuevoArqueoTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header app-modal__header">
-                <div class="app-modal__title-group">
-                    <span class="app-modal__eyebrow">Cierre</span>
-                    <h5 class="modal-title" id="modalNuevoArqueoTitle">Nuevo arqueo de caja</h5>
-                    <p class="app-modal__subtitle">Registra el cierre del turno con saldo esperado, conteo real y detalle por instrumento.</p>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-            </div>
-            <form id="formArqueo">
-                <div class="modal-body">
-                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Fecha *</label>
-                            <input type="date" class="form-control" name="fecha" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Turno *</label>
-                            <select class="form-select" name="turno" required>
-                                <option value="mañana">Mañana</option>
-                                <option value="tarde">Tarde</option>
-                                <option value="noche">Noche</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label">Saldo Inicial *</label>
-                            <input type="number" class="form-control" name="saldo_inicial" step="0.01" data-money-input data-money-calc="saldo_inicial" required>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Ingresos del turno (sistema)</label>
-                            <input type="text" class="form-control" id="ingresosTurnoSistema" readonly>
-                            <div class="form-text">Se toman de los movimientos del turno.</div>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Egresos del turno (sistema)</label>
-                            <input type="text" class="form-control" id="egresosTurnoSistema" readonly>
-                            <div class="form-text">Se toman de los movimientos del turno.</div>
-                        </div>
-                    </div>
-                    <div id="avisoTotalesTurno" class="small text-danger mb-2" style="display: none;"></div>
-                    
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Saldo Real (conteo físico) *</label>
-                            <input type="number" class="form-control" name="saldo_real" step="0.01" required id="saldoReal" data-money-input data-money-calc="saldo_real">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Diferencia (calculada)</label>
-                            <input type="text" class="form-control" id="diferenciaCalc" readonly>
-                        </div>
-                    </div>
-
-                    <!-- Detalle por instrumento -->
-                    <div class="mb-3">
-                        <label class="form-label"><i class="bi bi-list-check"></i> Conteo por Instrumento</label>
-                        <div id="detalleInstrumentos" class="border rounded p-2">
-                            <small class="text-muted">Cargando instrumentos...</small>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Observaciones</label>
-                        <textarea class="form-control" name="observaciones" rows="2"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-primary">Guardar arqueo</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+{% include "tesoreria/_modal_arqueo.html" %}
 
 <!-- Modal Detalle por Instrumento -->
 <div class="modal fade app-modal app-modal--sky" id="modalDetalleArqueo" tabindex="-1" aria-labelledby="modalDetalleArqueoTitle" aria-hidden="true">
@@ -369,31 +287,26 @@ function setMoneyValue(ref, value) {
     if (field) field.value = value ?? '';
 }
 
+// Un único formateador de importes (App360Format): «$ 1.500», con decimales solo si los hay.
 function formatMoneyValue(value) {
-    const money = getMoneyUI();
-    if (money && typeof money.format === 'function') {
-        return money.format(value);
-    }
-    return '$' + Number(value || 0).toLocaleString('es-AR', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
+    return TesoreriaForms.importe(value, TesoreriaForms.decimalesPara([value]));
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    document.querySelector('input[name="fecha"]').value = new Date().toISOString().split('T')[0];
     cargarArqueos();
-    cargarInstrumentosArqueo();
     cargarUsuarios();
     initFiltrosGrafico();
     cargarGraficoMovimientos();
-    
-    // Calcular diferencia automáticamente
-    const form = document.getElementById('formArqueo');
-    form.querySelectorAll('[data-money-calc]').forEach(input => input.addEventListener('input', calcularDiferencia));
-    form.querySelector('input[name="fecha"]').addEventListener('change', cargarTotalesTurno);
-    form.querySelector('select[name="turno"]').addEventListener('change', cargarTotalesTurno);
-    document.getElementById('modalNuevoArqueo').addEventListener('show.bs.modal', cargarTotalesTurno);
+    TesoreriaForms.montarArqueo(document.getElementById('formArqueo'), (form) => {
+        hideModal('modalNuevoArqueo');
+        form.reset();
+        cargarArqueos();
+        notify('Arqueo registrado correctamente.', 'success', { title: 'Cierre guardado' });
+    });
+    fetch('/api/tesoreria/instrumentos')
+        .then(r => r.json())
+        .then(data => TesoreriaForms.renderInstrumentosArqueo(data.instrumentos || []))
+        .catch(e => console.error('Error cargando instrumentos:', e));
 });
 
 let instrumentosList = [];
@@ -426,22 +339,22 @@ async function cargarGraficoMovimientos() {
         const desde = document.getElementById('filtroDesde').value;
         const hasta = document.getElementById('filtroHasta').value;
         const usuario = document.getElementById('filtroUsuario').value;
-        
+
         const params = new URLSearchParams();
         params.append('fecha_desde', desde);
         params.append('fecha_hasta', hasta);
         if (usuario) params.append('usuario_id', usuario);
-        
+
         const resp = await fetch('/api/tesoreria/movimientos/resumen-instrumento?' + params);
         const data = await resp.json();
         const movimientos = data.movimientos || [];
-        
+
         const labels = movimientos.map(m => m.instrumento);
         const valores = movimientos.map(m => m.total);
-        
+
         const ctx = document.getElementById('graficoMovimientos').getContext('2d');
         if (graficoMovimientos) graficoMovimientos.destroy();
-        
+
         graficoMovimientos = window.App360Charts.create(ctx.canvas, {
             type: 'bar',
             data: {
@@ -460,7 +373,7 @@ async function cargarGraficoMovimientos() {
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: ctx => '$' + parseInt(ctx.parsed.y).toLocaleString('es-AR')
+                            label: ctx => TesoreriaForms.importe(ctx.parsed.y, 0)
                         }
                     }
                 }
@@ -471,143 +384,64 @@ async function cargarGraficoMovimientos() {
     }
 }
 
-async function cargarInstrumentosArqueo() {
-    try {
-        const resp = await fetch('/api/tesoreria/instrumentos');
-        const data = await resp.json();
-        instrumentosList = data.instrumentos || [];
-        const container = document.getElementById('detalleInstrumentos');
-        if (instrumentosList.length === 0) {
-            container.innerHTML = '<small class="text-muted">No hay instrumentos configurados</small>';
-            return;
-        }
-        container.innerHTML = instrumentosList.map(inst => `
-            <div class="row g-2 mb-1 align-items-center">
-                <div class="col-5"><small>${escapeHtml(inst.nombre)}</small></div>
-                <div class="col-7">
-                    <input type="number" step="0.01" class="form-control form-control-sm" data-money-input
-                           data-inst-id="${escapeHtml(inst.id)}" placeholder="Conteo real">
-                </div>
-            </div>
-        `).join('');
-        getMoneyUI()?.initInputs(container);
-    } catch(e) {
-        console.error('Error cargando instrumentos:', e);
-    }
-}
-
-// Ingresos y egresos del turno tal como los toma el servidor al guardar (misma fórmula:
-// diferencia = saldo final − (saldo inicial + ingresos − egresos)).
-let totalesTurno = null;
-
-function calcularDiferencia() {
-    const form = document.getElementById('formArqueo');
-    const inicial = getMoneyValue(form.querySelector('[data-money-calc="saldo_inicial"]'));
-    const real = getMoneyValue(form.querySelector('[data-money-calc="saldo_real"]'));
-    const diferenciaEl = document.getElementById('diferenciaCalc');
-    if (!totalesTurno) {
-        diferenciaEl.value = '';
-        diferenciaEl.className = 'form-control';
-        return;
-    }
-
-    const esperado = inicial + totalesTurno.ingresos - totalesTurno.egresos;
-    const diferencia = real - esperado;
-
-    diferenciaEl.value = formatMoneyValue(diferencia);
-    diferenciaEl.className = 'form-control ' + (diferencia < 0 ? 'text-danger' : diferencia > 0 ? 'text-warning' : 'text-success');
-}
-
-async function cargarTotalesTurno() {
-    const form = document.getElementById('formArqueo');
-    const fecha = form.querySelector('input[name="fecha"]').value;
-    const turno = form.querySelector('select[name="turno"]').value;
-    const aviso = document.getElementById('avisoTotalesTurno');
-    totalesTurno = null;
-    document.getElementById('ingresosTurnoSistema').value = '';
-    document.getElementById('egresosTurnoSistema').value = '';
-    aviso.style.display = 'none';
-    if (!fecha || !turno) {
-        calcularDiferencia();
-        return;
-    }
-    try {
-        const params = new URLSearchParams({ fecha, turno });
-        const resp = await fetch(`/api/tesoreria/arqueos/totales?${params}`);
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || 'No se pudieron cargar los movimientos del turno.');
-        // Si el operador cambió fecha o turno mientras llegaba la respuesta, se descarta.
-        if (form.querySelector('input[name="fecha"]').value !== fecha ||
-            form.querySelector('select[name="turno"]').value !== turno) {
-            return;
-        }
-        totalesTurno = {
-            ingresos: Number(data.ingresos_total) || 0,
-            egresos: Number(data.egresos_total) || 0,
-        };
-        document.getElementById('ingresosTurnoSistema').value = formatMoneyValue(totalesTurno.ingresos);
-        document.getElementById('egresosTurnoSistema').value = formatMoneyValue(totalesTurno.egresos);
-    } catch (e) {
-        aviso.textContent = e.message || 'No se pudieron cargar los movimientos del turno.';
-        aviso.style.display = '';
-    }
-    calcularDiferencia();
-}
-
 async function cargarArqueos() {
     try {
         const resp = await fetch('/api/tesoreria/arqueos');
         const data = await resp.json();
         const arqueos = data.arqueos || [];
-        
+
         let sinDif = 0, sobrante = 0, faltante = 0;
         arqueos.forEach(a => {
             if (a.diferencia === 0) sinDif++;
             else if (a.diferencia > 0) sobrante++;
             else faltante++;
         });
-        
+
         document.getElementById('arqueosMes').textContent = arqueos.length;
         document.getElementById('sinDiferencia').textContent = sinDif;
         document.getElementById('conSobrante').textContent = sobrante;
         document.getElementById('conFaltante').textContent = faltante;
-        
+
         const tbody = document.getElementById('tablaArqueos');
         if (arqueos.length === 0) {
             tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No hay arqueos registrados</td></tr>';
         } else {
-            tbody.innerHTML = arqueos.map(a => {
-                const ingresos = parseFloat(a.ingresos_total || a.ingresos || 0);
-                const egresos = parseFloat(a.egresos_total || a.egresos || 0);
-                const esperado = parseFloat(a.saldo_inicial) + ingresos - egresos;
-                const difClass = a.diferencia < 0 ? 'text-danger' : a.diferencia > 0 ? 'text-warning' : 'text-success';
-                
+            const filas = arqueos.map(a => ({
+                ...a,
+                ingresos: parseFloat(a.ingresos_total || a.ingresos || 0),
+                egresos: parseFloat(a.egresos_total || a.egresos || 0),
+            }));
+            const decimales = TesoreriaForms.decimalesPara(filas.flatMap(a => [
+                parseFloat(a.saldo_inicial), a.ingresos, a.egresos, parseFloat(a.saldo_final || 0), parseFloat(a.diferencia || 0),
+            ]));
+            tbody.innerHTML = filas.map(a => {
+                const esperado = parseFloat(a.saldo_inicial) + a.ingresos - a.egresos;
+
                 const hoy = new Date().toISOString().split('T')[0];
                 const esHoy = a.fecha === hoy;
-                
-                let acciones = `<button class="btn btn-sm btn-outline-primary me-1" onclick="verDetalleInstrumentos(${escapeHtml(a.id)})" title="Detalle por instrumento">
+
+                let acciones = `<button class="btn btn-sm btn-outline-secondary me-1" onclick="verDetalleInstrumentos(${escapeHtml(a.id)})" title="Detalle por instrumento">
                     <i class="bi bi-bar-chart"></i>
                 </button>
-                <button class="btn btn-sm btn-info" onclick="verHistorial(${escapeHtml(a.id)})" title="Ver historial">
+                <button class="btn btn-sm btn-outline-secondary" onclick="verHistorial(${escapeHtml(a.id)})" title="Ver historial">
                     <i class="bi bi-clock-history"></i>
                 </button>`;
-                
+
                 if (isAdmin && esHoy) {
                     acciones += ` <button class="btn btn-sm btn-warning" onclick="editarArqueo(${escapeHtml(a.id)})" title="Editar">
                         <i class="bi bi-pencil"></i>
                     </button>`;
                 }
-                
                 return `
                 <tr>
                     <td>${escapeHtml(a.fecha)}</td>
                     <td>${escapeHtml(a.turno || '-')}</td>
-                    <td>$${escapeHtml(parseFloat(a.saldo_inicial).toLocaleString('es-AR'))}</td>
-                    <td class="text-success">$${escapeHtml(ingresos.toLocaleString('es-AR'))}</td>
-                    <td class="text-danger">$${escapeHtml(egresos.toLocaleString('es-AR'))}</td>
-                    <td>$${escapeHtml(esperado.toLocaleString('es-AR'))}</td>
-                    <td>$${escapeHtml(parseFloat(a.saldo_final || 0).toLocaleString('es-AR'))}</td>
-                    <td class="${escapeHtml(difClass)}"><strong>$${escapeHtml(parseFloat(a.diferencia || 0).toLocaleString('es-AR'))}</strong></td>
+                    <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(a.saldo_inicial, decimales))}</td>
+                    <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(a.ingresos, decimales))}</td>
+                    <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(a.egresos, decimales))}</td>
+                    <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(esperado, decimales))}</td>
+                    <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(a.saldo_final || 0, decimales))}</td>
+                    <td class="text-end tabular-nums">${TesoreriaForms.diferenciaHtml(a.diferencia)}</td>
                     <td>${escapeHtml(a.usuario || '-')}</td>
                     <td>${acciones}</td>
                 </tr>
@@ -615,7 +449,7 @@ async function cargarArqueos() {
         }
     } catch(e) {
         console.error('Error:', e);
-        document.getElementById('tablaArqueos').innerHTML = 
+        document.getElementById('tablaArqueos').innerHTML =
             '<tr><td colspan="10" class="text-center text-danger">No se pudieron cargar los datos. Intentá de nuevo.</td></tr>';
     }
 }
@@ -625,12 +459,12 @@ async function editarArqueo(id) {
         const resp = await fetch('/api/tesoreria/arqueos');
         const data = await resp.json();
         const arqueo = data.arqueos.find(a => a.id === id);
-        
+
         if (!arqueo) {
             alert('Arqueo no encontrado');
             return;
         }
-        
+
         // Llenar formulario
         document.getElementById('editArqueoId').value = arqueo.id;
         document.getElementById('editFecha').value = arqueo.fecha;
@@ -638,7 +472,7 @@ async function editarArqueo(id) {
         setMoneyValue('editSaldoInicial', arqueo.saldo_inicial);
         setMoneyValue('editSaldoFinal', arqueo.saldo_final);
         document.getElementById('editObservaciones').value = arqueo.observaciones || '';
-        
+
         // Mostrar modal
         showModal('modalEditarArqueo');
     } catch(e) {
@@ -652,9 +486,9 @@ async function verHistorial(id) {
         const resp = await fetch(`/api/tesoreria/arqueos/${id}/logs`);
         const data = await resp.json();
         const logs = data.logs || [];
-        
+
         const content = document.getElementById('historialContent');
-        
+
         if (logs.length === 0) {
             content.innerHTML = '<div class="empty-state"><i class="bi bi-clock-history empty-icon"></i><div class="empty-title">Sin ediciones registradas</div><div class="empty-text">Este arqueo todavia no tuvo modificaciones manuales.</div></div>';
         } else {
@@ -686,7 +520,7 @@ async function verHistorial(id) {
                 </div>
             `;
         }
-        
+
         showModal('modalHistorialArqueo');
     } catch(e) {
         alert('No se pudo cargar el historial. Intentá de nuevo.');
@@ -701,77 +535,23 @@ function compararCambios(anterior, nuevo) {
         'saldo_final': 'Saldo Final',
         'observaciones': 'Observaciones'
     };
-    
+
     for (let campo in campos) {
         if (anterior[campo] !== nuevo[campo]) {
             let valorAnterior = anterior[campo];
             let valorNuevo = nuevo[campo];
-            
+
             if (campo !== 'observaciones') {
                 valorAnterior = formatMoneyValue(valorAnterior);
                 valorNuevo = formatMoneyValue(valorNuevo);
             }
-            
+
             cambios.push(`<strong>${escapeHtml(campos[campo])}:</strong> ${escapeHtml(valorAnterior)} → ${escapeHtml(valorNuevo)}`);
         }
     }
-    
+
     return cambios.length > 0 ? cambios.join('<br>') : 'Sin cambios';
 }
-
-document.getElementById('formArqueo')?.addEventListener('submit', async function(e) {
-    e.preventDefault();
-    ocultarErrorFormulario(this);
-    const formData = new FormData(this);
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    
-    if (!totalesTurno) {
-        alert('No se pudieron cargar los movimientos del turno. Revisá fecha y turno antes de guardar.');
-        return;
-    }
-
-    const inicial = parseFloat(formData.get('saldo_inicial')) || 0;
-    const real = parseFloat(formData.get('saldo_real')) || 0;
-
-    // Ingresos y egresos los toma el servidor de los movimientos: no se envían ni se editan aquí.
-    const data = {
-        fecha: formData.get('fecha'),
-        turno: formData.get('turno'),
-        saldo_inicial: inicial,
-        saldo_final: real,
-        observaciones: formData.get('observaciones'),
-        detalles: []
-    };
-
-    // Recoger conteo por instrumento
-    document.querySelectorAll('#detalleInstrumentos input[data-inst-id]').forEach(input => {
-        data.detalles.push({
-            instrumento_id: parseInt(input.dataset.instId),
-            conteo_real: getMoneyValue(input)
-        });
-    });
-    
-    try {
-        const resp = await fetch('/api/tesoreria/arqueos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-            body: JSON.stringify(data)
-        });
-        
-        if (resp.ok) {
-            hideModal('modalNuevoArqueo');
-            this.reset();
-            document.querySelector('input[name="fecha"]').value = new Date().toISOString().split('T')[0];
-            cargarArqueos();
-            notify('Arqueo registrado correctamente.', 'success', { title: 'Cierre guardado' });
-        } else {
-            const err = await resp.json();
-            mostrarErrorFormulario(this, err.error || 'No se pudo guardar el arqueo. Revisá los datos e intentá de nuevo.');
-        }
-    } catch(e) {
-        mostrarErrorFormulario(this, 'No hay conexión con el servidor. Revisá la conexión e intentá de nuevo.');
-    }
-});
 
 document.getElementById('formEditarArqueo')?.addEventListener('submit', async function(e) {
     e.preventDefault();
@@ -779,23 +559,23 @@ document.getElementById('formEditarArqueo')?.addEventListener('submit', async fu
     const formData = new FormData(this);
     const arqueoId = formData.get('arqueo_id');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    
+
     const data = {
         saldo_inicial: parseFloat(formData.get('saldo_inicial')),
         saldo_final: parseFloat(formData.get('saldo_final')),
         observaciones: formData.get('observaciones'),
         justificacion: formData.get('justificacion')
     };
-    
+
     try {
         const resp = await fetch(`/api/tesoreria/arqueos/${arqueoId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
             body: JSON.stringify(data)
         });
-        
+
         const result = await resp.json();
-        
+
         if (resp.ok) {
             hideModal('modalEditarArqueo');
             this.reset();
@@ -849,20 +629,18 @@ async function verDetalleInstrumentos(id) {
         if (detalles.length === 0) {
             html = '<div class="empty-state"><i class="bi bi-wallet2 empty-icon"></i><div class="empty-title">Sin detalle por instrumento</div><div class="empty-text">Este arqueo no tiene conteos individuales cargados.</div></div>';
         } else {
+            const decimales = TesoreriaForms.decimalesPara(detalles.flatMap(d => [d.saldo_calculado, d.conteo_real, d.diferencia]));
             html = `<div class="table-responsive"><table class="table table-sm table-hover mb-0">
                 <thead>
-                    <tr><th>Instrumento</th><th>Calculado</th><th>Conteo Real</th><th>Diferencia</th></tr>
+                    <tr><th>Instrumento</th><th class="text-end">Calculado</th><th class="text-end">Conteo Real</th><th class="text-end">Diferencia</th></tr>
                 </thead>
                 <tbody>
-                    ${detalles.map(d => {
-                        const difClass = d.diferencia < 0 ? 'text-danger' : d.diferencia > 0 ? 'text-warning' : 'text-success';
-                        return `<tr>
+                    ${detalles.map(d => `<tr>
                             <td>${escapeHtml(d.instrumento)}</td>
-                            <td>$${escapeHtml(d.saldo_calculado.toLocaleString('es-AR'))}</td>
-                            <td>$${escapeHtml(d.conteo_real.toLocaleString('es-AR'))}</td>
-                            <td class="${difClass}"><strong>$${escapeHtml(d.diferencia.toLocaleString('es-AR'))}</strong></td>
-                        </tr>`;
-                    }).join('')}
+                            <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(d.saldo_calculado, decimales))}</td>
+                            <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(d.conteo_real, decimales))}</td>
+                            <td class="text-end tabular-nums">${TesoreriaForms.diferenciaHtml(d.diferencia)}</td>
+                        </tr>`).join('')}
                 </tbody>
             </table></div>`;
         }

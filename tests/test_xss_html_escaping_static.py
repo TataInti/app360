@@ -24,6 +24,8 @@ SAFE_HTML_EXCEPTIONS = {
         "cambios": "compararCambios escapes every value and inserts only fixed strong/br markup.",
         "difClass": "CSS class is selected from fixed numeric sign branches.",
         "logs.map(": "Each audit row encodes time/user/justification; the change fragment is escaped.",
+        "TesoreriaForms.diferenciaHtml(a.diferencia)": "Returns fixed status markup (Sin diferencia / Faltante / Sobrante) from a numeric sign; no record text.",
+        "TesoreriaForms.diferenciaHtml(d.diferencia)": "Returns fixed status markup (Sin diferencia / Faltante / Sobrante) from a numeric sign; no record text.",
     },
     "templates/tesoreria_movimientos.html": {
         "acciones": "Buttons are fixed markup with numeric ids escaped before interpolation.",
@@ -34,6 +36,8 @@ SAFE_HTML_EXCEPTIONS = {
     "templates/tesoreria_panel.html": {
         "a.diferencia < 0 ?": "The conditional selects one of three fixed CSS class names.",
         "m.tipo === 'ingreso' ? '<span": "The conditional returns fixed status badge markup.",
+        "TesoreriaForms.tipoHtml(m.tipo)": "Returns a fixed status (Ingreso / Egreso) built by TesoreriaForms.punto, which escapes its text; no record text.",
+        "TesoreriaForms.diferenciaHtml(a.diferencia)": "Returns fixed status markup (Sin diferencia / Faltante / Sobrante) from a numeric sign; no record text.",
     },
 
     # RRHH

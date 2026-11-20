@@ -11,11 +11,11 @@
             <a href="/tesoreria" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Volver
             </a>
-            <button class="btn btn-sm btn-outline-success" onclick="exportarMovimientos()">
+            <button class="btn btn-sm btn-outline-secondary" onclick="exportarMovimientos()">
                 <i class="bi bi-file-earmark-excel"></i> Excel
             </button>
             {% if session.get('role') != 'director' %}
-            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
+            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
                 <i class="bi bi-plus-circle"></i> Registrar
             </button>
             {% endif %}
@@ -54,7 +54,7 @@
                 </select>
             </div>
             <div class="col-lg-2 col-md-4 d-flex align-items-end">
-                <button class="btn btn-sm btn-primary w-100" onclick="cargarMovimientos()">
+                <button class="btn btn-sm btn-outline-secondary w-100" onclick="cargarMovimientos()">
                     <i class="bi bi-search"></i> Filtrar
                 </button>
             </div>
@@ -62,12 +62,6 @@
     </div>
 
     <!-- Resumen -->
-    <div class="kpi-grid">
-        <div class="kpi-card accent-green"><span class="kpi-label">Total Ingresos</span><span class="kpi-value" id="totalIngresos">$0</span></div>
-        <div class="kpi-card accent-red"><span class="kpi-label">Total Egresos</span><span class="kpi-value" id="totalEgresos">$0</span></div>
-        <div class="kpi-card accent-blue"><span class="kpi-label">Balance Neto</span><span class="kpi-value" id="balanceNeto">$0</span></div>
-    </div>
-
     <!-- Gráfico por Instrumento -->
     <div class="charts-grid" style="grid-template-columns:1fr">
         <div class="chart-card-v2">
@@ -115,76 +109,7 @@
     </div>
 </div>
 
-<!-- Modal Nuevo Movimiento -->
-<div class="modal fade app-modal app-modal--blue" id="modalNuevoMovimiento" tabindex="-1" aria-labelledby="modalNuevoMovimientoTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header app-modal__header">
-                <div class="app-modal__title-group">
-                    <span class="app-modal__eyebrow">Caja</span>
-                    <h5 class="modal-title" id="modalNuevoMovimientoTitle">Registrar nuevo movimiento</h5>
-                    <p class="app-modal__subtitle">Elegí el concepto para definir la naturaleza y el efecto del movimiento.</p>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-            </div>
-            <form id="formMovimiento">
-                <div class="modal-body">
-                    <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
-                    <div class="mb-3">
-                        <label class="form-label">Concepto *</label>
-                        <select class="form-select" name="categoria_gasto_id" id="selectCategoriaGasto" required>
-                            <option value="">Seleccionar…</option>
-                        </select>
-                        <div class="form-text">La naturaleza y el efecto se administran en Configuración → Administración → Movimientos.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Tipo *</label>
-                        <select class="form-select" name="tipo" id="selectTipoMovimiento" required disabled>
-                            <option value="ingreso">Ingreso</option>
-                            <option value="egreso">Egreso</option>
-                        </select>
-                        <div class="form-text" id="tipoMovimientoHint">Seleccioná primero un concepto.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Monto *</label>
-                        <input type="number" class="form-control" name="monto" step="0.01" min="0.01" data-money-input required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Instrumento *</label>
-                        <select class="form-select" name="instrumento_id" id="selectInstrumento" required>
-                            <option value="">Seleccionar...</option>
-                        </select>
-                    </div>
-                    <div class="mb-3 d-none" id="portadorGroup">
-                        <label class="form-label" id="portadorLabel">Portador</label>
-                        <div class="input-group">
-                            <select class="form-select" name="portador_id" id="selectPortador">
-                                <option value="">Seleccionar...</option>
-                            </select>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="crearPortadorInline()" title="Nuevo portador">
-                                <i class="bi bi-plus-lg"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Proveedor (opcional)</label>
-                        <select class="form-select" name="proveedor_id" id="selectProveedor">
-                            <option value="">Sin proveedor</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Descripción *</label>
-                        <input type="text" class="form-control" name="descripcion" required>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+{% include "tesoreria/_modal_movimiento.html" %}
 
 <script>
 const userRole = '{{ session.get("role", "") }}';
@@ -477,14 +402,12 @@ async function cargarMovimientos() {
             else egresos += parseFloat(m.monto);
         });
         
-        document.getElementById('totalIngresos').textContent = '$' + ingresos.toLocaleString('es-AR', {maximumFractionDigits:0});
-        document.getElementById('totalEgresos').textContent = '$' + egresos.toLocaleString('es-AR', {maximumFractionDigits:0});
-        document.getElementById('balanceNeto').textContent = '$' + (ingresos - egresos).toLocaleString('es-AR', {maximumFractionDigits:0});
         
         const tbody = document.getElementById('tablaMovimientos');
         if (movimientos.length === 0) {
             tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">No hay movimientos</td></tr>';
         } else {
+            const decimalesMov = TesoreriaForms.decimalesPara(movimientos.map(m => m.monto));
             tbody.innerHTML = movimientos.map(m => {
                 const naturaleza = m.categoria_naturaleza
                     ? m.categoria_naturaleza.charAt(0).toUpperCase() + m.categoria_naturaleza.slice(1)
@@ -525,7 +448,7 @@ async function cargarMovimientos() {
                 <tr ${rowClass}>
                     <td>${escapeHtml(new Date(m.fecha_hora).toLocaleString('es-AR'))}</td>
                     <td><span class="badge ${escapeHtml(m.tipo === 'ingreso' ? 'bg-success' : 'bg-danger')}">${escapeHtml(m.tipo)}</span></td>
-                    <td>$${escapeHtml(parseFloat(m.monto).toLocaleString('es-AR'))}</td>
+                    <td class="text-end tabular-nums">${escapeHtml(TesoreriaForms.importe(m.monto, decimalesMov))}</td>
                     <td>${escapeHtml(m.instrumento || '-')}</td>
                     <td>${escapeHtml(m.portador || '-')}</td>
                     <td>${destinoCategoria}</td>
