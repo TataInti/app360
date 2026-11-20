@@ -51,6 +51,17 @@ El fixture de equipo se agrega solo a pedido con
 sintéticas para `T-Elena` y `T-PRE SIN ALIAS`. Sin `--equipo`, el seed y las
 demás suites conservan su comportamiento habitual.
 
+## Ratchet de tokens de diseño
+
+Desde la raíz del repositorio, corré la prueba focalizada con
+`python -m pytest tests/test_design_tokens.py -q`. Si los conteos de literales
+solo bajaron y querés guardar esa mejora, regenerá la línea base con
+`python tests/design_tokens_baseline.py --update`. El script se niega a guardar
+aumentos o archivos nuevos con literales; no edites a mano
+`tests/data/design_tokens_baseline.json`. Los colores de series Chart.js se
+excluyen explícitamente en `tests/design_tokens_baseline.py`; el CSS de esas
+plantillas sigue dentro del ratchet.
+
 ## Seguridad del entorno
 
 - `seed_demo.py` y `baseline_previa.py` se niegan a escribir si la URL no es
