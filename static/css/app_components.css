@@ -75,7 +75,8 @@
     flex-wrap: wrap;
 }
 
-.app-drawer__footer .app-actions > button {
+.app-drawer__footer .app-actions__primary,
+.app-drawer__footer .app-actions__secondary {
     flex: 1 1 auto;
 }
 
