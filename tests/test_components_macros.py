@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -53,9 +54,33 @@ def test_form_grid_renders_caller_and_column_variant(render_component):
         "{% call form_grid(3) %}<div class=\"app-field\">Campo</div>{% endcall %}"
     )
 
-    assert 'class="app-form-grid app-form-grid--3"' in html
+    assert 'class="app-form-grid app-form-grid--cols-3"' in html
     assert 'data-columns="3"' in html
     assert '<div class="app-field">Campo</div>' in html
+
+
+def test_rendered_app_classes_have_css_selectors(render_component):
+    html = render_component(
+        "{% call form_grid(3) %}"
+        "{{ form_field('Importe', 'importe', unidad='ARS', ayuda='Ayuda', error='Error') }}"
+        "{{ form_field('Código', 'codigo') }}"
+        "{% endcall %}"
+        "{{ status('Cumplido') }}{{ status('Pendiente') }}"
+        "{{ status('Sin meta') }}{{ status('Falta') }}"
+        "{% call page_head('Título', 'Subtítulo') %}{% endcall %}"
+    )
+    css = (ROOT / "static" / "css" / "app_components.css").read_text(encoding="utf-8")
+    selector_classes = set(re.findall(r"\.([A-Za-z_][A-Za-z0-9_-]*)", css))
+    rendered_app_classes = {
+        class_name
+        for class_attribute in re.findall(r"\bclass=[\"']([^\"']*)[\"']", html)
+        for class_name in class_attribute.split()
+        if class_name.startswith("app-")
+    }
+
+    missing = sorted(rendered_app_classes - selector_classes)
+    assert rendered_app_classes
+    assert not missing, f"Clases app-* renderizadas sin selector CSS: {missing}"
 
 
 def test_status_macro_maps_known_and_unknown_states_and_escapes_text(render_component):

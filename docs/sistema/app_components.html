@@ -79,9 +79,9 @@
 <body>
   <main class="demo-main">
     <header class="app-page-head">
-      <div>
+      <div class="app-page-head__content">
         <h1 class="app-page-head__title">Componentes del sistema</h1>
-        <p class="demo-description">Muestra estática · datos sintéticos · noviembre 2026</p>
+        <p class="app-page-head__subtitle">Muestra estática · datos sintéticos · noviembre 2026</p>
       </div>
       <div class="app-page-head__actions">
         <div class="app-actions">
@@ -200,10 +200,10 @@
         </table>
       </div>
       <div class="demo-status-legend" aria-label="Variantes de estado">
-        <span class="app-status app-status--ok"><span class="app-status__dot" aria-hidden="true"></span>Correcto</span>
-        <span class="app-status app-status--warn"><span class="app-status__dot" aria-hidden="true"></span>Atención</span>
-        <span class="app-status app-status--error"><span class="app-status__dot" aria-hidden="true"></span>Error de carga</span>
-        <span class="app-status app-status--neutral"><span class="app-status__dot" aria-hidden="true"></span>Sin meta</span>
+        <span class="app-status app-status--ok"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">Correcto</span></span>
+        <span class="app-status app-status--warn"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">Atención</span></span>
+        <span class="app-status app-status--error"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">Error de carga</span></span>
+        <span class="app-status app-status--neutral"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">Sin meta</span></span>
       </div>
       <p class="demo-footnote">Los valores y vendedores de esta página son sintéticos.</p>
     </section>
@@ -244,12 +244,14 @@
           <span class="app-input-unit">
             <span class="app-input-unit__prefix" aria-hidden="true">$</span>
             <input class="app-input-unit__control" type="text" inputmode="numeric" value="1.400.000" aria-label="Meta en pesos">
-            <span class="app-input-unit__suffix" aria-hidden="true">ARS</span>
+            <span class="app-input-unit__text" aria-hidden="true">ARS</span>
           </span>
         </label>
         <label class="app-field app-form-grid__full">
           <span class="app-field__label">Descripción</span>
-          <input class="app-field__control" type="text" value="Venta de productos lácteos">
+          <input class="app-input" type="text" value="Venta de productos lácteos">
+          <small class="app-field__help">Ayuda de muestra para el formulario.</small>
+          <small class="app-field__error" role="alert">Mensaje de error de muestra.</small>
         </label>
       </form>
     </div>
