@@ -177,6 +177,32 @@ Auditoría: user_email_changed, user_recovery_issued, user_recovery_revoked, use
 
 Riesgo a validar: quien recibe un enlace puede fijar la clave de la cuenta. Por eso el enlace se muestra una sola vez, se entrega por un canal seguro y se revoca al restablecer la clave.
 
+## MFA (C6)
+
+MFA opcional: cada persona lo activa desde «Seguridad de la cuenta» (enlace en el menú de usuario, junto a «Cambiar mi clave»). No es obligatorio para nadie.
+
+Activar: con sesión normal, la persona escribe su clave actual. El sistema genera una clave de 20 bytes y la muestra una sola vez en base32 (en grupos de cuatro), junto con un enlace otpauth:// (emisor App360, cuenta = usuario). La clave queda pendiente 10 minutos. La persona la carga en su aplicación de códigos (Google Authenticator, Microsoft Authenticator u otra compatible con TOTP: HMAC-SHA1, 30 segundos, 6 dígitos) y confirma con un código. Con un código válido (ventana de ±1 paso) el MFA queda activo y se muestran diez códigos de respaldo, una sola vez. Activar el MFA cierra las otras sesiones web de la cuenta; la sesión actual sigue abierta. Los JWT no cambian y siguen su vida normal.
+
+Ingresar: con clave correcta, una cuenta con MFA no recibe sesión: el sistema pide el código en /login/mfa. El código de la aplicación o un código de respaldo sirven. Un código de la aplicación no se acepta dos veces. Un código de respaldo sirve una sola vez. Mientras el paso está pendiente (5 minutos), no se abre ninguna pantalla: solo /login/mfa, /logout y los recursos estáticos. Cinco fallos descartan el paso pendiente y hay que volver a ingresar la clave. Los fallos cuentan para el bloqueo por cuenta de C4 (10 fallos en 15 minutos) y tienen un límite propio de 5 intentos cada 10 minutos por IP. El mensaje es siempre «Código incorrecto o vencido.»
+
+Códigos de respaldo: diez códigos de 10 caracteres, sin caracteres ambiguos. Se guardan solo como hash SHA-256 con sal por código. «Regenerar códigos» pide la clave y un código de la aplicación, invalida los anteriores y muestra los nuevos una vez.
+
+Desactivar: pide la clave y un código de la aplicación o de respaldo. Borra el secreto y los códigos.
+
+Perder el dispositivo: si la persona conserva sus códigos de respaldo, entra con uno y puede desactivar o reactivar el MFA desde su pantalla. Si no tiene códigos ni dispositivo, otro administrador (admin o gerente, según la jerarquía) puede restablecer su MFA.
+
+Restablecimiento por otro administrador (D8): en Administración > Usuarios, «Restablecer MFA» aparece en las cuentas con MFA activo. Borra el secreto y los códigos, deja el MFA inactivo y suma token_version: las sesiones y los JWT de esa cuenta dejan de valer. La persona vuelve a entrar con su clave y puede activar el MFA de nuevo. Un administrador no puede restablecer su propio MFA (403: «Pedile a otro administrador, o usá tus códigos de respaldo.»). Un gerente no puede hacerlo sobre admin ni manager. La acción queda auditada como user_mfa_reset (actor y destino).
+
+Último recurso: scripts/restablecer_mfa.py --usuario <nombre> simula sin tocar nada; con --confirmar aplica el mismo efecto. Solo se ejecuta con acceso al servidor. Queda auditado con actor «script». No se ejecutó en producción.
+
+Almacenamiento del secreto: el secreto TOTP se guarda en users.mfa_secret en claro. La dependencia cryptography no está en requirements.txt y no se agregó en este corte. Quien lea la base puede generar códigos: es un riesgo declarado para decidir (cifrado con Fernet y una clave derivada de SECRET_KEY, como mejora).
+
+Contrato de /api/login (MFA): POST con JSON {"username", "password", "mfa_code"?}. Sin mfa_code y con clave correcta de una cuenta con MFA: 401 con {"codigo": "MFA_REQUERIDO"} (solo después de validar usuario y clave). Con mfa_code válido (código de la aplicación o de respaldo): 200 con los tokens. Con mfa_code inválido o clave incorrecta: 401 {"error": "Invalid credentials"}. Las reglas de bloqueo y límites son las mismas. /api/refresh no cambia: el refresh ya pasó por MFA.
+
+Ajuste MFA_OBLIGATORIO_ADMIN (preparado, apagado por defecto): con el valor 1, admin, manager y gerente deben activar MFA antes de usar la aplicación. No está activo en este corte.
+
+Límites de C6: la obligatoriedad no se activa; no hay llaves de seguridad (WebAuthn), SMS, QR ni recuperación por correo; el límite por IP del segundo paso vive en el proceso de la aplicación.
+
 ## Jerarquía de Administración de Usuarios (C3)
 
 La API es la fuente de verdad para las acciones; la pantalla refleja los permisos y no los reemplaza.
