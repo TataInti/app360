@@ -105,6 +105,7 @@
   async function cargarDatos() {
     const mes = $('periodoObjetivos').value;
     if (!mes) return;
+    if (!panel.aside.hidden) cerrarPanel({restaurarFoco: false});
     const requestId = ++state.requestId;
     marcarCarga(1);
     $('listaVendedores').replaceChildren();
@@ -338,16 +339,6 @@
     return state.vendedores.find(item => item.referencia === ref)?.nombre_visible || '';
   }
 
-  function crearSelectDimension(value = '') {
-    const select = document.createElement('select');
-    select.dataset.dimensionTipo = '';
-    select.setAttribute('aria-label', 'Nivel del objetivo');
-    select.add(new Option('Elegir nivel…', ''));
-    Object.entries(DIMENSIONES).forEach(([key, label]) => select.add(new Option(label, key)));
-    select.value = value;
-    return select;
-  }
-
   // Importe: formato de dinero de App360UI («$ 1.234,56»). Cajas y kilos: número es-AR sin «$».
   function activarCampoMeta(input, measure, valor) {
     const tieneValor = valor !== undefined && valor !== null && Number(valor) !== 0;
@@ -381,114 +372,28 @@
     return label;
   }
 
-  function configurarCatalogoDimension(form) {
-    const typeSelect = form.querySelector('[data-dimension-tipo]');
-    const valueSelect = form.querySelector('[data-dimension-valor]');
-    let valueInstance = null;
-
-    function applyCapabilities(option) {
-      const product = typeSelect.value === 'producto';
+  // Formulario de una línea guardada dentro de la zona expandida del vendedor. Las líneas nuevas se
+  // cargan en el panel lateral de alta (solicitarAbrirPanel), no en esta zona.
+  function agregarFormularioLinea(grupo, linea) {
+    const form = document.createElement('form');
+    form.className = 'oc-line oc-line-guardada';
+    form.dataset.lineId = linea?.id ? String(linea.id) : '';
+    form.innerHTML = `<div class="oc-line-head"><h3>${escapeHtml(DIMENSIONES[linea.dimension_tipo] || linea.dimension_tipo)} · ${escapeHtml(linea.dimension_valor)}</h3><button type="button" class="oc-text-action oc-mute" data-delete-line>Eliminar línea</button></div><div class="oc-line-meta"></div><div class="oc-line-footer"><span class="oc-line-realizado">Realizado leído desde PRE: ${escapeHtml(MEDIDAS.importe.format(linea.realizado_importe))} · ${escapeHtml(MEDIDAS.cajas.format(linea.realizado_cajas))} · ${escapeHtml(MEDIDAS.kilos.format(linea.realizado_kilos))}</span><div class="oc-line-actions"><button type="submit" class="oc-save">Guardar cambios</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
+    form.querySelector('.oc-line-meta').append(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, linea[`meta_${measure}`])));
+    if (linea.dimension_tipo === 'producto') {
+      const caps = linea.capacidades || {};
       for (const measure of ['cajas', 'kilos']) {
         const input = form.querySelector(`[data-meta="${measure}"]`);
-        const supported = !product || Boolean(option?.[`supports_${measure}`]);
+        const supported = Boolean(caps[`supports_${measure}`]) || Number(linea[`meta_${measure}`]) > 0;
         input.disabled = !supported;
         input.title = supported ? '' : `${MEDIDAS[measure].label} se habilita cuando hay cantidades del producto en staging.`;
-        if (!supported) input.value = '';
       }
-      const hint = form.querySelector('[data-product-hint]');
-      hint.hidden = !product;
-      hint.textContent = product
-        ? 'El importe está disponible para todos los productos. Cajas y kilos se habilitan según las cantidades registradas en staging.'
-        : '';
     }
-
-    function setupValues(selected = '') {
-      valueInstance?.destroy();
-      valueSelect.replaceChildren(new Option('Buscar valor…', ''));
-      const selectedType = typeSelect.value;
-      applyCapabilities(null);
-      if (!selectedType) return;
-      const opts = selected ? [{value: selected, supports_cajas: true, supports_kilos: true}] : [];
-      valueInstance = tomSelect(valueSelect, {
-        valueField: 'value',
-        labelField: 'value',
-        searchField: ['value'],
-        options: opts,
-        items: selected ? [selected] : [],
-        create: false,
-        maxOptions: 100,
-        loadThrottle: 250,
-        shouldLoad: () => true,
-        // Con 'focus', TomSelect consulta las opciones al abrir el desplegable sin escribir.
-        preload: 'focus',
-        placeholder: `Buscar ${DIMENSIONES[selectedType].toLowerCase()}…`,
-        plugins: ['dropdown_input'],
-        load(query, callback) {
-          const params = new URLSearchParams({dimension: selectedType, q: query || ''});
-          fetch(`/api/objetivos-comerciales/opciones?${params}`)
-            .then(response => response.json())
-            .then(data => callback(data.opciones || []))
-            .catch(() => callback([]));
-        },
-        onChange(value) {
-          cerrarTrasElegir(this);
-          applyCapabilities(value ? this.options[value] : null);
-        },
-      });
-      if (!valueInstance) {
-        valueSelect.addEventListener('focus', async () => {
-          if (valueSelect.options.length > 1) return;
-          const params = new URLSearchParams({dimension: selectedType});
-          const data = await requestJson(`/api/objetivos-comerciales/opciones?${params}`);
-          (data.opciones || []).forEach(option => valueSelect.add(new Option(option.value, option.value)));
-        }, {once: true});
-      }
-      applyCapabilities(opts[0]);
-    }
-
-    typeSelect.addEventListener('change', () => setupValues());
-    setupValues(valueSelect.dataset.selected || '');
-    return {getValue: () => valueInstance?.getValue() || valueSelect.value, setType: value => {
-      typeSelect.value = value || '';
-      setupValues();
-    }};
-  }
-
-  // Formulario de una línea dentro de la zona expandida del vendedor (nueva o guardada).
-  function agregarFormularioLinea(grupo, linea = null) {
-    const form = document.createElement('form');
-    form.className = 'oc-line';
-    form.dataset.lineId = linea?.id ? String(linea.id) : '';
-    const isNew = !linea;
-    if (isNew) {
-      form.innerHTML = `<div class="oc-line-head"><h3>Nueva línea de objetivo</h3><button type="button" class="oc-text-action oc-mute" data-cancel-line>Quitar línea</button></div><p class="com-note oc-product-hint" data-product-hint hidden></p><div class="oc-line-meta"><label>Nivel del objetivo<select data-dimension-tipo required></select></label><label>Valor del catálogo<select data-dimension-valor required></select></label></div><div class="oc-line-footer"><span class="oc-line-realizado">El realizado se calculará desde PRE al guardar.</span><div class="oc-line-actions"><button type="submit" class="oc-save">Guardar línea</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
-      const typeSelect = form.querySelector('[data-dimension-tipo]');
-      typeSelect.replaceWith(crearSelectDimension());
-      form.querySelector('.oc-line-meta').append(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, '')));
-      form.querySelector('[data-cancel-line]').addEventListener('click', () => {
-        form.remove();
-        if (!grupo._lineas.querySelector('form.oc-line')) quitarGrupo(grupo);
-      });
-      form._dimensionControls = configurarCatalogoDimension(form);
-    } else {
-      form.classList.add('oc-line-guardada');
-      form.innerHTML = `<div class="oc-line-head"><h3>${escapeHtml(DIMENSIONES[linea.dimension_tipo] || linea.dimension_tipo)} · ${escapeHtml(linea.dimension_valor)}</h3><button type="button" class="oc-text-action oc-mute" data-delete-line>Eliminar línea</button></div><div class="oc-line-meta"></div><div class="oc-line-footer"><span class="oc-line-realizado">Realizado leído desde PRE: ${escapeHtml(MEDIDAS.importe.format(linea.realizado_importe))} · ${escapeHtml(MEDIDAS.cajas.format(linea.realizado_cajas))} · ${escapeHtml(MEDIDAS.kilos.format(linea.realizado_kilos))}</span><div class="oc-line-actions"><button type="submit" class="oc-save">Guardar cambios</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
-      form.querySelector('.oc-line-meta').append(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, linea[`meta_${measure}`])));
-      if (linea.dimension_tipo === 'producto') {
-        const caps = linea.capacidades || {};
-        for (const measure of ['cajas', 'kilos']) {
-          const input = form.querySelector(`[data-meta="${measure}"]`);
-          const supported = Boolean(caps[`supports_${measure}`]) || Number(linea[`meta_${measure}`]) > 0;
-          input.disabled = !supported;
-          input.title = supported ? '' : `${MEDIDAS[measure].label} se habilita cuando hay cantidades del producto en staging.`;
-        }
-      }
-      form.querySelector('[data-delete-line]').addEventListener('click', () => eliminarLinea(linea.id, form));
-      // Lo guardado sirve de referencia para habilitar «Guardar cambios» solo con cambios reales.
-      form._metasGuardadas = metasDelFormulario(form);
-      form.addEventListener('input', () => sincronizarGuardar(form));
-      sincronizarGuardar(form);
-    }
+    form.querySelector('[data-delete-line]').addEventListener('click', () => eliminarLinea(linea.id, form));
+    // Lo guardado sirve de referencia para habilitar «Guardar cambios» solo con cambios reales.
+    form._metasGuardadas = metasDelFormulario(form);
+    form.addEventListener('input', () => sincronizarGuardar(form));
+    sincronizarGuardar(form);
     form.addEventListener('submit', event => guardarLinea(event, form, linea));
     grupo._lineas.append(form);
     return form;
@@ -503,6 +408,7 @@
     return metas;
   }
 
+  // Guardar cambios de una línea existente (PATCH). La línea nueva se guarda desde el panel (guardarAlta).
   async function guardarLinea(event, form, linea) {
     event.preventDefault();
     const grupo = grupoDeElemento(form);
@@ -520,35 +426,13 @@
       if (!Object.values(metas).some(valor => valor > 0)) {
         throw new Error('Cargá una meta mayor que cero en importe, cajas o kilos para guardar la línea.');
       }
-      const payload = Object.fromEntries(
-        Object.entries(metas).map(([measure, valor]) => [`meta_${measure}`, valor]),
-      );
-      if (linea) {
-        await requestJson(`/api/objetivos-comerciales/${encodeURIComponent(linea.id)}`, {
-          method: 'PATCH',
-          headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-          body: JSON.stringify(payload),
-        });
-        form._metasGuardadas = metas;
-      } else {
-        const dimensionType = form.querySelector('[data-dimension-tipo]').value;
-        const dimensionValue = form._dimensionControls?.getValue() || form.querySelector('[data-dimension-valor]').value;
-        if (!dimensionType || !dimensionValue) throw new Error('Elegí el nivel y el valor del catálogo para esta línea.');
-        const ref = grupo.dataset.vendedorRef || '';
-        if (!ref) throw new Error('Elegí un vendedor antes de guardar la línea.');
-        payload.mes = $('periodoObjetivos').value;
-        payload.dimension_tipo = dimensionType;
-        payload.dimension_valor = dimensionValue;
-        if (ref.startsWith('id:')) payload.vendedor_id = Number(ref.slice(3));
-        else payload.vendedor_nombre = ref.slice(7);
-        const {objetivo} = await requestJson('/api/objetivos-comerciales', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-          body: JSON.stringify(payload),
-        });
-        convertirBorrador(grupo, objetivo);
-        form.replaceWith(agregarFormularioLinea(grupo, objetivo));
-      }
+      const payload = Object.fromEntries(Object.entries(metas).map(([measure, valor]) => [`meta_${measure}`, valor]));
+      await requestJson(`/api/objetivos-comerciales/${encodeURIComponent(linea.id)}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify(payload),
+      });
+      form._metasGuardadas = metas;
       await refrescarResumen(grupo);
     } catch (errorValue) {
       error.textContent = errorValue.message || 'No se pudo guardar la línea.';
@@ -642,6 +526,7 @@
 
   // Quita un vendedor de la tabla (borrador cancelado o sin líneas) y libera su selector.
   function quitarGrupo(grupo) {
+    if (panel.grupo === grupo) cerrarPanel({restaurarFoco: false});
     grupo._vendedorSelect?.destroy();
     grupo._detalle?.remove();
     grupo.remove();
@@ -711,6 +596,307 @@
     if (!boton || !guardadas || form.classList.contains('oc-line-saving')) return;
     const actuales = metasDelFormulario(form);
     boton.disabled = Object.keys(actuales).every(measure => actuales[measure] === guardadas[measure]);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Panel lateral de alta (corte 3). Una línea nueva se carga aquí, con el vendedor fijado desde su fila.
+  // Nivel y Valor son TomSelect; cajas y kilos no llevan «$». Cerrar con datos sin guardar pide confirmación.
+  // ---------------------------------------------------------------------------
+  const panel = {aside: null, form: null, sub: null, grupo: null, disparador: null, inicial: '', confirmando: false};
+  const alta = {tipo: '', nivel: null, nivelSelect: null, valor: null, valorSelect: null};
+  const pagina = document.querySelector('.oc-page');
+
+  // «mes año» del período actual, en español (mismo texto que la barra de período).
+  function etiquetaPeriodo() {
+    const [anio = '', mes = ''] = ($('periodoObjetivos').value || '').split('-');
+    return [MESES_PERIODO[Number(mes) - 1], anio].filter(Boolean).join(' ');
+  }
+
+  function valorElegido() {
+    return alta.valor ? alta.valor.getValue() : alta.valorSelect.value;
+  }
+
+  // Cajas y kilos se habilitan para producto según las cantidades del catálogo (capacidades de la opción).
+  function aplicarCapacidades(option) {
+    const producto = alta.tipo === 'producto';
+    for (const measure of ['cajas', 'kilos']) {
+      const input = panel.form.querySelector(`[data-meta="${measure}"]`);
+      const supported = !producto || Boolean(option?.[`supports_${measure}`]);
+      input.disabled = !supported;
+      input.title = supported ? '' : `${MEDIDAS[measure].label} se habilita cuando hay cantidades del producto en staging.`;
+      if (!supported) input.value = '';
+    }
+    const hint = panel.form.querySelector('[data-product-hint]');
+    hint.hidden = !producto;
+    hint.textContent = producto
+      ? 'El importe está disponible para todos los productos. Cajas y kilos se habilitan según las cantidades registradas en staging.'
+      : '';
+  }
+
+  // Al elegir Nivel, el Valor se vuelve a montar con el catálogo de ese nivel (búsqueda en el desplegable).
+  function cambiarNivel(tipo) {
+    alta.tipo = tipo || '';
+    alta.valor?.destroy();
+    alta.valor = null;
+    alta.valorSelect.replaceChildren(new Option('Buscar valor…', ''));
+    aplicarCapacidades(null);
+    // Valor es siempre TomSelect: sin Nivel queda deshabilitado y no consulta el catálogo.
+    alta.valor = tomSelect(alta.valorSelect, {
+      valueField: 'value',
+      labelField: 'value',
+      searchField: ['value'],
+      options: [],
+      create: false,
+      maxOptions: 100,
+      loadThrottle: 250,
+      shouldLoad: () => true,
+      // Con 'focus', TomSelect consulta las opciones al abrir el desplegable sin escribir.
+      preload: 'focus',
+      placeholder: alta.tipo ? `Buscar ${DIMENSIONES[alta.tipo].toLowerCase()}…` : 'Elegí un nivel',
+      plugins: ['dropdown_input'],
+      load(query, callback) {
+        const params = new URLSearchParams({dimension: alta.tipo, q: query || ''});
+        fetch(`/api/objetivos-comerciales/opciones?${params}`)
+          .then(response => response.json())
+          .then(data => callback(data.opciones || []))
+          .catch(() => callback([]));
+      },
+      onChange(value) {
+        cerrarTrasElegir(this);
+        aplicarCapacidades(value ? this.options[value] : null);
+      },
+    });
+    if (alta.tipo) alta.valor?.enable();
+    else alta.valor?.disable();
+    if (!alta.valor && alta.tipo) {
+      alta.valorSelect.addEventListener('focus', async () => {
+        if (alta.valorSelect.options.length > 1) return;
+        const params = new URLSearchParams({dimension: alta.tipo});
+        const data = await requestJson(`/api/objetivos-comerciales/opciones?${params}`);
+        (data.opciones || []).forEach(option => alta.valorSelect.add(new Option(option.value, option.value)));
+      }, {once: true});
+    }
+  }
+
+  function configurarCamposAlta(form) {
+    alta.nivelSelect = form.querySelector('[data-dimension-tipo]');
+    alta.valorSelect = form.querySelector('[data-dimension-valor]');
+    alta.nivelSelect.replaceChildren(new Option('Elegir nivel…', ''),
+      ...Object.entries(DIMENSIONES).map(([valor, texto]) => new Option(texto, valor)));
+    alta.nivel = tomSelect(alta.nivelSelect, {
+      create: false,
+      maxOptions: 10,
+      placeholder: 'Elegir nivel…',
+      // Con 'focus', TomSelect carga las opciones al enfocar. Las de Nivel son fijas.
+      preload: 'focus',
+      plugins: ['dropdown_input'],
+      onChange(value) {
+        cerrarTrasElegir(this);
+        cambiarNivel(value);
+      },
+    });
+    if (!alta.nivel) alta.nivelSelect.addEventListener('change', () => cambiarNivel(alta.nivelSelect.value));
+    cambiarNivel('');
+  }
+
+  // Vacía el formulario (sin disparar eventos de TomSelect) y deja Nivel listo para elegir.
+  function limpiarAlta() {
+    if (alta.nivel) alta.nivel.clear(true);
+    else alta.nivelSelect.value = '';
+    cambiarNivel('');
+    for (const measure of Object.keys(MEDIDAS)) {
+      const input = panel.form.querySelector(`[data-meta="${measure}"]`);
+      if (measure === 'importe') window.App360UI?.money?.setValue(input, '');
+      else input.value = '';
+    }
+    panel.form.querySelector('[data-line-error]').hidden = true;
+  }
+
+  // Foco en Nivel sin abrir el desplegable: TomSelect abre al enfocar salvo que openOnFocus esté apagado.
+  function enfocarNivel() {
+    const instancia = alta.nivel;
+    if (!instancia) {
+      alta.nivelSelect.focus();
+      return;
+    }
+    instancia.settings.openOnFocus = false;
+    instancia.focus();
+    setTimeout(() => { instancia.settings.openOnFocus = true; }, 50);
+  }
+
+  // Foto del formulario para saber si hay datos sin guardar (Nivel, Valor, Importe, Cajas y Kilos).
+  function instantaneaAlta() {
+    const metas = Object.fromEntries(Object.keys(MEDIDAS).map(measure =>
+      [measure, panel.form.querySelector(`[data-meta="${measure}"]`).value]));
+    return JSON.stringify({tipo: alta.tipo, valor: valorElegido(), ...metas});
+  }
+
+  function hayCambiosSinGuardar() {
+    return instantaneaAlta() !== panel.inicial;
+  }
+
+  function confirmarDescarte() {
+    if (window.App360UI?.confirm) {
+      return window.App360UI.confirm({
+        title: 'Descartar la línea',
+        message: 'Los datos de esta línea todavía no se guardaron y se perderán.',
+        confirmText: 'Descartar',
+        cancelText: 'Seguir editando',
+        variant: 'danger',
+      });
+    }
+    return Promise.resolve(window.confirm('Los datos de esta línea no se guardaron. ¿Descartarlos?'));
+  }
+
+  // Vendedor fijado desde la fila (no editable): subtítulo «<vendedor> · <mes año>» y atributos del panel.
+  function abrirPanel(grupo, disparador) {
+    const ref = grupo.dataset.vendedorRef || '';
+    panel.grupo = grupo;
+    panel.disparador = disparador;
+    panel.aside.dataset.vendedorRef = ref;
+    if (grupo.dataset.vendedorId) panel.aside.dataset.vendedorId = grupo.dataset.vendedorId;
+    else delete panel.aside.dataset.vendedorId;
+    const nombre = grupo._nombre || nombreDeRef(ref);
+    panel.sub.textContent = [nombre, etiquetaPeriodo()].filter(Boolean).join(' · ');
+    limpiarAlta();
+    panel.aside.hidden = false;
+    pagina.classList.add('oc-drawer-open');
+    enfocarNivel();
+    panel.inicial = instantaneaAlta();
+  }
+
+  // Cierra sin guardar. Con foco restaurado, el foco vuelve al disparador que abrió el panel.
+  function cerrarPanel({restaurarFoco = true} = {}) {
+    const disparador = panel.disparador;
+    panel.aside.hidden = true;
+    pagina.classList.remove('oc-drawer-open');
+    panel.form.querySelector('[data-line-error]').hidden = true;
+    panel.grupo = null;
+    panel.disparador = null;
+    panel.inicial = '';
+    if (restaurarFoco) (disparador?.isConnected ? disparador : $('agregarVendedor')).focus();
+  }
+
+  // Cierre pedido por el usuario (Cancelar, ×, Escape o clic fuera). Con datos sin guardar pide confirmación.
+  async function solicitarCierre({restaurarFoco = true} = {}) {
+    if (panel.aside.hidden || panel.confirmando) return;
+    if (hayCambiosSinGuardar()) {
+      panel.confirmando = true;
+      let descartar = false;
+      try {
+        descartar = await confirmarDescarte();
+      } finally {
+        panel.confirmando = false;
+      }
+      if (!descartar) return;
+    }
+    cerrarPanel({restaurarFoco});
+  }
+
+  // «Agregar objetivo» de una fila o de un borrador: abre el panel con ese vendedor fijado.
+  async function solicitarAbrirPanel(grupo, disparador) {
+    if (!grupo.dataset.vendedorRef) return;
+    if (!panel.aside.hidden) {
+      if (panel.grupo === grupo) {
+        enfocarNivel();
+        return;
+      }
+      await solicitarCierre({restaurarFoco: false});
+      if (!panel.aside.hidden) return;
+    }
+    expandir(grupo, true);
+    abrirPanel(grupo, disparador);
+  }
+
+  // Tras «Guardar y agregar otro»: formulario limpio, mismo vendedor y foco en Nivel.
+  function reiniciarParaOtro() {
+    limpiarAlta();
+    panel.inicial = instantaneaAlta();
+    enfocarNivel();
+  }
+
+  // Alta de una línea (POST). Con «Guardar y agregar otro», el formulario queda abierto y limpio.
+  async function guardarAlta(event) {
+    event.preventDefault();
+    const agregarOtro = panel.form.dataset.siguienteAlta === 'otro';
+    delete panel.form.dataset.siguienteAlta;
+    const grupo = panel.grupo;
+    const error = panel.form.querySelector('[data-line-error]');
+    const botones = panel.form.querySelectorAll('button[type="submit"], [data-save-and-add]');
+    error.hidden = true;
+    botones.forEach(boton => { boton.disabled = true; });
+    panel.form.classList.add('oc-line-saving');
+    marcarCarga(1);
+    try {
+      const metas = metasDelFormulario(panel.form);
+      const valor = valorElegido();
+      if (!alta.tipo) throw new Error('Elegí el nivel del objetivo.');
+      if (!valor) throw new Error('Elegí el valor del catálogo para esta línea.');
+      if (Object.values(metas).some(valorMeta => Number.isNaN(valorMeta))) {
+        throw new Error('Ingresá un valor numérico válido, por ejemplo 1.234,56.');
+      }
+      if (!Object.values(metas).some(valorMeta => valorMeta > 0)) {
+        throw new Error('Cargá una meta mayor que cero en importe, cajas o kilos para guardar la línea.');
+      }
+      const ref = grupo?.dataset.vendedorRef || '';
+      if (!ref) throw new Error('Elegí un vendedor antes de guardar la línea.');
+      const payload = Object.fromEntries(
+        Object.entries(metas).map(([measure, valorMeta]) => [`meta_${measure}`, valorMeta]),
+      );
+      payload.mes = $('periodoObjetivos').value;
+      payload.dimension_tipo = alta.tipo;
+      payload.dimension_valor = valor;
+      if (ref.startsWith('id:')) payload.vendedor_id = Number(ref.slice(3));
+      else payload.vendedor_nombre = ref.slice(7);
+      const {objetivo} = await requestJson('/api/objetivos-comerciales', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify(payload),
+      });
+      convertirBorrador(grupo, objetivo);
+      agregarFormularioLinea(grupo, objetivo);
+      await refrescarResumen(grupo);
+      if (agregarOtro) reiniciarParaOtro();
+      else cerrarPanel({restaurarFoco: true});
+    } catch (errorValue) {
+      error.textContent = errorValue.message || 'No se pudo guardar la línea.';
+      error.hidden = false;
+    } finally {
+      botones.forEach(boton => { boton.disabled = false; });
+      panel.form.classList.remove('oc-line-saving');
+      marcarCarga(-1);
+    }
+  }
+
+  function configurarPanel() {
+    panel.aside = $('objetivoPanel');
+    panel.form = panel.aside.querySelector('[data-goal-form]');
+    panel.sub = panel.aside.querySelector('[data-goal-subtitle]');
+    configurarCamposAlta(panel.form);
+    for (const measure of Object.keys(MEDIDAS)) {
+      activarCampoMeta(panel.form.querySelector(`[data-meta="${measure}"]`), measure, '');
+    }
+    panel.form.addEventListener('submit', guardarAlta);
+    panel.form.querySelector('[data-save-and-add]').addEventListener('click', () => {
+      panel.form.dataset.siguienteAlta = 'otro';
+      panel.form.requestSubmit();
+    });
+    panel.form.querySelector('[data-cancel-line]').addEventListener('click', () => solicitarCierre());
+    panel.aside.querySelector('[data-goal-close]').addEventListener('click', () => solicitarCierre());
+    // Escape cierra el panel. Si el desplegable de TomSelect está abierto, lo cierra primero él.
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || panel.aside.hidden) return;
+      if (document.body.classList.contains('modal-open') || panel.aside.querySelector('.dropdown-active')) return;
+      event.preventDefault();
+      solicitarCierre();
+    });
+    // Clic fuera del panel: cierra o pide confirmación. Los disparadores y el modal de la app tienen su propio manejo.
+    document.addEventListener('pointerdown', event => {
+      if (panel.aside.hidden || !(event.target instanceof Element)) return;
+      if (panel.aside.contains(event.target)) return;
+      if (event.target.closest('[data-add-line], [data-cancel-draft], .modal, .modal-backdrop')) return;
+      solicitarCierre({restaurarFoco: false});
+    });
   }
 
   async function cargarLegacy() {
@@ -801,16 +987,22 @@
     }
   }
 
-  $('listaVendedores').addEventListener('click', event => {
+  $('listaVendedores').addEventListener('click', async event => {
     const grupo = grupoDeElemento(event.target);
     if (!grupo) return;
-    if (event.target.closest('[data-add-line]')) {
-      if (!grupo.dataset.vendedorRef) return;
-      expandir(grupo, true);
-      agregarFormularioLinea(grupo);
+    const disparador = event.target.closest('[data-add-line]');
+    if (disparador) {
+      await solicitarAbrirPanel(grupo, disparador);
       return;
     }
-    if (event.target.closest('[data-cancel-draft]')) quitarGrupo(grupo);
+    if (event.target.closest('[data-cancel-draft]')) {
+      // Con el panel abierto para este borrador, la descarta el mismo confirm que el resto de cierres.
+      if (panel.grupo === grupo && !panel.aside.hidden) {
+        await solicitarCierre({restaurarFoco: false});
+        if (!panel.aside.hidden) return;
+      }
+      quitarGrupo(grupo);
+    }
   });
   $('legacyGoals').addEventListener('submit', convertirLegacy);
   $('agregarVendedor').addEventListener('click', agregarBorrador);
@@ -858,6 +1050,7 @@
   $('periodoAnio').addEventListener('change', cambiarPeriodoDesdeSelectores);
   $('periodoObjetivos').addEventListener('change', cargarDatos);
   document.addEventListener('DOMContentLoaded', () => {
+    configurarPanel();
     fijarPeriodo(periodoDesdeUrl() || currentMonth());
     void cargarDatos();
     void cargarLegacy();
