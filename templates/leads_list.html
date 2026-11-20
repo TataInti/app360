@@ -33,13 +33,18 @@
         text-transform: capitalize;
     }
 
+    .kanban-column-count {
+        color: var(--color-text-muted);
+        font-variant-numeric: tabular-nums;
+    }
+
     .kanban-column-body {
         display: flex;
         flex-direction: column;
         gap: 0.65rem;
         min-height: 420px;
         padding: 0.25rem;
-        border-radius: 10px;
+        border-radius: var(--radius-panel);
         transition: background 0.2s ease, border 0.2s ease;
     }
 
@@ -53,7 +58,7 @@
         border: 1px solid var(--color-border);
         border-radius: var(--radius-panel);
         padding: 0.75rem;
-        box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+        box-shadow: none;
         cursor: grab;
     }
 
@@ -64,6 +69,10 @@
     .kanban-card-title {
         font-weight: 700;
         margin-bottom: 0.35rem;
+    }
+
+    .kanban-card-title a {
+        color: var(--color-action);
     }
 
     .kanban-card-meta {
@@ -96,7 +105,7 @@
         width: 380px;
         background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-surface-muted) 100%);
         border-left: 1px solid var(--color-border);
-        box-shadow: -18px 0 42px rgba(15, 23, 42, 0.12);
+        box-shadow: var(--app-shadow-lg);
         padding: 1rem 1rem 1.1rem;
         transition: right 0.25s ease;
         z-index: 1040;
@@ -125,7 +134,7 @@
         font-size: 0.85rem;
         color: var(--color-text-body);
         background: var(--color-surface);
-        box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+        box-shadow: none;
     }
 
     .history-entry strong {
@@ -146,7 +155,7 @@
         border: 1px solid var(--color-border);
         border-radius: var(--radius-panel);
         padding: 0.85rem;
-        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+        box-shadow: none;
     }
 
     .history-empty {
@@ -163,23 +172,18 @@
     }
 </style>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <h1>Marketing</h1>
-        <p class="text-muted mb-0">Pipeline de leads estilo CRM</p>
-    </div>
-    <div class="d-flex gap-2">
-        <a href="/leads/new" class="btn btn-primary">Nuevo Lead</a>
-        <a href="/campaigns" class="btn btn-outline-secondary">Campañas</a>
-    </div>
-</div>
+{% from '_components.html' import page_head %}
+{% call page_head('Leads', 'Pipeline de leads estilo CRM') %}
+    <a href="/campaigns" class="btn btn-outline-secondary">Campañas</a>
+    <a href="/leads/new" class="btn btn-primary">Nuevo Lead</a>
+{% endcall %}
 
 <div class="kanban-board" id="kanbanBoard">
     {% for stage in stages %}
     <div class="kanban-column" data-stage="{{ stage.name }}">
         <div class="kanban-column-header">
             <h5>{{ stage.name|capitalize }}</h5>
-            <span class="badge bg-light text-dark js-count">{{ leads_by_stage[stage.name]|length }}</span>
+            <span class="kanban-column-count js-count">{{ leads_by_stage[stage.name]|length }}</span>
         </div>
         <div class="kanban-column-body" data-stage="{{ stage.name }}">
             {% for lead in leads_by_stage[stage.name] %}
@@ -192,7 +196,6 @@
                     <a href="/leads/{{ lead.id }}" class="text-decoration-none">{{ lead.name }}</a>
                 </div>
                 <div class="kanban-card-meta">
-                    <span class="badge bg-secondary js-stage">{{ stage.name|capitalize }}</span>
                     <span>{{ lead.owner_name or 'Sin responsable' }}</span>
                 </div>
                 <div class="kanban-card-details">
@@ -201,7 +204,7 @@
                     <div>Campaña: {{ campaigns.get(lead.campaign_id, '-') }}</div>
                 </div>
                 <div class="kanban-card-actions">
-                    <button class="btn btn-sm btn-outline-primary js-history"
+                    <button class="btn btn-sm btn-outline-secondary js-history"
                             data-lead-id="{{ lead.id }}"
                             data-lead-name="{{ lead.name|e }}">
                         Historial
@@ -253,7 +256,7 @@
         <label class="form-label">Agregar comentario</label>
         <textarea class="form-control" id="historyComment" maxlength="300" placeholder="Nota sobre el estado..."></textarea>
         <div class="text-muted small mt-1" id="historyCommentCount">0 / 300</div>
-        <button class="btn btn-primary w-100 mt-2" id="historySubmit">Guardar comentario</button>
+        <button class="btn btn-sm btn-outline-secondary mt-2" id="historySubmit">Guardar comentario</button>
     </div>
     <div class="history-list" id="historyList"></div>
 </div>
