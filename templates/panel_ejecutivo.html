@@ -1,7 +1,13 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container-fluid">
+<style>
+  .panel-ejecutivo-page :is(.kpi-value, .metric-inline__value, .concept-summary__count, .concept-summary__amount, .effect-text, .text-end, .result-method__formula) {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+</style>
+<div class="container-fluid panel-ejecutivo-page">
   <div class="panel-header">
     <div>
       <h1>Panel Ejecutivo</h1>

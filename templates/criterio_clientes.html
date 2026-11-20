@@ -3,18 +3,18 @@
 {% block content %}
 <style>
   .criterio-page { color:var(--color-text-primary); }
-  .criterio-card { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-panel); box-shadow:0 3px 14px rgba(31,41,55,.045); }
+  .criterio-card { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-panel); }
   .criterio-note { color:var(--color-text-muted); font-size:.9rem; }
   .criterio-pill { border:1px solid var(--color-border); border-radius:var(--radius-pill); padding:.35rem .75rem; background:var(--color-surface); color:var(--color-text-primary); }
-  .criterio-btn { border:0; border-radius:var(--radius-control); padding:.55rem .9rem; font-weight:600; color:#fff; background:var(--color-action); }
-  .criterio-btn.fac { background:var(--color-positive); }
+  .criterio-btn { border:0; border-radius:var(--radius-control); padding:.55rem .9rem; font-weight:600; color:var(--color-surface); background:var(--color-action); }
+  .criterio-btn--secondary { border:1px solid var(--color-border-control); color:var(--color-text-body); background:var(--color-surface); }
+  .criterio-btn--secondary:hover { background:var(--color-hover); }
   .criterio-btn:disabled { opacity:.55; cursor:not-allowed; }
+  .criterio-page :focus-visible { outline:2px solid var(--color-focus); outline-offset:2px; }
   .criterio-table { color:var(--color-text-primary); margin:0; }
   .criterio-table thead th { color:var(--color-text-muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.035em; white-space:nowrap; border-bottom:1px solid var(--color-border); }
   .criterio-table td { vertical-align:middle; border-color:var(--color-border-soft); }
-  .criterio-status { display:inline-flex; border:1px solid var(--color-border); border-radius:var(--radius-pill); padding:.18rem .55rem; font-size:.78rem; font-weight:700; }
-  .criterio-status.pre { color:var(--color-action); background:var(--color-action-soft); }
-  .criterio-status.fac { color:var(--state-active-ink); background:var(--state-active-bg); }
+
   @media(max-width:700px) { .criterio-actions { width:100%; } .criterio-actions button { flex:1; } }
 </style>
 <div class="container-fluid py-3 criterio-page">
@@ -32,7 +32,7 @@
       <span id="criterio-seleccionados" class="criterio-note">0 seleccionados</span>
       <div class="criterio-actions d-flex flex-wrap gap-2 ms-lg-auto">
         <button id="criterio-usar-pre" class="criterio-btn" type="button">Usar presupuesto</button>
-        <button id="criterio-usar-fac" class="criterio-btn fac" type="button">Usar facturación</button>
+        <button id="criterio-usar-fac" class="criterio-btn criterio-btn--secondary" type="button">Usar facturación</button>
       </div>
     </div>
     <div id="criterio-mensaje" class="criterio-note mb-2" role="status" aria-live="polite"></div>
@@ -72,13 +72,17 @@
       refreshSelection();
       return;
     }
-    body.innerHTML = visibles.map(row => `<tr>
-      <td><input class="criterio-row-check" type="checkbox" data-cliente="${escapeHtml(row.cliente)}" ${escapeHtml(selected.has(row.cliente) ? 'checked' : '')} aria-label="Seleccionar ${escapeHtml(row.cliente)}"></td>
-      <td>${escapeHtml(row.cliente)}</td>
-      <td><span class="criterio-status ${escapeHtml(row.criterio === 'FAC' ? 'fac' : 'pre')}">${escapeHtml(row.criterio === 'FAC' ? 'Facturación (FAC)' : 'Presupuesto (PRE)')}</span></td>
-      <td>${escapeHtml(row.actualizado_por || '—')}</td>
-      <td>${escapeHtml(row.actualizado_en ? new Date(row.actualizado_en).toLocaleString('es-AR') : '—')}</td>
-    </tr>`).join('');
+    body.innerHTML = visibles.map(row => {
+      const tono = row.criterio === 'FAC' ? 'ok' : 'neutral';
+      const etiqueta = row.criterio === 'FAC' ? 'Facturación (FAC)' : 'Presupuesto (PRE)';
+      return `<tr>
+        <td><input class="criterio-row-check" type="checkbox" data-cliente="${escapeHtml(row.cliente)}" ${escapeHtml(selected.has(row.cliente) ? 'checked' : '')} aria-label="Seleccionar ${escapeHtml(row.cliente)}"></td>
+        <td>${escapeHtml(row.cliente)}</td>
+        <td><span class="app-status app-status--${escapeHtml(tono)}"><span class="app-status__dot" aria-hidden="true"></span><span>${escapeHtml(etiqueta)}</span></span></td>
+        <td>${escapeHtml(row.actualizado_por || '—')}</td>
+        <td>${escapeHtml(row.actualizado_en ? new Date(row.actualizado_en).toLocaleString('es-AR') : '—')}</td>
+      </tr>`;
+    }).join('');
     body.querySelectorAll('.criterio-row-check').forEach(check => check.addEventListener('change', () => {
       const cliente = check.dataset.cliente;
       if (check.checked) selected.add(cliente); else selected.delete(cliente);
