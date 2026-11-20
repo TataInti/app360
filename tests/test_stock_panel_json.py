@@ -320,3 +320,27 @@ def test_plantilla_de_stock_no_interpola_html_ni_usa_innerhtml():
         plantilla = (RAIZ / "templates" / nombre).read_text(encoding="utf-8")
         assert "innerHTML" not in plantilla
         assert "outerHTML" not in plantilla
+
+
+def test_panel_stock_primera_opcion_vacia_y_obligatoria(app_seguridad, catalogo):
+    cliente = _cliente(app_seguridad, 1, "PROBE-admin", "admin")
+
+    lista = cliente.get("/stock").get_data(as_text=True)
+    panel = lista[lista.index('id="stockPanel"'):]
+
+    patron = (
+        r'<select id="product_id" name="product_id"[^>]*\srequired[^>]*>\s*'
+        r'<option value="">Elegí un producto</option>\s*<option value="\d+"'
+    )
+    assert re.search(patron, panel)
+    assert panel.count('<option value="">Elegí un producto</option>') == 1
+
+
+def test_pagina_stock_new_conserva_su_seleccion_sin_opcion_vacia(app_seguridad, catalogo):
+    cliente = _cliente(app_seguridad, 1, "PROBE-admin", "admin")
+
+    pagina = cliente.get("/stock/new").get_data(as_text=True)
+
+    assert "Elegí un producto</option>" not in pagina
+    assert re.search(r'<select id="product_id" name="product_id"[^>]*\srequired', pagina)
+

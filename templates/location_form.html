@@ -13,25 +13,7 @@
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="app-form-grid app-form-grid--cols-2">
-                <label class="app-field">
-                    <span class="app-field__label">Nombre</span>
-                    <input type="text" name="name" class="form-control app-field__control"
-                           value="{{ location.name if location else '' }}" required>
-                </label>
-
-                <label class="app-field">
-                    <span class="app-field__label">Tipo</span>
-                    <select name="type" class="form-control app-field__control">
-                        <option value="sucursal"
-                            {% if location and location.type == 'sucursal' %}selected{% endif %}>
-                            Sucursal
-                        </option>
-                        <option value="nave"
-                            {% if location and location.type == 'nave' %}selected{% endif %}>
-                            Nave
-                        </option>
-                    </select>
-                </label>
+                {% include "_location_form_campos.html" %}
 
                 <div class="app-form-grid__full app-actions">
                     <button class="btn btn-primary" type="submit">Guardar</button>

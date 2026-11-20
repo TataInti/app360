@@ -1,0 +1,21 @@
+{#
+  Campos de ubicación compartidos por /locations/new y /locations/edit/<id> (página) y el panel lateral
+  de la lista. Requiere, en edición, location. Los nombres de campo no cambian: name y type.
+  Cada aviso por campo es un <small data-error-campo="..."> oculto; static/js/app_drawer_form.js lo completa.
+  El contenedor (grilla o panel) lo pone quien incluye el parcial.
+#}
+<div class="app-field" data-campo="name">
+    <label class="app-field__label" for="ubicacion-nombre">Nombre</label>
+    <input type="text" id="ubicacion-nombre" name="name" class="form-control app-field__control"
+           value="{{ location.name if location else '' }}" required>
+    <small class="app-field__error" id="ubicacion-error-name" data-error-campo="name" hidden></small>
+</div>
+
+<div class="app-field" data-campo="type">
+    <label class="app-field__label" for="ubicacion-tipo">Tipo</label>
+    <select id="ubicacion-tipo" name="type" class="form-control app-field__control">
+        <option value="sucursal" {% if location and location.type == 'sucursal' %}selected{% endif %}>Sucursal</option>
+        <option value="nave" {% if location and location.type == 'nave' %}selected{% endif %}>Nave</option>
+    </select>
+    <small class="app-field__error" id="ubicacion-error-type" data-error-campo="type" hidden></small>
+</div>

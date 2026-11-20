@@ -1,7 +1,8 @@
 {#
   Campos de stock compartidos por /stock/new (página), /stock/edit/<id> y el panel lateral de Stock.
   Requiere: products y locations (listas) y, en edición, stock. Los nombres e ids de campo no cambian:
-  los E2E y los enlaces existentes los usan.
+  los E2E y los enlaces existentes los usan. con_opcion_vacia (panel lateral): primera opción «Elegí un
+  producto» con valor vacío, para que el alta no quede con un producto preseleccionado sin querer.
   Cada aviso por campo es un <small data-error-campo="..."> oculto; static/js/app_drawer_form.js lo completa.
   El contenedor (grilla o panel) lo pone quien incluye el parcial.
 #}
@@ -9,6 +10,7 @@
     <label class="app-field__label" for="product_id">Producto</label>
     {% if not products %}<div class="alert alert-warning mb-0">Todavía no hay productos. <a href="/products/new">Creá uno en Productos</a>.</div>{% endif %}
     <select id="product_id" name="product_id" class="form-control app-field__control" required {% if not products %}disabled{% endif %}>
+        {% if con_opcion_vacia %}<option value="">Elegí un producto</option>{% endif %}
         {% for p in products %}
             <option value="{{ p.id }}"
                 {% if stock and stock.product_id == p.id %}selected{% endif %}>

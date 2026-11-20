@@ -1,0 +1,41 @@
+{#
+  Campos de campaña del panel lateral de Campañas (la lista es quien lo incluye).
+  Los nombres de campo no cambian: name, channel, cost_estimate, start_date, end_date y active.
+  Cada aviso por campo es un <small data-error-campo="..."> oculto; static/js/app_drawer_form.js lo completa.
+#}
+<div class="app-field" data-campo="name">
+    <label class="app-field__label" for="campana-nombre">Nombre</label>
+    <input type="text" id="campana-nombre" name="name" class="form-control app-field__control" required>
+    <small class="app-field__error" id="campana-error-name" data-error-campo="name" hidden></small>
+</div>
+
+<div class="app-field" data-campo="channel">
+    <label class="app-field__label" for="campana-canal">Canal</label>
+    <input type="text" id="campana-canal" name="channel" class="form-control app-field__control">
+    <small class="app-field__error" id="campana-error-channel" data-error-campo="channel" hidden></small>
+</div>
+
+<div class="app-field" data-campo="cost_estimate">
+    <label class="app-field__label" for="campana-costo">Costo estimado</label>
+    <input type="text" id="campana-costo" name="cost_estimate" class="form-control app-field__control" placeholder="12345.00" inputmode="decimal">
+    <small class="app-field__error" id="campana-error-cost_estimate" data-error-campo="cost_estimate" hidden></small>
+</div>
+
+<div class="app-field" data-campo="start_date">
+    <label class="app-field__label" for="campana-inicio">Inicio</label>
+    <input type="date" id="campana-inicio" name="start_date" class="form-control app-field__control">
+    <small class="app-field__error" id="campana-error-start_date" data-error-campo="start_date" hidden></small>
+</div>
+
+<div class="app-field" data-campo="end_date">
+    <label class="app-field__label" for="campana-fin">Fin</label>
+    <input type="date" id="campana-fin" name="end_date" class="form-control app-field__control">
+    <small class="app-field__error" id="campana-error-end_date" data-error-campo="end_date" hidden></small>
+</div>
+
+<div class="app-field" data-campo="active">
+    <label class="app-field__label" for="campana-activa">
+        <input type="checkbox" id="campana-activa" name="active" checked>
+        Activa
+    </label>
+</div>
