@@ -13,7 +13,7 @@ load_dotenv()
 
 from config import Config
 from models import db
-from security import module_allowed, revalidar_sesion_web
+from security import guardia_api_admin_sin_sesion, module_allowed, revalidar_sesion_web
 from exceptions import AppException
 from extensions import limiter, csrf, migrate
 
@@ -140,6 +140,9 @@ def create_app():
         limiter.init_app(app)
         app.logger.info("Rate limiting enabled")
     
+    # Guardia de sesión de /api/admin/* antes del CSRF (C3, R4b): sin sesión, 401 JSON uniforme.
+    app.before_request(guardia_api_admin_sin_sesion)
+
     # Initialize CSRF Protection
     if app.config.get('WTF_CSRF_ENABLED', True):
         csrf.init_app(app)

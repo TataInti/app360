@@ -28,6 +28,7 @@ def ensure_admin_user(reset_password=False):
     """
     from models import db
     from models.core.user import User
+    from services.usuarios_admin import activar_cuenta_existente
 
     username = Config.ADMIN_USERNAME
     password = Config.ADMIN_PASSWORD
@@ -44,7 +45,7 @@ def ensure_admin_user(reset_password=False):
 
     # La clave solo cambia con reset_password (--reset-admin-password).
     # Activación y rol se mantienen como antes; se revisan en el corte de usuarios.
-    user.active = True
+    activar_cuenta_existente(user)
     if not user.role:
         user.role = "admin"
     if reset_password:

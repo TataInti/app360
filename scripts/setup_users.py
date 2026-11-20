@@ -22,6 +22,7 @@ from app import create_app
 from claves_seguras import confirmar, generar_clave
 from models import db
 from models.core.user import User
+from services.usuarios_admin import activar_cuenta_existente
 
 # Definición de usuarios a crear/actualizar
 USERS = [
@@ -52,12 +53,12 @@ def setup_users(reset_passwords: bool = False, mostrar_claves: bool = False):
                 password = generar_clave()
                 user.set_password(password)
                 user.role = u["role"]
-                user.active = True
+                activar_cuenta_existente(user)
                 print(f"  ~ Reset: {u['username']} ({u['role']})")
             else:
                 # Asegurar rol y active
                 user.role = u["role"]
-                user.active = True
+                activar_cuenta_existente(user)
                 print(f"  = Existe: {u['username']} ({u['role']}) — sin cambio de contraseña")
 
             credentials.append(
