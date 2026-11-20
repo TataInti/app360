@@ -1,65 +1,59 @@
 {% extends "base.html" %}
+{% import "_components.html" as ui %}
 
 {% block content %}
 <div class="container-fluid">
-    <div class="panel-header">
-        <div>
-            <h1><i class="bi bi-receipt"></i> Liquidación de Sueldos</h1>
-            <span>Previsualización y generación de liquidaciones mensuales</span>
+    {% call ui.page_head("Liquidación de Sueldos", "Previsualización y generación de liquidaciones mensuales") %}
+        <label class="app-field">
+            <span class="app-field__label">Periodo de Liquidación</span>
+            <input type="month" class="form-control form-control-sm app-field__control" id="periodo-liquidacion" onchange="cargarPreview()">
+        </label>
+        <div class="app-actions">
+            <button class="btn btn-sm btn-outline-secondary" id="btn-previsualizar" onclick="cargarPreview()">
+                <i class="bi bi-eye"></i> Previsualizar
+            </button>
+            <button class="btn btn-sm btn-primary" onclick="generarLiquidaciones()" id="btn-generar" disabled>
+                <i class="bi bi-check-circle"></i> Generar
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="verHistorial()">
+                <i class="bi bi-calendar"></i> Historial
+            </button>
         </div>
-    </div>
+    {% endcall %}
+    <p id="aviso-generar" class="text-muted"></p>
 
-    <!-- Selector de Periodo -->
-    <div class="period-bar dim-bar">
-        <div class="row w-100 align-items-end g-2">
-            <div class="col-md-4">
-                <label class="form-label">Periodo de Liquidación</label>
-                <input type="month" class="form-control form-control-sm" id="periodo-liquidacion" onchange="cargarPreview()">
-            </div>
-            <div class="col-md-8 d-flex align-items-end gap-2">
-                <button class="btn btn-sm btn-primary" onclick="cargarPreview()">
-                    <i class="bi bi-eye"></i> Previsualizar
-                </button>
-                <button class="btn btn-sm btn-success" onclick="generarLiquidaciones()" id="btn-generar" disabled>
-                    <i class="bi bi-check-circle"></i> Generar
-                </button>
-                <button class="btn btn-sm btn-outline-secondary" onclick="verHistorial()">
-                    <i class="bi bi-calendar"></i> Historial
-                </button>
-            </div>
-            <div class="col-12"><small id="aviso-generar" class="text-muted"></small></div>
-        </div>
-    </div>
-
-    <!-- Resumen -->
-    <div class="kpi-grid" id="resumen-liquidacion" style="display: none;">
-        <div class="kpi-card"><span class="kpi-label">Total Empleados</span><span class="kpi-value" id="total-empleados">0</span></div>
-        <div class="kpi-card accent-blue"><span class="kpi-label">Total Sueldos Base</span><span class="kpi-value" id="total-sueldos-base">$0</span></div>
-        <div class="kpi-card accent-amber"><span class="kpi-label">Total Descuentos</span><span class="kpi-value" id="total-descuentos">$0</span></div>
-        <div class="kpi-card accent-green"><span class="kpi-label">Total a Pagar</span><span class="kpi-value" id="total-neto">$0</span></div>
-    </div>
-
-    <!-- Tabla de Prevsualización -->
+    <!-- Tabla de Previsualización -->
     <div class="table-card" id="tabla-preview-container" style="display: none;">
         <div class="table-card-head">
-            <h3>Detalle de Liquidaciones <span id="etiqueta-periodo-liquidado" class="badge bg-secondary ms-2" style="display: none;">Período ya liquidado</span></h3>
+            <h3>Detalle de Liquidaciones <span id="etiqueta-periodo-liquidado" style="display: none;">{{ ui.status("Período ya liquidado") }}</span></h3>
         </div>
         <div class="scroll-table">
-            <table class="table table-hover mb-0">
-                <thead>
+            <table class="app-table">
+                <thead class="app-table__head">
                     <tr>
-                        <th>Empleado</th>
-                        <th>Sueldo Base</th>
-                        <th>Desc. Efectivo</th>
-                        <th>Desc. Mercadería</th>
-                        <th>Desc. Cuota Préstamo</th>
-                        <th>Sueldo Neto</th>
-                        <th>Detalles</th>
+                        <th class="app-table__head-cell" scope="col">Empleado</th>
+                        <th class="app-table__head-cell app-table__numeric" scope="col">Sueldo Base</th>
+                        <th class="app-table__head-cell app-table__numeric" scope="col">Desc. Efectivo</th>
+                        <th class="app-table__head-cell app-table__numeric" scope="col">Desc. Mercadería</th>
+                        <th class="app-table__head-cell app-table__numeric" scope="col">Desc. Cuota Préstamo</th>
+                        <th class="app-table__head-cell app-table__numeric" scope="col">Sueldo Neto</th>
+                        <th class="app-table__head-cell" scope="col">Detalles</th>
                     </tr>
                 </thead>
                 <tbody id="tabla-preview">
-                    <tr><td colspan="7" class="text-center text-muted">Seleccione un periodo y haga clic en Previsualizar</td></tr>
+                    <tr><td colspan="7" class="app-table__cell text-center text-muted">Seleccione un periodo y haga clic en Previsualizar</td></tr>
                 </tbody>
+                <tfoot id="tabla-preview-total" hidden>
+                    <tr class="app-table__total">
+                        <th class="app-table__cell" scope="row">Total <span id="total-empleados"></span></th>
+                        <td class="app-table__cell app-table__numeric" id="total-preview-base"></td>
+                        <td class="app-table__cell app-table__numeric" id="total-preview-efectivo"></td>
+                        <td class="app-table__cell app-table__numeric" id="total-preview-mercaderia"></td>
+                        <td class="app-table__cell app-table__numeric" id="total-preview-cuota"></td>
+                        <td class="app-table__cell app-table__numeric" id="total-preview-neto"></td>
+                        <td class="app-table__cell"></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
@@ -70,18 +64,27 @@
             <h3>Liquidaciones del Periodo <span id="periodo-generado"></span></h3>
         </div>
         <div class="scroll-table">
-            <table class="table table-hover mb-0">
-                <thead>
+            <table class="app-table">
+                <thead class="app-table__head">
                     <tr>
-                        <th>Empleado</th>
-                        <th>Sueldo Base</th>
-                        <th>Descuentos</th>
-                        <th>Sueldo Neto</th>
-                        <th>Fecha Liquidación</th>
+                        <th class="app-table__head-cell" scope="col">Empleado</th>
+                        <th class="app-table__head-cell app-table__numeric" scope="col">Sueldo Base</th>
+                        <th class="app-table__head-cell app-table__numeric" scope="col">Descuentos</th>
+                        <th class="app-table__head-cell app-table__numeric" scope="col">Sueldo Neto</th>
+                        <th class="app-table__head-cell" scope="col">Fecha Liquidación</th>
                     </tr>
                 </thead>
                 <tbody id="tabla-generadas">
                 </tbody>
+                <tfoot id="tabla-generadas-total" hidden>
+                    <tr class="app-table__total">
+                        <th class="app-table__cell" scope="row">Total</th>
+                        <td class="app-table__cell app-table__numeric" id="total-generadas-base"></td>
+                        <td class="app-table__cell app-table__numeric" id="total-generadas-descuentos"></td>
+                        <td class="app-table__cell app-table__numeric" id="total-generadas-neto"></td>
+                        <td class="app-table__cell"></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
@@ -113,6 +116,7 @@
     </div>
 </div>
 
+<script src="{{ asset('js/app_format.js') }}"></script>
 <script>
     let previewData = [];
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -190,6 +194,20 @@
             });
     }
 
+    function formatoARS(valor) {
+        return window.App360Format.formatARS(Number(valor || 0), { decimales: 2 });
+    }
+
+    function sumarCampo(liquidaciones, campo) {
+        return liquidaciones.reduce((total, liquidacion) => total + Number(liquidacion[campo] || 0), 0);
+    }
+
+    function descuentosDe(liquidacion) {
+        return Number(liquidacion.descuento_adelanto_efectivo || 0)
+            + Number(liquidacion.descuento_adelanto_mercaderia || 0)
+            + Number(liquidacion.descuento_cuota_prestamo || 0);
+    }
+
     function mostrarPreview(liquidaciones, meta = {}) {
         // Período ya liquidado: Generar queda deshabilitado y el motivo se muestra en pantalla.
         const liquidado = !!meta.periodo_liquidado;
@@ -203,46 +221,56 @@
             aviso += ` ${sinLiquidacion} empleado(s) activo(s) no tienen liquidación guardada en este período.`;
         }
         document.getElementById('aviso-generar').textContent = aviso.trim();
-        // Mostrar resumen
-        document.getElementById('resumen-liquidacion').style.display = '';
         document.getElementById('tabla-preview-container').style.display = '';
         document.getElementById('tabla-generadas-container').style.display = 'none';
 
-        const totalEmpleados = liquidaciones.length;
-        const totalSueldosBase = liquidaciones.reduce((sum, l) => sum + l.sueldo_base, 0);
-        const totalDescuentos = liquidaciones.reduce((sum, l) => 
-            sum + l.descuento_adelanto_efectivo + l.descuento_adelanto_mercaderia + l.descuento_cuota_prestamo, 0
-        );
-        const totalNeto = liquidaciones.reduce((sum, l) => sum + l.sueldo_neto, 0);
-
-        document.getElementById('total-empleados').textContent = totalEmpleados;
-        document.getElementById('total-sueldos-base').textContent = '$' + totalSueldosBase.toFixed(2);
-        document.getElementById('total-descuentos').textContent = '$' + totalDescuentos.toFixed(2);
-        document.getElementById('total-neto').textContent = '$' + totalNeto.toFixed(2);
-
         // Mostrar tabla
         const tbody = document.getElementById('tabla-preview');
+        const pie = document.getElementById('tabla-preview-total');
+        if (!liquidaciones.length) {
+            tbody.innerHTML = `
+                <tr><td colspan="7" class="app-table__cell">
+                    <div class="empty-state">
+                        <div class="empty-title">Todavía no hay liquidaciones para este período</div>
+                        <div class="empty-text">Verificá el período y volvé a previsualizar.</div>
+                    </div>
+                </td></tr>`;
+            pie.hidden = true;
+            return;
+        }
+
         tbody.innerHTML = liquidaciones.map(l => `
             <tr>
                 <td>${escapeHtml(l.empleado_nombre)}</td>
-                <td>$${escapeHtml(l.sueldo_base.toFixed(2))}</td>
-                <td>$${escapeHtml(l.descuento_adelanto_efectivo.toFixed(2))}</td>
-                <td>$${escapeHtml(l.descuento_adelanto_mercaderia.toFixed(2))}</td>
-                <td>$${escapeHtml(l.descuento_cuota_prestamo.toFixed(2))}</td>
-                <td><strong>$${escapeHtml(l.sueldo_neto.toFixed(2))}</strong></td>
+                <td class="app-table__numeric">${escapeHtml(formatoARS(l.sueldo_base))}</td>
+                <td class="app-table__numeric">${escapeHtml(formatoARS(l.descuento_adelanto_efectivo))}</td>
+                <td class="app-table__numeric">${escapeHtml(formatoARS(l.descuento_adelanto_mercaderia))}</td>
+                <td class="app-table__numeric">${escapeHtml(formatoARS(l.descuento_cuota_prestamo))}</td>
+                <td class="app-table__numeric"><strong>${escapeHtml(formatoARS(l.sueldo_neto))}</strong></td>
                 <td>
                     <small>${detalleLiquidacion(l)}</small>
                 </td>
             </tr>
         `).join('');
+
+        pie.hidden = false;
+        const etiquetaEmpleados = liquidaciones.length === 1
+            ? '1 empleado'
+            : `${window.App360Format.formatNumber(liquidaciones.length)} empleados`;
+        document.getElementById('total-empleados').textContent = `(${etiquetaEmpleados})`;
+        document.getElementById('total-preview-base').textContent = formatoARS(sumarCampo(liquidaciones, 'sueldo_base'));
+        document.getElementById('total-preview-efectivo').textContent = formatoARS(sumarCampo(liquidaciones, 'descuento_adelanto_efectivo'));
+        document.getElementById('total-preview-mercaderia').textContent = formatoARS(sumarCampo(liquidaciones, 'descuento_adelanto_mercaderia'));
+        document.getElementById('total-preview-cuota').textContent = formatoARS(sumarCampo(liquidaciones, 'descuento_cuota_prestamo'));
+        document.getElementById('total-preview-neto').textContent = formatoARS(sumarCampo(liquidaciones, 'sueldo_neto'));
     }
 
     function detalleLiquidacion(l) {
         if (l.ya_liquidado) return 'Liquidado: valores guardados';
         const partes = [];
-        if (l.adelantos_efectivo_count > 0) partes.push(`${escapeHtml(l.adelantos_efectivo_count)} adel. efectivo`);
-        if (l.adelantos_mercaderia_count > 0) partes.push(`${escapeHtml(l.adelantos_mercaderia_count)} adel. mercadería`);
-        if (l.prestamos_count > 0) partes.push(`${escapeHtml(l.prestamos_count)} préstamo(s)`);
+        if (l.adelantos_efectivo_count > 0) partes.push(`${escapeHtml(window.App360Format.formatNumber(l.adelantos_efectivo_count))} adel. efectivo`);
+        if (l.adelantos_mercaderia_count > 0) partes.push(`${escapeHtml(window.App360Format.formatNumber(l.adelantos_mercaderia_count))} adel. mercadería`);
+        if (l.prestamos_count > 0) partes.push(`${escapeHtml(window.App360Format.formatNumber(l.prestamos_count))} préstamo(s)`);
         return partes.join('<br>');
     }
 
@@ -255,7 +283,7 @@
             subtitle: 'Se liquidan adelantos y se actualizan cuotas de prestamos.',
             message: `Confirma la generación de liquidaciones para ${periodo}.`,
             confirmText: 'Generar',
-            confirmClass: 'btn-warning',
+            confirmClass: 'btn-primary',
         });
         if (!confirmed) {
             return;
@@ -293,21 +321,35 @@
                 document.getElementById('periodo-generado').textContent = data.periodo;
 
                 const tbody = document.getElementById('tabla-generadas');
-                tbody.innerHTML = data.liquidaciones.map(l => `
+                const liquidaciones = data.liquidaciones || [];
+                if (!liquidaciones.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="app-table__cell text-center text-muted">Todavía no hay liquidaciones para este período.</td></tr>';
+                    document.getElementById('tabla-generadas-total').hidden = true;
+                    return;
+                }
+
+                tbody.innerHTML = liquidaciones.map(l => {
+                    const descuentos = descuentosDe(l);
+                    return `
                     <tr>
                         <td>${escapeHtml(l.empleado.nombre)}</td>
-                        <td>$${escapeHtml(l.sueldo_base.toFixed(2))}</td>
+                        <td class="app-table__numeric">${escapeHtml(formatoARS(l.sueldo_base))}</td>
                         <td>
                             <small>
-                                Efectivo: $${escapeHtml(l.descuento_adelanto_efectivo.toFixed(2))}<br>
-                                Mercadería: $${escapeHtml(l.descuento_adelanto_mercaderia.toFixed(2))}<br>
-                                Préstamos: $${escapeHtml(l.descuento_cuota_prestamo.toFixed(2))}
+                                Efectivo: ${escapeHtml(formatoARS(l.descuento_adelanto_efectivo))}<br>
+                                Mercadería: ${escapeHtml(formatoARS(l.descuento_adelanto_mercaderia))}<br>
+                                Préstamos: ${escapeHtml(formatoARS(l.descuento_cuota_prestamo))}
                             </small>
                         </td>
-                        <td><strong>$${escapeHtml(l.sueldo_neto.toFixed(2))}</strong></td>
+                        <td class="app-table__numeric"><strong>${escapeHtml(formatoARS(l.sueldo_neto))}</strong></td>
                         <td>${escapeHtml(new Date(l.fecha_liquidacion).toLocaleString())}</td>
                     </tr>
-                `).join('');
+                    `;
+                }).join('');
+                document.getElementById('tabla-generadas-total').hidden = false;
+                document.getElementById('total-generadas-base').textContent = formatoARS(sumarCampo(liquidaciones, 'sueldo_base'));
+                document.getElementById('total-generadas-descuentos').textContent = formatoARS(liquidaciones.reduce((total, liquidacion) => total + descuentosDe(liquidacion), 0));
+                document.getElementById('total-generadas-neto').textContent = formatoARS(sumarCampo(liquidaciones, 'sueldo_neto'));
             });
     }
 
@@ -331,27 +373,43 @@
                     return;
                 }
 
+                const liquidaciones = data.liquidaciones || [];
+                if (!liquidaciones.length) {
+                    document.getElementById('resultado-historial').innerHTML = '<div class="empty-state"><div class="empty-title">Periodo sin liquidaciones</div><div class="empty-text">No hay registros para el período seleccionado.</div></div>';
+                    return;
+                }
+                const totalBase = sumarCampo(liquidaciones, 'sueldo_base');
+                const totalDescuentos = liquidaciones.reduce((total, liquidacion) => total + descuentosDe(liquidacion), 0);
+                const totalNeto = sumarCampo(liquidaciones, 'sueldo_neto');
                 const html = `
                     <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead>
+                    <table class="app-table">
+                        <thead class="app-table__head">
                             <tr>
-                                <th>Empleado</th>
-                                <th>Sueldo Base</th>
-                                <th>Descuentos</th>
-                                <th>Neto</th>
+                                <th class="app-table__head-cell" scope="col">Empleado</th>
+                                <th class="app-table__head-cell app-table__numeric" scope="col">Sueldo Base</th>
+                                <th class="app-table__head-cell app-table__numeric" scope="col">Descuentos</th>
+                                <th class="app-table__head-cell app-table__numeric" scope="col">Neto</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${data.liquidaciones.map(l => `
+                            ${liquidaciones.map(l => `
                                 <tr>
                                     <td>${escapeHtml(l.empleado.nombre)}</td>
-                                    <td>$${escapeHtml(l.sueldo_base.toFixed(2))}</td>
-                                    <td>$${escapeHtml((l.descuento_adelanto_efectivo + l.descuento_adelanto_mercaderia + l.descuento_cuota_prestamo).toFixed(2))}</td>
-                                    <td>$${escapeHtml(l.sueldo_neto.toFixed(2))}</td>
+                                    <td class="app-table__numeric">${escapeHtml(formatoARS(l.sueldo_base))}</td>
+                                    <td class="app-table__numeric">${escapeHtml(formatoARS(descuentosDe(l)))}</td>
+                                    <td class="app-table__numeric">${escapeHtml(formatoARS(l.sueldo_neto))}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
+                        <tfoot>
+                            <tr class="app-table__total">
+                                <th class="app-table__cell" scope="row">Total</th>
+                                <td class="app-table__cell app-table__numeric">${escapeHtml(formatoARS(totalBase))}</td>
+                                <td class="app-table__cell app-table__numeric">${escapeHtml(formatoARS(totalDescuentos))}</td>
+                                <td class="app-table__cell app-table__numeric">${escapeHtml(formatoARS(totalNeto))}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                     </div>
                 `;

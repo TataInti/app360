@@ -1,18 +1,15 @@
 {% extends "base.html" %}
+{% import "_components.html" as ui %}
 
 {% block content %}
 <div class="container-fluid">
-    <div class="panel-header">
-        <div>
-            <h1><i class="bi bi-wallet2"></i> Adelantos y Préstamos</h1>
-            <span>Gestiona solicitudes, aprobaciones y saldos pendientes del equipo en un solo flujo.</span>
-        </div>
-        <div class="action-bar">
+    {% call ui.page_head("Adelantos y Préstamos", "Gestiona solicitudes, aprobaciones y saldos pendientes del equipo en un solo flujo.") %}
+        <div class="app-actions">
             <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoAdelanto">
                 <i class="bi bi-plus-circle"></i> Nueva solicitud
             </button>
         </div>
-    </div>
+    {% endcall %}
 
     <div class="kpi-grid">
         <div class="kpi-card accent-blue">
@@ -30,35 +27,36 @@
             <span class="kpi-value" id="kpiAprobados">0</span>
             <span class="kpi-sub">Aprobados sin liquidar</span>
         </div>
-        <div class="kpi-card accent-red">
-            <span class="kpi-label">Saldo pendiente</span>
-            <span class="kpi-value" id="kpiSaldoPendiente">$0</span>
-            <span class="kpi-sub">Capital aún por descontar</span>
-        </div>
     </div>
 
     <!-- Filtros -->
-    <div class="period-bar dim-bar mb-3">
-        <label for="filtro-tipo">Tipo</label>
-        <select class="form-select form-select-sm" id="filtro-tipo" onchange="cargarAdelantos()">
+    <div class="app-form-grid app-form-grid--cols-3 rrhh-advance-filters">
+        <label class="app-field">
+            <span class="app-field__label">Tipo</span>
+            <select class="form-select form-select-sm" id="filtro-tipo" onchange="cargarAdelantos()">
                 <option value="">Todos</option>
                 <option value="adelanto_efectivo">Adelanto Efectivo</option>
                 <option value="adelanto_mercaderia">Adelanto Mercadería</option>
                 <option value="prestamo">Préstamo</option>
             </select>
+        </label>
 
-        <label for="filtro-estado">Estado</label>
-        <select class="form-select form-select-sm" id="filtro-estado" onchange="cargarAdelantos()">
+        <label class="app-field">
+            <span class="app-field__label">Estado</span>
+            <select class="form-select form-select-sm" id="filtro-estado" onchange="cargarAdelantos()">
                 <option value="">Todos</option>
                 <option value="pendiente">Pendientes</option>
                 <option value="aprobado">Aprobados</option>
                 <option value="liquidado">Liquidados</option>
             </select>
+        </label>
 
-        <label for="filtro-mes">Mes aplicación</label>
-        <input type="month" class="form-control form-control-sm" id="filtro-mes" onchange="cargarAdelantos()">
+        <label class="app-field">
+            <span class="app-field__label">Mes aplicación</span>
+            <input type="month" class="form-control form-control-sm" id="filtro-mes" onchange="cargarAdelantos()">
+        </label>
 
-        <button class="pp pp-action" onclick="cargarAdelantos()">
+        <button class="btn btn-sm btn-outline-secondary rrhh-advance-filter-action" onclick="cargarAdelantos()">
             <i class="bi bi-search"></i> Aplicar
         </button>
     </div>
@@ -69,23 +67,33 @@
             <h3><i class="bi bi-table"></i> Solicitudes registradas</h3>
         </div>
         <div class="scroll-table">
-            <table class="table table-hover mb-0">
-                <thead>
+            <table class="app-table">
+                <thead class="app-table__head">
                     <tr>
-                        <th>Empleado</th>
-                        <th>Tipo</th>
-                        <th>Monto</th>
-                        <th>Concepto</th>
-                        <th>Mes Aplicación</th>
-                        <th>Cuotas</th>
-                        <th>Saldo Pendiente</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
+                        <th class="app-table__head-cell" scope="col">Empleado</th>
+                        <th class="app-table__head-cell" scope="col">Tipo</th>
+                        <th class="app-table__head-cell app-table__numeric" scope="col">Monto</th>
+                        <th class="app-table__head-cell" scope="col">Concepto</th>
+                        <th class="app-table__head-cell" scope="col">Mes Aplicación</th>
+                        <th class="app-table__head-cell app-table__numeric" scope="col">Cuotas</th>
+                        <th class="app-table__head-cell app-table__numeric" scope="col">Saldo Pendiente</th>
+                        <th class="app-table__head-cell" scope="col">Estado</th>
+                        <th class="app-table__head-cell" scope="col">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="tabla-adelantos">
-                    <tr><td colspan="9" class="text-center"><span class="loading-text">Cargando datos…</span></td></tr>
+                    <tr><td colspan="9" class="app-table__cell text-center"><span class="loading-text">Cargando datos…</span></td></tr>
                 </tbody>
+                <tfoot id="tabla-adelantos-total" hidden>
+                    <tr class="app-table__total">
+                        <th class="app-table__cell" scope="row">Total</th>
+                        <td class="app-table__cell"></td>
+                        <td class="app-table__cell app-table__numeric" id="total-adelantos-monto"></td>
+                        <td class="app-table__cell" colspan="3"></td>
+                        <td class="app-table__cell app-table__numeric" id="total-adelantos-saldo"></td>
+                        <td class="app-table__cell" colspan="2"></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
@@ -106,49 +114,51 @@
             <form id="formAdelanto">
                 <div class="modal-body">
                     <div class="alert alert-danger d-none mb-3" role="alert" data-form-error></div>
-                    <div class="mb-3">
-                        <label class="form-label">Empleado</label>
+                    <div class="app-form-grid app-form-grid--cols-2 rrhh-advance-modal-grid">
+                    <label class="app-field app-form-grid__full">
+                        <span class="app-field__label">Empleado</span>
                         <select class="form-select" name="empleado_id" required id="select-empleado">
                             <option>Cargando...</option>
                         </select>
-                    </div>
+                    </label>
                     
-                    <div class="mb-3">
-                        <label class="form-label">Tipo</label>
+                    <label class="app-field">
+                        <span class="app-field__label">Tipo</span>
                         <select class="form-select" name="tipo" id="tipo-adelanto" required onchange="toggleCamposPorTipo()">
                             <option value="">Seleccionar...</option>
                             <option value="adelanto_efectivo">Adelanto en Efectivo</option>
                             <option value="adelanto_mercaderia">Adelanto en Mercadería</option>
                             <option value="prestamo">Préstamo</option>
                         </select>
-                    </div>
+                    </label>
 
-                    <div class="mb-3">
-                        <label class="form-label">Monto</label>
+                    <label class="app-field">
+                        <span class="app-field__label">Monto</span>
                         <input type="text" class="form-control" name="monto" data-money-input inputmode="decimal" placeholder="1.234,56" required>
-                    </div>
+                    </label>
 
-                    <div class="mb-3">
-                        <label class="form-label">Concepto</label>
+                    <label class="app-field app-form-grid__full">
+                        <span class="app-field__label">Concepto</span>
                         <textarea class="form-control" name="concepto" rows="2" required></textarea>
-                    </div>
+                    </label>
 
                     <!-- Campos para Adelantos -->
-                    <div class="mb-3" id="campo-mes-aplicacion" style="display: none;">
-                        <label class="form-label">Mes de Aplicación</label>
+                    <label class="app-field" id="campo-mes-aplicacion" hidden>
+                        <span class="app-field__label">Mes de Aplicación</span>
                         <input type="month" class="form-control" name="mes_aplicacion" id="mes_aplicacion">
-                    </div>
+                    </label>
 
                     <!-- Campos para Préstamos -->
-                    <div id="campos-prestamo" style="display: none;">
-                        <div class="mb-3">
-                            <label class="form-label">Cantidad de Cuotas</label>
+                    <div id="campos-prestamo" class="app-form-grid app-form-grid--cols-2 app-form-grid__full" hidden>
+                        <label class="app-field">
+                            <span class="app-field__label">Cantidad de Cuotas</span>
                             <input type="number" class="form-control" name="cantidad_cuotas" id="cantidad_cuotas" min="1">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Interés (%)</label>
+                        </label>
+                        <label class="app-field">
+                            <span class="app-field__label">Interés (%)</span>
                             <input type="number" class="form-control" name="interes_porcentaje" id="interes_porcentaje" step="0.01" min="0">
-                        </div>
+                        </label>
+                    </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -178,28 +188,40 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-sm btn-success" onclick="aprobarAdelanto()">Aprobar</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="aprobarAdelanto()">Aprobar</button>
             </div>
         </div>
     </div>
 </div>
 
+<style>
+    .rrhh-advance-filters {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+        align-items: end;
+        margin-bottom: var(--space-section);
+    }
+    .rrhh-advance-filters .form-select,
+    .rrhh-advance-filters .form-control { width: 100%; }
+    .rrhh-advance-filter-action { align-self: end; }
+    .rrhh-advance-modal-grid { gap: var(--space-control) var(--space-section); }
+    .rrhh-advance-modal-grid .form-select,
+    .rrhh-advance-modal-grid .form-control { width: 100%; }
+</style>
+<script src="{{ asset('js/app_format.js') }}"></script>
+<script src="{{ asset('js/app_status.js') }}"></script>
 <script>
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
     function fmtMonto(valor) {
-        return '$' + Number(valor || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+        return window.App360Format.formatARS(Number(valor || 0), { decimales: 0 });
     }
 
     function actualizarResumen(adelantos) {
         const pendientes = adelantos.filter(a => !a.aprobado).length;
         const aprobados = adelantos.filter(a => a.aprobado && !a.liquidado).length;
-        const saldoPendiente = adelantos.reduce((total, a) => total + Number(a.saldo_pendiente || 0), 0);
-
-        document.getElementById('kpiSolicitudes').textContent = adelantos.length;
-        document.getElementById('kpiPendientes').textContent = pendientes;
-        document.getElementById('kpiAprobados').textContent = aprobados;
-        document.getElementById('kpiSaldoPendiente').textContent = fmtMonto(saldoPendiente);
+        document.getElementById('kpiSolicitudes').textContent = window.App360Format.formatNumber(adelantos.length);
+        document.getElementById('kpiPendientes').textContent = window.App360Format.formatNumber(pendientes);
+        document.getElementById('kpiAprobados').textContent = window.App360Format.formatNumber(aprobados);
     }
 
     function toggleCamposPorTipo() {
@@ -216,17 +238,17 @@
         interesInput.required = false;
 
         if (tipo === 'adelanto_efectivo' || tipo === 'adelanto_mercaderia') {
-            campoMes.style.display = 'block';
-            camposPrestamo.style.display = 'none';
+            campoMes.hidden = false;
+            camposPrestamo.hidden = true;
             mesInput.required = true;
         } else if (tipo === 'prestamo') {
-            campoMes.style.display = 'none';
-            camposPrestamo.style.display = 'block';
+            campoMes.hidden = true;
+            camposPrestamo.hidden = false;
             cuotasInput.required = true;
             interesInput.required = true;
         } else {
-            campoMes.style.display = 'none';
-            camposPrestamo.style.display = 'none';
+            campoMes.hidden = true;
+            camposPrestamo.hidden = true;
         }
     }
 
@@ -258,12 +280,14 @@
 
     function actualizarTabla(adelantos) {
         const tbody = document.getElementById('tabla-adelantos');
+        const pie = document.getElementById('tabla-adelantos-total');
         if (!adelantos.length) {
             tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">
                 <div class="empty-icon"><i class="bi bi-inbox"></i></div>
                 <div class="empty-title">Sin solicitudes para este filtro</div>
                 <div class="empty-text">Ajustá el período o cargá una nueva solicitud para continuar.</div>
             </div></td></tr>`;
+            pie.hidden = true;
             return;
         }
 
@@ -275,35 +299,41 @@
             }[a.tipo] || a.tipo;
 
             const cuotasInfo = a.tipo === 'prestamo' 
-                ? `${escapeHtml(a.cuotas_pagadas)}/${escapeHtml(a.cantidad_cuotas)}`
+                ? `${escapeHtml(window.App360Format.formatNumber(a.cuotas_pagadas))}/${escapeHtml(window.App360Format.formatNumber(a.cantidad_cuotas))}`
                 : '-';
 
             const concepto = (a.concepto || '').length > 40
                 ? (a.concepto || '').substring(0, 40) + '...'
                 : (a.concepto || '-');
 
-            const estadoBadge = a.liquidado 
-                ? '<span class="badge bg-secondary">Liquidado</span>'
-                : a.aprobado 
-                    ? '<span class="badge bg-success">Aprobado</span>'
-                    : '<span class="badge bg-warning">Pendiente</span>';
+            const estado = a.liquidado ? 'Liquidado' : a.aprobado ? 'Aprobado' : 'Pendiente';
 
             return `
                 <tr>
                     <td>${escapeHtml(a.empleado.nombre)}</td>
                     <td><span class="badge bg-info">${escapeHtml(tipoLabel)}</span></td>
-                    <td>${escapeHtml(fmtMonto(a.monto))}</td>
+                    <td class="app-table__numeric">${escapeHtml(fmtMonto(a.monto))}</td>
                     <td>${escapeHtml(concepto)}</td>
                     <td>${escapeHtml(a.mes_aplicacion || '-')}</td>
-                    <td>${escapeHtml(cuotasInfo)}</td>
-                    <td>${escapeHtml(fmtMonto(a.saldo_pendiente))}</td>
-                    <td>${estadoBadge}</td>
+                    <td class="app-table__numeric">${escapeHtml(cuotasInfo)}</td>
+                    <td class="app-table__numeric">${escapeHtml(fmtMonto(a.saldo_pendiente))}</td>
+                    <td data-app-status="${escapeHtml(estado)}"></td>
                     <td>
-                        ${!a.aprobado ? `<button class="btn btn-sm btn-warning" onclick="abrirAprobar(${escapeHtml(a.id)})">Aprobar</button>` : ''}
+                        ${!a.aprobado ? `<button class="btn btn-sm btn-outline-secondary" onclick="abrirAprobar(${escapeHtml(a.id)})">Aprobar</button>` : ''}
                     </td>
                 </tr>
             `;
         }).join('');
+        tbody.querySelectorAll('[data-app-status]').forEach(element => {
+            element.replaceChildren(window.App360Status.statusDot(element.dataset.appStatus));
+        });
+        pie.hidden = false;
+        document.getElementById('total-adelantos-monto').textContent = fmtMonto(
+            adelantos.reduce((total, adelanto) => total + Number(adelanto.monto || 0), 0)
+        );
+        document.getElementById('total-adelantos-saldo').textContent = fmtMonto(
+            adelantos.reduce((total, adelanto) => total + Number(adelanto.saldo_pendiente || 0), 0)
+        );
     }
 
     function cargarEmpleados() {
