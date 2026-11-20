@@ -11,19 +11,58 @@
     producto: 'Producto',
   };
   const MEDIDAS = {
-    importe: { label: 'Importe', unidad: 'ARS', format: value => Number(value || 0).toLocaleString('es-AR', {style: 'currency', currency: 'ARS', maximumFractionDigits: 2}) },
+    importe: { label: 'Importe', unidad: 'ARS', format: value => pesos(value) },
     cajas: { label: 'Cajas', unidad: 'cajas', format: value => `${number(value)} cajas` },
     kilos: { label: 'Kilos', unidad: 'kg', format: value => `${number(value)} kg` },
   };
-  const state = {vendedores: [], requestId: 0, cargas: 0};
+  const MEDIDAS_EQUIPO = ['importe', 'cajas', 'kilos'];
+  // Tono del punto de estado según el texto que devuelve la API. El texto se muestra tal cual.
+  const TONO_ESTADO = {
+    'Cumplido': 'ok',
+    'En ritmo': 'ok',
+    'Por debajo del ritmo esperado': 'warn',
+    'No cumplido': 'warn',
+    'No iniciado': 'none',
+    'Sin meta': 'none',
+  };
+  const state = {vendedores: [], resumen: null, requestId: 0, cargas: 0, secuencia: 0};
 
   function number(value) {
     return Number(value || 0).toLocaleString('es-AR', {maximumFractionDigits: 2});
   }
 
+  // Importes sin centavos (hallazgo 9): «$ 1.234.567».
+  function pesos(value) {
+    return Number(value || 0).toLocaleString('es-AR', {style: 'currency', currency: 'ARS', maximumFractionDigits: 0});
+  }
+
+  // Porcentaje entero: «268 %».
+  function porcentaje(value) {
+    return `${Math.round(Number(value) * 100).toLocaleString('es-AR')}\u00a0%`;
+  }
+
+  // Cajas y kilos se leen «realizado / meta»; sin meta, «—».
+  function realMeta(real, meta) {
+    return `${number(real)} / ${meta === null || meta === undefined ? '—' : number(meta)}`;
+  }
+
   function currentMonth() {
     const date = new Date();
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  // Crea un nodo sin HTML de cadena: los textos y atributos entran como datos, no como markup.
+  function el(tag, attrs = {}, ...hijos) {
+    const nodo = document.createElement(tag);
+    for (const [clave, valor] of Object.entries(attrs)) {
+      if (valor === null || valor === undefined || valor === false) continue;
+      if (clave === 'className') nodo.className = valor;
+      else if (clave === 'text') nodo.textContent = valor;
+      else if (clave === 'data') Object.entries(valor).forEach(([dato, dv]) => { nodo.dataset[dato] = String(dv); });
+      else nodo.setAttribute(clave, valor === true ? '' : String(valor));
+    }
+    nodo.append(...hijos.filter(hijo => hijo !== null && hijo !== undefined));
+    return nodo;
   }
 
   async function requestJson(url, options = {}) {
@@ -45,9 +84,22 @@
     $('objetivosCarga').hidden = state.cargas === 0;
   }
 
+  // TomSelect devuelve el foco al campo al terminar de elegir y, con openOnFocus, reabre el desplegable
+  // (taparía los controles de abajo, como «Agregar objetivo»). Tras elegir, cada selector desactiva esa
+  // reapertura y la restaura con el siguiente clic en el control.
   function tomSelect(select, options = {}) {
     if (!window.TomSelect) return null;
-    return new TomSelect(select, options);
+    const instancia = new TomSelect(select, options);
+    instancia.control.addEventListener('mousedown', () => { instancia.settings.openOnFocus = true; }, true);
+    return instancia;
+  }
+  function cerrarTrasElegir(instancia) {
+    instancia.settings.openOnFocus = false;
+    instancia.close();
+  }
+
+  function urlObjetivos() {
+    return `/api/objetivos-comerciales?${new URLSearchParams({mes: $('periodoObjetivos').value, medida: 'importe'})}`;
   }
 
   async function cargarDatos() {
@@ -59,78 +111,177 @@
     setError('objetivosError');
     try {
       const [data, opciones] = await Promise.all([
-        requestJson(`/api/objetivos-comerciales?${new URLSearchParams({mes, medida: 'importe'})}`),
+        requestJson(urlObjetivos()),
         requestJson('/api/objetivos-comerciales/opciones'),
       ]);
       if (requestId !== state.requestId) return;
       state.vendedores = opciones.vendedores || [];
-      const filas = (data.objetivos || []).filter(vendedor => (vendedor.lineas || []).length);
-      $('objetivosVacio').hidden = filas.length > 0;
-      filas.forEach(renderVendedorGuardado);
+      state.resumen = data;
+      (data.objetivos || [])
+        .filter(vendedor => (vendedor.lineas || []).length)
+        .forEach(vendedor => montarGrupo(crearGrupoGuardado(vendedor)));
+      actualizarPresentacion();
     } catch (error) {
       if (requestId !== state.requestId) return;
       setError('objetivosError', error.message || 'No se pudieron cargar los objetivos del período.');
       $('objetivosVacio').hidden = true;
+      $('objetivosTablaWrap').hidden = true;
     } finally {
       marcarCarga(-1);
     }
   }
 
-  function resumenMedidas(vendedor) {
-    const metas = vendedor.metas || {};
-    const realizados = vendedor.realizados || {};
-    return Object.keys(MEDIDAS).map(measure => {
-      const meta = metas[measure];
-      const avance = meta == null ? 'Sin meta' : `${number(realizados[measure] / meta * 100)}%`;
-      const target = meta == null ? 'Sin meta' : MEDIDAS[measure].format(meta);
-      return `<div class="oc-summary-measure"><strong>${escapeHtml(MEDIDAS[measure].label)} · ${escapeHtml(avance)}</strong><span>Meta: ${escapeHtml(target)}</span><span>Realizado de líneas: ${escapeHtml(MEDIDAS[measure].format(realizados[measure]))}</span></div>`;
-    }).join('');
+  // Un grupo es un vendedor: fila de resumen, zona expandible con sus líneas y, si es borrador,
+  // el selector de vendedor. Los datos de la fila se escriben con pintarResumen.
+  function crearGrupo({ref = '', id = null, nombre = '', draft = false} = {}) {
+    state.secuencia += 1;
+    const detalleId = `oc-detalle-${state.secuencia}`;
+    const grupo = el('tr', {className: draft ? 'oc-row oc-group-draft' : 'oc-row', data: {sellerGroup: '', sellerRow: '', summary: '', vendedorRef: ref}});
+    if (draft) grupo.dataset.sellerDraft = '';
+    if (id !== null) grupo.dataset.vendedorId = String(id);
+    const nombreCelda = el('th', {scope: 'row', className: 'oc-name'});
+    grupo.append(nombreCelda,
+      el('td', {className: 'num'}), el('td', {className: 'num'}), el('td', {className: 'num'}), el('td'),
+      el('td', {className: 'num'}), el('td', {className: 'num'}), el('td'));
+    const [, lineas, meta, real, avance, cajas, kilos, estado] = grupo.children;
+    const zonaLineas = el('div', {className: 'oc-lines', data: {lines: ''}});
+    const agregar = el('button', {type: 'button', className: 'oc-text-action', data: {addLine: ''}, text: '＋ Agregar objetivo'});
+    agregar.disabled = draft;
+    const cancelar = draft
+      ? el('button', {type: 'button', className: 'oc-text-action oc-mute', data: {cancelDraft: ''}, text: 'Cancelar'})
+      : null;
+    const detalle = el('tr', {className: 'oc-details', id: detalleId, hidden: !draft},
+      el('td', {colspan: 8, 'aria-label': nombre ? `Líneas de ${nombre}` : 'Líneas del objetivo'},
+        zonaLineas, el('div', {className: 'oc-group-actions'}, agregar, cancelar)));
+    Object.assign(grupo, {
+      _nombre: nombre,
+      _boton: null,
+      _detalle: detalle,
+      _lineas: zonaLineas,
+      _agregar: agregar,
+      _cancelar: cancelar,
+      _vendedorSelect: null,
+      _celdas: {nombre: nombreCelda, lineas, meta, real, avance, cajas, kilos, estado},
+    });
+    return grupo;
   }
 
-  function crearTarjeta(nombre, ref, draft = false) {
-    const card = document.createElement('article');
-    card.className = `oc-seller-card${draft ? ' oc-seller-draft' : ''}`;
-    if (ref) card.dataset.vendedorRef = ref;
-    const title = draft
-      ? '<label class="oc-seller-select">Vendedor comercial<select data-vendedor><option value="">Buscar o agregar vendedor…</option></select></label>'
-      : `<div><h2>${escapeHtml(nombre)}</h2><p>Objetivos y avance calculados para ${escapeHtml($('periodoObjetivos').value)}.</p></div>`;
-    card.innerHTML = `<div class="oc-seller-head"><div class="oc-seller-title">${title}</div><div class="oc-seller-actions"></div></div><div class="oc-seller-summary" data-summary></div><div class="oc-lines" data-lines></div><p class="oc-line-error" data-card-error hidden></p>`;
-    card.querySelector('.oc-seller-actions').append(...botonesEncabezado(draft));
-    if (draft) {
-      configurarSelectorVendedor(card.querySelector('[data-vendedor]'), card);
-      card.querySelector('[data-cancel-draft]').addEventListener('click', () => quitarTarjeta(card));
+  // Fila de resumen del vendedor al que pertenece un elemento (de la fila o de su zona de líneas).
+  function grupoDeElemento(node) {
+    const detalle = node.closest('tr.oc-details');
+    return detalle ? detalle.previousElementSibling : node.closest('tr[data-seller-group]');
+  }
+
+  // Inserta la fila de resumen y su fila de líneas en la tabla, antes de otro vendedor (o al final).
+  function montarGrupo(grupo, antesDe = null) {
+    const lista = $('listaVendedores');
+    lista.insertBefore(grupo, antesDe);
+    lista.insertBefore(grupo._detalle, antesDe);
+  }
+
+  function crearBotonExpandir(grupo, nombre) {
+    const boton = el('button', {
+      type: 'button',
+      className: 'oc-toggle',
+      'aria-expanded': 'false',
+      'aria-controls': grupo._detalle.id,
+      title: nombre,
+    }, el('span', {className: 'oc-chev', 'aria-hidden': 'true', text: '▶'}), el('span', {text: nombre}));
+    boton.addEventListener('click', () => expandir(grupo, boton.getAttribute('aria-expanded') !== 'true'));
+    grupo._boton = boton;
+    return boton;
+  }
+
+  // Los borradores no tienen botón de expandir: su zona de líneas siempre está visible.
+  function expandir(grupo, abrir) {
+    if (!grupo._boton) return;
+    grupo._boton.setAttribute('aria-expanded', String(abrir));
+    grupo._detalle.hidden = !abrir;
+  }
+
+  function nombrarDetalle(grupo, nombre) {
+    grupo._nombre = nombre;
+    grupo._detalle.firstElementChild.setAttribute('aria-label', nombre ? `Líneas de ${nombre}` : 'Líneas del objetivo');
+  }
+
+  function crearGrupoGuardado(vendedor) {
+    const nombre = vendedor.nombre_visible || vendedor.vendedor || '';
+    const grupo = crearGrupo({ref: `id:${vendedor.vendedor_id}`, id: vendedor.vendedor_id, nombre});
+    grupo._celdas.nombre.append(crearBotonExpandir(grupo, nombre));
+    pintarResumen(grupo, vendedor);
+    (vendedor.lineas || []).forEach(linea => agregarFormularioLinea(grupo, linea));
+    return grupo;
+  }
+
+  // Escribe la fila de resumen. vendedor: dato de la API, o null si el vendedor ya está elegido
+  // pero todavía no tiene líneas ni datos (Sin meta, realizado sin leer).
+  function pintarResumen(grupo, vendedor) {
+    const c = grupo._celdas;
+    const metas = vendedor?.metas || {};
+    const realizados = vendedor?.realizados || {};
+    c.lineas.textContent = String(vendedor?.cantidad_lineas ?? 0);
+    c.meta.textContent = metas.importe === null || metas.importe === undefined ? '—' : pesos(metas.importe);
+    c.real.textContent = vendedor ? pesos(realizados.importe) : '—';
+    pintarAvance(c.avance, vendedor ? vendedor.cumplimiento : null);
+    c.cajas.textContent = vendedor ? realMeta(realizados.cajas, metas.cajas) : '—';
+    c.kilos.textContent = vendedor ? realMeta(realizados.kilos, metas.kilos) : '—';
+    pintarEstado(c.estado, vendedor ? vendedor.estado : 'Sin meta');
+  }
+
+  function pintarBorradorVacio(grupo) {
+    const c = grupo._celdas;
+    c.lineas.textContent = '—';
+    c.meta.textContent = '—';
+    c.real.textContent = '—';
+    pintarAvance(c.avance, null);
+    c.cajas.textContent = '—';
+    c.kilos.textContent = '—';
+    pintarEstado(c.estado, null);
+  }
+
+  function pintarAvance(celda, cumplimiento) {
+    celda.replaceChildren();
+    if (cumplimiento === null || cumplimiento === undefined) {
+      celda.textContent = '—';
+      return;
     }
-    $('listaVendedores').append(card);
-    $('objetivosVacio').hidden = true;
-    return card;
+    const relleno = el('span');
+    relleno.style.width = `${Math.min(Math.max(Number(cumplimiento), 0), 1) * 100}%`;
+    celda.append(el('div', {className: 'oc-av'},
+      el('div', {className: 'oc-track', 'aria-hidden': 'true'}, relleno),
+      el('span', {className: 'num', text: porcentaje(cumplimiento)})));
   }
 
-  // Botones del encabezado: «Cancelar» solo en el borrador; «Agregar objetivo» en todas las tarjetas.
-  function botonesEncabezado(draft) {
-    const botones = [];
-    if (draft) {
-      const cancelar = document.createElement('button');
-      cancelar.type = 'button';
-      cancelar.dataset.cancelDraft = '';
-      cancelar.textContent = 'Cancelar';
-      botones.push(cancelar);
+  function pintarEstado(celda, estado) {
+    celda.replaceChildren();
+    if (!estado) {
+      celda.textContent = '—';
+      return;
     }
-    const agregar = document.createElement('button');
-    agregar.type = 'button';
-    agregar.className = 'oc-add-line';
-    agregar.dataset.addLine = '';
-    agregar.textContent = '＋ Agregar objetivo';
-    botones.push(agregar);
-    return botones;
+    const tono = TONO_ESTADO[estado] || 'none';
+    celda.append(el('span', {className: 'oc-estado'},
+      el('i', {className: `oc-dot oc-dot-${tono}`, 'aria-hidden': 'true'}), estado));
   }
 
-  function configurarSelectorVendedor(select, card) {
-    const opts = state.vendedores.map(v => ({value: v.referencia, text: v.nombre_visible}));
-    const instance = tomSelect(select, {
+  function agregarBorrador() {
+    const grupo = crearGrupo({draft: true});
+    const select = el('select', {'aria-label': 'Vendedor comercial'}, new Option('Buscar o agregar vendedor…', ''));
+    grupo._celdas.nombre.append(select);
+    pintarBorradorVacio(grupo);
+    montarGrupo(grupo, $('listaVendedores').firstElementChild);
+    configurarSelectorVendedor(select, grupo);
+    actualizarPresentacion();
+    grupo.scrollIntoView({block: 'nearest'});
+    return grupo;
+  }
+
+  function configurarSelectorVendedor(select, grupo) {
+    const opciones = state.vendedores.map(v => ({value: v.referencia, text: v.nombre_visible}));
+    const instancia = tomSelect(select, {
       valueField: 'value',
       labelField: 'text',
       searchField: ['text'],
-      options: opts,
+      options: opciones,
       create(input) {
         const nombre = input.trim().replace(/\s+/g, ' ');
         return nombre ? {value: `nombre:${nombre}`, text: nombre} : false;
@@ -140,31 +291,51 @@
       placeholder: 'Buscar vendedor…',
       plugins: ['dropdown_input'],
       onChange(value) {
-        card.dataset.vendedorRef = value || '';
-        card.querySelector('[data-add-line]').disabled = !value;
+        // Diferido: TomSelect termina su propia selección antes de quitarse.
+        if (value) setTimeout(() => fijarVendedorBorrador(grupo, value), 0);
+        seleccionarVendedor(grupo, value);
       },
     });
-    card._vendedorSelect = instance;
-    if (!instance) {
+    grupo._vendedorSelect = instancia;
+    if (!instancia) {
       select.replaceChildren(new Option('Seleccionar vendedor…', ''));
-      opts.forEach(item => select.add(new Option(item.text, item.value)));
-      select.addEventListener('change', () => {
-        card.dataset.vendedorRef = select.value;
-        card.querySelector('[data-add-line]').disabled = !select.value;
-      });
+      opciones.forEach(item => select.add(new Option(item.text, item.value)));
+      select.addEventListener('change', () => seleccionarVendedor(grupo, select.value));
     }
-    card.querySelector('[data-add-line]').disabled = true;
   }
 
-  function renderVendedorGuardado(vendedor) {
-    const card = crearTarjeta(vendedor.nombre_visible || vendedor.vendedor, `id:${vendedor.vendedor_id}`);
-    card.dataset.vendedorId = String(vendedor.vendedor_id);
-    card.querySelector('[data-summary]').innerHTML = resumenMedidas(vendedor);
-    (vendedor.lineas || []).forEach(linea => agregarFormularioLinea(card, linea));
+  // Tras elegir, el selector se reemplaza por el nombre del vendedor. Así no queda un desplegable abierto
+  // tapando la zona de líneas. Para cambiar de vendedor se cancela el borrador y se agrega otro.
+  function fijarVendedorBorrador(grupo, ref) {
+    grupo._vendedorSelect?.destroy();
+    grupo._vendedorSelect = null;
+    grupo._celdas.nombre.replaceChildren(el('span', {className: 'oc-draft-name', text: nombreDeRef(ref)}));
   }
 
-  function obtenerRefVendedor(card) {
-    return card.dataset.vendedorRef || '';
+  // Elegir un vendedor en el borrador: si ya tiene datos en el resumen, se muestran (realizado incluido).
+  function seleccionarVendedor(grupo, ref) {
+    grupo.dataset.vendedorRef = ref || '';
+    grupo._agregar.disabled = !ref;
+    if (!ref) {
+      pintarBorradorVacio(grupo);
+      nombrarDetalle(grupo, '');
+      return;
+    }
+    const vendedor = vendedorDeRef(ref);
+    pintarResumen(grupo, vendedor || null);
+    nombrarDetalle(grupo, nombreDeRef(ref));
+  }
+
+  function vendedorDeRef(ref) {
+    const lista = state.resumen?.objetivos || [];
+    if (ref.startsWith('id:')) return lista.find(item => String(item.vendedor_id) === ref.slice(3)) || null;
+    if (ref.startsWith('nombre:')) return lista.find(item => item.nombre_visible === ref.slice(7)) || null;
+    return null;
+  }
+
+  function nombreDeRef(ref) {
+    if (ref.startsWith('nombre:')) return ref.slice(7);
+    return state.vendedores.find(item => item.referencia === ref)?.nombre_visible || '';
   }
 
   function crearSelectDimension(value = '') {
@@ -193,12 +364,14 @@
     });
     if (tieneValor) input.value = number(valor);
   }
+
   // Devuelve el importe de la meta, 0 si está vacía o NaN si el texto no es un número.
   function leerMeta(input) {
     if (!String(input?.value ?? '').trim()) return 0;
     const valor = window.App360UI?.money?.getValue(input);
     return Number.isFinite(valor) ? valor : NaN;
   }
+
   // Campo de meta con su unidad dentro del campo (ARS, cajas, kg) y la etiqueta en la misma grilla.
   function crearInputMeta(measure, value = 0) {
     const label = document.createElement('label');
@@ -258,6 +431,7 @@
             .catch(() => callback([]));
         },
         onChange(value) {
+          cerrarTrasElegir(this);
           applyCapabilities(value ? this.options[value] : null);
         },
       });
@@ -280,25 +454,25 @@
     }};
   }
 
-  function agregarFormularioLinea(card, linea = null) {
+  // Formulario de una línea dentro de la zona expandida del vendedor (nueva o guardada).
+  function agregarFormularioLinea(grupo, linea = null) {
     const form = document.createElement('form');
     form.className = 'oc-line';
     form.dataset.lineId = linea?.id ? String(linea.id) : '';
     const isNew = !linea;
     if (isNew) {
-      form.innerHTML = `<div class="oc-line-head"><h3>Nueva línea de objetivo</h3><button type="button" data-cancel-line>Quitar línea</button></div><p class="com-note oc-product-hint" data-product-hint hidden></p><div class="oc-line-meta"><label>Nivel del objetivo<select data-dimension-tipo required></select></label><label>Valor del catálogo<select data-dimension-valor required></select></label></div><div class="oc-line-footer"><span class="oc-line-realizado">El realizado se calculará desde PRE al guardar.</span><div class="oc-line-actions"><button type="submit" class="com-primary">Guardar línea</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
+      form.innerHTML = `<div class="oc-line-head"><h3>Nueva línea de objetivo</h3><button type="button" class="oc-text-action oc-mute" data-cancel-line>Quitar línea</button></div><p class="com-note oc-product-hint" data-product-hint hidden></p><div class="oc-line-meta"><label>Nivel del objetivo<select data-dimension-tipo required></select></label><label>Valor del catálogo<select data-dimension-valor required></select></label></div><div class="oc-line-footer"><span class="oc-line-realizado">El realizado se calculará desde PRE al guardar.</span><div class="oc-line-actions"><button type="submit" class="oc-save">Guardar línea</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
       const typeSelect = form.querySelector('[data-dimension-tipo]');
       typeSelect.replaceWith(crearSelectDimension());
       form.querySelector('.oc-line-meta').append(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, '')));
-      const lineHeader = form.querySelector('.oc-line-head');
-      lineHeader.querySelector('[data-cancel-line]').addEventListener('click', () => {
+      form.querySelector('[data-cancel-line]').addEventListener('click', () => {
         form.remove();
-        if (!card.querySelector('.oc-line')) quitarTarjeta(card);
+        if (!grupo._lineas.querySelector('form.oc-line')) quitarGrupo(grupo);
       });
       form._dimensionControls = configurarCatalogoDimension(form);
     } else {
       form.classList.add('oc-line-guardada');
-      form.innerHTML = `<div class="oc-line-head"><h3>${escapeHtml(DIMENSIONES[linea.dimension_tipo] || linea.dimension_tipo)} · ${escapeHtml(linea.dimension_valor)}</h3><button type="button" class="com-goal-delete" data-delete-line>Eliminar línea</button></div><div class="oc-line-meta"></div><div class="oc-line-footer"><span class="oc-line-realizado">Realizado leído desde PRE: ${escapeHtml(MEDIDAS.importe.format(linea.realizado_importe))} · ${escapeHtml(MEDIDAS.cajas.format(linea.realizado_cajas))} · ${escapeHtml(MEDIDAS.kilos.format(linea.realizado_kilos))}</span><div class="oc-line-actions"><button type="submit" class="com-primary">Guardar cambios</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
+      form.innerHTML = `<div class="oc-line-head"><h3>${escapeHtml(DIMENSIONES[linea.dimension_tipo] || linea.dimension_tipo)} · ${escapeHtml(linea.dimension_valor)}</h3><button type="button" class="oc-text-action oc-mute" data-delete-line>Eliminar línea</button></div><div class="oc-line-meta"></div><div class="oc-line-footer"><span class="oc-line-realizado">Realizado leído desde PRE: ${escapeHtml(MEDIDAS.importe.format(linea.realizado_importe))} · ${escapeHtml(MEDIDAS.cajas.format(linea.realizado_cajas))} · ${escapeHtml(MEDIDAS.kilos.format(linea.realizado_kilos))}</span><div class="oc-line-actions"><button type="submit" class="oc-save">Guardar cambios</button></div></div><p class="oc-line-error" data-line-error hidden></p>`;
       form.querySelector('.oc-line-meta').append(...Object.keys(MEDIDAS).map(measure => crearInputMeta(measure, linea[`meta_${measure}`])));
       if (linea.dimension_tipo === 'producto') {
         const caps = linea.capacidades || {};
@@ -316,14 +490,8 @@
       sincronizarGuardar(form);
     }
     form.addEventListener('submit', event => guardarLinea(event, form, linea));
-    card.querySelector('[data-lines]').append(form);
+    grupo._lineas.append(form);
     return form;
-  }
-
-  function addVendorCard() {
-    const card = crearTarjeta('', '', true);
-    card.scrollIntoView({block: 'start'});
-    return card;
   }
 
   function metasDelFormulario(form) {
@@ -337,7 +505,7 @@
 
   async function guardarLinea(event, form, linea) {
     event.preventDefault();
-    const card = form.closest('.oc-seller-card');
+    const grupo = grupoDeElemento(form);
     const error = form.querySelector('[data-line-error]');
     error.hidden = true;
     const button = form.querySelector('button[type="submit"]');
@@ -366,7 +534,7 @@
         const dimensionType = form.querySelector('[data-dimension-tipo]').value;
         const dimensionValue = form._dimensionControls?.getValue() || form.querySelector('[data-dimension-valor]').value;
         if (!dimensionType || !dimensionValue) throw new Error('Elegí el nivel y el valor del catálogo para esta línea.');
-        const ref = obtenerRefVendedor(card);
+        const ref = grupo.dataset.vendedorRef || '';
         if (!ref) throw new Error('Elegí un vendedor antes de guardar la línea.');
         payload.mes = $('periodoObjetivos').value;
         payload.dimension_tipo = dimensionType;
@@ -378,10 +546,10 @@
           headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
           body: JSON.stringify(payload),
         });
-        convertirBorrador(card, objetivo);
-        form.replaceWith(agregarFormularioLinea(card, objetivo));
+        convertirBorrador(grupo, objetivo);
+        form.replaceWith(agregarFormularioLinea(grupo, objetivo));
       }
-      await actualizarResumen(card);
+      await refrescarResumen(grupo);
     } catch (errorValue) {
       error.textContent = errorValue.message || 'No se pudo guardar la línea.';
       error.hidden = false;
@@ -398,7 +566,7 @@
       ? await window.App360UI.confirm({title: 'Eliminar línea', message: 'Se eliminará esta línea del período.', confirmText: 'Eliminar', variant: 'danger'})
       : window.confirm('¿Eliminar esta línea del período?');
     if (!confirmed) return;
-    const card = form.closest('.oc-seller-card');
+    const grupo = grupoDeElemento(form);
     marcarCarga(1);
     try {
       await requestJson(`/api/objetivos-comerciales/${encodeURIComponent(id)}`, {
@@ -406,8 +574,12 @@
         headers: {'X-CSRFToken': csrfToken},
       });
       form.remove();
-      if (card.querySelector('.oc-line')) await actualizarResumen(card);
-      else quitarTarjeta(card);
+      if (grupo._lineas.querySelector('form.oc-line')) {
+        await refrescarResumen(grupo);
+      } else {
+        quitarGrupo(grupo);
+        await refrescarResumen(null);
+      }
     } catch (error) {
       const message = form.querySelector('[data-line-error]');
       message.textContent = error.message || 'No se pudo eliminar la línea.';
@@ -417,36 +589,119 @@
     }
   }
 
-  // Vuelve a leer el resumen de una sola tarjeta; las demás tarjetas y los borradores no cambian.
-  async function actualizarResumen(card) {
+  // Vuelve a leer el período y actualiza solo el vendedor afectado, la fila Equipo y el avance.
+  // Los borradores abiertos de otros vendedores no se tocan.
+  async function refrescarResumen(grupo = null, vendedorId = null) {
     const requestId = state.requestId;
     try {
-      const params = new URLSearchParams({mes: $('periodoObjetivos').value, medida: 'importe'});
-      const data = await requestJson(`/api/objetivos-comerciales?${params}`);
-      if (requestId !== state.requestId || !card.isConnected) return;
-      const vendedor = (data.objetivos || []).find(item => String(item.vendedor_id) === card.dataset.vendedorId);
-      card.querySelector('[data-summary]').innerHTML = vendedor ? resumenMedidas(vendedor) : '';
+      const data = await requestJson(urlObjetivos());
+      if (requestId !== state.requestId) return;
+      state.resumen = data;
+      const id = vendedorId ?? grupo?.dataset.vendedorId;
+      const vendedor = id === undefined || id === null
+        ? null
+        : (data.objetivos || []).find(item => String(item.vendedor_id) === String(id)) || null;
+      const destino = grupo?.isConnected ? grupo : buscarGrupoGuardado(id);
+      if (destino && vendedor) {
+        pintarResumen(destino, vendedor);
+      } else if (!destino && vendedor && (vendedor.lineas || []).length) {
+        insertarGrupoOrdenado(crearGrupoGuardado(vendedor));
+      }
+      actualizarPresentacion();
     } catch (error) {
       if (requestId === state.requestId) setError('objetivosError', error.message || 'No se pudo actualizar el resumen del vendedor.');
     }
   }
 
-  // Un borrador pasa a tarjeta guardada al guardar su primera línea: cambia el título y se quita «Cancelar».
-  function convertirBorrador(card, objetivo) {
-    if (!card.classList.contains('oc-seller-draft')) return;
-    card._vendedorSelect?.destroy();
-    card.classList.remove('oc-seller-draft');
-    card.dataset.vendedorId = String(objetivo.vendedor_id);
-    card.dataset.vendedorRef = `id:${objetivo.vendedor_id}`;
-    card.querySelector('.oc-seller-title').innerHTML = `<div><h2>${escapeHtml(objetivo.nombre_visible)}</h2><p>Objetivos y avance calculados para ${escapeHtml($('periodoObjetivos').value)}.</p></div>`;
-    card.querySelector('[data-cancel-draft]')?.remove();
+  function buscarGrupoGuardado(id) {
+    if (id === undefined || id === null) return null;
+    return [...$('listaVendedores').children].find(item => item.dataset.vendedorId === String(id)) || null;
   }
 
-  // Quita una tarjeta (borrador descartado o vendedor sin líneas) y muestra el aviso si la lista queda vacía.
-  function quitarTarjeta(card) {
-    card._vendedorSelect?.destroy();
-    card.remove();
-    $('objetivosVacio').hidden = $('listaVendedores').children.length > 0;
+  // Un vendedor nuevo en la tabla (por ejemplo, objetivo histórico convertido) entra por orden de nombre.
+  function insertarGrupoOrdenado(grupo) {
+    const siguiente = [...$('listaVendedores').querySelectorAll(':scope > tr[data-seller-group]')]
+      .find(otro => !otro.hasAttribute('data-seller-draft') && otro._nombre.localeCompare(grupo._nombre, 'es') > 0);
+    montarGrupo(grupo, siguiente || null);
+  }
+
+  // Un borrador pasa a vendedor guardado al guardar su primera línea: el selector se cambia por el nombre
+  // y la zona de líneas queda expandida.
+  function convertirBorrador(grupo, objetivo) {
+    if (!grupo.hasAttribute('data-seller-draft')) return;
+    grupo._vendedorSelect?.destroy();
+    grupo.removeAttribute('data-seller-draft');
+    grupo.classList.remove('oc-group-draft');
+    grupo.dataset.vendedorId = String(objetivo.vendedor_id);
+    grupo.dataset.vendedorRef = `id:${objetivo.vendedor_id}`;
+    grupo._cancelar?.remove();
+    grupo._celdas.nombre.replaceChildren(crearBotonExpandir(grupo, objetivo.nombre_visible));
+    nombrarDetalle(grupo, objetivo.nombre_visible);
+    expandir(grupo, true);
+  }
+
+  // Quita un vendedor de la tabla (borrador cancelado o sin líneas) y libera su selector.
+  function quitarGrupo(grupo) {
+    grupo._vendedorSelect?.destroy();
+    grupo._detalle?.remove();
+    grupo.remove();
+    actualizarPresentacion();
+  }
+
+  // Estado de la vista: tabla o mensaje vacío, fila Equipo y avance esperado del período.
+  function actualizarPresentacion() {
+    const hayFilas = $('listaVendedores').querySelector(':scope > tr[data-seller-group]') !== null;
+    $('objetivosTablaWrap').hidden = !hayFilas;
+    $('objetivosVacio').hidden = hayFilas;
+    actualizarEquipo();
+    actualizarEsperado();
+  }
+
+  // Fila Equipo: cada medida suma solo a los vendedores con meta en esa medida, y el cumplimiento es
+  // la suma de realizados sobre la suma de metas (nunca un promedio de porcentajes).
+  function totalesEquipo(objetivos) {
+    const total = {lineas: 0, conMeta: 0};
+    for (const medida of MEDIDAS_EQUIPO) total[medida] = {meta: 0, real: 0, hay: false};
+    for (const vendedor of objetivos) {
+      const lineas = Number(vendedor.cantidad_lineas || 0);
+      total.lineas += lineas;
+      if (lineas > 0) total.conMeta += 1;
+      for (const medida of MEDIDAS_EQUIPO) {
+        const meta = vendedor.metas?.[medida];
+        if (meta === null || meta === undefined) continue;
+        total[medida].meta += Number(meta);
+        total[medida].real += Number(vendedor.realizados?.[medida] || 0);
+        total[medida].hay = true;
+      }
+    }
+    return total;
+  }
+
+  function actualizarEquipo() {
+    const total = totalesEquipo(state.resumen?.objetivos || []);
+    const importe = total.importe;
+    $('equipoEtiqueta').textContent = `Equipo · ${total.conMeta} con meta`;
+    $('equipoLineas').textContent = String(total.lineas);
+    $('equipoMeta').textContent = importe.hay ? pesos(importe.meta) : '—';
+    $('equipoReal').textContent = importe.hay ? pesos(importe.real) : '—';
+    pintarAvance($('equipoAvance'), importe.hay && importe.meta > 0 ? importe.real / importe.meta : null);
+    $('equipoCajas').textContent = total.cajas.hay ? realMeta(total.cajas.real, total.cajas.meta) : '—';
+    $('equipoKilos').textContent = total.kilos.hay ? realMeta(total.kilos.real, total.kilos.meta) : '—';
+  }
+
+  // Avance esperado del período: referencia lineal según la fecha de corte que informa la API.
+  function actualizarEsperado() {
+    const data = state.resumen;
+    const referencia = (data?.objetivos || []).find(item => item.avance_esperado !== null && item.avance_esperado !== undefined);
+    const bloque = $('objetivosEsperado');
+    if (!data?.fecha_corte || !referencia) {
+      bloque.hidden = true;
+      return;
+    }
+    const [, mes, dia] = data.fecha_corte.split('-');
+    $('objetivosEsperadoFecha').textContent = `${dia}/${mes}`;
+    $('objetivosEsperadoPct').textContent = porcentaje(referencia.avance_esperado);
+    bloque.hidden = false;
   }
 
   // «Guardar cambios» solo se habilita cuando alguna meta de la línea cambió respecto de lo guardado.
@@ -492,6 +747,7 @@
       });
       $('legacyGoals').querySelectorAll('[data-seller]').forEach(select => tomSelect(select, {
         allowEmptyOption: true,
+        onChange() { cerrarTrasElegir(this); },
         maxOptions: 100,
         placeholder: 'Buscar vendedor…',
         plugins: ['dropdown_input'],
@@ -536,7 +792,8 @@
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
         body: JSON.stringify(payload),
       });
-      await Promise.all([cargarDatos(), cargarLegacy()]);
+      // Solo cambia el vendedor convertido: los borradores abiertos de la tabla se conservan.
+      await Promise.all([refrescarResumen(null, payload.vendedor_id), cargarLegacy()]);
     } catch (error) {
       setError('legacyError', error.message || 'No se pudo convertir el objetivo histórico.');
     } finally {
@@ -545,13 +802,18 @@
   }
 
   $('listaVendedores').addEventListener('click', event => {
-    const button = event.target.closest('[data-add-line]');
-    if (!button) return;
-    const card = button.closest('.oc-seller-card');
-    if (card.dataset.vendedorRef) agregarFormularioLinea(card);
+    const grupo = grupoDeElemento(event.target);
+    if (!grupo) return;
+    if (event.target.closest('[data-add-line]')) {
+      if (!grupo.dataset.vendedorRef) return;
+      expandir(grupo, true);
+      agregarFormularioLinea(grupo);
+      return;
+    }
+    if (event.target.closest('[data-cancel-draft]')) quitarGrupo(grupo);
   });
   $('legacyGoals').addEventListener('submit', convertirLegacy);
-  $('agregarVendedor').addEventListener('click', addVendorCard);
+  $('agregarVendedor').addEventListener('click', agregarBorrador);
   // Período en español: selectores de mes y año que mantienen el valor YYYY-MM en
   // #periodoObjetivos y en ?mes=, así un enlace reproduce el mismo período.
   const MESES_PERIODO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',

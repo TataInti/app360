@@ -43,10 +43,13 @@ def _limitador_reiniciado(monkeypatch):
     """
     from extensions import limiter
 
-    limiter.reset()
+    # Sin app creada no hay almacenamiento del limitador que reiniciar (corre el archivo solo).
+    if getattr(limiter, "_storage", None) is not None:
+        limiter.reset()
     monkeypatch.setattr(limiter, "enabled", False, raising=False)
     yield
-    limiter.reset()
+    if getattr(limiter, "_storage", None) is not None:
+        limiter.reset()
 
 
 # -----------------------------------------------------------------------------
@@ -205,7 +208,7 @@ def test_rutas_exentas_con_clave_temporal(app_seguridad):
     assert cliente.get(RUTA_CAMBIO).status_code == 200
     salud = app.test_client().get("/api/health")
     assert salud.status_code == 200
-    salida = cliente.get("/logout")
+    salida = cliente.post("/logout")
     assert salida.status_code == 302
     with cliente.session_transaction() as sesion:
         assert "user" not in sesion

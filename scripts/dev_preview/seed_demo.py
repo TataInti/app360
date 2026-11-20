@@ -8,6 +8,7 @@ RRHH) sin usar ningún dato real. Solo escribe en la base local
 Uso (desde la raíz del repo, con el esquema ya migrado con `flask db upgrade`):
     python scripts/dev_preview/seed_demo.py            # siembra si está vacío
     python scripts/dev_preview/seed_demo.py --reset    # vacía y vuelve a sembrar
+    python scripts/dev_preview/seed_demo.py --reset --equipo  # agrega fixture T- optativa
 """
 
 import argparse
@@ -67,6 +68,27 @@ VARIANTES_ORIGEN = {
 }
 # Vendedor de staging sin alias en el catálogo (aparece como vendedor de venta).
 VENDEDOR_SIN_ALIAS = "DEMO SIN ALIAS"
+
+# Fixture de equipo opt-in para el rediseño de objetivos. Sus fechas y período son fijos.
+MES_EQUIPO = "2026-11"
+VENDEDORES_EQUIPO = (
+    ("T-Ana", 6),
+    ("T-Bruno", 4),
+    ("T-Carla", 3),
+    ("T-Diego", 2),
+    ("T-Elena", 0),
+    ("T-Fabián", 5),
+)
+DIMENSIONES_EQUIPO = (
+    ("empresa", "CARNES"),
+    ("empresa", "LACTEOS"),
+    ("rubro", "Lácteos"),
+    ("subrubro", "Quesos duros"),
+    ("marca", "Marca Norte"),
+    ("producto", "Queso Sardo Demo 1kg"),
+)
+VENDEDOR_EQUIPO_SIN_ALIAS = "T-PRE SIN ALIAS"
+FUENTE_EQUIPO = "SINTETICO_E2E_EQUIPO"
 
 # (producto, rubro, subrubro, marca, origen, tiene_cajas, tiene_kilos)
 PRODUCTOS = (
@@ -253,7 +275,141 @@ def generar_ventas(rng: random.Random, hoy: date):
     return filas
 
 
-def sembrar(app, reset: bool) -> None:
+def sembrar_equipo(session, admin_user, ahora) -> bool:
+    """Agrega una muestra fija del equipo; no se ejecuta en el seed por defecto."""
+    from models.comercial import ComercialObjetivo, ComercialVendedor, ComercialVendedorAlias
+    from models.sabiogo.staging import StgSabiogoVentas
+
+    nombres = [nombre for nombre, _cantidad in VENDEDORES_EQUIPO]
+    existentes = ComercialVendedor.query.filter(
+        ComercialVendedor.nombre_visible.in_(nombres)
+    ).all()
+    if existentes:
+        ids = [vendedor.id for vendedor in existentes]
+        lineas_por_vendedor = {
+            vendedor.nombre_visible: ComercialObjetivo.query.filter_by(
+                vendedor_id=vendedor.id, mes=MES_EQUIPO
+            ).count()
+            for vendedor in existentes
+        }
+        alias_count = ComercialVendedorAlias.query.filter(
+            ComercialVendedorAlias.vendedor_id.in_(ids)
+        ).count()
+        ventas_count = StgSabiogoVentas.query.filter_by(fuente_archivo=FUENTE_EQUIPO).count()
+        completo = (
+            set(lineas_por_vendedor) == set(nombres)
+            and all(
+                lineas_por_vendedor[nombre] == cantidad
+                for nombre, cantidad in VENDEDORES_EQUIPO
+            )
+            and alias_count == len(VENDEDORES_EQUIPO)
+            and ventas_count == len(VENDEDORES_EQUIPO) + 1
+        )
+        if completo:
+            return False
+        raise SystemExit("El fixture de equipo está parcial; usá --reset --equipo para recrearlo.")
+
+    vendedores = {}
+    alias_por_vendedor = {}
+    for nombre, _cantidad in VENDEDORES_EQUIPO:
+        vendedor = ComercialVendedor(nombre_visible=nombre, activo=True)
+        session.add(vendedor)
+        session.flush()
+        alias_origen = nombre.upper()
+        session.add(
+            ComercialVendedorAlias(
+                vendedor_id=vendedor.id,
+                nombre_origen=alias_origen,
+                nombre_normalizado=_normalizar(alias_origen),
+            )
+        )
+        vendedores[nombre] = vendedor
+        alias_por_vendedor[nombre] = alias_origen
+
+    filas_ventas = []
+    fecha_venta = date(2026, 11, 15)
+    for indice, (nombre, _cantidad) in enumerate(VENDEDORES_EQUIPO, start=1):
+        producto, rubro, subrubro, marca, origen, con_cajas, con_kilos = PRODUCTOS[
+            (indice - 1) % len(PRODUCTOS)
+        ]
+        filas_ventas.append(
+            StgSabiogoVentas(
+                fecha=fecha_venta,
+                origen=origen,
+                sucursal="Sucursal Demo",
+                tipo="A",
+                codigo=f"EQUIPO-DEMO-{indice:02d}",
+                producto=producto,
+                rubro=rubro,
+                subrubro=subrubro,
+                marca=marca,
+                cliente="Cliente Demo Equipo",
+                vendedor=alias_por_vendedor[nombre],
+                comprobante="PRE",
+                nro_comprob=f"0999-000{indice:02d}",
+                subtot=float(50000 + indice * 1000),
+                # Cajas y kilos solo para productos que los tienen (igual que generar_ventas).
+                cajas=float(indice) if con_cajas else 0.0,
+                kilos=float(indice * 5) if con_kilos else 0.0,
+                estado="procesado",
+                fuente_archivo=FUENTE_EQUIPO,
+            )
+        )
+
+    producto, rubro, subrubro, marca, origen, _con_cajas, _con_kilos = PRODUCTOS[5]
+    filas_ventas.append(
+        StgSabiogoVentas(
+            fecha=fecha_venta,
+            origen=origen,
+            sucursal="Sucursal Demo",
+            tipo="A",
+            codigo="EQUIPO-DEMO-SIN-ALIAS",
+            producto=producto,
+            rubro=rubro,
+            subrubro=subrubro,
+            marca=marca,
+            cliente="Cliente Demo Equipo",
+            vendedor=VENDEDOR_EQUIPO_SIN_ALIAS,
+            comprobante="PRE",
+            nro_comprob="0999-00099",
+            subtot=77777.0,
+            cajas=7.0,
+            kilos=35.0,
+            estado="procesado",
+            fuente_archivo=FUENTE_EQUIPO,
+        )
+    )
+    session.add_all(filas_ventas)
+
+    objetivos = []
+    for indice, (nombre, cantidad) in enumerate(VENDEDORES_EQUIPO, start=1):
+        for numero, (dimension_tipo, dimension_valor) in enumerate(
+            DIMENSIONES_EQUIPO[:cantidad], start=1
+        ):
+            objetivos.append(
+                ComercialObjetivo(
+                    vendedor_id=vendedores[nombre].id,
+                    empresa=dimension_valor if dimension_tipo == "empresa" else None,
+                    mes=MES_EQUIPO,
+                    medida=None,
+                    meta=None,
+                    dimension_tipo=dimension_tipo,
+                    dimension_valor=dimension_valor,
+                    meta_importe=Decimal(str(100000 + indice * 10000 + numero * 5000)),
+                    meta_cajas=Decimal(str(indice * 10 + numero)),
+                    meta_kilos=Decimal(str(indice * 100 + numero * 10)),
+                    descripcion="Fixture sintética de equipo E2E",
+                    creado_en=ahora,
+                    actualizado_en=ahora,
+                    creado_por_id=admin_user.id,
+                    actualizado_por_id=admin_user.id,
+                )
+            )
+    session.add_all(objetivos)
+    return True
+
+
+def sembrar(app, reset: bool, equipo: bool = False) -> None:
     from models import db
     from models.comercial import ComercialObjetivo, ComercialVendedor, ComercialVendedorAlias
     from models.core.user import User
@@ -270,6 +426,21 @@ def sembrar(app, reset: bool) -> None:
 
         ya_hay_datos = db.session.query(StgSabiogoVentas.id).first() is not None
         if ya_hay_datos and not reset:
+            if equipo:
+                admin_user = (
+                    db.session.query(User)
+                    .filter_by(username=os.environ.get("ADMIN_USERNAME", "admin"))
+                    .one_or_none()
+                )
+                if admin_user is None:
+                    raise SystemExit("No hay usuario admin; usá --reset --equipo para sembrar la base.")
+                agregado = sembrar_equipo(db.session, admin_user, now_local())
+                if agregado:
+                    db.session.commit()
+                    print(f"SEED_EQUIPO_OK mes={MES_EQUIPO}")
+                else:
+                    print(f"SEED_EQUIPO_YA_PRESENTE mes={MES_EQUIPO}")
+                return
             print("La base ya tiene datos sintéticos. Usá --reset para volver a sembrar.")
             return
         # Las migraciones del repo cargan un catálogo comercial inicial con nombres
@@ -328,6 +499,8 @@ def sembrar(app, reset: bool) -> None:
         db.session.add_all(generar_ventas(rng, hoy))
 
         ahora = now_local()
+        if equipo:
+            sembrar_equipo(db.session, admin_user, ahora)
         mes_actual = hoy.strftime("%Y-%m")
         lineas = [
             ("Vendedora Demo Ana", "empresa", "CARNES", 1500000, 0, 0, "Meta demo empresa CARNES"),
@@ -412,6 +585,16 @@ def sembrar(app, reset: bool) -> None:
             "users": db.session.query(User.id).count(),
         }
         print("SEED_OK", resumen)
+        if equipo:
+            print(
+                "SEED_EQUIPO_OK",
+                {
+                    "mes": MES_EQUIPO,
+                    "vendedores": len(VENDEDORES_EQUIPO),
+                    "lineas": sum(cantidad for _nombre, cantidad in VENDEDORES_EQUIPO),
+                    "pre_sin_alias": VENDEDOR_EQUIPO_SIN_ALIAS,
+                },
+            )
         print("USUARIOS", sorted(CONTRASENAS_DEMO) + [os.environ.get("ADMIN_USERNAME", "admin")])
 
 
@@ -421,6 +604,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--reset", action="store_true", help="vacía las tablas sintéticas y vuelve a sembrar"
+    )
+    parser.add_argument(
+        "--equipo",
+        action="store_true",
+        help="agrega los seis vendedores sintéticos T- y un PRE sin alias para 2026-11",
     )
     args = parser.parse_args()
 
@@ -434,7 +622,7 @@ def main() -> int:
     from app import create_app
 
     app = create_app()
-    sembrar(app, reset=args.reset)
+    sembrar(app, reset=args.reset, equipo=args.equipo)
     return 0
 
 

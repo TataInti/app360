@@ -16,19 +16,61 @@
   </header>
 
   <section class="oc-period-bar" aria-label="Período de objetivos">
-    <span class="fw-semibold" id="periodoObjetivosEtiqueta">Período mensual</span>
-    <div class="d-flex gap-2" role="group" aria-labelledby="periodoObjetivosEtiqueta">
-      <select class="form-select" id="periodoMes" aria-label="Mes"></select>
-      <select class="form-select" id="periodoAnio" aria-label="Año"></select>
+    <div class="oc-periodo">
+      <span class="fw-semibold" id="periodoObjetivosEtiqueta">Período mensual</span>
+      <div class="d-flex gap-2" role="group" aria-labelledby="periodoObjetivosEtiqueta">
+        <select class="form-select" id="periodoMes" aria-label="Mes"></select>
+        <select class="form-select" id="periodoAnio" aria-label="Año"></select>
+      </div>
     </div>
     <input type="hidden" id="periodoObjetivos" value="">
-    <p class="com-note">Cada línea define un corte de ventas y sus metas. Las líneas que se superponen suman por separado; el avance del vendedor es la suma de realizados dividida por la suma de metas.</p>
+    <p class="oc-esperado" id="objetivosEsperado" hidden>Avance esperado al <span id="objetivosEsperadoFecha"></span>: <b id="objetivosEsperadoPct"></b> (referencia lineal)</p>
   </section>
 
   <div id="objetivosError" class="com-error" role="alert" hidden></div>
   <p id="objetivosCarga" class="com-note" role="status" hidden>Cargando objetivos del período…</p>
   <p id="objetivosVacio" class="com-empty">El período está listo para cargar. Agregá un vendedor y sus líneas de objetivos.</p>
-  <section id="listaVendedores" class="oc-sellers" aria-live="polite" aria-label="Objetivos por vendedor"></section>
+
+  <div class="oc-team-wrap" id="objetivosTablaWrap" hidden>
+    <table class="oc-team" aria-label="Objetivos por vendedor">
+      <colgroup>
+        <col class="c-vendedor">
+        <col class="c-lineas">
+        <col class="c-meta">
+        <col class="c-real">
+        <col class="c-avance">
+        <col class="c-cajas">
+        <col class="c-kilos">
+        <col class="c-estado">
+      </colgroup>
+      <thead>
+        <tr>
+          <th scope="col">Vendedor</th>
+          <th scope="col" class="num">Líneas</th>
+          <th scope="col" class="num">Meta importe</th>
+          <th scope="col" class="num">Realizado</th>
+          <th scope="col">Avance</th>
+          <th scope="col" class="num">Cajas</th>
+          <th scope="col" class="num">Kilos</th>
+          <th scope="col">Estado</th>
+        </tr>
+      </thead>
+      <tbody id="listaVendedores" aria-live="polite"></tbody>
+      <tfoot>
+        <tr class="oc-team-row" data-team-row>
+          <th scope="row" id="equipoEtiqueta">Equipo</th>
+          <td class="num" id="equipoLineas">—</td>
+          <td class="num" id="equipoMeta">—</td>
+          <td class="num" id="equipoReal">—</td>
+          <td id="equipoAvance">—</td>
+          <td class="num" id="equipoCajas">—</td>
+          <td class="num" id="equipoKilos">—</td>
+          <td id="equipoEstado"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <p class="oc-foot">Cajas y kilos: realizado / meta. Las líneas que se superponen suman por separado; el avance es realizado sobre meta. Equipo suma solo vendedores con meta.</p>
 
   <details class="com-section oc-legacy">
     <summary class="com-disclosure">

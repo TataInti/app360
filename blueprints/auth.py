@@ -86,6 +86,7 @@ def cambiar_clave():
 
         usuario.set_password(nueva)  # también registra password_changed_at
         usuario.must_change_password = False
+        usuario.temp_password_expires_at = None
         db.session.commit()
         # La sesión actual sigue abierta: su huella se recalcula con la clave nueva. Las otras
         # sesiones guardan la huella vieja y dejan de valer en su próxima petición (D9).
@@ -125,7 +126,12 @@ def sin_acceso():
 
 @auth_bp.route("/logout", methods=["GET", "POST"])
 def logout():
-    """Cierra la sesión web por completo. GET se mantiene: lo usa el sidebar."""
+    """Cierra la sesión con POST y CSRF (D15). GET no toca la sesión: redirige al login.
+
+    El login reenvía a la pantalla de inicio si la sesión sigue viva, y muestra el formulario si no.
+    """
+    if request.method == "GET":
+        return redirect(url_for("auth.login"))
     user = session.get("user")
     session.clear()
     if user:
