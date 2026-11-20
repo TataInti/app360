@@ -378,8 +378,8 @@
     background: var(--color-hover);
 }
 
-/* SIS-1B: el primario de Bootstrap usa la acción institucional. */
-.btn-primary:not(.com-primary):not(.criterio-btn):not(.btn-outline-primary):not(.btn-secondary):not(.btn-success):not(.btn-warning):not(.app-modal .btn-primary) {
+/* SIS-1B y Pulido final 1 (H01): el primario de Bootstrap usa la acción institucional, también dentro de modales. */
+.btn-primary:not(.com-primary):not(.criterio-btn):not(.btn-outline-primary):not(.btn-secondary):not(.btn-success):not(.btn-warning) {
     --bs-btn-color: var(--color-surface);
     --bs-btn-bg: var(--color-action);
     --bs-btn-border-color: var(--color-action);
@@ -395,7 +395,7 @@
     --bs-btn-disabled-opacity: 1;
 }
 
-.btn-primary:not(.com-primary):not(.criterio-btn):not(.btn-outline-primary):not(.btn-secondary):not(.btn-success):not(.btn-warning):not(.app-modal .btn-primary):focus-visible {
+.btn-primary:not(.com-primary):not(.criterio-btn):not(.btn-outline-primary):not(.btn-secondary):not(.btn-success):not(.btn-warning):focus-visible {
     outline: 3px solid var(--color-focus);
     outline-offset: 2px;
     box-shadow: none;

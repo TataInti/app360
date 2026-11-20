@@ -8,7 +8,7 @@ BASE_PATH = ROOT / "templates" / "base.html"
 GLOBAL_PRIMARY_SELECTOR = (
     ".btn-primary:not(.com-primary):not(.criterio-btn)"
     ":not(.btn-outline-primary):not(.btn-secondary):not(.btn-success)"
-    ":not(.btn-warning):not(.app-modal .btn-primary)"
+    ":not(.btn-warning)"
 )
 ALLOWED_GLOBAL_PRIMARY_SELECTORS = {
     GLOBAL_PRIMARY_SELECTOR,
@@ -99,9 +99,12 @@ def test_bootstrap_primary_maps_states_to_tokens_and_preserves_exceptions():
         ".btn-secondary",
         ".btn-success",
         ".btn-warning",
-        ".app-modal .btn-primary",
     ):
         assert f":not({excluded})" in GLOBAL_PRIMARY_SELECTOR
+
+    # Pulido final 1 (H01): el primario de modales vuelve al token; ninguna regla lo excluye.
+    assert ":not(.app-modal .btn-primary)" not in css
+    assert ".app-modal .btn-primary" not in GLOBAL_PRIMARY_SELECTOR
 
     assert ".btn-save" not in GLOBAL_PRIMARY_SELECTOR
     admin_access = (ROOT / "templates" / "admin" / "admin_accesos.html").read_text(
