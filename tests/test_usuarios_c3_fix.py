@@ -205,9 +205,10 @@ def test_setup_comercial_conserva_rol_y_clave_de_cuenta_existente(app_seguridad,
     assert next(item for item in resumen if item["usuario"] == "jefe_comercial")["rol"] == "sales"
 
 
-def test_favicon_implicito_no_responde_404(app_seguridad):
-    respuesta = app_seguridad.test_client().get("/favicon.ico")
-    assert respuesta.status_code == 204 and respuesta.get_data() == b""
+def test_login_declara_favicon_vacio_y_evitar_solicitud_implicita(app_seguridad):
+    respuesta = app_seguridad.test_client().get("/")
+    assert respuesta.status_code == 200
+    assert '<link rel="icon" href="data:,">' in respuesta.get_data(as_text=True)
 
 
 def test_bloqueo_mutaciones_usuarios_es_noop_en_sqlite(app_seguridad):

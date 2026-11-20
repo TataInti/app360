@@ -299,7 +299,10 @@ def test_api_admin_sin_sesion_responde_401_json(cliente_anonimo, ruta):
     respuesta = cliente_anonimo.get(ruta)
     assert respuesta.status_code == 401
     assert respuesta.is_json
-    assert respuesta.get_json() == {"error": "Sesión requerida"}
+    assert respuesta.get_json() == {
+        "error": "Sesión requerida",
+        "codigo": "SESION_REQUERIDA",
+    }
 
 
 @pytest.mark.parametrize(
