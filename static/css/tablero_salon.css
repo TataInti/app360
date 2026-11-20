@@ -1,4 +1,6 @@
-.salon-filters .com-filter-field { flex: 0 1 190px; }
+.com-panel[data-mode="salon"] .salon-filters { flex-wrap: nowrap; }
+.com-panel[data-mode="salon"] .salon-filters .com-filter-field { flex: 0 0 190px; }
+.com-panel[data-mode="salon"] .salon-filters .com-filter-actions { flex: 0 0 auto; width: auto; }
 .salon-section { margin-top: 1.5rem; }
 .salon-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .salon-section-heading h2 { margin-bottom: 0.25rem; }
@@ -19,4 +21,10 @@
   .salon-filters .com-filter-actions { flex: 1 1 100%; }
   .salon-filters .com-filter-actions button { width: 100%; }
   .salon-section-heading { align-items: flex-start; flex-direction: column; gap: 0.2rem; }
+}
+
+@media (max-width: 900px) {
+  .com-panel[data-mode="salon"] .salon-filters { flex-wrap: wrap; }
+  .com-panel[data-mode="salon"] .salon-filters .com-filter-field { flex: 1 1 145px; }
+  .com-panel[data-mode="salon"] .salon-filters .com-filter-actions { flex: 1 1 100%; }
 }
