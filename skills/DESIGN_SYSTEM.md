@@ -629,6 +629,353 @@ const motivo = await App360UI.prompt({
 
 ---
 
+### 3.12 Formulario compacto
+
+**Receta.** Usar una grilla de dos columnas para altas completas de pocos campos y tres cuando
+los controles son breves y entran sin comprimir sus etiquetas. La etiqueta va arriba
+del control y usa `--font-size-label` (12 px); el texto de ayuda ocupa una línea y
+explica una sola cosa. La unidad pertenece al campo: `ARS` o `$` solo para importes,
+`cajas` y `kg` para medidas que no son dinero. No anteponer `$` a cajas ni kilos.
+
+Validar en el mismo formulario. Con `novalidate`, cada error aparece junto al campo,
+con texto, `aria-invalid` y una relación `aria-describedby`; el color nunca reemplaza
+el mensaje. El pie ofrece una sola primaria y «Cancelar» como secundaria.
+
+**Ejemplo de marcado.**
+
+```html
+<form novalidate>
+  <div class="app-form-grid app-form-grid--cols-3">
+    <label class="app-field">
+      <span class="app-field__label">Período</span>
+      <input class="app-field__control" name="periodo" type="month" required>
+    </label>
+    <label class="app-field">
+      <span class="app-field__label">Cajas</span>
+      <span class="app-input-unit">
+        <input class="app-input-unit__control" name="cajas" inputmode="numeric" aria-describedby="cajas-ayuda">
+        <span class="app-input-unit__suffix" aria-hidden="true">cajas</span>
+      </span>
+      <small id="cajas-ayuda">Meta mensual de cajas.</small>
+    </label>
+    <label class="app-field">
+      <span class="app-field__label">Kilos</span>
+      <span class="app-input-unit">
+        <input class="app-input-unit__control" name="kilos" inputmode="numeric">
+        <span class="app-input-unit__suffix" aria-hidden="true">kg</span>
+      </span>
+    </label>
+    <label class="app-field app-form-grid__full">
+      <span class="app-field__label">Importe</span>
+      <span class="app-input-unit">
+        <span class="app-input-unit__prefix" aria-hidden="true">$</span>
+        <input class="app-input-unit__control" name="importe" inputmode="decimal"
+               aria-invalid="true" aria-describedby="importe-error">
+        <span class="app-input-unit__suffix" aria-hidden="true">ARS</span>
+      </span>
+      <small id="importe-error" role="alert">Ingresá un importe mayor que cero.</small>
+    </label>
+  </div>
+  <div class="app-actions">
+    <button class="app-actions__secondary" type="button">Cancelar</button>
+    <button class="app-actions__primary" type="submit">Guardar</button>
+  </div>
+</form>
+```
+
+Para dos columnas, cambiar `app-form-grid--cols-3` por `app-form-grid--cols-2`;
+ambas variantes y `app-form-grid__full` están en la hoja común.
+
+**Hoy.** S2–S4: hay etiquetas legacy de 16 px junto a otras de 12 y 10,9 px; las altas
+de Compras llegan a 1.180 px a 1440 y a 1.106 px a 1366, con el botón al final del
+formulario; Ventas distribuye ocho campos en dos columnas desbalanceadas. S15 registra
+ayudas repetidas y encontró `$` en medidas no monetarias solo en Objetivos. La
+implementación actual separa `ARS`, `cajas` y `kg` en `static/js/objetivos_comerciales.js:14-16`;
+la maqueta también deja `$` solo en Importe. Evidencia: `templates/compras_orden_nueva.html:6-79`,
+`templates/ventas_form.html:6-72` e informe de relevamiento §3, S2–S4 y S15.
+
+**Referencia de código.** La grilla y los campos son `.app-form-grid`, `.app-field` y
+`.app-input-unit` de `static/css/app_components.css:1-90` (PR #26, mergeado en main).
+El formulario de línea de objetivos se arma en `static/js/objetivos_comerciales.js:377`.
+
+**Decisión.** D1: la primaria usa `--color-action`. D3: las altas completas (Compra,
+Venta y Lead) usan una página compacta; los formularios breves de una sola vez pueden
+seguir en modal con esta grilla; las altas repetitivas pasan al panel lateral.
+
+---
+
+### 3.13 Panel lateral
+
+**Receta.** Usar el ancho `--drawer-width-form` para altas repetitivas y fijar arriba la entidad
+y el contexto que no cambian durante la carga. El panel acompaña la tabla y conserva
+«Guardar» como única primaria; «Cancelar» es secundaria. «Guardar y agregar otro» se
+ofrece solo en un alta repetitiva y ocupa el lugar de «Guardar» como primaria, no se
+suman dos primarias.
+
+Al abrir, mover el foco al primer control útil. Escape cierra el panel y devuelve el
+foco al control que lo abrió. Si hay cambios sin guardar, pedir confirmación con el
+modal global `#app360ConfirmModal` mediante `App360UI.confirm()` (ver §3.11); si se
+confirma el cierre, devolver el foco al origen. Mantener cabecera, cuerpo y pie en
+zonas separadas y verificar que las acciones sigan accesibles al desplazarse; las
+clases CSS no implementan por sí solas la trampa de foco, Escape ni el retorno de foco.
+
+**Ejemplo de marcado.**
+
+```html
+<aside class="app-drawer" role="dialog" aria-modal="true" aria-labelledby="alta-title">
+  <header class="app-drawer__header">
+    <h2 class="app-drawer__title" id="alta-title">Alta de objetivo</h2>
+    <p class="app-drawer__description">T-Ana · noviembre 2026</p>
+  </header>
+  <div class="app-drawer__body">
+    <form class="app-form-grid app-form-grid--cols-2">
+      <label class="app-field">
+        <span class="app-field__label">Medida</span>
+        <select class="app-field__control" name="medida">
+          <option>Importe</option>
+          <option>Cajas</option>
+        </select>
+      </label>
+      <label class="app-field">
+        <span class="app-field__label">Meta</span>
+        <input class="app-field__control" name="meta" inputmode="decimal">
+      </label>
+    </form>
+  </div>
+  <footer class="app-drawer__footer">
+    <div class="app-actions">
+      <button class="app-actions__secondary" type="button">Cancelar</button>
+      <button class="app-actions__primary" type="button">Guardar</button>
+    </div>
+  </footer>
+</aside>
+```
+
+**Hoy.** S4: el alta de arqueo deja «Guardar arqueo» y «Cancelar» fuera de la ventana
+a 1366×768. S11: Tesorería mantiene formularios de movimiento y arqueo duplicados
+entre panel y páginas. Evidencia: `templates/tesoreria_arqueos.html:179-254`,
+`templates/tesoreria_panel.html:116-163` e informe de relevamiento §3, S4 y S11.
+
+**Referencia de código.** `.app-drawer` y sus zonas están en
+`static/css/app_components.css:205-260` (PR #26, mergeado en main). El modal global de
+confirmación está en `templates/base.html:2442`; su API se conecta en
+`templates/base.html:3124`. Objetivos implementa el drawer con el ancho del token
+en `static/css/objetivos_comerciales.css:103-108` y confirma el descarte en
+`static/js/objetivos_comerciales.js:740-748` (PR #27, mergeado en main).
+
+**Decisión.** D3: el panel se reserva para altas repetitivas de Productos, Stock,
+Ubicaciones y Campañas; el contexto del vendedor/período queda fijo. El manejo de
+foco, Escape y confirmación de borradores es parte obligatoria del comportamiento al
+implementar el patrón, no una capacidad que agregue el CSS por sí solo.
+
+---
+
+### 3.14 Tabla de resumen por entidad
+
+**Receta.** Mostrar una entidad por fila y definir las columnas una sola vez con anchos explícitos.
+Las filas de detalle repiten el orden de columnas de su entidad; los valores numéricos
+se alinean a la derecha y usan cifras tabulares. La fila de total va en el pie de la
+tabla y representa la suma real, no el promedio de porcentajes. Las filas expandibles
+se abren con un botón que actualiza `aria-expanded` y referencia su detalle con
+`aria-controls`. El total no se repite en tarjetas KPI.
+
+**Ejemplo de marcado.**
+
+```html
+<table class="app-table">
+  <colgroup><col width="40%"><col width="30%"><col width="30%"></colgroup>
+  <thead class="app-table__head">
+    <tr>
+      <th class="app-table__head-cell" scope="col">Vendedor</th>
+      <th class="app-table__head-cell app-table__numeric" scope="col">Meta</th>
+      <th class="app-table__head-cell app-table__numeric" scope="col">Realizado</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th class="app-table__cell" scope="row">
+        <button class="app-table__toggle" type="button" aria-expanded="false" aria-controls="detalle-ana">
+          Ana <span class="app-table__chevron" aria-hidden="true">⌄</span>
+        </button>
+      </th>
+      <td class="app-table__cell app-table__numeric">$ 1.500.000</td>
+      <td class="app-table__cell app-table__numeric">$ 900.000</td>
+    </tr>
+    <tr class="app-table__expandable" id="detalle-ana" hidden>
+      <td class="app-table__cell"><div class="app-table__detail">Producto X</div></td>
+      <td class="app-table__cell app-table__numeric">$ 900.000</td>
+      <td class="app-table__cell app-table__numeric">$ 500.000</td>
+    </tr>
+  </tbody>
+  <tfoot>
+    <tr class="app-table__total">
+      <th class="app-table__cell" scope="row">Equipo</th>
+      <td class="app-table__cell app-table__numeric">$ 1.500.000</td>
+      <td class="app-table__cell app-table__numeric">$ 900.000</td>
+    </tr>
+  </tfoot>
+</table>
+```
+
+**Hoy.** S8: el formato y la alineación numérica varían por pantalla. S9: Liquidaciones
+muestra cuatro KPI de totales y no los lleva a una fila de total en la tabla.
+Evidencia: `templates/rrhh_liquidaciones.html:35-39`,
+`templates/rrhh_liquidaciones.html:219-232` e informe de relevamiento §3, S8–S9.
+
+**Referencia de código.** `.app-table`, `.app-table__numeric`, `.app-table__total` y
+la fila expandible están en `static/css/app_components.css:95-168` (PR #26, mergeado en
+main). El cálculo del resumen por equipo se mantiene en el JS de Objetivos, integrado
+con la fila total del template.
+
+**Decisión.** D4: el total vive en la tabla y no se duplica en KPI. D6: Leads conserva
+su kanban; esta receta no lo reemplaza por una tabla. D7 queda pendiente de decisión
+del dueño para crear la vista de Comisiones y para renombrar uno de los dos ítems
+«Tesorería» del menú; esta regla visual no decide producto ni navegación.
+
+---
+
+### 3.15 Estado punto + texto
+
+**Receta.** En tablas, listas y avisos, mostrar un punto de `--state-dot-size` junto a un rótulo
+legible. El punto es decorativo (`aria-hidden="true"`); el texto porta el significado
+y permanece neutro. El tono comunica la variante, nunca reemplaza la palabra. Usar
+`--color-positive` para `ok`, `--color-warning` para `warn`, `--state-error-ink` para
+`error` y `--color-text-faint` para `neutral`; el punto conserva la forma de
+`--radius-pill`.
+
+| Texto visible | Variante | Ejemplo de uso |
+|---|---|---|
+| Cumplido, En ritmo | `ok` | Resultado positivo |
+| Por debajo del ritmo esperado, No cumplido, Pendiente | `warn` | Requiere atención |
+| Falta, Rechazado | `error` | Error o rechazo explícito |
+| Sin meta, No iniciado, Inactivo, Anulado | `neutral` | Vacío o cierre normal |
+
+**Ejemplo de marcado.**
+
+```html
+<span class="app-status app-status--ok">
+  <span class="app-status__dot" aria-hidden="true"></span>Cumplido
+</span>
+<span class="app-status app-status--neutral">
+  <span class="app-status__dot" aria-hidden="true"></span>Sin meta
+</span>
+```
+
+«Sin meta» no es cero: la meta y el avance se muestran como «—», nunca como 0 %.
+Los estados desconocidos usan el tono neutral y conservan un rótulo visible; no se
+muestran claves internas ni píldoras saturadas.
+
+**Hoy.** S10: Tesorería y Accesos usan píldoras de color para estados y permisos.
+Objetivos distingue «Sin meta» como un estado separado. Evidencia:
+`templates/tesoreria_movimientos.html:504-507`, `templates/admin/admin_accesos.html:39-47`,
+`static/js/objetivos_comerciales.js:19-27` e informe de relevamiento §3, S10.
+
+**Referencia de código.** Las cuatro variantes de punto viven en
+`static/css/app_components.css:171-204` (PR #26, mergeado en main). El mapa de estados
+de `App360Status.statusDot()` está en `static/js/app_status.js:5-61` (PR #25, mergeado
+en main).
+
+**Decisión.** D5: usar punto + texto, con tono de estado en el punto y texto neutro;
+los cierres normales quedan neutrales. D7 queda pendiente de decisión del dueño para
+resolver si Leads separa «etapa» de «estado» o los unifica; esta guía no cambia el
+vocabulario del producto.
+
+---
+
+### 3.16 Acciones
+
+**Receta.** Ubicar las acciones de pantalla arriba a la derecha y dejar una sola primaria en la
+pantalla activa. Al abrir un panel lateral, la primaria de la página pasa a secundaria
+y el panel recibe la única primaria. «Guardar» permanece deshabilitado mientras no
+haya cambios. Borrar y anular son acciones secundarias y siempre piden confirmación
+con el sistema global de §3.11.
+
+**Ejemplo de marcado (panel abierto).** La primaria de cabecera pasa a secundaria y
+la acción principal queda en el pie del panel.
+
+```html
+<header class="app-page-head">
+  <h1 class="app-page-head__title">Objetivos</h1>
+  <div class="app-page-head__actions">
+    <div class="app-actions">
+      <button class="app-actions__secondary" type="button">Exportar</button>
+      <button class="app-actions__secondary" type="button">Agregar objetivo</button>
+    </div>
+  </div>
+</header>
+<div class="app-actions">
+  <button class="app-actions__secondary" type="button">Cancelar</button>
+  <button class="app-actions__primary" type="submit" disabled>Guardar</button>
+</div>
+```
+
+Para borrar o anular, mantener el control secundario y confirmar con
+`App360UI.confirm({variant: 'danger', ...})`, que usa `#app360ConfirmModal`. Al abrir
+un drawer, no dejar la primaria de cabecera activa en paralelo.
+
+**Hoy.** S1 y S5: conviven varios colores y ubicaciones de primarias. S6: Compras,
+Gastos y Tesorería duplican acciones; Accesos llega a siete «Guardar» visibles. S7:
+el relevamiento no encontró seguimiento transversal de cambios en `templates/`.
+Evidencia:
+`templates/compras_overview.html:15-16`, `templates/compras_overview.html:123`,
+`templates/admin/admin_accesos.html:52-54`
+e informe de relevamiento §3, S1 y S5–S7.
+
+**Referencia de código.** La cabecera y las variantes de acción están en
+`static/css/app_components.css:267-318` (PR #26, mergeado en main). La confirmación
+compartida está en `templates/base.html:2442` y `templates/base.html:3124`.
+
+**Decisión.** D1: toda primaria toma `--color-action`. D3: al abrir el panel, la acción
+principal queda en el panel; «Guardar y agregar otro» reemplaza a «Guardar» en altas
+repetitivas y no crea una segunda primaria. D7 queda pendiente de decisión del dueño
+para fijar los valores cerrados de «Moneda» y «Estado» de Ventas; el patrón de acciones
+no define esas opciones de producto.
+
+---
+
+### 3.17 Números es-AR
+
+**Receta.** Para valores visibles, usar `App360Format` como formateador común: importe sin centavos
+por defecto, porcentaje entero cuando alcanza y «—» para vacío o no disponible. Los
+porcentajes reciben una proporción (0,62 representa 62 %). Para cajas, kilos y otros
+conteos, usar `formatNumber`; no anteponer `$`. Se habilitan decimales solo cuando la
+unidad o la operación los necesita de verdad. En tablas, alinear cifras a la derecha
+con cifras tabulares.
+
+**Ejemplo de salida.**
+
+```javascript
+App360Format.formatARS(1500);                       // "$ 1.500"
+App360Format.formatARS(null);                       // "—"
+App360Format.formatPercent(0.62);                   // "62 %"
+App360Format.formatNumber(1234.56, {decimales: 2}); // "1.234,56"
+App360Format.formatARS(1234.56, {decimales: 2});    // "$ 1.234,56"
+```
+
+**Ejemplo de marcado.** La celda usa la alineación tabular de la tabla y muestra el
+resultado ya formateado.
+
+```html
+<td class="app-table__cell app-table__numeric">$ 1.500</td>
+```
+
+**Hoy.** S8: se midieron seis formatos; hay `$250000.50`, cifras con coma y punto
+mezclados y celdas numéricas sin alineación uniforme. S15 confirma que `$` se reserva
+para dinero, no cajas ni kilos. Evidencia:
+`templates/rrhh_liquidaciones.html:219-232`,
+`static/js/objetivos_comerciales.js:30-35` e informe de relevamiento §3, S8 y S15.
+
+**Referencia de código.** `App360Format.formatARS`, `formatNumber` y `formatPercent`
+están en `static/js/app_format.js:1-51` (PR #25, mergeado en main). La alineación tabular está en
+`static/css/app_components.css:120-124` (PR #26, mergeado en main).
+
+**Decisión.** Mantener el formato es-AR en toda la app: pesos sin centavos por defecto,
+porcentajes enteros y vacío como «—»; los decimales se piden explícitamente cuando el
+dato los requiere. D7 queda pendiente de decisión del dueño para las opciones de
+Moneda y Estado de Ventas; el formateador numérico no las elige.
+
+---
+
 ## 4. Patrones Prohibidos (Anti-Patterns)
 
 Los siguientes patrones Bootstrap por defecto están **explícitamente prohibidos** en este proyecto.
@@ -793,6 +1140,38 @@ o usar clases existentes.
     <span class="loading-text">Cargando datos…</span>
 </td></tr>
 ```
+
+### ❌ Formulario operativo a todo el ancho
+
+Una alta extendida a todo el contenido obliga a recorrer la página para guardar.
+Usar `app-form-grid--cols-2` o `app-form-grid--cols-3` según la longitud de los
+controles y mantener las etiquetas arriba.
+
+### ❌ Primaria duplicada
+
+No repetir «Guardar» o «Nuevo» en cabecera, pie y filas de la misma pantalla. Al abrir
+un drawer, la cabecera pierde la primacía y el panel queda con una sola acción primaria.
+
+### ❌ Píldoras saturadas como portadoras del estado
+
+No usar `badge bg-success`, `badge bg-warning` ni otras píldoras de color en tablas y
+listas. El estado se expresa con punto decorativo y texto visible (§3.15).
+
+### ❌ Importes con `toFixed(2)` o `toLocaleString()` sueltos
+
+No construir formatos monetarios por pantalla. Usar `App360Format` (§3.17), con
+decimales explícitos solo cuando el dato los necesita; las medidas que no son dinero
+no llevan `$`.
+
+### ❌ Recarga completa que descarta borradores
+
+No recargar la página o la lista para actualizar una fila si hay borradores o cambios
+abiertos: conservarlos y actualizar solo la entidad afectada. S14 registra
+`location.reload()` en `templates/admin/admin_modulo.html:511`,
+`templates/admin/admin_modulo.html:537` y `templates/admin/admin_modulo.html:609`; el
+informe aclara que allí no se reprodujo el descarte de borradores, porque las altas
+usan modales. No atribuirle una pérdida no observada; aplicar esta regla donde sí haya
+edición abierta.
 
 ---
 
@@ -993,5 +1372,5 @@ selectores de tests de paneles disponibles en `tests/`.
 
 ---
 
-*Última actualización: Abril 2026 — App 360 v1.x*
+*Última actualización: 20 de noviembre de 2026 — App 360 v1.x*
 *Generado con la skill `teach-impeccable` + revisión manual post-migración completa de templates.*
