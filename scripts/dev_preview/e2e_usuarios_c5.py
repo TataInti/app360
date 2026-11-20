@@ -176,6 +176,15 @@ def enlace_de_panel(pagina):
     return texto
 
 
+def esperar_en_fila(pagina, usuario, texto, segundos=15):
+    """Espera a que la fila del usuario muestre el texto: la lista se recarga después del aviso."""
+    try:
+        fila(pagina, usuario).filter(has_text=texto).first.wait_for(timeout=segundos * 1000)
+        return True
+    except Exception:
+        return False
+
+
 def emitir_enlace(pagina, usuario, ttl=None):
     """Admin: genera el enlace por la fila, lo lee en memoria y devuelve (token, texto_del_panel)."""
     fila(pagina, usuario).locator("button[data-accion='recuperacion']").click()
@@ -231,12 +240,13 @@ def main():
                 pa.click("#btnGuardarCorreo")
             verificar("guardar correo responde 200", info.value.status == 200, str(info.value.status))
             esperar_aviso(pa, "No se envió ningún correo")
-            verificar("el correo se ve en la lista", fila(pa, DESTINO).locator("td").nth(1).inner_text() == CORREO)
+            listo = esperar_en_fila(pa, DESTINO, CORREO)
+            verificar("el correo se ve en la lista", listo and fila(pa, DESTINO).locator("td").nth(1).inner_text() == CORREO)
             captura(pa, "02_correo_en_lista")
 
             # 2. Enlace de recuperación, una sola vez, con botón Copiar y aviso
             token, _texto = emitir_enlace(pa, DESTINO)
-            verificar("el panel avisa que el enlace no se vuelve a mostrar", pa.locator("text=no se vuelve a mostrar").first.is_visible())
+            verificar("el panel avisa que el enlace no se vuelve a mostrar", pa.locator("#panelEnlaceRecuperacion").get_by_text("no se vuelve a mostrar").first.is_visible())
             verificar("el panel ofrece el botón Copiar", pa.locator("#btnCopiarEnlace").is_visible())
             verificar("la fila muestra el enlace vigente", "Enlace de recuperación vigente hasta" in fila(pa, DESTINO).inner_text())
             enmascarar_enlace(pa)
@@ -265,7 +275,7 @@ def main():
             fila(pa, REVOCAR).locator("button[data-accion='revocar']").click()
             pa.locator("#app360ConfirmAccept").click()
             esperar_aviso(pa, "Se revocó el enlace")
-            verificar("tras revocar, la cuenta queda sin clave utilizable (estado pendiente)", "Recuperación pendiente" in fila(pa, REVOCAR).inner_text())
+            verificar("tras revocar, la cuenta queda sin clave utilizable (estado pendiente)", esperar_en_fila(pa, REVOCAR, "Recuperación pendiente"))
             captura(pa, "07_revocado_pendiente")
             revocado, estado3, _ = canjear(nuevo_contexto(navegador, "anonimo3"), "anonimo3", token_r, CLAVE_NUEVA)
             verificar("un enlace revocado responde 400 genérico", estado3 == 400 and MENSAJE_GENERICO in revocado.locator("#mensajeRecuperacion").inner_text(), str(estado3))
