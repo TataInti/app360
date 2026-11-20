@@ -25,6 +25,7 @@ import security
 from models import db
 from models.core.user import User
 from models.core.user_audit_log import UserAuditLog
+from services import mfa
 
 UMBRAL_FALLOS = 10
 VENTANA_FALLOS = timedelta(minutes=15)
@@ -35,12 +36,15 @@ USUARIO_INEXISTENTE = "usuario_inexistente"
 CUENTA_INACTIVA = "cuenta_inactiva"
 CUENTA_BLOQUEADA = "cuenta_bloqueada"
 CLAVE_TEMPORAL_VENCIDA = "clave_temporal_vencida"
+MFA_REQUERIDO = "mfa_requerido"
+MFA_INCORRECTO = "mfa_incorrecto"
 ETIQUETAS_MOTIVO = {
     CLAVE_INCORRECTA: "clave incorrecta",
     USUARIO_INEXISTENTE: "usuario inexistente",
     CUENTA_INACTIVA: "cuenta desactivada",
     CUENTA_BLOQUEADA: "cuenta bloqueada",
     CLAVE_TEMPORAL_VENCIDA: "clave temporal vencida",
+    MFA_INCORRECTO: "código MFA incorrecto",
 }
 LARGO_USUARIO_AUDITADO = 80
 LARGO_MINIMO_CLAVE_OMITIDA = 4
@@ -83,7 +87,7 @@ def nombre_auditado(texto, clave):
     return limpio[:LARGO_USUARIO_AUDITADO] or TEXTO_VACIO
 
 
-def autenticar(username, password, canal, ip=None):
+def autenticar(username, password, canal, ip=None, codigo_mfa=None):
     """Decide un inicio de sesión, aplica el bloqueo y registra el acceso en una sola transacción.
 
     canal: "web" o "api". Los rechazos son iguales para todos los motivos: solo el registro interno
@@ -101,7 +105,7 @@ def autenticar(username, password, canal, ip=None):
             return _rechazar(canal, ip, nombre, None, USUARIO_INEXISTENTE)
         if activa is None:
             return _rechazar(canal, ip, nombre, existente, CUENTA_INACTIVA)
-        return _decidir_cuenta_activa(canal, ip, nombre, activa, coincide, vencida)
+        return _decidir_cuenta_activa(canal, ip, nombre, activa, coincide, vencida, codigo_mfa)
     except Exception:
         db.session.rollback()
         security.log_security_event(
@@ -114,7 +118,7 @@ def autenticar(username, password, canal, ip=None):
         return Resultado(ok=False)
 
 
-def _decidir_cuenta_activa(canal, ip, nombre, usuario, coincide, vencida):
+def _decidir_cuenta_activa(canal, ip, nombre, usuario, coincide, vencida, codigo_mfa=None):
     ahora = security.ahora()
     # Bloqueo de fila: los intentos de una cuenta se serializan y cada uno ve el contador del anterior.
     fila = User.query.filter_by(id=usuario.id).with_for_update().populate_existing().one_or_none()
@@ -125,6 +129,8 @@ def _decidir_cuenta_activa(canal, ip, nombre, usuario, coincide, vencida):
         # Durante el bloqueo no se cambia el contador ni se extiende el bloqueo.
         return _rechazar(canal, ip, nombre, fila, CUENTA_BLOQUEADA, ahora)
     if coincide and not vencida:
+        if fila.mfa_enabled is True:
+            return _decidir_segundo_paso(canal, ip, nombre, fila, codigo_mfa, ahora)
         pendiente = bool(fila.must_change_password)
         fila.failed_login_count = 0
         fila.failed_login_window_start = None
@@ -138,6 +144,49 @@ def _decidir_cuenta_activa(canal, ip, nombre, usuario, coincide, vencida):
     motivo = CLAVE_TEMPORAL_VENCIDA if coincide else CLAVE_INCORRECTA
     _sumar_fallo(fila, ahora)
     return _rechazar(canal, ip, nombre, fila, motivo, ahora)
+
+
+def _decidir_segundo_paso(canal, ip, nombre, fila, codigo, ahora):
+    """Segundo paso de una cuenta con MFA. La clave ya es correcta, pero el acierto NO reinicia el contador:
+    lo reinicia solo un código válido. Así los fallos de MFA cuentan para el bloqueo de C4.
+    codigo None: se pide el segundo paso (no cuenta como fallo ni como acierto)."""
+    if codigo is None:
+        db.session.commit()
+        return Resultado(ok=False, usuario=fila, motivo=MFA_REQUERIDO)
+    metodo = mfa.verificar_segundo_factor(fila, codigo, ahora)
+    if metodo is None:
+        _sumar_fallo(fila, ahora)
+        return _rechazar(canal, ip, nombre, fila, MFA_INCORRECTO, ahora)
+    fila.failed_login_count = 0
+    fila.failed_login_window_start = None
+    fila.locked_until = None
+    fila.last_login_at = ahora
+    detalle = {"canal": canal, "metodo": "con MFA" if metodo == mfa.METODO_APP else "con código de respaldo"}
+    valores = _valores_evento("login_ok", canal, ip, nombre, fila, ahora, detalle, None)
+    _cerrar_intento(valores, canal, ip, nombre)
+    return Resultado(ok=True, usuario=fila)
+
+
+def completar_mfa(usuario_id, codigo, canal, ip=None):
+    """Segundo paso del login web: la clave ya se validó y el estado pendiente guarda solo el id."""
+    try:
+        fila = User.query.filter_by(id=usuario_id).with_for_update().populate_existing().one_or_none()
+        ahora = security.ahora()
+        if fila is None or fila.active is not True or fila.mfa_enabled is not True:
+            db.session.rollback()
+            return Resultado(ok=False, motivo=CUENTA_INACTIVA)
+        if esta_bloqueada(fila, ahora):
+            return _rechazar(canal, ip, fila.username, fila, CUENTA_BLOQUEADA, ahora)
+        return _decidir_segundo_paso(canal, ip, fila.username, fila, codigo, ahora)
+    except Exception:
+        db.session.rollback()
+        security.log_security_event(
+            "LOGIN_ESTADO_NO_ACTUALIZADO",
+            "No se pudo completar el segundo paso del login; se rechaza",
+            ip=ip,
+            extra={"canal": canal},
+        )
+        return Resultado(ok=False)
 
 
 def _sumar_fallo(fila, ahora):

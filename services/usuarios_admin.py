@@ -39,8 +39,13 @@ from models.core.user_audit_log import UserAuditLog
 from models.core.user_recovery_token import UserRecoveryToken
 from services.acceso_login import ETIQUETAS_MOTIVO, esta_bloqueada
 
-# Roles con acceso total (admin_required). Son los únicos que cuentan como administradores.
+# Los tres roles siguen contando para conservar al último administrador activo.
 ROLES_ADMINISTRACION = ("admin", "manager", "gerente")
+ROLES_ADMINISTRADORES = ("admin", "manager")
+CODIGO_JERARQUIA_INSUFICIENTE = "JERARQUIA_INSUFICIENTE"
+MENSAJE_JERARQUIA_INSUFICIENTE = (
+    "Esta cuenta la administra un administrador. Pedile a un administrador que haga este cambio."
+)
 
 # Roles que se ofrecen en el alta y en el cambio de rol. «manager» no se asigna (D12); si ya existe, se muestra.
 ROLES_ASIGNABLES = (
@@ -72,6 +77,7 @@ ESTADOS_FILTRO = (
     ESTADO_CAMBIAR_CLAVE,
     ESTADO_CLAVE_VENCIDA,
     ESTADO_BLOQUEADA,
+    "con_mfa",
 )
 ETIQUETAS_ESTADO = {
     ESTADO_ACTIVO: "Activo",
@@ -101,6 +107,10 @@ ACCIONES_AUDITADAS = {
     "user_recovery_revoked": "Enlace de recuperación revocado",
     "user_recovery_redeemed": "Recuperación de clave canjeada",
     "recovery_failed": "Canje de recuperación fallido",
+    "user_mfa_enabled": "MFA activado",
+    "user_mfa_disabled": "MFA desactivado",
+    "user_mfa_backup_regenerated": "Códigos de respaldo regenerados",
+    "user_mfa_reset": "Restablecimiento de MFA",
 }
 ACCIONES_FILTRO = (("todas", "Todas las acciones"), *ACCIONES_AUDITADAS.items())
 # Solo estos datos de contexto entran al detalle de auditoría. Nunca claves, hashes ni tokens.
@@ -118,6 +128,7 @@ CAMPOS_DETALLE_PERMITIDOS = frozenset(
         "ttl",
         "recuperacion_id",
         "reemplazados",
+        "metodo",
     }
 )
 LIMITE_AUDITORIA = 50
@@ -146,6 +157,39 @@ class ErrorUsuarios(Exception):
         self.mensaje = mensaje
         self.status = status
         self.campos = campos or {}
+
+
+def puede_administrar(actor, objetivo, rol_nuevo=None):
+    """Autoriza la jerarquía común a toda acción administrativa sobre cuentas ajenas.
+
+    admin y el alias legacy manager administran cualquier cuenta. gerente solo administra
+    cuentas que no sean admin/manager y no puede asignar esos roles. `objetivo=None` permite
+    validar altas. La función no reemplaza reglas propias (autocambio, último admin, estado)
+    ni la guardia de autenticación; centraliza únicamente la jerarquía para reutilizarla en
+    cambios futuros de recuperación, desbloqueo y MFA. Devuelve (ok, código, mensaje).
+    """
+    rol_actor = getattr(actor, "role", None)
+    if rol_actor in ROLES_ADMINISTRADORES:
+        return True, None, None
+    if rol_actor == "gerente":
+        rol_objetivo = getattr(objetivo, "role", None)
+        if rol_objetivo in ROLES_ADMINISTRADORES or rol_nuevo in ROLES_ADMINISTRADORES:
+            return False, CODIGO_JERARQUIA_INSUFICIENTE, MENSAJE_JERARQUIA_INSUFICIENTE
+        return True, None, None
+    return False, CODIGO_JERARQUIA_INSUFICIENTE, MENSAJE_JERARQUIA_INSUFICIENTE
+
+
+def _exigir_jerarquia(actor, objetivo, rol_nuevo=None):
+    ok, codigo, mensaje = puede_administrar(actor, objetivo, rol_nuevo)
+    if not ok:
+        raise ErrorUsuarios(codigo, mensaje, 403)
+
+
+def roles_asignables_para(actor):
+    """Lista de roles que el actor puede asignar, compartida por la API y la pantalla."""
+    if getattr(actor, "role", None) == "gerente":
+        return [(codigo, nombre) for codigo, nombre in ROLES_ASIGNABLES if codigo not in ROLES_ADMINISTRADORES]
+    return list(ROLES_ASIGNABLES)
 
 
 def normalizar_usuario(valor):
@@ -284,6 +328,7 @@ def serializar_usuario(usuario, enlace=_SIN_DATO):
         "bloqueada_hasta_texto": _texto_hora(usuario.locked_until) if bloqueada else None,
         "correo": usuario.email,
         "recuperacion": estado_recuperacion(enlace),
+        "mfa_activo": usuario.mfa_enabled is True,
     }
 
 
@@ -447,6 +492,7 @@ def crear_usuario(actor, username, role, correo=None):
     """Alta con clave temporal. Devuelve (usuario, clave, vence). La clave no se vuelve a mostrar."""
     nombre = normalizar_usuario(username)
     rol = role.strip() if isinstance(role, str) else ""
+    _exigir_jerarquia(actor, None, rol)
     errores = validar_alta(nombre, rol)
     correo_normalizado, error_correo = normalizar_correo(correo)
     if error_correo:
@@ -494,8 +540,22 @@ def _administradores_activos_bloqueados():
     )
 
 
+def _usuario_bloqueado(usuario_id):
+    """Lee el estado vigente de una cuenta y serializa sus escrituras PostgreSQL."""
+    return (
+        User.query.filter_by(id=usuario_id)
+        .populate_existing()
+        .with_for_update()
+        .one_or_none()
+    )
+
+
 def desactivar_usuario(actor, usuario):
     administradores = _administradores_activos_bloqueados()
+    usuario = _usuario_bloqueado(usuario.id)
+    if usuario is None:
+        raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
+    _exigir_jerarquia(actor, usuario)
     if usuario.active is not True:
         raise ErrorUsuarios("YA_DESACTIVADO", "Ese usuario ya está desactivado.", 409)
     if usuario.role in ROLES_ADMINISTRACION and not any(a.id != usuario.id for a in administradores):
@@ -519,6 +579,10 @@ def desactivar_usuario(actor, usuario):
 
 
 def reactivar_usuario(actor, usuario):
+    usuario = _usuario_bloqueado(usuario.id)
+    if usuario is None:
+        raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
+    _exigir_jerarquia(actor, usuario)
     if usuario.active is True:
         raise ErrorUsuarios("YA_ACTIVO", "Ese usuario ya está activo.", 409)
     usuario.active = True
@@ -541,7 +605,7 @@ def cambiar_rol(actor, usuario_id, nuevo_rol):
     """
     rol = nuevo_rol.strip() if isinstance(nuevo_rol, str) else ""
     administradores = _administradores_activos_bloqueados()
-    usuario = db.session.get(User, usuario_id, populate_existing=True)
+    usuario = _usuario_bloqueado(usuario_id)
     if usuario is None:
         raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
     if actor.id == usuario.id:
@@ -550,6 +614,7 @@ def cambiar_rol(actor, usuario_id, nuevo_rol):
             "No podés cambiar tu propio rol. Pedile a otro administrador que lo haga.",
             403,
         )
+    _exigir_jerarquia(actor, usuario, rol)
     anterior = usuario.role
     if rol == anterior:
         db.session.rollback()
@@ -578,9 +643,12 @@ def restablecer_clave(actor, usuario_id):
     La clave viaja solo en la respuesta de esta acción. Suma token_version: las sesiones web y los
     JWT previos dejan de valer, y la clave anterior deja de servir. Obliga a cambiarla al ingresar.
     """
-    usuario = db.session.get(User, usuario_id, populate_existing=True)
+    # El bloqueo serializa resets y vuelve a leer active, password_hash y token_version
+    # si otra escritura sobre esta cuenta terminó mientras esperábamos.
+    usuario = _usuario_bloqueado(usuario_id)
     if usuario is None:
         raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
+    _exigir_jerarquia(actor, usuario)
     if actor.id == usuario.id:
         raise ErrorUsuarios("AUTORESET", "Para cambiar tu clave usá «Cambiar mi clave» en tu menú.", 403)
     if usuario.active is not True:
@@ -602,6 +670,36 @@ def restablecer_clave(actor, usuario_id):
     registrar_auditoria(actor, "user_password_reset", usuario, {"vence": vence.isoformat()})
     db.session.commit()
     return usuario, clave, vence
+
+
+def restablecer_mfa(actor, usuario_id):
+    """Quita el MFA de otra cuenta (C6, D8): borra secreto y códigos, suma token_version y cierra sus sesiones.
+
+    La persona entra de nuevo con su clave y puede activar el MFA otra vez. Sobre uno mismo no se permite.
+    """
+    usuario = _usuario_bloqueado(usuario_id)
+    if usuario is None:
+        raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
+    if actor.id == usuario.id:
+        raise ErrorUsuarios(
+            "AUTORESET_MFA",
+            "Pedile a otro administrador, o usá tus códigos de respaldo.",
+            403,
+        )
+    _exigir_jerarquia(actor, usuario)
+    if usuario.mfa_enabled is not True:
+        raise ErrorUsuarios("SIN_MFA", "Esa cuenta no tiene el MFA activado.", 409)
+    from models.core.user_mfa_backup_code import UserMfaBackupCode
+
+    UserMfaBackupCode.query.filter_by(user_id=usuario.id).delete(synchronize_session=False)
+    usuario.mfa_enabled = False
+    usuario.mfa_secret = None
+    usuario.mfa_secret_pendiente = None
+    usuario.mfa_pendiente_expira = None
+    usuario.token_version = (usuario.token_version or 0) + 1
+    registrar_auditoria(actor, "user_mfa_reset", usuario, {})
+    db.session.commit()
+    return usuario
 
 
 def desbloquear_usuario(actor, usuario):
@@ -649,7 +747,9 @@ def listar_usuarios(q="", estado="todos"):
         escapado = texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         consulta = consulta.filter(User.username.ilike(f"%{escapado}%", escape="\\"))
     usuarios = consulta.order_by(User.username).all()
-    if estado in ESTADOS_FILTRO and estado != "todos":
+    if estado == "con_mfa":
+        usuarios = [usuario for usuario in usuarios if usuario.mfa_enabled is True]
+    elif estado in ESTADOS_FILTRO and estado != "todos":
         # El estado depende del reloj (clave temporal vencida y bloqueo): se filtra con la misma regla que la columna.
         if estado == ESTADO_BLOQUEADA:
             usuarios = [usuario for usuario in usuarios if esta_bloqueada(usuario)]

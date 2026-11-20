@@ -45,6 +45,7 @@ ESPERADAS = [
     (401, re.compile(r"^/api/admin/usuarios/\d+/rol$")),
     (403, re.compile(r"^/api/admin/usuarios/\d+/rol$")),
     (403, re.compile(r"^/api/admin/usuarios/\d+/restablecer-clave$")),
+    (403, re.compile(r"^/api/admin/usuarios/\d+/desactivar$")),
     (403, re.compile(r"^/admin/usuarios$")),
     (409, re.compile(r"^/api/admin/usuarios/\d+/restablecer-clave$")),
     (404, re.compile(r"^/favicon\.ico$")),
@@ -252,6 +253,15 @@ def escenario_rol(navegador, admin, admin_ctx):
     fila_de(admin, "ventas").get_by_role("button", name="Cambiar rol").click()
     admin.locator("#modalRol").wait_for(state="visible")
     verificar(
+        "(R1) el título del modal dice «Cambiar rol de ventas»",
+        admin.locator("#modalRolTitulo").inner_text().strip() == "Cambiar rol de ventas",
+        admin.locator("#modalRolTitulo").inner_text(),
+    )
+    verificar(
+        "(R1) la etiqueta visible del selector dice «NUEVO ROL»",
+        admin.locator("label[for='modalRolSelect']").inner_text().strip() == "NUEVO ROL",
+    )
+    verificar(
         "(R1) el modal preselecciona el rol actual (Ventas)",
         admin.locator("#modalRolSelect").input_value() == "sales",
     )
@@ -305,7 +315,9 @@ def escenario_rol(navegador, admin, admin_ctx):
     anonimo = api(anonimo_ctx, "POST", f"/api/admin/usuarios/{id_ventas}/rol", None, {"role": "sales"})
     verificar(
         "(R4b) sin sesión y sin token CSRF: 401 JSON «Sesión requerida»",
-        anonimo.status == 401 and cuerpo_json(anonimo).get("error") == "Sesión requerida",
+        anonimo.status == 401
+        and cuerpo_json(anonimo).get("error") == "Sesión requerida"
+        and cuerpo_json(anonimo).get("codigo") == "SESION_REQUERIDA",
         str(anonimo.status),
     )
     anonimo_ctx.close()
@@ -316,6 +328,96 @@ def _rol_de(usuario):
 
     with APP.app_context():
         return User.query.filter_by(username=usuario).one().role
+
+
+def escenario_jerarquia(navegador):
+    """R1/R2: el gerente no toca cuentas superiores y sí administra a ventas."""
+    from models import db
+    from models.core.user import User
+
+    usuario_gerente = "probe-c3-gerente-jerarquia"
+    usuario_manager = "probe-c3-manager-jerarquia"
+    usuario_ventas = "probe-c3-ventas-jerarquia"
+    with APP.app_context():
+        for nombre, rol in ((usuario_gerente, "gerente"), (usuario_manager, "manager"), (usuario_ventas, "sales")):
+            cuenta = User.query.filter_by(username=nombre).one_or_none()
+            if cuenta is None:
+                cuenta = User(username=nombre, role=rol, active=True)
+                db.session.add(cuenta)
+            cuenta.role = rol
+            cuenta.active = True
+            cuenta.must_change_password = False
+            cuenta.temp_password_expires_at = None
+            cuenta.deactivated_at = None
+            cuenta.set_password(inicial(nombre))
+        db.session.commit()
+
+    contexto = nuevo_contexto(navegador, "jerarquia-gerente")
+    pagina = nueva_pagina(contexto, "jerarquia-gerente")
+    entrar(pagina, usuario_gerente, inicial(usuario_gerente))
+    ir(pagina, "/admin/usuarios")
+    esperar_lista(pagina)
+    csrf = token(pagina)
+    id_admin = id_de("admin")
+    id_ventas = id_de(usuario_ventas)
+
+    promover = api(contexto, "POST", f"/api/admin/usuarios/{id_ventas}/rol", csrf, {"role": "admin"})
+    verificar(
+        "(C3 jerarquía) gerente no puede promover ventas a admin",
+        promover.status == 403 and cuerpo_json(promover).get("codigo") == "JERARQUIA_INSUFICIENTE"
+        and _rol_de(usuario_ventas) == "sales",
+        str(promover.status),
+    )
+    reset_admin = api(contexto, "POST", f"/api/admin/usuarios/{id_admin}/restablecer-clave", csrf)
+    verificar(
+        "(C3 jerarquía) gerente no puede restablecer la clave de admin",
+        reset_admin.status == 403 and cuerpo_json(reset_admin).get("codigo") == "JERARQUIA_INSUFICIENTE",
+        str(reset_admin.status),
+    )
+    baja_admin = api(contexto, "POST", f"/api/admin/usuarios/{id_admin}/desactivar", csrf)
+    with APP.app_context():
+        admin_sigue_activo = User.query.filter_by(username="admin").one().active is True
+    verificar(
+        "(C3 jerarquía) gerente no puede desactivar admin",
+        baja_admin.status == 403 and cuerpo_json(baja_admin).get("codigo") == "JERARQUIA_INSUFICIENTE"
+        and admin_sigue_activo,
+        str(baja_admin.status),
+    )
+    pasar_a_hr = api(contexto, "POST", f"/api/admin/usuarios/{id_ventas}/rol", csrf, {"role": "hr"})
+    verificar(
+        "(C3 jerarquía) gerente sí puede administrar una cuenta de ventas",
+        pasar_a_hr.status == 200 and _rol_de(usuario_ventas) == "hr",
+        str(pasar_a_hr.status),
+    )
+
+    fila_admin = fila_de(pagina, "admin")
+    fila_manager = fila_de(pagina, usuario_manager)
+    botones_admin = fila_admin.locator("button[data-accion]")
+    botones_manager = fila_manager.locator("button[data-accion]")
+    roles = [opcion.get_attribute("value") for opcion in pagina.locator("#altaRol option").all()]
+    ui_roles_ok = "admin" not in roles and "manager" not in roles
+    ui_filas_ok = all(botones_admin.nth(i).is_disabled() for i in range(botones_admin.count())) and all(
+        botones_manager.nth(i).is_disabled() for i in range(botones_manager.count())
+    )
+    explicacion = "Esta cuenta la administra un administrador. Pedile a un administrador que haga este cambio."
+    ui_notas_ok = explicacion in fila_admin.inner_text() and explicacion in fila_manager.inner_text()
+    verificar("(C3 jerarquía) selector del gerente oculta admin y manager", ui_roles_ok, str(roles))
+    verificar(
+        "(C3 jerarquía) filas admin/manager deshabilitadas con explicación",
+        ui_filas_ok and ui_notas_ok,
+    )
+
+    # No dejar roles administrativos sintéticos activos para afectar la siguiente regresión.
+    with APP.app_context():
+        for nombre in (usuario_gerente, usuario_manager, usuario_ventas):
+            cuenta = User.query.filter_by(username=nombre).one()
+            cuenta.role = "sales"
+            cuenta.active = False
+            cuenta.deactivated_at = datetime.now(timezone.utc)
+            cuenta.must_change_password = False
+            cuenta.temp_password_expires_at = None
+        db.session.commit()
+    contexto.close()
 
 
 def escenario_reseteo(navegador, admin):
@@ -466,6 +568,8 @@ def escenario_propia(navegador, admin, admin_ctx):
 
 def verificar_consola_y_red():
     verificar("consola: sin errores de JavaScript", not ERRORES_JS, json.dumps(ERRORES_JS)[:300])
+    favicon_404 = [respuesta for respuesta in RESPUESTAS if respuesta["ruta"] == "/favicon.ico" and respuesta["status"] == 404]
+    verificar("red: favicon.ico no devuelve 404", not favicon_404, json.dumps(favicon_404)[:200])
     no_http = [c for c in CONSOLA if "Failed to load resource" not in c["texto"]]
     verificar("consola: sin errores que no sean respuestas HTTP", not no_http, json.dumps(no_http)[:300])
     inesperadas = [r for r in RESPUESTAS if not es_esperada(r["status"], r["ruta"])]
@@ -499,6 +603,7 @@ def main():
             escenario_reseteo(navegador, admin)
             escenario_vencida(navegador, admin)
             escenario_propia(navegador, admin, admin_ctx)
+            escenario_jerarquia(navegador)
             verificar_consola_y_red()
         finally:
             for contexto in CONTEXTOS:

@@ -16,6 +16,8 @@ from models import db
 from security import guardia_api_admin_sin_sesion, module_allowed, revalidar_sesion_web
 from exceptions import AppException
 from extensions import limiter, csrf, migrate
+from services.mfa import guardia_mfa_obligatorio, guardia_mfa_pendiente
+from blueprints.mfa import mfa_bp
 
 
 def setup_logging(app):
@@ -151,6 +153,8 @@ def create_app():
     # Revalidación de la sesión web en cada request (R-04). Se registra antes de los
     # blueprints: sus guardias de módulo leen el rol ya alineado con la base.
     app.before_request(revalidar_sesion_web)
+    app.before_request(guardia_mfa_pendiente)
+    app.before_request(guardia_mfa_obligatorio)
 
     db.init_app(app)
     migrate.init_app(app, db)
@@ -298,6 +302,12 @@ def create_app():
     from blueprints.admin_usuarios import admin_usuarios_bp
 
     app.register_blueprint(admin_usuarios_bp)
+    app.register_blueprint(mfa_bp)
+
+    # login.html no extiende base.html; responder sin contenido evita su favicon.ico implícito.
+    @app.route("/favicon.ico", methods=["GET"])
+    def favicon_vacio():
+        return "", 204
 
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 

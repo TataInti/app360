@@ -76,7 +76,7 @@ def _sin_cache(respuesta):
 @admin_usuarios_bp.route("/admin/usuarios")
 @admin_usuarios_required
 def pantalla():
-    return render_template("admin/usuarios.html", roles=ua.ROLES_ASIGNABLES)
+    return render_template("admin/usuarios.html", roles=ua.roles_asignables_para(g.usuario_sesion))
 
 
 @admin_usuarios_bp.route("/api/admin/usuarios", methods=["GET"])
@@ -87,7 +87,16 @@ def listar():
         estado = "todos"
     usuarios = ua.listar_usuarios(q=request.args.get("q", ""), estado=estado)
     enlaces = ua.ultimos_enlaces([u.id for u in usuarios])
-    return jsonify({"usuarios": [ua.serializar_usuario(u, enlaces.get(u.id)) for u in usuarios], "total": len(usuarios)})
+    return jsonify(
+        {
+            "usuarios": [ua.serializar_usuario(u, enlaces.get(u.id)) for u in usuarios],
+            "total": len(usuarios),
+            "roles_asignables": [
+                {"codigo": codigo, "nombre": nombre}
+                for codigo, nombre in ua.roles_asignables_para(g.usuario_sesion)
+            ],
+        }
+    )
 
 
 @admin_usuarios_bp.route("/api/admin/usuarios", methods=["POST"])
@@ -180,6 +189,19 @@ def restablecer_clave(usuario_id):
             "clave_temporal_vence": vence.isoformat(),
         }
     )
+
+
+@admin_usuarios_bp.route("/api/admin/usuarios/<int:usuario_id>/restablecer-mfa", methods=["POST"])
+@admin_usuarios_required
+def restablecer_mfa(usuario_id):
+    try:
+        usuario = ua.restablecer_mfa(g.usuario_sesion, usuario_id)
+    except ua.ErrorUsuarios as error:
+        db.session.rollback()
+        return _responder_error(error)
+    except Exception:
+        return _fallo_interno("restablecimiento de MFA")
+    return jsonify({"usuario": ua.serializar_usuario(usuario)})
 
 
 @admin_usuarios_bp.route("/api/admin/usuarios/<int:usuario_id>/desbloquear", methods=["POST"])
