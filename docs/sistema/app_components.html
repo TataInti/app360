@@ -21,6 +21,10 @@
       --color-focus: #3d7aa9;
       --color-hover: #edf2f7;
       --color-positive: #16a34a;
+      --color-positive-soft: #ecfdf3;
+      --color-positive-ink: #15803d;
+      --color-negative-soft: #fef2f2;
+      --color-surface-sunken: #eff4f8;
       --color-warning: #f59e0b;
       --state-error-ink: #8c3027;
       --state-dot-size: 8px;
@@ -206,6 +210,41 @@
         <span class="app-status app-status--neutral"><span class="app-status__dot" aria-hidden="true"></span><span class="app-status__text">Sin meta</span></span>
       </div>
       <p class="demo-footnote">Los valores y vendedores de esta página son sintéticos.</p>
+    </section>
+
+    <section aria-label="Tipo de movimiento">
+      <p class="demo-description">Tipo de movimiento de caja: chip, monto con signo y borde de fila (Tesorería).</p>
+      <table class="app-table">
+        <thead class="app-table__head">
+          <tr>
+            <th class="app-table__head-cell" scope="col">Fecha</th>
+            <th class="app-table__head-cell" scope="col">Tipo</th>
+            <th class="app-table__head-cell app-table__numeric" scope="col">Monto</th>
+            <th class="app-table__head-cell" scope="col">Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="app-tipo-fila app-tipo-fila--ingreso">
+            <td class="app-table__cell">20/11/2026</td>
+            <td class="app-table__cell"><span class="app-tipo app-tipo--ingreso">Ingreso</span></td>
+            <td class="app-table__cell app-table__numeric"><span class="app-tipo__monto app-tipo__monto--ingreso">+ $ 1.500,00</span></td>
+            <td class="app-table__cell"><span class="app-status app-status--ok"><span class="app-status__dot" aria-hidden="true"></span>Activo</span></td>
+          </tr>
+          <tr class="app-tipo-fila app-tipo-fila--egreso">
+            <td class="app-table__cell">20/11/2026</td>
+            <td class="app-table__cell"><span class="app-tipo app-tipo--egreso">Egreso</span></td>
+            <td class="app-table__cell app-table__numeric"><span class="app-tipo__monto app-tipo__monto--egreso">− $ 120,00</span></td>
+            <td class="app-table__cell"><span class="app-status app-status--ok"><span class="app-status__dot" aria-hidden="true"></span>Activo</span></td>
+          </tr>
+          <tr class="app-tipo-fila app-tipo-fila--anulado">
+            <td class="app-table__cell">20/11/2026</td>
+            <td class="app-table__cell"><span class="app-tipo app-tipo--ingreso">Ingreso</span></td>
+            <td class="app-table__cell app-table__numeric"><span class="app-tipo__monto app-tipo__monto--ingreso">+ $ 300,00</span></td>
+            <td class="app-table__cell"><span class="app-status app-status--neutral"><span class="app-status__dot" aria-hidden="true"></span>Anulado</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="demo-footnote">Los valores de esta sección son sintéticos.</p>
     </section>
   </main>
 

@@ -252,6 +252,65 @@
     background: var(--color-text-faint);
 }
 
+/* Tipo de movimiento de caja: chip propio (Ingreso / Egreso), no un estado. El estado sigue en app-status. */
+.app-tipo {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-pill);
+    background: var(--color-surface-sunken);
+    color: var(--color-text-body);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-strong);
+    white-space: nowrap;
+}
+
+.app-tipo--ingreso {
+    background: var(--color-positive-soft);
+    color: var(--color-positive-ink);
+}
+
+.app-tipo--egreso {
+    background: var(--color-negative-soft);
+    color: var(--state-error-ink);
+}
+
+/* Monto con signo (+ ingreso, − egreso) en el color del tipo; cifras tabulares a la derecha. */
+.app-tipo__monto {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--color-text-body);
+}
+
+.app-tipo__monto--ingreso {
+    color: var(--color-positive-ink);
+}
+
+.app-tipo__monto--egreso {
+    color: var(--state-error-ink);
+}
+
+/* Filas activas: borde izquierdo del color del tipo. Las anuladas no lo llevan. */
+.app-tipo-fila--ingreso {
+    border-left: 3px solid var(--color-positive);
+}
+
+.app-tipo-fila--egreso {
+    border-left: 3px solid var(--color-negative);
+}
+
+/* Fila anulada: chip y monto en gris y tachados, igual que el resto de la fila anulada. */
+.app-tipo-fila--anulado .app-tipo {
+    background: var(--color-surface-sunken);
+    color: var(--color-text-muted);
+    text-decoration: line-through;
+}
+
+.app-tipo-fila--anulado .app-tipo__monto {
+    color: var(--color-text-muted);
+    text-decoration: line-through;
+}
+
 .app-drawer {
     box-sizing: border-box;
     position: fixed;
