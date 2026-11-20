@@ -168,4 +168,6 @@ La API es la fuente de verdad para las acciones; la pantalla refleja los permiso
 
 El reset de clave y `/cambiar-clave` bloquean la fila del usuario y vuelven a leerla tras obtener el bloqueo. Si el reset ocurre primero, el cambio propio valida la clave temporal vigente y limpia `must_change_password` y su vencimiento; si el cambio propio ocurre primero, el reset final deja la clave temporal y el cambio obligatorio. Los incrementos de `token_version` quedan serializados también con desactivación y reactivación.
 
+Todas las mutaciones de cuentas pasan primero por `services.usuarios_admin.bloquear_mutaciones_usuarios()`. En PostgreSQL usa el advisory xact lock bigint `714360036043`; en SQLite no hace nada. Debe tomarse antes de cualquier `FOR UPDATE` y es la primitiva común para los cortes de recuperación, desbloqueo y MFA. Los deadlocks (`40P01`) y errores de serialización (`40001`) reintentan una vez la operación completa; si vuelve a fallar, la API devuelve 409 `OPERACION_CONCURRENTE` sin mostrar detalles SQL.
+
 Las cuentas existentes conservan rol por defecto en `setup_users.py`, `setup_database.py` y `setup_comercial.py`. `--forzar-roles` habilita expresamente aplicar los roles preset. Las claves existentes se regeneran solo con sus opciones explícitas (`--reset`, `--reset-admin-password` o `--reset-claves`), apagadas por defecto.

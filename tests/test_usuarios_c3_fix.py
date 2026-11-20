@@ -8,6 +8,7 @@ import threading
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from config import Config
 from models import db
@@ -209,6 +210,46 @@ def test_favicon_implicito_no_responde_404(app_seguridad):
     assert respuesta.status_code == 204 and respuesta.get_data() == b""
 
 
+def test_bloqueo_mutaciones_usuarios_es_noop_en_sqlite(app_seguridad):
+    with app_seguridad.app_context():
+        assert db.session.get_bind().dialect.name == "sqlite"
+        ua.bloquear_mutaciones_usuarios()
+
+
+def test_operational_error_deadlock_reintenta_la_operacion_completa(app_seguridad):
+    intentos = []
+
+    @ua.reintentar_operacion_concurrente
+    def operacion():
+        intentos.append(1)
+        if len(intentos) == 1:
+            raise OperationalError("UPDATE users", {}, SimpleNamespace(pgcode="40P01"))
+        return "ok"
+
+    with app_seguridad.app_context():
+        assert operacion() == "ok"
+    assert len(intentos) == 2
+
+
+def test_operational_error_repetido_devuelve_409_uniforme(app_seguridad):
+    intentos = []
+
+    @ua.reintentar_operacion_concurrente
+    def operacion():
+        intentos.append(1)
+        raise OperationalError("UPDATE users", {}, SimpleNamespace(sqlstate="40001"))
+
+    with app_seguridad.app_context():
+        with pytest.raises(ua.ErrorUsuarios) as error:
+            operacion()
+    assert len(intentos) == 2
+    assert error.value.status == 409
+    assert error.value.codigo == "OPERACION_CONCURRENTE"
+    assert error.value.mensaje == (
+        "Otro administrador está modificando esta cuenta; reintentá en unos segundos"
+    )
+
+
 PG_URL_ENV = "APP360_PRUEBAS_PG_URL"
 
 
@@ -256,7 +297,8 @@ def test_postgres_serializa_reset_reset_y_reset_cambio_propio(monkeypatch):
             ).count()
 
         barrier = threading.Barrier(2)
-        results = [None, None]
+        results: list[dict[str, object] | None] = [None, None]
+        secret_keys: list[str | None] = [None, None]
 
         def reset_worker(index, actor_id):
             try:
@@ -264,7 +306,8 @@ def test_postgres_serializa_reset_reset_y_reset_cambio_propio(monkeypatch):
                     actor = db.session.get(User, actor_id)
                     barrier.wait(timeout=30)
                     _user, key, _expiry = ua.restablecer_clave(actor, target_id)
-                    results[index] = {"status": 200, "key": key}
+                    secret_keys[index] = key
+                    results[index] = {"status": 200}
             except ua.ErrorUsuarios as error:
                 db.session.rollback()
                 results[index] = {"status": error.status, "code": error.codigo}
@@ -282,7 +325,7 @@ def test_postgres_serializa_reset_reset_y_reset_cambio_propio(monkeypatch):
         assert all(not worker.is_alive() for worker in workers)
         with app.app_context():
             target = db.session.get(User, target_id, populate_existing=True)
-            matching_keys = sum(bool(item and item.get("key") and target.check_password(item["key"])) for item in results)
+            matching_keys = sum(bool(key and target.check_password(key)) for key in secret_keys)
             after_version = target.token_version
             after_audits = UserAuditLog.query.filter_by(
                 accion="user_password_reset", target_user_id=target_id
@@ -317,6 +360,7 @@ def test_postgres_serializa_reset_reset_y_reset_cambio_propio(monkeypatch):
         new_password = f"PROBE-{os.urandom(24).hex()}-X9!"
         race_barrier = threading.Barrier(2)
         race_results = {}
+        race_keys = {}
 
         def reset_http():
             with app.app_context():
@@ -327,8 +371,8 @@ def test_postgres_serializa_reset_reset_y_reset_cambio_propio(monkeypatch):
                     race_results["reset"] = {
                         "status": response.status_code,
                         "code": body.get("codigo"),
-                        "key": body.get("clave_temporal"),
                     }
+                    race_keys["reset"] = body.get("clave_temporal")
                 finally:
                     db.session.remove()
 
@@ -358,8 +402,9 @@ def test_postgres_serializa_reset_reset_y_reset_cambio_propio(monkeypatch):
         assert race_results["reset"]["status"] == 200
         with app.app_context():
             target = db.session.get(User, target_id, populate_existing=True)
-            temp_key = race_results["reset"]["key"]
-            assert temp_key and target.check_password(temp_key)
+            temp_key = race_keys["reset"]
+            clave_temporal_valida = bool(temp_key) and target.check_password(temp_key)
+            assert clave_temporal_valida
             assert target.must_change_password is True
             assert target.temp_password_expires_at is not None
             assert target.token_version == before_version + 1
