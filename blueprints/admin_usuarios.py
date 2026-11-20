@@ -22,7 +22,6 @@ from flask import (
 )
 
 from models import db
-from models.core.user import User
 from security import es_ruta_api
 from services import usuarios_admin as ua
 
@@ -127,11 +126,8 @@ def crear():
 
 
 def _cambiar_estado(usuario_id, operacion, nombre):
-    usuario = db.session.get(User, usuario_id, populate_existing=True)
-    if usuario is None:
-        return _error("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
     try:
-        operacion(g.usuario_sesion, usuario)
+        usuario = operacion(g.usuario_sesion, usuario_id)
     except ua.ErrorUsuarios as error:
         db.session.rollback()
         return _responder_error(error)

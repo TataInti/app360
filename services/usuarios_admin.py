@@ -23,9 +23,11 @@ import re
 import secrets
 from datetime import timedelta, timezone
 
+from functools import wraps
+
 import sqlalchemy as sa
 from flask import has_request_context, request
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 import security
 from models import db
@@ -100,6 +102,65 @@ class ErrorUsuarios(Exception):
         self.mensaje = mensaje
         self.status = status
         self.campos = campos or {}
+
+
+# Identificador estable y reservado para serializar TODAS las mutaciones de cuentas.
+# Se pasa como bigint con signo a pg_advisory_xact_lock; no cambiarlo sin coordinar a los cortes C4/C5/C6.
+BLOQUEO_ADVISORY_USUARIOS_KEY = 714_360_036_043
+SQLSTATES_CONCURRENCIA = frozenset({"40P01", "40001"})
+CODIGO_OPERACION_CONCURRENTE = "OPERACION_CONCURRENTE"
+MENSAJE_OPERACION_CONCURRENTE = (
+    "Otro administrador está modificando esta cuenta; reintentá en unos segundos"
+)
+
+
+def bloquear_mutaciones_usuarios():
+    """Adquiere el lock transaccional común antes de cualquier FOR UPDATE de usuarios.
+
+    PostgreSQL serializa con una constante bigint compartida por administración, cambio propio
+    de clave y futuros flujos de recuperación/desbloqueo/MFA. En SQLite es un no-op. La base
+    libera el lock al commit o rollback de esta transacción.
+    """
+    if db.session.get_bind().dialect.name == "postgresql":
+        db.session.execute(
+            sa.text("SELECT pg_advisory_xact_lock(:lock_key)"),
+            {"lock_key": BLOQUEO_ADVISORY_USUARIOS_KEY},
+        )
+
+
+def es_error_concurrencia(error):
+    """True solo para deadlock/serialization de PostgreSQL, no para cualquier OperationalError."""
+    if not isinstance(error, OperationalError):
+        return False
+    original = getattr(error, "orig", None)
+    sqlstate = getattr(original, "pgcode", None) or getattr(original, "sqlstate", None)
+    return str(sqlstate or "").upper() in SQLSTATES_CONCURRENCIA
+
+
+def reintentar_operacion_concurrente(func):
+    """Reejecuta una vez la operación completa ante deadlock/serialización.
+
+    Rollback libera primero locks y escrituras parciales. Si el segundo intento falla, el caller
+    recibe OPERACION_CONCURRENTE (409), nunca el texto/parametría interna del error SQL.
+    """
+    @wraps(func)
+    def envuelta(*args, **kwargs):
+        for intento in range(2):
+            try:
+                return func(*args, **kwargs)
+            except OperationalError as error:
+                db.session.rollback()
+                if not es_error_concurrencia(error):
+                    raise
+                if intento == 1:
+                    raise ErrorUsuarios(
+                        CODIGO_OPERACION_CONCURRENTE,
+                        MENSAJE_OPERACION_CONCURRENTE,
+                        409,
+                    ) from None
+        raise AssertionError("bucle de reintentos agotado")
+
+    return envuelta
 
 
 def puede_administrar(actor, objetivo, rol_nuevo=None):
@@ -263,8 +324,10 @@ def _error_usuario_existente():
     )
 
 
+@reintentar_operacion_concurrente
 def crear_usuario(actor, username, role):
     """Alta con clave temporal. Devuelve (usuario, clave, vence). La clave no se vuelve a mostrar."""
+    bloquear_mutaciones_usuarios()
     nombre = normalizar_usuario(username)
     rol = role.strip() if isinstance(role, str) else ""
     _exigir_jerarquia(actor, None, rol)
@@ -305,6 +368,10 @@ def _administradores_activos_bloqueados():
     )
 
 
+def _id_usuario(objetivo):
+    return getattr(objetivo, "id", objetivo)
+
+
 def _usuario_bloqueado(usuario_id):
     """Lee el estado vigente de una cuenta y serializa sus escrituras PostgreSQL."""
     return (
@@ -315,9 +382,11 @@ def _usuario_bloqueado(usuario_id):
     )
 
 
+@reintentar_operacion_concurrente
 def desactivar_usuario(actor, usuario):
+    bloquear_mutaciones_usuarios()
     administradores = _administradores_activos_bloqueados()
-    usuario = _usuario_bloqueado(usuario.id)
+    usuario = _usuario_bloqueado(_id_usuario(usuario))
     if usuario is None:
         raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
     _exigir_jerarquia(actor, usuario)
@@ -343,8 +412,10 @@ def desactivar_usuario(actor, usuario):
     return usuario
 
 
+@reintentar_operacion_concurrente
 def reactivar_usuario(actor, usuario):
-    usuario = _usuario_bloqueado(usuario.id)
+    bloquear_mutaciones_usuarios()
+    usuario = _usuario_bloqueado(_id_usuario(usuario))
     if usuario is None:
         raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
     _exigir_jerarquia(actor, usuario)
@@ -359,6 +430,7 @@ def reactivar_usuario(actor, usuario):
     return usuario
 
 
+@reintentar_operacion_concurrente
 def cambiar_rol(actor, usuario_id, nuevo_rol):
     """Cambia el rol de una cuenta. Devuelve (usuario, rol_anterior, cambiado).
 
@@ -368,6 +440,7 @@ def cambiar_rol(actor, usuario_id, nuevo_rol):
     serializan y el segundo ve el estado que dejó el primero. No suma token_version: el rol se lee
     de la base en cada petición.
     """
+    bloquear_mutaciones_usuarios()
     rol = nuevo_rol.strip() if isinstance(nuevo_rol, str) else ""
     administradores = _administradores_activos_bloqueados()
     usuario = _usuario_bloqueado(usuario_id)
@@ -402,14 +475,15 @@ def cambiar_rol(actor, usuario_id, nuevo_rol):
     return usuario, anterior, True
 
 
+@reintentar_operacion_concurrente
 def restablecer_clave(actor, usuario_id):
     """Genera una clave temporal nueva para otra cuenta activa. Devuelve (usuario, clave, vence).
 
     La clave viaja solo en la respuesta de esta acción. Suma token_version: las sesiones web y los
     JWT previos dejan de valer, y la clave anterior deja de servir. Obliga a cambiarla al ingresar.
     """
-    # El bloqueo serializa resets y vuelve a leer active, password_hash y token_version
-    # si otra escritura sobre esta cuenta terminó mientras esperábamos.
+    # Primero el lock advisory global; después FOR UPDATE y lectura del estado vigente.
+    bloquear_mutaciones_usuarios()
     usuario = _usuario_bloqueado(usuario_id)
     if usuario is None:
         raise ErrorUsuarios("USUARIO_NO_ENCONTRADO", "No encontramos ese usuario.", 404)
@@ -445,6 +519,7 @@ def activar_cuenta_existente(usuario):
     Solo una reactivación suma token_version (corta los JWT y las sesiones de antes de la baja) y,
     si la tabla de auditoría existe, se registra. Una cuenta ya activa no cambia.
     """
+    bloquear_mutaciones_usuarios()
     if usuario.active is True:
         return False
     usuario.active = True
