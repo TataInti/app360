@@ -85,7 +85,7 @@
                     <tr>
                         <th>Fecha/Hora</th>
                         <th>Tipo</th>
-                        <th>Monto</th>
+                        <th class="text-end">Monto</th>
                         <th>Instrumento</th>
                         <th>Portador</th>
                         <th>Concepto</th>
@@ -102,7 +102,7 @@
                 <tfoot id="tfootMovimientos" class="d-none">
                     <tr class="table-light fw-bold">
                         <td colspan="2">Subtotal <small id="subtotalCount" class="text-muted fw-normal"></small></td>
-                        <td id="subtotalMonto"></td>
+                        <td id="subtotalMonto" class="text-end app-table__numeric"></td>
                         <td colspan="8"></td>
                     </tr>
                 </tfoot>
@@ -430,15 +430,15 @@ async function cargarMovimientos() {
 
                 let acciones = '';
                 if (canEdit && !esAnulado && !esPendiente) {
-                    acciones = `<button class="btn btn-sm btn-outline-danger" onclick="solicitarAnulacion(${escapeHtml(m.id)})" title="Solicitar anulación">
+                    acciones = `<button class="btn btn-sm btn-outline-danger" onclick="solicitarAnulacion(${escapeHtml(m.id)})" title="Solicitar anulación" aria-label="Solicitar anulación">
                         <i class="bi bi-x-circle"></i>
                     </button>`;
                 }
                 if (isAdmin && esPendiente) {
-                    acciones = `<button class="btn btn-sm btn-outline-primary me-1" onclick="autorizarAnulacion(${escapeHtml(m.id)})" title="Autorizar">
+                    acciones = `<button class="btn btn-sm btn-outline-primary me-1" onclick="autorizarAnulacion(${escapeHtml(m.id)})" title="Autorizar" aria-label="Autorizar">
                         <i class="bi bi-check-circle"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="rechazarAnulacion(${escapeHtml(m.id)})" title="Rechazar">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="rechazarAnulacion(${escapeHtml(m.id)})" title="Rechazar" aria-label="Rechazar">
                         <i class="bi bi-arrow-counterclockwise"></i>
                     </button>`;
                 }
@@ -468,9 +468,9 @@ async function cargarMovimientos() {
             document.getElementById('subtotalCount').textContent = `(${activos.length} activos)`;
             const decimalesSubtotal = TesoreriaForms.decimalesPara([ingresos, egresos, ingresos - egresos]);
             document.getElementById('subtotalMonto').innerHTML =
-                `<span class="text-success">+${escapeHtml(TesoreriaForms.importe(ingresos, decimalesSubtotal))}</span> ` +
-                `<span class="text-danger">-${escapeHtml(TesoreriaForms.importe(egresos, decimalesSubtotal))}</span> = ` +
-                `<span class="text-primary">${escapeHtml(TesoreriaForms.importe(ingresos - egresos, decimalesSubtotal))}</span>`;
+                `<span class="text-success text-nowrap">+${escapeHtml(TesoreriaForms.importe(ingresos, decimalesSubtotal))}</span> ` +
+                `<span class="text-danger text-nowrap">-${escapeHtml(TesoreriaForms.importe(egresos, decimalesSubtotal))}</span> = ` +
+                `<span class="text-nowrap">${escapeHtml(TesoreriaForms.importe(ingresos - egresos, decimalesSubtotal))}</span>`;
             tfoot.classList.remove('d-none');
         } else {
             tfoot.classList.add('d-none');

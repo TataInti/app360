@@ -32,7 +32,7 @@
     </div>
 </dl>
 
-<section class="col-xl-10 mx-auto mb-4" aria-labelledby="leadUpdateTitle">
+<section class="mb-4" aria-labelledby="leadUpdateTitle">
     <h2 id="leadUpdateTitle" class="h5 mb-3">Actualizar</h2>
     <form action="{{ url_for('crm.lead_update', lead_id=lead.id) }}" method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

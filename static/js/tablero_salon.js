@@ -74,10 +74,12 @@
     const headers = ['Fecha', 'Origen', 'Sucursal', 'Tipo', 'Número', 'Cliente', 'Vendedor', 'Importe', 'Cajas', 'Kilos'];
     const thead = document.createElement('thead');
     const headerRow = document.createElement('tr');
+    const encabezadosNumericos = ['Importe', 'Cajas', 'Kilos'];
     headers.forEach((label) => {
       const th = document.createElement('th');
       th.scope = 'col';
       th.textContent = label;
+      if (encabezadosNumericos.includes(label)) th.className = 'salon-number-cell';
       headerRow.append(th);
     });
     thead.append(headerRow);
