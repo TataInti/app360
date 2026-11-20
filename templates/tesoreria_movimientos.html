@@ -64,6 +64,12 @@
     </div>
 
     <!-- Resumen -->
+    <div class="kpi-grid">
+        <div class="kpi-card accent-green"><span class="kpi-label">Total Ingresos</span><span class="kpi-value" id="totalIngresos">$0</span></div>
+        <div class="kpi-card accent-red"><span class="kpi-label">Total Egresos</span><span class="kpi-value" id="totalEgresos">$0</span></div>
+        <div class="kpi-card accent-blue"><span class="kpi-label">Balance Neto</span><span class="kpi-value" id="balanceNeto">$0</span></div>
+    </div>
+
     <!-- Gráfico por Instrumento -->
     <div class="charts-grid" style="grid-template-columns:1fr">
         <div class="chart-card-v2">
@@ -405,6 +411,10 @@ async function cargarMovimientos() {
         });
         
         
+        document.getElementById('totalIngresos').textContent = '$' + ingresos.toLocaleString('es-AR', {maximumFractionDigits:0});
+        document.getElementById('totalEgresos').textContent = '$' + egresos.toLocaleString('es-AR', {maximumFractionDigits:0});
+        document.getElementById('balanceNeto').textContent = '$' + (ingresos - egresos).toLocaleString('es-AR', {maximumFractionDigits:0});
+
         const tbody = document.getElementById('tablaMovimientos');
         if (movimientos.length === 0) {
             tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted">No hay movimientos</td></tr>';
@@ -424,7 +434,9 @@ async function cargarMovimientos() {
                 const destinoProveedor = m.proveedor || '-';
                 const esAnulado = m.estado === 'anulado';
                 const esPendiente = m.estado === 'pendiente_anulacion';
-                const rowClass = esAnulado ? 'class="text-decoration-line-through text-muted"' : '';
+                const rowClass = esAnulado
+                    ? 'class="text-decoration-line-through text-muted app-tipo-fila--anulado"'
+                    : `class="${TesoreriaForms.claseFila(m.tipo)}"`;
 
                 const estadoBadge = TesoreriaForms.estadoHtml(m.estado);
 
@@ -447,7 +459,7 @@ async function cargarMovimientos() {
                 <tr ${rowClass}>
                     <td>${escapeHtml(new Date(m.fecha_hora).toLocaleString('es-AR'))}</td>
                     <td>${TesoreriaForms.tipoHtml(m.tipo)}</td>
-                    <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(m.monto, decimalesMov))}</td>
+                    <td class="text-end app-table__numeric">${TesoreriaForms.montoHtml(m.tipo, m.monto, decimalesMov)}</td>
                     <td>${escapeHtml(m.instrumento || '-')}</td>
                     <td>${escapeHtml(m.portador || '-')}</td>
                     <td>${destinoCategoria}</td>

@@ -974,6 +974,35 @@ porcentajes enteros y vacío como «—»; los decimales se piden explícitament
 dato los requiere. D7 queda pendiente de decisión del dueño para las opciones de
 Moneda y Estado de Ventas; el formateador numérico no las elige.
 
+### 3.18 Tipo de movimiento — `.app-tipo`
+
+**Receta.** Para el tipo de un movimiento de caja (Ingreso o Egreso), usar un chip propio con
+fondo suave y texto en negrita. `.app-tipo--ingreso` pinta el texto con `--color-positive-ink`
+sobre `--color-positive-soft`, y `.app-tipo--egreso` lo pinta con `--state-error-ink` sobre
+`--color-negative-soft`. Ambos pares superan 4,5:1 para texto. El monto va al lado con signo
+(«+» para ingreso, «−» para egreso) en el mismo color (`.app-tipo__monto--ingreso` y
+`--egreso`), alineado a la derecha con cifras tabulares. La fila activa lleva un borde izquierdo
+de 3 px en `--color-positive` (`.app-tipo-fila--ingreso`) o en `--color-negative`
+(`.app-tipo-fila--egreso`). La fila anulada (`.app-tipo-fila--anulado`) pasa el chip y el monto a
+gris `--color-text-muted` y tachado, igual que el resto de la fila.
+
+**Ejemplo de marcado.**
+
+```html
+<span class="app-tipo app-tipo--ingreso">Ingreso</span>
+<span class="app-tipo__monto app-tipo__monto--ingreso">+ $ 1.500,00</span>
+<span class="app-tipo app-tipo--egreso">Egreso</span>
+<span class="app-tipo__monto app-tipo__monto--egreso">− $ 120,00</span>
+```
+
+**Alcance.** El tipo no es un estado: Activo, Anulado y Pend. anulación siguen con
+`app-status` (§3.15), en su propia columna. Tesorería usa este componente en Movimientos y en el
+panel («Últimos Movimientos»).
+
+**Referencia de código.** Estilos en `static/css/app_components.css` (bloque «Tipo de
+movimiento»). Marcado en `TesoreriaForms.tipoHtml`, `montoHtml` y `claseFila` de
+`static/js/tesoreria_forms.js`. Los importes siguen a `App360Format`.
+
 ---
 
 ## 4. Patrones Prohibidos (Anti-Patterns)
@@ -1308,6 +1337,7 @@ un template**: usar `var(--color-*)`.
 
 /* Acentos semánticos (código de color operativo) */
 --color-positive:         #16a34a   (ingreso, positivo)
+--color-positive-ink:     #15803d   (texto verde sobre fondos suaves: ≥ 4,5:1; §3.18)
 --color-negative:         #dc2626   (egreso, negativo)
 --color-warning:          #f59e0b   (advertencia)
 --color-metric:           #7c3aed   (porcentajes, rentabilidad)

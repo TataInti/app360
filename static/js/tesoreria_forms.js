@@ -49,10 +49,24 @@
       + `${escapeHtml(texto)}</span>`;
   }
 
+  // Tipo de movimiento: chip propio (app-tipo), no un estado. El texto se escapa; las clases salen de un enum fijo.
   function tipoHtml(tipo) {
-    if (tipo === 'ingreso') return punto('ok', 'Ingreso');
-    if (tipo === 'egreso') return punto('neutral', 'Egreso');
-    return punto('neutral', String(tipo ?? '—'));
+    if (tipo === 'ingreso') return '<span class="app-tipo app-tipo--ingreso">Ingreso</span>';
+    if (tipo === 'egreso') return '<span class="app-tipo app-tipo--egreso">Egreso</span>';
+    return `<span class="app-tipo">${escapeHtml(String(tipo ?? '—'))}</span>`;
+  }
+
+  // Monto con el signo del tipo: «+ $ 1.500,00» (ingreso) y «− $ 120,00» (egreso). El signo solo presenta el tipo;
+  // el valor y el formato son los de importe(). Sin ingreso ni egreso no lleva signo ni color.
+  function montoHtml(tipo, monto, decimales) {
+    const signo = tipo === 'ingreso' ? '+ ' : tipo === 'egreso' ? '\u2212 ' : '';
+    const modificador = tipo === 'ingreso' || tipo === 'egreso' ? ` app-tipo__monto--${tipo}` : '';
+    return `<span class="app-tipo__monto${modificador}">${escapeHtml(signo + importe(monto, decimales))}</span>`;
+  }
+
+  // Clase de fila activa: borde izquierdo del color del tipo. Las filas anuladas las arma cada pantalla.
+  function claseFila(tipo) {
+    return tipo === 'ingreso' || tipo === 'egreso' ? `app-tipo-fila app-tipo-fila--${tipo}` : '';
   }
 
   function diferenciaHtml(diferencia) {
@@ -342,6 +356,8 @@
     importe,
     decimalesPara,
     tipoHtml,
+    montoHtml,
+    claseFila,
     diferenciaHtml,
     estadoHtml,
     celdaDiferenciaHtml,

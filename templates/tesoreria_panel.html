@@ -368,10 +368,10 @@
 
         const decimales = TesoreriaForms.decimalesPara(movimientos.map(m => m.monto));
         tbody.innerHTML = movimientos.map(m => `
-            <tr>
+            <tr class="${TesoreriaForms.claseFila(m.tipo)}">
                 <td>${escapeHtml(new Date(m.fecha_hora).toLocaleString('es-AR'))}</td>
                 <td>${TesoreriaForms.tipoHtml(m.tipo)}</td>
-                <td class="text-end app-table__numeric">${escapeHtml(TesoreriaForms.importe(m.monto, decimales))}</td>
+                <td class="text-end app-table__numeric">${TesoreriaForms.montoHtml(m.tipo, m.monto, decimales)}</td>
                 <td>${escapeHtml(m.instrumento)}</td>
                 <td>${escapeHtml(m.descripcion)}</td>
                 <td>${escapeHtml(m.usuario || 'N/A')}</td>
