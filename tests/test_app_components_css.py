@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CSS_PATH = ROOT / "static" / "css" / "app_components.css"
 BASE_PATH = ROOT / "templates" / "base.html"
 GLOBAL_PRIMARY_SELECTOR = (
-    ".btn-primary:not(.com-primary):not(.btn-save):not(.criterio-btn)"
+    ".btn-primary:not(.com-primary):not(.criterio-btn)"
     ":not(.btn-outline-primary):not(.btn-secondary):not(.btn-success)"
     ":not(.btn-warning):not(.app-modal .btn-primary)"
 )
@@ -94,7 +94,6 @@ def test_bootstrap_primary_maps_states_to_tokens_and_preserves_exceptions():
 
     for excluded in (
         ".com-primary",
-        ".btn-save",
         ".criterio-btn",
         ".btn-outline-primary",
         ".btn-secondary",
@@ -103,6 +102,13 @@ def test_bootstrap_primary_maps_states_to_tokens_and_preserves_exceptions():
         ".app-modal .btn-primary",
     ):
         assert f":not({excluded})" in GLOBAL_PRIMARY_SELECTOR
+
+    assert ".btn-save" not in GLOBAL_PRIMARY_SELECTOR
+    admin_access = (ROOT / "templates" / "admin" / "admin_accesos.html").read_text(
+        encoding="utf-8"
+    )
+    assert 'class="btn btn-sm btn-primary btn-save"' in admin_access
+    assert "querySelectorAll('.btn-save')" in admin_access
 
     focus_body = rule_body(f"{GLOBAL_PRIMARY_SELECTOR}:focus-visible")
     assert re.search(r"outline:\s*3px\s+solid\s+var\(--color-focus\)", focus_body)
