@@ -272,6 +272,32 @@ def test_api_serializa_conflicto_concurrente_en_409_json(app_seguridad, monkeypa
     }
 
 
+def test_cambio_propio_responde_409_tras_reintento_de_operacion_concurrente(app_seguridad, monkeypatch):
+    actor_id = _crear(app_seguridad, "probe-cambio-concurrente", "sales")
+    client = _cliente(app_seguridad, actor_id)
+    intentos = []
+
+    def deadlock():
+        intentos.append(1)
+        raise OperationalError("SELECT pg_advisory_xact_lock", {}, SimpleNamespace(pgcode="40P01"))
+
+    monkeypatch.setattr(ua, "bloquear_mutaciones_usuarios", deadlock)
+    respuesta = client.post(
+        "/cambiar-clave",
+        data={
+            "clave_actual": "PROBE-no-real",
+            "clave_nueva": "PROBE-no-real-nueva",
+            "repetir_clave": "PROBE-no-real-nueva",
+        },
+    )
+    assert len(intentos) == 2
+    assert respuesta.status_code == 409
+    assert respuesta.get_json() == {
+        "codigo": "OPERACION_CONCURRENTE",
+        "error": "Otro administrador está modificando esta cuenta; reintentá en unos segundos",
+    }
+
+
 PG_URL_ENV = "APP360_PRUEBAS_PG_URL"
 
 
