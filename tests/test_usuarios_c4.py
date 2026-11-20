@@ -731,6 +731,26 @@ def test_desbloquear_limpia_contador_ventana_y_bloqueo_y_audita(app_seguridad, r
     assert _api(app.test_client(), "probe.limpia", CLAVE).status_code == 200
 
 
+def test_desbloquear_global_limpia_global_y_todos_los_pares(app_seguridad, reloj):
+    app = app_seguridad
+    _crear(app, "probe.desbloquea.global")
+    cliente = app.test_client()
+    for ip in (f"192.0.2.{i}" for i in range(1, 9)):
+        for _ in range(5):
+            assert _api(cliente, "probe.desbloquea.global", "PROBE-mal", ip=ip).status_code == 401
+    estado = _estado(app, "probe.desbloquea.global")
+    assert estado["intentos"] == 40 and estado["bloqueo"] == INSTANTE + timedelta(minutes=15)
+    assert _pares_usuario(app, "probe.desbloquea.global") == 8
+    uid = estado["id"]
+    admin = _sesion(app, "probe.admin.unblock.global", "admin")
+    respuesta = admin.post(f"/api/admin/usuarios/{uid}/desbloquear")
+    assert respuesta.status_code == 200
+    limpio = _estado(app, "probe.desbloquea.global")
+    assert limpio["intentos"] == 0 and limpio["ventana"] is None and limpio["bloqueo"] is None
+    assert _pares_usuario(app, "probe.desbloquea.global") == 0
+    assert _api(cliente, "probe.desbloquea.global", CLAVE, ip="198.51.100.99").status_code == 200
+
+
 def test_admin_bloqueado_puede_ser_desbloqueado_por_otro_administrador(app_seguridad, reloj):
     app = app_seguridad
     _crear(app, "probe.admin.bloqueado", rol="admin")
