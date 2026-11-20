@@ -256,3 +256,18 @@ def comparar_borrado(datos_antes, datos_despues, vendedor_id, objetivo_id, canti
         "lineas_en_json": len(lineas),
     }
     return borrada and restantes_iguales and cantidad_ok, detalle
+
+
+def leer_accesos(contexto, base_url):
+    """Lee el estado de accesos del servidor, sin aceptar una redirección como dato."""
+    respuesta = contexto.request.get(
+        f"{base_url.rstrip('/')}/api/admin/accesos", max_redirects=0
+    )
+    if respuesta.status != 200:
+        raise AssertionError(f"GET de accesos respondió {respuesta.status}, esperado 200")
+    datos = respuesta.json()
+    if not isinstance(datos, list) or any(
+        "id" not in user or "permissions" not in user for user in datos
+    ):
+        raise AssertionError("GET de accesos devolvió una colección inesperada")
+    return {str(user["id"]): user for user in datos}

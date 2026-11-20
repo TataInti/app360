@@ -459,3 +459,208 @@
     outline-offset: 2px;
     box-shadow: none;
 }
+
+.app-access-header {
+    align-items: flex-start;
+}
+
+.app-access-heading {
+    min-width: 0;
+}
+
+.app-access-title {
+    margin-bottom: 0;
+}
+
+.app-access-header-actions {
+    display: flex;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-control);
+}
+
+.app-access-change-count {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-note);
+    white-space: nowrap;
+}
+
+.app-access-back {
+    color: var(--color-action);
+    font-size: var(--font-size-body);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.app-access-back:hover {
+    color: var(--color-action-hover);
+    text-decoration: underline;
+}
+
+.app-access-back:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+}
+
+.app-access-header-actions .app-actions {
+    flex-wrap: wrap;
+}
+
+.app-access-header-actions .app-actions__primary[disabled],
+.app-access-header-actions .app-actions__secondary[disabled] {
+    border-color: var(--color-border);
+    background: var(--color-surface-muted);
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+}
+
+.app-access-header-actions .app-actions__primary:focus-visible,
+.app-access-header-actions .app-actions__secondary:focus-visible,
+.app-access-retry:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+}
+
+.app-access-load-status {
+    margin: 0 0 var(--space-control);
+}
+
+.app-access-summary {
+    margin: 0 0 var(--space-control);
+    color: var(--color-text-body);
+    font-size: var(--font-size-body);
+}
+
+.app-access-summary--ok {
+    color: var(--color-positive-ink);
+}
+
+.app-access-summary--error {
+    color: var(--state-error-ink);
+}
+
+.app-access-card {
+    min-width: 0;
+}
+
+.app-access-scroll {
+    max-width: 100%;
+    overflow: auto;
+    overscroll-behavior-x: contain;
+}
+
+.app-access-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.app-access-table .app-access-user-heading,
+.app-access-table .app-access-user {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    width: 11rem;
+    min-width: 11rem;
+    background: var(--color-surface);
+}
+
+.app-access-table .app-access-user-heading {
+    z-index: 3;
+    background: var(--color-surface-subtle);
+}
+
+.app-access-table .app-access-user {
+    overflow-wrap: anywhere;
+}
+
+.app-access-table .app-access-role-heading,
+.app-access-table .app-access-role {
+    width: 8rem;
+    min-width: 8rem;
+}
+
+.app-access-role {
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.app-access-table .app-access-module-heading,
+.app-access-table .app-access-permission {
+    width: 9rem;
+    min-width: 9rem;
+}
+
+.app-access-module-heading {
+    max-width: 9rem;
+    white-space: normal;
+}
+
+.app-access-select {
+    width: 9rem;
+    min-width: 9rem;
+    border-color: var(--color-border-control);
+}
+
+.app-access-select:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 1px;
+}
+
+.app-access-select.app-access-select--changed {
+    border-color: var(--color-warning);
+    box-shadow: 0 0 0 1px var(--color-warning);
+}
+
+.app-access-inherited {
+    color: var(--color-text-muted);
+}
+
+.app-access-inherited .app-status__text {
+    color: var(--color-text-muted);
+}
+
+.app-access-row-state,
+.app-access-status-heading {
+    width: 16rem;
+    min-width: 16rem;
+}
+
+.app-access-row-status {
+    max-width: 13rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.app-access-retry {
+    margin-top: var(--space-cell-y);
+    padding: var(--space-cell-y) var(--space-cell-x);
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    color: var(--color-text-body);
+    font: inherit;
+    cursor: pointer;
+}
+
+.app-access-retry:hover {
+    background: var(--color-hover);
+}
+
+.app-access-scroll-hint {
+    margin: 0;
+    padding: var(--space-cell-y) var(--space-cell-x);
+    border-top: 1px solid var(--color-border);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-note);
+}
+
+.app-access-load-status[hidden],
+.app-access-summary[hidden],
+.app-access-row-status[hidden],
+.app-access-retry[hidden] {
+    display: none;
+}

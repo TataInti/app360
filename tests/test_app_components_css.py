@@ -110,8 +110,12 @@ def test_bootstrap_primary_maps_states_to_tokens_and_preserves_exceptions():
     admin_access = (ROOT / "templates" / "admin" / "admin_accesos.html").read_text(
         encoding="utf-8"
     )
-    assert 'class="btn btn-sm btn-primary btn-save"' in admin_access
-    assert "querySelectorAll('.btn-save')" in admin_access
+    assert 'id="accessSave" class="app-actions__primary" disabled' in admin_access
+    assert "Guardar cambios (0)" in admin_access
+    assert "btn-save" not in admin_access
+    access_js = (ROOT / "static" / "js" / "admin_accesos.js").read_text(encoding="utf-8")
+    assert "querySelectorAll('tbody tr[data-user-id]')" in access_js
+    assert "Guardar cambios (${count})" in access_js
 
     focus_body = rule_body(f"{GLOBAL_PRIMARY_SELECTOR}:focus-visible")
     assert re.search(r"outline:\s*3px\s+solid\s+var\(--color-focus\)", focus_body)
