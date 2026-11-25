@@ -21,7 +21,7 @@
   <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
     <div>
       <h1 class="h4 mb-1 fw-bold">Criterio de clientes</h1>
-      <p class="criterio-note mb-0">Elige qué comprobantes usa el Panel de Ventas para cada cliente. Sin una marca, se usa presupuesto (PRE).</p>
+      <p class="criterio-note mb-0">Elegí qué comprobantes usan el Panel de Ventas y el Seguimiento de clientes para cada cliente: presupuestos (PRE), facturación (FAC) o ambos. Sin una marca, se usa presupuesto (PRE).</p>
     </div>
     <a href="/dashboard-comercial" class="criterio-pill text-decoration-none">Volver al Panel de Ventas</a>
   </div>
@@ -30,11 +30,17 @@
       <input id="criterio-buscar" class="form-control" type="search" placeholder="Buscar cliente" aria-label="Buscar cliente" style="max-width:320px">
       <button id="criterio-seleccionar-visibles" class="criterio-pill" type="button">Seleccionar todos los visibles</button>
       <span id="criterio-seleccionados" class="criterio-note">0 seleccionados</span>
-      <div class="criterio-actions d-flex flex-wrap gap-2 ms-lg-auto">
-        <button id="criterio-usar-pre" class="criterio-btn" type="button">Usar presupuesto</button>
-        <button id="criterio-usar-fac" class="criterio-btn criterio-btn--secondary" type="button">Usar facturación</button>
+      <div class="criterio-actions d-flex flex-wrap align-items-center gap-2 ms-lg-auto">
+        <label for="criterio-modo" class="criterio-note mb-0">Criterio para los seleccionados</label>
+        <select id="criterio-modo" class="form-select w-auto">
+          <option value="PRE">Usar presupuesto (PRE)</option>
+          <option value="FAC">Usar facturación (FAC)</option>
+          <option value="AMBOS">Usar ambos (PRE y FAC)</option>
+        </select>
+        <button id="criterio-aplicar" class="criterio-btn" type="button">Aplicar</button>
       </div>
     </div>
+    <p id="criterio-ayuda" class="criterio-note mb-2">Con «Ambos», los presupuestos y las facturas se muestran y suman por separado en el Seguimiento de clientes, y las notas de crédito (NPF) se listan sin sumar. Las comisiones siguen calculándose solo con presupuestos.</p>
     <div id="criterio-mensaje" class="criterio-note mb-2" role="status" aria-live="polite"></div>
     <div class="table-responsive">
       <table class="table criterio-table">
@@ -46,6 +52,7 @@
 </div>
 <script>
 (() => {
+  const ETIQUETAS = {PRE:'Presupuesto (PRE)', FAC:'Facturación (FAC)', AMBOS:'Ambos (PRE y FAC)'};
   const rows = [];
   const selected = new Set();
   const body = document.getElementById('criterio-clientes-body');
@@ -73,8 +80,8 @@
       return;
     }
     body.innerHTML = visibles.map(row => {
-      const tono = row.criterio === 'FAC' ? 'ok' : 'neutral';
-      const etiqueta = row.criterio === 'FAC' ? 'Facturación (FAC)' : 'Presupuesto (PRE)';
+      const tono = row.criterio === 'PRE' ? 'neutral' : 'ok';
+      const etiqueta = ETIQUETAS[row.criterio] || ETIQUETAS.PRE;
       return `<tr>
         <td><input class="criterio-row-check" type="checkbox" data-cliente="${escapeHtml(row.cliente)}" ${escapeHtml(selected.has(row.cliente) ? 'checked' : '')} aria-label="Seleccionar ${escapeHtml(row.cliente)}"></td>
         <td>${escapeHtml(row.cliente)}</td>
@@ -107,7 +114,7 @@
   async function guardar(criterio) {
     const clientes = Array.from(selected);
     if (!clientes.length) { message.textContent = 'Selecciona uno o más clientes.'; return; }
-    const buttons = [document.getElementById('criterio-usar-pre'), document.getElementById('criterio-usar-fac')];
+    const buttons = [document.getElementById('criterio-aplicar'), document.getElementById('criterio-modo')];
     buttons.forEach(button => button.disabled = true);
     message.textContent = 'Guardando…';
     try {
@@ -132,7 +139,7 @@
       });
       selected.clear();
       render();
-      message.textContent = `${data.guardados} clientes actualizados.`;
+      message.textContent = `${data.guardados} clientes actualizados a ${ETIQUETAS[criterio] || criterio}.`;
     } catch (error) {
       message.textContent = error.message || 'No se pudieron guardar los criterios.';
     } finally {
@@ -150,8 +157,7 @@
     visibles.forEach(row => seleccionar ? selected.add(row.cliente) : selected.delete(row.cliente));
     render();
   });
-  document.getElementById('criterio-usar-pre').addEventListener('click', () => guardar('PRE'));
-  document.getElementById('criterio-usar-fac').addEventListener('click', () => guardar('FAC'));
+  document.getElementById('criterio-aplicar').addEventListener('click', () => guardar(document.getElementById('criterio-modo').value));
   cargar();
 })();
 </script>

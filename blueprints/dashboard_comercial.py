@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from models import db
 from models.comercial import ComercialClienteCriterio
+from services.comercial_criterios import normalizar_criterio
 from models.sabiogo.staging import StgSabiogoVentas
 from models.time_utils import now_local, today_local_date
 from security import protect_blueprint
@@ -67,9 +68,9 @@ def criterio_clientes_datos():
 def criterio_clientes_guardar():
     payload = request.get_json(silent=True) or {}
     raw_clientes = payload.get("clientes")
-    criterio = str(payload.get("criterio") or "").strip().upper()
-    if criterio not in {"PRE", "FAC"}:
-        return jsonify({"error": "El criterio debe ser PRE o FAC."}), 400
+    criterio = normalizar_criterio(payload.get("criterio"))
+    if criterio is None:
+        return jsonify({"error": "El criterio debe ser PRE, FAC o AMBOS."}), 400
     if not isinstance(raw_clientes, list):
         return jsonify({"error": "Selecciona uno o más clientes."}), 400
 
@@ -203,6 +204,24 @@ def seguimiento_cliente_detalle():
                                      producto=request.args.get('producto', '').strip() or None)
         return dict(**{k: v for k, v in datos.items() if k != 'clientes'},
                     cliente=datos['clientes'][0] if datos['clientes'] else None)
+    return lectura_panel(consultar)
+
+
+@dashboard_com_bp.get('/api/comercial/seguimiento-clientes/operaciones')
+def seguimiento_cliente_operaciones():
+    """Últimas operaciones de un cliente (20 por página), a pedido al abrir su desplegable."""
+    from services.comercial_operaciones import LIMITE_POR_DEFECTO, operaciones_cliente
+    from services.comercial_web import lectura_panel, parametros_panel
+
+    def consultar():
+        # El nombre viaja solo como parámetro de consulta y se compara parametrizado con TRIM(cliente).
+        parametros = parametros_panel()
+        return operaciones_cliente(
+            request.args.get('cliente', ''), parametros['desde'], parametros['hasta'],
+            parametros['empresa'], parametros['vendedor'],
+            modo=request.args.get('modo', 'criterio'),
+            limite=int(request.args.get('limite', LIMITE_POR_DEFECTO)),
+            desplazamiento=int(request.args.get('desplazamiento', 0)))
     return lectura_panel(consultar)
 
 

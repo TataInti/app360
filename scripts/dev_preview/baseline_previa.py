@@ -28,7 +28,8 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 COMMIT_PREVIO_A_MIGRACIONES = "47407ab^"
 HOST_PERMITIDO = {"127.0.0.1", "localhost"}
 PUERTO_PERMITIDO = 55432
-NOMBRE_BASE_PERMITIDO = "app360_e2e"
+# Una instancia aislada puede usar otra base del mismo contenedor local (E2E_PG_DB).
+NOMBRE_BASE_PERMITIDO = os.environ.get("E2E_PG_DB", "app360_e2e")
 TABLA_CONTROL = "users"
 
 

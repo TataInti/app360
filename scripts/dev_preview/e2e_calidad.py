@@ -26,7 +26,7 @@ from playwright.sync_api import expect, sync_playwright
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 RUN_LOCAL = os.environ.get("E2E_RUN_LOCAL") or os.path.join(ROOT_DIR, "scripts", "dev_preview", "run_local.sh")
-LOCK = "/root/.hermes/cache/scratch/heavy.lock"
+LOCK = os.environ.get("E2E_HEAVY_LOCK", "/root/.hermes/cache/scratch/heavy.lock")
 BASE_URL = os.environ.get("E2E_BASE_URL", "http://127.0.0.1:5055").rstrip("/")
 ADMIN_USER = os.environ.get("E2E_ADMIN_USER", "admin")
 # Clave de prueba SOLO-DEV del entorno E2E local (run_local.sh); no es una credencial real.

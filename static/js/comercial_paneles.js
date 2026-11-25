@@ -26,6 +26,11 @@
   const fecha = value => value ? value.slice(0, 10).split('-').reverse().join('/') : '—';
   const elem = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
   const badge = (text, cls = '') => elem('span', text, `com-badge ${cls}`);
+  // Etiqueta de origen del comprobante: PRE, FAC o NC (nota de crédito, se lista pero no suma).
+  const ORIGENES = {PRE: 'Presupuesto', FAC: 'Factura', NC: 'Nota de crédito: se muestra, no suma en los totales', OTRO: 'Comprobante sin código'};
+  const origen = tipo => { const b = badge(tipo, 'com-origen' + (tipo === 'NC' ? ' com-origen-nc' : '')); b.title = ORIGENES[tipo] || tipo; return b; };
+  const conOrigen = (texto, tipos) => { const box = elem('span'); (tipos || []).forEach(t => box.append(origen(t))); box.append(document.createTextNode(texto)); return box; };
+  const porTipo = c => { const box = elem('div'); ['PRE', 'FAC'].forEach(t => { const v = c.por_tipo[t]; const line = elem('span', null, 'com-por-tipo'); line.append(origen(t), document.createTextNode(`${number(v.n)} op. · ${money(v.importe)}`)); box.append(line); }); return box; };
   let state = new URLSearchParams(location.search), data, chart, requestId = 0, detailId = 0, detailTrigger;
   const extraCharts = new Map(); let quantityRequestId = 0, mixRequestId = 0, analysisDimension = 'producto';
   const filterInstances = new Map();
@@ -242,7 +247,7 @@
       const name = elem('button', c.cliente, 'com-name'); name.type = 'button'; name.onclick = () => openDetail(c.cliente, name);
       const vendors = elem('span', c.vendedores.length > 1 ? `${c.vendedores[0]} +${c.vendedores.length - 1}` : c.vendedores[0]); vendors.title = c.vendedores.join(', ');
       const signals = elem('div'); if (!c.senales.length) signals.append(elem('span', 'Sin señales')); else c.senales.forEach(s => signals.append(badge(s, 'attention')));
-      return [name, vendors, badge(c.activo ? 'Activo' : 'Sin compra en 30 días', c.activo ? 'active' : ''), fecha(c.ultima_compra), number(c.dias), money(c.importe), signals];
+      return [name, vendors, badge(c.activo ? 'Activo' : 'Sin compra en 30 días', c.activo ? 'active' : ''), c.mostrar_origen ? conOrigen(fecha(c.ultima_compra), c.ultima_compra_tipos) : fecha(c.ultima_compra), number(c.dias), c.mostrar_origen ? porTipo(c) : money(c.importe), signals];
     });
     $('com-clientes').replaceChildren(rows.length ? table([['Cliente'], ['Vendedores'], ['Actividad a 30 días'], ['Última compra'], ['Días', true], ['Importe del período', true], ['Señales']], rows, 'com-client-table') : elem('p', 'No hay clientes en esta vista con los filtros elegidos. Probá otra vista o limpiá los filtros.', 'com-empty'));
     state.set('pagina', data.pagina); history.replaceState(null, '', location.pathname + '?' + state);
@@ -456,6 +461,57 @@
       const open=button.getAttribute('aria-expanded')!=='true'; button.setAttribute('aria-expanded',String(open)); button.querySelector(':scope > span:last-child').textContent=open?'−':'＋'; body.hidden=!open; if(open) loadFn();
     });
   }
+  // Últimas operaciones del cliente: se piden al abrir su desplegable (20 por vez) y se guardan mientras la página está abierta.
+  const opsCache = new Map();
+  let opsVerTodos = false;
+  function opsParams(name, modo, desplazamiento) {
+    const p = new URLSearchParams();
+    for (const key of ['fecha_desde', 'fecha_hasta', 'empresa', 'vendedor']) if (state.get(key)) p.set(key, state.get(key));
+    p.set('cliente', name); p.set('modo', modo); p.set('desplazamiento', String(desplazamiento));
+    return p;
+  }
+  function renderOperaciones(host, name, detailToken) {
+    const section = elem('section'); section.setAttribute('aria-labelledby', 'com-ops-title');
+    const title = elem('h3', 'Últimas operaciones'); title.id = 'com-ops-title';
+    const switchLabel = elem('label', null, 'com-ops-toggle'), toggle = elem('input'); toggle.type = 'checkbox'; toggle.id = 'com-ops-todos';
+    toggle.setAttribute('role', 'switch'); toggle.setAttribute('aria-describedby', 'com-ops-ayuda'); toggle.checked = opsVerTodos;
+    switchLabel.append(toggle, elem('span', 'Ver todos los comprobantes'));
+    const help = elem('p', 'Muestra ventas, presupuestos, facturas y notas de crédito tal como están en SabioGo.', 'com-note'); help.id = 'com-ops-ayuda';
+    const list = elem('div', null, 'com-table-wrap'); list.setAttribute('aria-live', 'polite'); list.setAttribute('aria-busy', 'false');
+    const status = elem('p', null, 'com-note'), more = elem('button', 'Ver más'); more.type = 'button'; more.hidden = true;
+    const note = elem('p', 'Los totales del panel cuentan según el criterio del cliente. Esta lista muestra los comprobantes tal como están en SabioGo.', 'com-note');
+    section.append(title, switchLabel, help, list, status, more, note); host.append(section);
+    let token = 0;
+    const modo = () => (toggle.checked ? 'todos' : 'criterio');
+    const keyOf = () => `${name}\u0000${modo()}\u0000${opsParams(name, modo(), 0)}`;
+    function paint(entry) {
+      status.replaceChildren(); more.hidden = !entry.siguiente;
+      if (!entry.items.length) { list.replaceChildren(elem('p', 'Este cliente no tiene operaciones en el período.', 'com-empty')); return; }
+      list.replaceChildren(table([['Fecha'], ['Tipo'], ['Comprobante'], ['Importe', true], ['En los totales']],
+        entry.items.map(o => [fecha(o.fecha), origen(o.tipo), [o.comprobante, o.nro].filter(Boolean).join(' · ') || '—', money(o.importe), o.cuenta_en_totales ? 'Sí' : 'No suma'])));
+    }
+    async function cargar(masPaginas) {
+      const key = keyOf(), mine = ++token;
+      let entry = opsCache.get(key);
+      if (!entry) { entry = {items: [], siguiente: 0, cargado: false}; opsCache.set(key, entry); }
+      if (entry.cargado && !masPaginas) { paint(entry); return; }
+      list.setAttribute('aria-busy', 'true'); more.hidden = true; status.replaceChildren(elem('span', 'Cargando operaciones…'));
+      try {
+        const result = await get('/api/comercial/seguimiento-clientes/operaciones', opsParams(name, modo(), entry.siguiente || 0));
+        if (mine !== token || detailToken !== detailId) return;
+        entry.items = entry.items.concat(result.operaciones); entry.siguiente = result.siguiente; entry.cargado = true;
+        paint(entry);
+      } catch (error) {
+        if (mine !== token || detailToken !== detailId) return;
+        const retry = elem('button', 'Reintentar'); retry.type = 'button'; retry.onclick = () => cargar(masPaginas);
+        const motivo = error instanceof TypeError || !error.message ? 'Revisá tu conexión e intentá de nuevo.' : error.message;
+        status.replaceChildren(elem('span', `No se pudieron cargar las operaciones. ${motivo} `, 'com-error'), retry);
+      } finally { list.setAttribute('aria-busy', 'false'); }
+    }
+    toggle.onchange = () => { opsVerTodos = toggle.checked; cargar(false); };
+    more.onclick = () => cargar(true);
+    cargar(false);
+  }
   function closeDetail(restore = true) {
     if (!$('com-detalle')) return;
     ++detailId; $('com-detalle').hidden = true;
@@ -477,9 +533,18 @@
       host.append(badge(c.activo ? 'Activo a 30 días' : 'Sin compra en 30 días', c.activo ? 'active' : ''));
       c.senales.forEach(s => host.append(badge(s, 'attention')));
       if (c.nuevo) host.append(badge('Nuevo a 30 días'));
-      host.append(elem('p', `Última compra: ${fecha(c.ultima_compra)} · ${c.dias} días sin comprar.`));
+      const ultima = elem('p'); ultima.append(document.createTextNode('Última compra: '));
+      if (c.mostrar_origen) c.ultima_compra_tipos.forEach(t => ultima.append(origen(t)));
+      ultima.append(document.createTextNode(`${fecha(c.ultima_compra)} · ${c.dias} días sin comprar.`)); host.append(ultima);
       host.append(metric('Importe del período', money(c.importe), comparativeText(c.comparacion)));
+      if (c.mostrar_origen) {
+        host.append(elem('h3', 'Importe del período por tipo de comprobante'));
+        const tipos = elem('div', null, 'com-table-wrap');
+        tipos.append(table([['Origen'], ['Operaciones', true], ['Importe', true]], ['PRE', 'FAC'].map(t => [origen(t), number(c.por_tipo[t].n), money(c.por_tipo[t].importe)])));
+        host.append(tipos, elem('p', 'Cliente con criterio «Ambos»: presupuestos y facturas se suman por separado. Las notas de crédito (NC) se listan abajo y no suman. Un presupuesto que luego se factura podría figurar en los dos tipos.', 'com-note'));
+      }
       host.append(elem('p', `Comparación: ${fecha(result.desde_anterior)} → ${fecha(result.hasta_anterior)}. Productos distintos: ${c.variedad.actual} ahora / ${c.variedad.anterior} antes.`, 'com-note'));
+      renderOperaciones(host, name, id);
       host.append(elem('h3', 'Evolución de compras del período'));
       const evolution = elem('div', null, 'com-table-wrap'); evolution.append(c.serie.length ? table([['Fecha'], ['Importe', true]], c.serie.map(r => [fecha(r.fecha), money(r.importe)])) : elem('p', 'Sin compras en este período.', 'com-empty')); host.append(evolution);
       const products = elem('details'); products.append(elem('summary', `Productos comprados (${c.productos.length})`)); const wrap = elem('div', null, 'com-table-wrap'); wrap.append(c.productos.length ? table([['Producto'], ['Importe', true]], c.productos.map(r => [r.nombre, money(r.importe)])) : elem('p', 'Sin productos en este período.', 'com-note')); products.append(wrap); host.append(products);

@@ -24,7 +24,8 @@ from sqlalchemy.engine import make_url
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 HOST_PERMITIDO = {"127.0.0.1", "localhost"}
 PUERTO_PERMITIDO = 55432
-NOMBRE_BASE_PERMITIDO = "app360_e2e"
+# Una instancia aislada puede usar otra base del mismo contenedor local (E2E_PG_DB).
+NOMBRE_BASE_PERMITIDO = os.environ.get("E2E_PG_DB", "app360_e2e")
 FUENTE_SINTETICA = "SINTETICO_E2E_LOCAL"
 SEMILLA = 18112026
 ZONA_LOCAL = timezone(timedelta(hours=-3))
