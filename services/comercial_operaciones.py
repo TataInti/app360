@@ -3,7 +3,7 @@
 Una operación es un comprobante: se agrupan las líneas de stg_sabiogo_ventas por fecha, código
 de comprobante y número. El listado sale paginado (por desplazamiento) y solo de ese cliente.
 """
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func
@@ -83,7 +83,7 @@ def operaciones_cliente(cliente, desde, hasta, empresa='TODAS', vendedor=None, m
         if tipo == TIPO_NC:
             importe = -abs(importe)  # la nota de crédito se muestra siempre en negativo
         operaciones.append(dict(
-            fecha=fila.fecha.isoformat(), tipo=tipo, comprobante=fila.comprobante or None,
+            fecha=(fila.fecha.date() if isinstance(fila.fecha, datetime) else fila.fecha).isoformat(), tipo=tipo, comprobante=fila.comprobante or None,
             nro=fila.nro or None, importe=float(importe), lineas=int(fila.lineas),
             cuenta_en_totales=_cuenta_en_totales(criterio, tipo)))
     hay_mas = len(filas) > limite
