@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from models import db
 from models.comercial import ComercialClienteCriterio
+from services.comercial_criterios import normalizar_criterio
 from models.sabiogo.staging import StgSabiogoVentas
 from models.time_utils import now_local, today_local_date
 from security import protect_blueprint
@@ -67,9 +68,9 @@ def criterio_clientes_datos():
 def criterio_clientes_guardar():
     payload = request.get_json(silent=True) or {}
     raw_clientes = payload.get("clientes")
-    criterio = str(payload.get("criterio") or "").strip().upper()
-    if criterio not in {"PRE", "FAC"}:
-        return jsonify({"error": "El criterio debe ser PRE o FAC."}), 400
+    criterio = normalizar_criterio(payload.get("criterio"))
+    if criterio is None:
+        return jsonify({"error": "El criterio debe ser PRE, FAC o AMBOS."}), 400
     if not isinstance(raw_clientes, list):
         return jsonify({"error": "Selecciona uno o más clientes."}), 400
 

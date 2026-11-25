@@ -8,7 +8,8 @@ from sqlalchemy import func
 
 from models import db
 from models.sabiogo.staging import StgSabiogoVentas as Venta
-from services.comercial_criterios import filtro_comprobante_panel_ventas
+from services.comercial_criterios import (CRITERIO_AMBOS, TIPO_FAC, TIPO_NC, TIPO_PRE, criterios_por_cliente,
+                                          filtro_comprobante_panel_ventas, tipo_origen)
 from services.comercial_pre import calcular_resumen_pre, expresion_vendedor_resuelta
 from services.objetivos_comerciales import obtener_objetivos_comerciales
 from services.vendedores_comerciales import resolver_nombre_vendedor
@@ -81,13 +82,16 @@ def _historial(hasta, empresa, vendedor, cliente=None, producto=None):
     nombre = func.trim(Venta.cliente)
     vendedor_expr = expresion_vendedor_resuelta()
     filtros = [Venta.estado == 'procesado', Venta.fecha < hasta + timedelta(days=1),
-               nombre.isnot(None), nombre != '', filtro_comprobante_panel_ventas()]
-    # Primera compra global: nunca depende de empresa o vendedor seleccionados.
-    primeras = db.session.query(nombre.label('cliente'), func.min(Venta.fecha).label('primera')).filter(*filtros)
+               nombre.isnot(None), nombre != '']
+    # Primera compra global: nunca depende de empresa o vendedor seleccionados ni cuenta notas de crédito.
+    primeras = db.session.query(nombre.label('cliente'), func.min(Venta.fecha).label('primera')).filter(
+        *filtros, filtro_comprobante_panel_ventas())
     if cliente:
         primeras = primeras.filter(nombre == cliente)
     primeras = {nombre: primera.date() if isinstance(primera, datetime) else primera
                 for nombre, primera in primeras.group_by(nombre).all()}
+    # El listado trae también las NPF de los clientes AMBOS: se muestran, pero no suman.
+    filtros.append(filtro_comprobante_panel_ventas(incluir_nc_ambos=True))
     if empresa != 'TODAS':
         filtros.append(func.upper(func.coalesce(Venta.origen, '')) == empresa)
     if vendedor:
@@ -96,13 +100,19 @@ def _historial(hasta, empresa, vendedor, cliente=None, producto=None):
         filtros.append(nombre == cliente)
     if producto:
         filtros.append(func.trim(Venta.producto) == producto)
+    comprobante = func.coalesce(func.upper(func.trim(Venta.comprobante)), '')
+    nro = func.coalesce(func.trim(Venta.nro_comprob), '')
     # Agregar en SQL antes de construir estados; no cargar objetos de ventas.
     filas = db.session.query(
         nombre.label('cliente'), vendedor_expr.label('vendedor'), Venta.fecha,
-        func.trim(Venta.producto).label('producto'), func.sum(Venta.subtot).label('importe'),
+        func.trim(Venta.producto).label('producto'), comprobante.label('comprobante'),
+        nro.label('nro_comprob'), func.sum(Venta.subtot).label('importe'),
         func.max(Venta.fecha_import).label('importacion'),
-    ).filter(*filtros).group_by(nombre, vendedor_expr, Venta.fecha, func.trim(Venta.producto)).all()
-    return filas, primeras
+    ).filter(*filtros).group_by(nombre, vendedor_expr, Venta.fecha, func.trim(Venta.producto),
+                                comprobante, nro).all()
+    nombres = {f.cliente for f in filas}
+    criterios = {c: v for c, v in criterios_por_cliente().items() if c in nombres}
+    return filas, primeras, criterios
 
 
 def seguimiento_clientes(desde, hasta, empresa='TODAS', vendedor=None, busqueda='',
@@ -110,23 +120,43 @@ def seguimiento_clientes(desde, hasta, empresa='TODAS', vendedor=None, busqueda=
                          cliente=None, producto=None):
     anterior_desde, anterior_hasta = periodo_anterior(desde, hasta)
     inicio_actividad = hasta - timedelta(days=29)
-    filas, primeras = _historial(hasta, empresa, vendedor, cliente, producto)
+    filas, primeras, criterios = _historial(hasta, empresa, vendedor, cliente, producto)
     clientes = {}
+    operaciones = defaultdict(dict)
     ultima_importacion = fecha_maxima = None
+    normalizadas = []
     for fila in filas:
         if isinstance(fila.fecha, datetime):
             fila = SimpleNamespace(**{**fila._mapping, 'fecha': fila.fecha.date()})
+        normalizadas.append((fila, tipo_origen(fila.comprobante)))
+    # Primero las filas que cuentan; las notas de crédito de clientes AMBOS solo se listan.
+    ordenadas = sorted(normalizadas, key=lambda par: par[1] == TIPO_NC and criterios.get(par[0].cliente) == CRITERIO_AMBOS)
+    for fila, tipo in ordenadas:
         nombre = fila.cliente
+        importe = Decimal(str(fila.importe or 0))
+        solo_listar = tipo == TIPO_NC and criterios.get(nombre) == CRITERIO_AMBOS
+        if solo_listar and nombre not in clientes:
+            continue
         item = clientes.setdefault(nombre, dict(cliente=nombre, vendedores=set(), ultima_compra=fila.fecha,
-            actual=Decimal(0), anterior=Decimal(0), productos_actual=set(), productos_anterior=set(),
-            compras_actual=False, compras_anterior=False, serie=defaultdict(Decimal), productos=defaultdict(Decimal)))
+            ultima_tipos=set(), actual=Decimal(0), anterior=Decimal(0), productos_actual=set(), productos_anterior=set(),
+            compras_actual=False, compras_anterior=False, serie=defaultdict(Decimal), productos=defaultdict(Decimal),
+            por_tipo={t: dict(importe=Decimal(0), ops=set()) for t in (TIPO_PRE, TIPO_FAC)}))
+        periodo = 'actual' if desde <= fila.fecha <= hasta else 'anterior' if anterior_desde <= fila.fecha <= anterior_hasta else None
+        if periodo == 'actual':
+            clave = (fila.fecha, tipo, fila.comprobante, fila.nro_comprob)
+            op = operaciones[nombre].setdefault(clave, dict(fecha=fila.fecha.isoformat(), tipo=tipo,
+                comprobante=fila.comprobante, nro=fila.nro_comprob, importe=Decimal(0)))
+            op['importe'] += importe
+        if solo_listar:
+            continue
         item['vendedores'].add(fila.vendedor or 'Sin vendedor')
-        item['ultima_compra'] = max(item['ultima_compra'], fila.fecha)
+        if fila.fecha > item['ultima_compra']:
+            item['ultima_compra'], item['ultima_tipos'] = fila.fecha, set()
+        if fila.fecha == item['ultima_compra']:
+            item['ultima_tipos'].add(tipo)
         fecha_maxima = max(fecha_maxima, fila.fecha) if fecha_maxima else fila.fecha
         if fila.importacion:
             ultima_importacion = max(ultima_importacion, fila.importacion) if ultima_importacion else fila.importacion
-        importe = Decimal(str(fila.importe or 0))
-        periodo = 'actual' if desde <= fila.fecha <= hasta else 'anterior' if anterior_desde <= fila.fecha <= anterior_hasta else None
         if periodo:
             item[periodo] += importe
             item['compras_' + periodo] = True
@@ -135,6 +165,9 @@ def seguimiento_clientes(desde, hasta, empresa='TODAS', vendedor=None, busqueda=
         if periodo == 'actual':
             item['serie'][fila.fecha.isoformat()] += importe
             item['productos'][fila.producto or 'Sin producto'] += importe
+            if tipo in item['por_tipo']:
+                item['por_tipo'][tipo]['importe'] += importe
+                item['por_tipo'][tipo]['ops'].add((fila.fecha, fila.comprobante, fila.nro_comprob))
     resultado = []
     for nombre, item in clientes.items():
         senales = []
@@ -150,8 +183,14 @@ def seguimiento_clientes(desde, hasta, empresa='TODAS', vendedor=None, busqueda=
                    ultima_compra=item['ultima_compra'].isoformat(), dias=(hasta - item['ultima_compra']).days,
                    activo=activo, nuevo=primeras[nombre] >= inicio_actividad,
                    importe=float(item['actual']), comparacion=comparativo(item['actual'], item['anterior']),
-                   senales=senales)
+                   senales=senales, criterio=criterios.get(nombre) or TIPO_PRE,
+                   mostrar_origen=criterios.get(nombre) == CRITERIO_AMBOS,
+                   ultima_compra_tipos=sorted(item['ultima_tipos'], key=lambda t: (t != TIPO_PRE, t)),
+                   por_tipo={t: dict(n=len(v['ops']), importe=float(v['importe'])) for t, v in item['por_tipo'].items()})
         if cliente:
+            ops = sorted(operaciones[nombre].values(), key=lambda o: (o['fecha'], o['nro'] or ''), reverse=True)
+            row['operaciones_total'] = len(ops)
+            row['operaciones'] = [dict(o, importe=float(o['importe'])) for o in ops[:200]]
             row['serie'] = [dict(fecha=f, importe=float(v)) for f, v in sorted(item['serie'].items())]
             row['productos'] = [dict(nombre=p, importe=float(v)) for p, v in
                                 sorted(item['productos'].items(), key=lambda p: (-p[1], p[0]))]

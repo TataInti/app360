@@ -26,6 +26,11 @@
   const fecha = value => value ? value.slice(0, 10).split('-').reverse().join('/') : '—';
   const elem = (tag, text, cls) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (cls) node.className = cls; return node; };
   const badge = (text, cls = '') => elem('span', text, `com-badge ${cls}`);
+  // Etiqueta de origen del comprobante: PRE, FAC o NC (nota de crédito, se lista pero no suma).
+  const ORIGENES = {PRE: 'Presupuesto', FAC: 'Factura', NC: 'Nota de crédito: se muestra, no suma en los totales'};
+  const origen = tipo => { const b = badge(tipo, 'com-origen' + (tipo === 'NC' ? ' com-origen-nc' : '')); b.title = ORIGENES[tipo] || tipo; return b; };
+  const conOrigen = (texto, tipos) => { const box = elem('span'); (tipos || []).forEach(t => box.append(origen(t))); box.append(document.createTextNode(texto)); return box; };
+  const porTipo = c => { const box = elem('div'); ['PRE', 'FAC'].forEach(t => { const v = c.por_tipo[t]; const line = elem('span', null, 'com-por-tipo'); line.append(origen(t), document.createTextNode(`${number(v.n)} op. · ${money(v.importe)}`)); box.append(line); }); return box; };
   let state = new URLSearchParams(location.search), data, chart, requestId = 0, detailId = 0, detailTrigger;
   const extraCharts = new Map(); let quantityRequestId = 0, mixRequestId = 0, analysisDimension = 'producto';
   const filterInstances = new Map();
@@ -242,7 +247,7 @@
       const name = elem('button', c.cliente, 'com-name'); name.type = 'button'; name.onclick = () => openDetail(c.cliente, name);
       const vendors = elem('span', c.vendedores.length > 1 ? `${c.vendedores[0]} +${c.vendedores.length - 1}` : c.vendedores[0]); vendors.title = c.vendedores.join(', ');
       const signals = elem('div'); if (!c.senales.length) signals.append(elem('span', 'Sin señales')); else c.senales.forEach(s => signals.append(badge(s, 'attention')));
-      return [name, vendors, badge(c.activo ? 'Activo' : 'Sin compra en 30 días', c.activo ? 'active' : ''), fecha(c.ultima_compra), number(c.dias), money(c.importe), signals];
+      return [name, vendors, badge(c.activo ? 'Activo' : 'Sin compra en 30 días', c.activo ? 'active' : ''), c.mostrar_origen ? conOrigen(fecha(c.ultima_compra), c.ultima_compra_tipos) : fecha(c.ultima_compra), number(c.dias), c.mostrar_origen ? porTipo(c) : money(c.importe), signals];
     });
     $('com-clientes').replaceChildren(rows.length ? table([['Cliente'], ['Vendedores'], ['Actividad a 30 días'], ['Última compra'], ['Días', true], ['Importe del período', true], ['Señales']], rows, 'com-client-table') : elem('p', 'No hay clientes en esta vista con los filtros elegidos. Probá otra vista o limpiá los filtros.', 'com-empty'));
     state.set('pagina', data.pagina); history.replaceState(null, '', location.pathname + '?' + state);
@@ -477,9 +482,22 @@
       host.append(badge(c.activo ? 'Activo a 30 días' : 'Sin compra en 30 días', c.activo ? 'active' : ''));
       c.senales.forEach(s => host.append(badge(s, 'attention')));
       if (c.nuevo) host.append(badge('Nuevo a 30 días'));
-      host.append(elem('p', `Última compra: ${fecha(c.ultima_compra)} · ${c.dias} días sin comprar.`));
+      const ultima = elem('p'); ultima.append(document.createTextNode('Última compra: '));
+      if (c.mostrar_origen) c.ultima_compra_tipos.forEach(t => ultima.append(origen(t)));
+      ultima.append(document.createTextNode(`${fecha(c.ultima_compra)} · ${c.dias} días sin comprar.`)); host.append(ultima);
       host.append(metric('Importe del período', money(c.importe), comparativeText(c.comparacion)));
+      if (c.mostrar_origen) {
+        host.append(elem('h3', 'Importe del período por tipo de comprobante'));
+        const tipos = elem('div', null, 'com-table-wrap');
+        tipos.append(table([['Origen'], ['Operaciones', true], ['Importe', true]], ['PRE', 'FAC'].map(t => [origen(t), number(c.por_tipo[t].n), money(c.por_tipo[t].importe)])));
+        host.append(tipos, elem('p', 'Cliente con criterio «Ambos»: presupuestos y facturas se suman por separado. Las notas de crédito (NC) se listan abajo y no suman. Un presupuesto que luego se factura podría figurar en los dos tipos.', 'com-note'));
+      }
       host.append(elem('p', `Comparación: ${fecha(result.desde_anterior)} → ${fecha(result.hasta_anterior)}. Productos distintos: ${c.variedad.actual} ahora / ${c.variedad.anterior} antes.`, 'com-note'));
+      host.append(elem('h3', `Operaciones del período (${number(c.operaciones_total)})`));
+      const ops = elem('div', null, 'com-table-wrap');
+      ops.append(c.operaciones.length ? table([['Fecha'], ['Origen'], ['Comprobante'], ['Número'], ['Importe', true]], c.operaciones.map(o => [fecha(o.fecha), origen(o.tipo), o.comprobante || '—', o.nro || '—', money(o.importe)])) : elem('p', 'Sin operaciones en este período.', 'com-empty'));
+      host.append(ops);
+      if (c.operaciones_total > c.operaciones.length) host.append(elem('p', `Se muestran las ${number(c.operaciones.length)} más recientes de ${number(c.operaciones_total)}.`, 'com-note'));
       host.append(elem('h3', 'Evolución de compras del período'));
       const evolution = elem('div', null, 'com-table-wrap'); evolution.append(c.serie.length ? table([['Fecha'], ['Importe', true]], c.serie.map(r => [fecha(r.fecha), money(r.importe)])) : elem('p', 'Sin compras en este período.', 'com-empty')); host.append(evolution);
       const products = elem('details'); products.append(elem('summary', `Productos comprados (${c.productos.length})`)); const wrap = elem('div', null, 'com-table-wrap'); wrap.append(c.productos.length ? table([['Producto'], ['Importe', true]], c.productos.map(r => [r.nombre, money(r.importe)])) : elem('p', 'Sin productos en este período.', 'com-note')); products.append(wrap); host.append(products);

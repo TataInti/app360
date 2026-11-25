@@ -265,14 +265,14 @@ class ComercialObjetivoVinculo(db.Model):
 
 
 class ComercialClienteCriterio(db.Model):
-    """Fuente comercial seleccionada por cliente para el Panel de Ventas."""
+    """Fuente comercial por cliente para los paneles: PRE, FAC o AMBOS."""
 
     __tablename__ = "comercial_cliente_criterio"
 
     id = db.Column(db.Integer, primary_key=True)
     cliente = db.Column(db.String(255), nullable=False)
     criterio = db.Column(
-        db.String(3),
+        db.String(5),
         nullable=False,
         default="PRE",
         server_default="PRE",
@@ -282,6 +282,6 @@ class ComercialClienteCriterio(db.Model):
 
     __table_args__ = (
         db.UniqueConstraint("cliente", name="uq_comercial_cliente_criterio_cliente"),
-        db.CheckConstraint("criterio IN ('PRE', 'FAC')", name="ck_comercial_cliente_criterio_tipo"),
+        db.CheckConstraint("criterio IN ('PRE', 'FAC', 'AMBOS')", name="ck_comercial_cliente_criterio_tipo"),
         db.Index("ix_comercial_cliente_criterio_criterio", "criterio"),
     )
