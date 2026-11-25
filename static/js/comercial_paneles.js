@@ -544,10 +544,10 @@
         host.append(tipos, elem('p', 'Cliente con criterio «Ambos»: presupuestos y facturas se suman por separado. Las notas de crédito (NC) se listan abajo y no suman. Un presupuesto que luego se factura podría figurar en los dos tipos.', 'com-note'));
       }
       host.append(elem('p', `Comparación: ${fecha(result.desde_anterior)} → ${fecha(result.hasta_anterior)}. Productos distintos: ${c.variedad.actual} ahora / ${c.variedad.anterior} antes.`, 'com-note'));
-      renderOperaciones(host, name, id);
       host.append(elem('h3', 'Evolución de compras del período'));
       const evolution = elem('div', null, 'com-table-wrap'); evolution.append(c.serie.length ? table([['Fecha'], ['Importe', true]], c.serie.map(r => [fecha(r.fecha), money(r.importe)])) : elem('p', 'Sin compras en este período.', 'com-empty')); host.append(evolution);
       const products = elem('details'); products.append(elem('summary', `Productos comprados (${c.productos.length})`)); const wrap = elem('div', null, 'com-table-wrap'); wrap.append(c.productos.length ? table([['Producto'], ['Importe', true]], c.productos.map(r => [r.nombre, money(r.importe)])) : elem('p', 'Sin productos en este período.', 'com-note')); products.append(wrap); host.append(products);
+      renderOperaciones(host, name, id);
     } catch (error) {
       if (id !== detailId) return;
       const retry = elem('button', 'Reintentar'); retry.onclick = () => openDetail(name, trigger);
