@@ -207,6 +207,24 @@ def seguimiento_cliente_detalle():
     return lectura_panel(consultar)
 
 
+@dashboard_com_bp.get('/api/comercial/seguimiento-clientes/operaciones')
+def seguimiento_cliente_operaciones():
+    """Últimas operaciones de un cliente (20 por página), a pedido al abrir su desplegable."""
+    from services.comercial_operaciones import LIMITE_POR_DEFECTO, operaciones_cliente
+    from services.comercial_web import lectura_panel, parametros_panel
+
+    def consultar():
+        # El nombre viaja solo como parámetro de consulta y se compara parametrizado con TRIM(cliente).
+        parametros = parametros_panel()
+        return operaciones_cliente(
+            request.args.get('cliente', ''), parametros['desde'], parametros['hasta'],
+            parametros['empresa'], parametros['vendedor'],
+            modo=request.args.get('modo', 'criterio'),
+            limite=int(request.args.get('limite', LIMITE_POR_DEFECTO)),
+            desplazamiento=int(request.args.get('desplazamiento', 0)))
+    return lectura_panel(consultar)
+
+
 @dashboard_com_bp.get('/api/comercial/paneles/opciones')
 def paneles_opciones():
     from services.comercial_criterios import filtro_comprobante_panel_ventas

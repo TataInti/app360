@@ -107,16 +107,9 @@ def test_ambos_suma_pre_y_fac_por_separado_y_lista_la_nc(app, client):
     assert mixto['ultima_compra_tipos'] == ['FAC']
 
     detalle = client.get('/api/comercial/seguimiento-clientes/detalle'
-                               '?fecha_desde=2024-06-01&fecha_hasta=2024-06-30&empresa=CARNES&cliente=Mixto').get_json()
-    ops = detalle['cliente']['operaciones']
-    assert [(o['fecha'], o['tipo'], o['nro'], o['importe']) for o in ops] == [
-        ('2024-06-25', 'NC', 'N1', -30.0),
-        ('2024-06-20', 'FAC', 'F1', 340.0),
-        ('2024-06-10', 'PRE', 'P2', 50.0),
-        ('2024-06-05', 'PRE', 'P1', 100.0),
-    ]
-    assert detalle['cliente']['operaciones_total'] == 4
-    assert sum(o['importe'] for o in ops if o['tipo'] != 'NC') == mixto['importe']
+                         '?fecha_desde=2024-06-01&fecha_hasta=2024-06-30&empresa=CARNES&cliente=Mixto').get_json()
+    assert 'operaciones' not in detalle['cliente']  # las operaciones se piden aparte, al abrir el desplegable
+    assert detalle['cliente']['por_tipo']['FAC'] == {'n': 1, 'importe': 340.0}
 
 
 def test_ultima_compra_mas_reciente_entre_ambos_tipos(app, client):

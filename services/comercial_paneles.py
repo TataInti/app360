@@ -90,8 +90,7 @@ def _historial(hasta, empresa, vendedor, cliente=None, producto=None):
         primeras = primeras.filter(nombre == cliente)
     primeras = {nombre: primera.date() if isinstance(primera, datetime) else primera
                 for nombre, primera in primeras.group_by(nombre).all()}
-    # El listado trae también las NPF de los clientes AMBOS: se muestran, pero no suman.
-    filtros.append(filtro_comprobante_panel_ventas(incluir_nc_ambos=True))
+    filtros.append(filtro_comprobante_panel_ventas())
     if empresa != 'TODAS':
         filtros.append(func.upper(func.coalesce(Venta.origen, '')) == empresa)
     if vendedor:
@@ -122,33 +121,18 @@ def seguimiento_clientes(desde, hasta, empresa='TODAS', vendedor=None, busqueda=
     inicio_actividad = hasta - timedelta(days=29)
     filas, primeras, criterios = _historial(hasta, empresa, vendedor, cliente, producto)
     clientes = {}
-    operaciones = defaultdict(dict)
     ultima_importacion = fecha_maxima = None
-    normalizadas = []
     for fila in filas:
         if isinstance(fila.fecha, datetime):
             fila = SimpleNamespace(**{**fila._mapping, 'fecha': fila.fecha.date()})
-        normalizadas.append((fila, tipo_origen(fila.comprobante)))
-    # Primero las filas que cuentan; las notas de crédito de clientes AMBOS solo se listan.
-    ordenadas = sorted(normalizadas, key=lambda par: par[1] == TIPO_NC and criterios.get(par[0].cliente) == CRITERIO_AMBOS)
-    for fila, tipo in ordenadas:
+        tipo = tipo_origen(fila.comprobante)
         nombre = fila.cliente
         importe = Decimal(str(fila.importe or 0))
-        solo_listar = tipo == TIPO_NC and criterios.get(nombre) == CRITERIO_AMBOS
-        if solo_listar and nombre not in clientes:
-            continue
         item = clientes.setdefault(nombre, dict(cliente=nombre, vendedores=set(), ultima_compra=fila.fecha,
             ultima_tipos=set(), actual=Decimal(0), anterior=Decimal(0), productos_actual=set(), productos_anterior=set(),
             compras_actual=False, compras_anterior=False, serie=defaultdict(Decimal), productos=defaultdict(Decimal),
             por_tipo={t: dict(importe=Decimal(0), ops=set()) for t in (TIPO_PRE, TIPO_FAC)}))
         periodo = 'actual' if desde <= fila.fecha <= hasta else 'anterior' if anterior_desde <= fila.fecha <= anterior_hasta else None
-        if periodo == 'actual':
-            clave = (fila.fecha, tipo, fila.comprobante, fila.nro_comprob)
-            op = operaciones[nombre].setdefault(clave, dict(fecha=fila.fecha.isoformat(), tipo=tipo,
-                comprobante=fila.comprobante, nro=fila.nro_comprob, importe=Decimal(0)))
-            op['importe'] += importe
-        if solo_listar:
-            continue
         item['vendedores'].add(fila.vendedor or 'Sin vendedor')
         if fila.fecha > item['ultima_compra']:
             item['ultima_compra'], item['ultima_tipos'] = fila.fecha, set()
@@ -188,9 +172,6 @@ def seguimiento_clientes(desde, hasta, empresa='TODAS', vendedor=None, busqueda=
                    ultima_compra_tipos=sorted(item['ultima_tipos'], key=lambda t: (t != TIPO_PRE, t)),
                    por_tipo={t: dict(n=len(v['ops']), importe=float(v['importe'])) for t, v in item['por_tipo'].items()})
         if cliente:
-            ops = sorted(operaciones[nombre].values(), key=lambda o: (o['fecha'], o['nro'] or ''), reverse=True)
-            row['operaciones_total'] = len(ops)
-            row['operaciones'] = [dict(o, importe=float(o['importe'])) for o in ops[:200]]
             row['serie'] = [dict(fecha=f, importe=float(v)) for f, v in sorted(item['serie'].items())]
             row['productos'] = [dict(nombre=p, importe=float(v)) for p, v in
                                 sorted(item['productos'].items(), key=lambda p: (-p[1], p[0]))]
