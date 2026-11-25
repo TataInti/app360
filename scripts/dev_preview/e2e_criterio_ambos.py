@@ -106,6 +106,13 @@ def abrir_seguimiento(page):
     page.wait_for_load_state("networkidle")
 
 
+def captura_lista(page, nombre):
+    """Captura la lista de clientes centrada en el viewport (a 1366×768 queda bajo el pliegue)."""
+    page.evaluate("document.getElementById('com-clientes').scrollIntoView({block: 'center'})")
+    page.wait_for_timeout(200)
+    page.screenshot(path=os.path.join(CAPTURAS, nombre))
+
+
 def fila(page, nombre):
     return page.locator("#com-clientes tbody tr", has=page.locator("button.com-name", has_text=nombre)).first
 
@@ -144,7 +151,7 @@ def main():
                 abrir_criterio_y_buscar(page)
                 page.screenshot(path=os.path.join(CAPTURAS, "antes-criterio-clientes.png"))
                 abrir_seguimiento(page)
-                page.screenshot(path=os.path.join(CAPTURAS, "antes-seguimiento.png"))
+                captura_lista(page, "antes-seguimiento.png")
                 verificar("consola y red sin errores", not errores_consola and not errores_red,
                           json.dumps(errores_consola + errores_red)[:500])
                 return
@@ -156,12 +163,12 @@ def main():
             verificar("sin fila: el cliente se ve como PRE ($1.500, solo presupuestos)", "1.500" in txt and "3.800" not in txt, txt)
             verificar("sin fila: sin etiquetas de origen", tivano.locator(".com-origen").count() == 0)
             verificar("sin fila: última compra = último PRE", numeros(txt).find(numeros(D(8).strftime("%d/%m/%Y"))) >= 0, txt)
-            page.screenshot(path=os.path.join(CAPTURAS, "seguimiento-antes-modo-pre.png"))
+            captura_lista(page, "seguimiento-antes-modo-pre.png")
 
             # 2) Criterio de clientes: pasar el cliente a AMBOS desde la pantalla.
             abrir_criterio_y_buscar(page)
             opciones = page.locator("#criterio-modo option").all_inner_texts()
-            verificar("selector con tres modos", len(opciones) == 3 and any("ambos" in o.lower() for o in opciones), opciones)
+            verificar("selector con tres modos", len(opciones) == 3 and any("ambos" in o.lower() for o in opciones), str(opciones))
             page.locator(f'.criterio-row-check[data-cliente="{TIVANO}"]').check()
             page.select_option("#criterio-modo", "AMBOS")
             page.screenshot(path=os.path.join(CAPTURAS, "criterio-clientes-selector.png"))
@@ -185,7 +192,7 @@ def main():
             tivano = fila(page, TIVANO)
             txt = tivano.inner_text()
             etiquetas = tivano.locator(".com-origen").all_inner_texts()
-            verificar("AMBOS: etiquetas PRE y FAC en la fila", "PRE" in etiquetas and "FAC" in etiquetas, etiquetas)
+            verificar("AMBOS: etiquetas PRE y FAC en la fila", "PRE" in etiquetas and "FAC" in etiquetas, str(etiquetas))
             verificar("AMBOS: PRE 2 op. $1.500", "2 op." in txt and "1.500" in txt, txt)
             verificar("AMBOS: FAC 2 op. $3.800 (la NC no suma)", "3.800" in txt and "3.500" not in txt, txt)
             ultima = tivano.locator("td").nth(3)
@@ -194,22 +201,25 @@ def main():
             solo = fila(page, SOLO_PRE)
             verificar("cliente solo PRE se ve como antes (sin etiquetas, $700)",
                       solo.locator(".com-origen").count() == 0 and "700" in solo.inner_text(), solo.inner_text())
-            page.screenshot(path=os.path.join(CAPTURAS, "seguimiento-despues-ambos.png"))
+            captura_lista(page, "seguimiento-despues-ambos.png")
 
             # 4) Detalle: operaciones con PRE / FAC / NC; la NC se muestra y no suma.
             tivano.locator("button.com-name").click()
             page.wait_for_selector("#com-detalle-content table")
             page.wait_for_load_state("networkidle")
             detalle = page.locator("#com-detalle-content")
-            filas_ops = detalle.locator("table").first.locator("tbody tr").all_inner_texts()
-            tipos = [re.search(r"\b(PRE|FAC|NC)\b", f).group(1) for f in filas_ops if re.search(r"\b(PRE|FAC|NC)\b", f)]
-            verificar("detalle: operaciones PRE, FAC y NC visibles", set(tipos) == {"PRE", "FAC", "NC"} and len(tipos) == 5, filas_ops)
+            filas_ops = detalle.locator("table", has=page.locator("th", has_text="Comprobante")).locator("tbody tr").all_inner_texts()
+            tipos = [m.group(1) for m in (re.search(r"\b(PRE|FAC|NC)\b", f) for f in filas_ops) if m]
+            verificar("detalle: operaciones PRE, FAC y NC visibles", set(tipos) == {"PRE", "FAC", "NC"} and len(tipos) == 5, str(filas_ops))
             nc = [f for f in filas_ops if "NC" in f]
-            verificar("detalle: la NC lleva su importe negativo y su número", bool(nc) and "E2E-N1" in nc[0] and "300" in nc[0], nc)
-            tabla_tipos = detalle.locator("table").nth(1).inner_text()
+            verificar("detalle: la NC lleva su importe negativo y su número", bool(nc) and "E2E-N1" in nc[0] and "-$" in nc[0] and "300" in nc[0], str(nc))
+            tabla_tipos = detalle.locator("table", has=page.locator("th", has_text="Operaciones")).inner_text()
             verificar("detalle: totales discriminados por tipo", "1.500" in tabla_tipos and "3.800" in tabla_tipos, tabla_tipos)
             verificar("detalle: importe del período = PRE + FAC (5.300)", "5.300" in detalle.inner_text(), detalle.inner_text()[:300])
             page.screenshot(path=os.path.join(CAPTURAS, "seguimiento-detalle-ambos.png"))
+            detalle.locator("h3", has_text="Operaciones del período").scroll_into_view_if_needed()
+            page.evaluate("document.querySelector('#com-detalle').scrollTop += 200")
+            page.screenshot(path=os.path.join(CAPTURAS, "seguimiento-detalle-ambos-operaciones.png"))
             page.keyboard.press("Escape")
 
             # 5) Sin desborde horizontal a 1366×768 en ambas pantallas.

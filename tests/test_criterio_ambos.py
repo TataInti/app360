@@ -30,7 +30,7 @@ from services.comercial_criterios import (
 from services.comercial_paneles import seguimiento_clientes
 from services.comercial_pre import calcular_resumen_pre
 from services.vendedores_comerciales import seed_vendedores_comerciales
-from sesion_de_prueba import cambiar_usuario
+from sesion_de_prueba import asegurar_usuario, marcar_sesion
 
 BASE = '/api/comercial/seguimiento-clientes'
 QUERY = '?fecha_desde=2024-06-01&fecha_hasta=2024-06-30&empresa=CARNES&vista=todos'
@@ -56,12 +56,9 @@ def app(monkeypatch):
 
 
 @pytest.fixture
-def cliente_http(app):
-    cli = app.test_client()
-    with cli.session_transaction() as sesion:
-        sesion['user'] = 'test'
-        sesion['role'] = 'admin'
-    return cli
+def client(app):
+    # conftest.py le inyecta la sesión admin (usuario 1) a todo test que pida `client`.
+    return app.test_client()
 
 
 def linea(fecha, cliente, comprobante, numero, importe, producto='Producto'):
@@ -99,17 +96,17 @@ def por_cliente(cli, extra=''):
 
 # --- Seguimiento: los tres modos --------------------------------------------------------
 
-def test_ambos_suma_pre_y_fac_por_separado_y_lista_la_nc(app, cliente_http):
+def test_ambos_suma_pre_y_fac_por_separado_y_lista_la_nc(app, client):
     with app.app_context():
         sembrar_datos(CRITERIOS)
-    mixto = por_cliente(cliente_http)['Mixto']
+    mixto = por_cliente(client)['Mixto']
     assert mixto['criterio'] == 'AMBOS' and mixto['mostrar_origen'] is True
     assert mixto['por_tipo'] == {'PRE': {'n': 2, 'importe': 150.0}, 'FAC': {'n': 1, 'importe': 340.0}}
     assert mixto['importe'] == 490.0  # la NC (-30) no entra en el total
     assert mixto['ultima_compra'] == '2024-06-20'
     assert mixto['ultima_compra_tipos'] == ['FAC']
 
-    detalle = cliente_http.get('/api/comercial/seguimiento-clientes/detalle'
+    detalle = client.get('/api/comercial/seguimiento-clientes/detalle'
                                '?fecha_desde=2024-06-01&fecha_hasta=2024-06-30&empresa=CARNES&cliente=Mixto').get_json()
     ops = detalle['cliente']['operaciones']
     assert [(o['fecha'], o['tipo'], o['nro'], o['importe']) for o in ops] == [
@@ -122,34 +119,34 @@ def test_ambos_suma_pre_y_fac_por_separado_y_lista_la_nc(app, cliente_http):
     assert sum(o['importe'] for o in ops if o['tipo'] != 'NC') == mixto['importe']
 
 
-def test_ultima_compra_mas_reciente_entre_ambos_tipos(app, cliente_http):
+def test_ultima_compra_mas_reciente_entre_ambos_tipos(app, client):
     with app.app_context():
         sembrar_datos({'Mixto': 'AMBOS'})
         linea(date(2024, 6, 28), 'Mixto', 'PRE', 'P9', 10)
         db.session.commit()
-    mixto = por_cliente(cliente_http)['Mixto']
+    mixto = por_cliente(client)['Mixto']
     assert mixto['ultima_compra'] == '2024-06-28' and mixto['ultima_compra_tipos'] == ['PRE']
     with app.app_context():
         linea(date(2024, 6, 28), 'Mixto', 'FCM', 'F9', 5)
         db.session.commit()
-    mixto = por_cliente(cliente_http)['Mixto']
+    mixto = por_cliente(client)['Mixto']
     assert mixto['ultima_compra_tipos'] == ['PRE', 'FAC']  # mismo día: se muestran ambas
 
 
-def test_cliente_que_pasa_de_pre_a_factura(app, cliente_http):
+def test_cliente_que_pasa_de_pre_a_factura(app, client):
     with app.app_context():
         sembrar_datos(CRITERIOS)
-    fila = por_cliente(cliente_http)['Transicion']
+    fila = por_cliente(client)['Transicion']
     assert fila['importe'] == 500.0
     assert fila['comparacion']['anterior'] == 60.0
     assert fila['por_tipo'] == {'PRE': {'n': 0, 'importe': 0.0}, 'FAC': {'n': 1, 'importe': 500.0}}
     assert fila['ultima_compra'] == '2024-06-03' and fila['ultima_compra_tipos'] == ['FAC']
 
 
-def test_pre_y_fac_conservan_sus_numeros_y_no_muestran_origen(app, cliente_http):
+def test_pre_y_fac_conservan_sus_numeros_y_no_muestran_origen(app, client):
     with app.app_context():
         sembrar_datos(CRITERIOS)
-    filas = por_cliente(cliente_http)
+    filas = por_cliente(client)
     # Sin fila = PRE: solo cuenta PRE (la FCM de $999 se ignora)
     assert filas['SoloPre']['importe'] == 100.0
     assert filas['SoloPre']['criterio'] == 'PRE' and filas['SoloPre']['mostrar_origen'] is False
@@ -160,7 +157,7 @@ def test_pre_y_fac_conservan_sus_numeros_y_no_muestran_origen(app, cliente_http)
     assert filas['SoloFac']['ultima_compra'] == '2024-06-15'
 
 
-def test_cambiar_el_modo_cambia_lo_que_se_ve(app, cliente_http):
+def test_cambiar_el_modo_cambia_lo_que_se_ve(app, client):
     with app.app_context():
         sembrar_datos({})
         modo = {}
@@ -169,29 +166,29 @@ def test_cambiar_el_modo_cambia_lo_que_se_ve(app, cliente_http):
             if criterio != 'PRE':
                 db.session.add(ComercialClienteCriterio(cliente='Mixto', criterio=criterio, actualizado_por='t'))
             db.session.commit()
-            modo[criterio] = por_cliente(cliente_http)['Mixto']['importe']
+            modo[criterio] = por_cliente(client)['Mixto']['importe']
     # PRE: 100+50 · FAC (todo lo no PRE, con la NPF como siempre): 340-30 · AMBOS: 150+340
     assert modo == {'PRE': 150.0, 'FAC': 310.0, 'AMBOS': 490.0}
 
 
-def test_nc_de_cliente_ambos_sin_otras_compras_no_crea_cliente(app, cliente_http):
+def test_nc_de_cliente_ambos_sin_otras_compras_no_crea_cliente(app, client):
     with app.app_context():
         linea(date(2024, 6, 10), 'Solo NC', 'NPF', 'N9', -50)
         db.session.add(ComercialClienteCriterio(cliente='Solo NC', criterio='AMBOS', actualizado_por='t'))
         db.session.commit()
-    assert 'Solo NC' not in por_cliente(cliente_http)
+    assert 'Solo NC' not in por_cliente(client)
 
 
-def test_nombre_de_cliente_con_html_llega_como_dato(app, cliente_http):
+def test_nombre_de_cliente_con_html_llega_como_dato(app, client):
     nombre = '<img src=x onerror=alert(1)>'
     with app.app_context():
         linea(date(2024, 6, 10), nombre, 'PRE', 'X1', 10)
         db.session.add(ComercialClienteCriterio(cliente=nombre, criterio='AMBOS', actualizado_por='t'))
         db.session.commit()
-    assert nombre in por_cliente(cliente_http)
-    html = cliente_http.get('/ventas/criterio-clientes').get_data(as_text=True)
+    assert nombre in por_cliente(client)
+    html = client.get('/ventas/criterio-clientes').get_data(as_text=True)
     assert nombre not in html  # nunca se incrusta en el HTML del servidor
-    datos = cliente_http.get('/ventas/criterio-clientes/datos').get_json()['clientes']
+    datos = client.get('/ventas/criterio-clientes/datos').get_json()['clientes']
     assert {'cliente': nombre, 'criterio': 'AMBOS'}.items() <= next(f for f in datos if f['cliente'] == nombre).items()
 
 
@@ -207,7 +204,7 @@ def test_pantallas_escapan_el_nombre_y_usan_etiquetas_en_texto():
 
 # --- Otros consumidores: PRE y FAC iguales; AMBOS = PRE + no PRE sin NPF -----------------
 
-def test_filtro_por_modo_en_resumen_y_panel_de_ventas(app, cliente_http):
+def test_filtro_por_modo_en_resumen_y_panel_de_ventas(app, client):
     with app.app_context():
         sembrar_datos(CRITERIOS)
         resumen = calcular_resumen_pre(date(2024, 6, 1), date(2024, 6, 30), empresa='CARNES',
@@ -221,7 +218,7 @@ def test_filtro_por_modo_en_resumen_y_panel_de_ventas(app, cliente_http):
         solo_pre = calcular_resumen_pre(date(2024, 6, 1), date(2024, 6, 30), empresa='CARNES', limite=100)
         pre = {f['nombre']: f['plata'] for f in solo_pre['por_cliente']}
         assert pre['Mixto'] == 150.0 and pre['SoloFac'] == 777.0 and pre['SoloPre'] == 100.0
-    kpis = cliente_http.get('/api/dashboard-comercial/resumen-estrategico'
+    kpis = client.get('/api/dashboard-comercial/resumen-estrategico'
                             '?fecha_desde=2024-06-01&fecha_hasta=2024-06-30&empresa=CARNES&cliente=Mixto').get_json()['kpis']
     assert kpis['importe']['actual'] == 490.0
 
@@ -245,16 +242,16 @@ def test_clasificacion_y_validacion_de_valores():
 
 # --- Pantalla «Criterio de clientes»: guardado, validación, permisos, CSRF -------------
 
-def test_guardar_ambos_y_rechazar_valores_invalidos(app, cliente_http):
+def test_guardar_ambos_y_rechazar_valores_invalidos(app, client):
     with app.app_context():
         sembrar_datos({})
-    ok = cliente_http.post('/ventas/criterio-clientes/guardar', json={'clientes': ['Mixto', 'SoloPre'], 'criterio': 'ambos'})
+    ok = client.post('/ventas/criterio-clientes/guardar', json={'clientes': ['Mixto', 'SoloPre'], 'criterio': 'ambos'})
     assert ok.status_code == 200 and ok.get_json()['criterio'] == 'AMBOS'
-    datos = {f['cliente']: f['criterio'] for f in cliente_http.get('/ventas/criterio-clientes/datos').get_json()['clientes']}
+    datos = {f['cliente']: f['criterio'] for f in client.get('/ventas/criterio-clientes/datos').get_json()['clientes']}
     assert datos['Mixto'] == datos['SoloPre'] == 'AMBOS'
     assert datos['SoloFac'] == 'PRE'  # sin fila = PRE
     for malo in ('XYZ', 'PRE,FAC', '', None, 5, ['AMBOS']):
-        r = cliente_http.post('/ventas/criterio-clientes/guardar', json={'clientes': ['Mixto'], 'criterio': malo})
+        r = client.post('/ventas/criterio-clientes/guardar', json={'clientes': ['Mixto'], 'criterio': malo})
         assert r.status_code == 400, malo
     with app.app_context():
         assert ComercialClienteCriterio.query.filter_by(cliente='Mixto').one().criterio == 'AMBOS'
@@ -270,8 +267,8 @@ def test_la_base_rechaza_un_valor_fuera_de_lista(app):
         db.session.rollback()
 
 
-def test_pantalla_ofrece_las_tres_opciones(cliente_http):
-    html = cliente_http.get('/ventas/criterio-clientes').get_data(as_text=True)
+def test_pantalla_ofrece_las_tres_opciones(client):
+    html = client.get('/ventas/criterio-clientes').get_data(as_text=True)
     for texto in ('value="PRE"', 'value="FAC"', 'value="AMBOS"', 'Usar presupuesto', 'Usar facturación', 'Usar ambos'):
         assert texto in html
 
@@ -282,7 +279,8 @@ def test_permisos_anonimo_y_rol_sin_acceso(app):
     r = anonimo.post('/ventas/criterio-clientes/guardar', json={'clientes': ['Mixto'], 'criterio': 'AMBOS'})
     assert r.status_code in (301, 302, 401, 403)
     cli = app.test_client()
-    cambiar_usuario(cli, 1, username='sin_acceso', role='rrhh')
+    asegurar_usuario(app, 2, 'sin_acceso', 'rrhh')
+    marcar_sesion(cli, 2)
     assert cli.post('/ventas/criterio-clientes/guardar',
                     json={'clientes': ['Mixto'], 'criterio': 'AMBOS'}).status_code in (302, 401, 403)
     with app.app_context():
@@ -300,7 +298,8 @@ def test_csrf_se_exige_al_guardar(monkeypatch):
     with application.app_context():
         db.create_all()
         cli = application.test_client()
-        cambiar_usuario(cli, 1, username='Ciro', role='sales')
+        asegurar_usuario(application, 1, 'Ciro', 'sales')
+        marcar_sesion(cli, 1)
         r = cli.post('/ventas/criterio-clientes/guardar', json={'clientes': ['Mixto'], 'criterio': 'AMBOS'})
         assert r.status_code == 400
         assert ComercialClienteCriterio.query.count() == 0
