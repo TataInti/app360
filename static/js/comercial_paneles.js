@@ -504,7 +504,8 @@
       } catch (error) {
         if (mine !== token || detailToken !== detailId) return;
         const retry = elem('button', 'Reintentar'); retry.type = 'button'; retry.onclick = () => cargar(masPaginas);
-        status.replaceChildren(elem('span', `No se pudieron cargar las operaciones. ${error.message || 'Revisá tu conexión.'} `, 'com-error'), retry);
+        const motivo = error instanceof TypeError || !error.message ? 'Revisá tu conexión e intentá de nuevo.' : error.message;
+        status.replaceChildren(elem('span', `No se pudieron cargar las operaciones. ${motivo} `, 'com-error'), retry);
       } finally { list.setAttribute('aria-busy', 'false'); }
     }
     toggle.onchange = () => { opsVerTodos = toggle.checked; cargar(false); };

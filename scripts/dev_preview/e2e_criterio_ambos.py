@@ -248,8 +248,8 @@ def main():
 
             # 4) Detalle: operaciones con PRE / FAC / NC; la NC se muestra y no suma.
             tivano.locator("button.com-name").click()
-            page.wait_for_selector("#com-detalle-content table")
-            page.wait_for_load_state("networkidle")
+            page.wait_for_selector("#com-ops-title")
+            esperar_lista(page)
             detalle = page.locator("#com-detalle-content")
             filas_ops = detalle.locator("table", has=page.locator("th", has_text="Comprobante")).locator("tbody tr").all_inner_texts()
             tipos = [m.group(1) for m in (re.search(r"\b(PRE|FAC|NC)\b", f) for f in filas_ops) if m]
