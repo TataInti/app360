@@ -276,8 +276,10 @@ def test_ip_de_doscientos_caracteres_se_trunca_en_auditoria_y_par(app_seguridad,
     app = app_seguridad
     _crear(app, "probe.ip.larga")
     ip_larga = "A" * 200
-    respuesta = _api(app.test_client(), "probe.ip.larga", "PROBE-mal", ip=ip_larga)
-    assert respuesta.status_code == 401
+    # La capa de servicio trunca a 45 aunque llegue una IP larga (defensa en profundidad: por HTTP
+    # la app ya la reduce a «invalida» antes, ver tests/test_ip_cliente_proxy.py).
+    with app.app_context():
+        assert al.autenticar("probe.ip.larga", "PROBE-mal", canal="api", ip=ip_larga).ok is False
     auditoria = [fila for fila in _filas(app, "login_failed") if fila["objetivo"] == "probe.ip.larga"]
     assert len(auditoria) == 1 and auditoria[0]["ip"] == ip_larga[:45]
     assert len(auditoria[0]["ip"]) == 45

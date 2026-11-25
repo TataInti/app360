@@ -166,6 +166,21 @@ El limitador por IP preexistente usa memoria por worker (no un contador comparti
 Visor de auditoría: `/admin/usuarios/auditoria` (admin, manager y gerente; enlace «Ver auditoría completa» desde Administración > Usuarios). Filtra por usuario (actor o destino), acción y rango de fechas (días de Argentina, incluidos); pagina de 50 y ordena del más nuevo al más viejo. La API `GET /api/admin/usuarios/auditoria` acepta `q`, `accion`, `desde` y `hasta` (AAAA-MM-DD) y `pagina`; sin parámetros devuelve las últimas 50 acciones, como antes. Los parámetros inválidos responden 400 JSON.
 
 Retención (D10): 2 años. Hoy no se purga nada. La purga es manual con `scripts/purgar_auditoria_usuarios.py --antes-de AAAA-MM-DD`: sin `--ejecutar` solo simula; para borrar hay que repetir la misma fecha en `--confirmar`. No hay tarea programada y no se corre contra producción sin autorización de Inti.
+## Cabeceras de seguridad y caché
+
+Las pone la app en cada respuesta (`app.py`, `add_security_headers`):
+
+- `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, `X-XSS-Protection`, `Referrer-Policy: strict-origin-when-cross-origin` y la CSP (todavía con `'unsafe-inline'`: quitarlo es un pendiente que exige mover el JS y los estilos en línea de `templates/`).
+- `Strict-Transport-Security` si `PREFERRED_URL_SCHEME` es https. En producción lo emite nginx; la app puede duplicarlo y nginx oculta el de la app para dejar uno solo.
+- `Cache-Control: no-store` y `Pragma: no-cache` en todo lo que no sea `/static/...`: HTML, JSON, redirecciones, errores y descargas. Si una ruta fija su propio `Cache-Control` se respeta; el «no-cache» por omisión de `send_file` se reemplaza por `no-store`. Los estáticos conservan el caché de Flask y se versionan con `asset()` (`?v=`).
+- `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()` en las respuestas HTML (ninguna pantalla usa esas capacidades).
+
+Las pone nginx: TLS, HSTS y la cabecera `X-Forwarded-For`. nginx debe sobrescribir `X-Forwarded-For` con `$remote_addr` (un único valor); el despliegue de ese cambio va aparte.
+
+IP del cliente: la app confía en un solo proxy (`ProxyFix` con `x_for=1`) y toma el último valor de `X-Forwarded-For`, nunca el primero que manda el cliente. Después, `REMOTE_ADDR` se sanea: si no es una IP válida queda `invalida` (así no entra texto arbitrario al límite por IP, al bloqueo cuenta+IP ni a la auditoría). Todo se trunca además a 45 caracteres. La app no debe exponerse directo a Internet: sin nginx delante, el cliente elegiría su IP. Casos cubiertos en `tests/test_ip_cliente_proxy.py`.
+
+Chequeo de esquema en el despliegue: `scripts/chequeo_esquema_usuarios_c4.sql` verifica que `alembic_version` tenga exactamente 1 fila (`alembic_una_fila`) y que existan las tablas, columnas e índice de C4; la revisión vigente se lista solo como dato informativo (`revision_actual_informativa`), por lo que sigue sirviendo cuando la cabeza de Alembic es posterior a C4.
+
 ## Jerarquía de Administración de Usuarios (C3)
 
 La API es la fuente de verdad para las acciones; la pantalla refleja los permisos y no los reemplaza.

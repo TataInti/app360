@@ -171,6 +171,20 @@ def create_app():
         # Strict Transport Security (solo en HTTPS)
         if app.config.get('PREFERRED_URL_SCHEME') == 'https':
             response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        # Caché: todo lo que no sea un estático (HTML, JSON, descargas, redirecciones, errores)
+        # puede llevar datos de la sesión y no debe guardarse en el navegador ni en proxies.
+        # setdefault respeta un Cache-Control fijado a propósito por la ruta; el único valor que
+        # se reemplaza es el «no-cache» pelado que Werkzeug agrega a send_file por omisión.
+        if request.endpoint != 'static':
+            if response.headers.get('Cache-Control', '').strip().lower() == 'no-cache':
+                del response.headers['Cache-Control']
+            response.headers.setdefault('Cache-Control', 'no-store')
+            response.headers.setdefault('Pragma', 'no-cache')
+        # Capacidades del navegador que ninguna pantalla usa (verificado con git grep).
+        if response.mimetype == 'text/html':
+            response.headers.setdefault(
+                'Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()'
+            )
         return response
 
     from api import api
@@ -294,7 +308,25 @@ def create_app():
 
     app.register_blueprint(admin_usuarios_bp)
 
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+    # IP del cliente: ProxyFix (x_for=1) toma el ÚLTIMO valor de X-Forwarded-For, el que agregó
+    # nginx; nunca el primero, que lo controla el cliente. _sanear_ip corre después de ProxyFix y
+    # deja en REMOTE_ADDR solo una IP válida (o «invalida»): así el límite por IP, el bloqueo por
+    # cuenta+IP, la auditoría y los logs nunca reciben texto arbitrario de una cabecera.
+    def _sanear_ip(wsgi_app):
+        import ipaddress
+
+        def envoltura(environ, start_response):
+            valor = environ.get("REMOTE_ADDR")
+            if valor:
+                try:
+                    environ["REMOTE_ADDR"] = str(ipaddress.ip_address(valor.strip()))
+                except ValueError:
+                    environ["REMOTE_ADDR"] = "invalida"
+            return wsgi_app(environ, start_response)
+
+        return envoltura
+
+    app.wsgi_app = ProxyFix(_sanear_ip(app.wsgi_app), x_for=1, x_proto=1, x_host=1)
 
     # Register error handlers
     @app.errorhandler(AppException)
