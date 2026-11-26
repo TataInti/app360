@@ -2295,11 +2295,13 @@
             <span class="nav-icon"><i class="bi bi-stack"></i></span>
             <span class="link-text">Registros</span>
         </a>
+        {% if can_edit('compras') %}
         <a href="/compras/orden-nueva"
            class="{% if current == '/compras/orden-nueva' %}active-link{% endif %}" aria-label="Nuevo Registro" title="Nuevo Registro">
             <span class="nav-icon"><i class="bi bi-file-earmark-plus"></i></span>
             <span class="link-text">Nuevo Registro</span>
         </a>
+        {% endif %}
         {% endif %}
 
         <!-- ═══ Operaciones ═══ -->

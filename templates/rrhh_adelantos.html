@@ -5,9 +5,11 @@
 <div class="container-fluid">
     {% call ui.page_head("Adelantos y Préstamos", "Gestiona solicitudes, aprobaciones y saldos pendientes del equipo en un solo flujo.") %}
         <div class="app-actions">
+            {% if can_edit('rrhh') %}
             <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoAdelanto">
                 <i class="bi bi-plus-circle"></i> Nueva solicitud
             </button>
+            {% endif %}
         </div>
     {% endcall %}
 
@@ -210,6 +212,7 @@
 <script src="{{ asset('js/app_format.js') }}"></script>
 <script src="{{ asset('js/app_status.js') }}"></script>
 <script>
+const PUEDE_EDITAR = {{ 'true' if can_edit('rrhh') else 'false' }};
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
     function fmtMonto(valor) {
@@ -319,7 +322,7 @@
                     <td class="app-table__numeric">${escapeHtml(fmtMonto(a.saldo_pendiente))}</td>
                     <td data-app-status="${escapeHtml(estado)}"></td>
                     <td>
-                        ${!a.aprobado ? `<button class="btn btn-sm btn-outline-secondary" onclick="abrirAprobar(${escapeHtml(a.id)})">Aprobar</button>` : ''}
+                        ${(PUEDE_EDITAR && !a.aprobado) ? `<button class="btn btn-sm btn-outline-secondary" onclick="abrirAprobar(${escapeHtml(a.id)})">Aprobar</button>` : ''}
                     </td>
                 </tr>
             `;

@@ -17,7 +17,7 @@
             <a href="/tesoreria/arqueos" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-calculator"></i> Arqueos
             </a>
-            {% if session.get('role') != 'director' %}
+            {% if can_edit('tesoreria') %}
             <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNuevoArqueo">
                 <i class="bi bi-plus-circle"></i> Nuevo Arqueo
             </button>

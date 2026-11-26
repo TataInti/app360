@@ -26,9 +26,24 @@ El campo `role` se almacena en la tabla `users` y se carga en `session["role"]` 
 │ finance     │  tesoreria, arqueos, movimientos, gastos, bi, panel                    │
 │ caja        │  tesoreria, arqueos, movimientos, gastos                               │
 │ director    │  tesoreria, arqueos, movimientos, gastos, bi, panel,                   │
-│             │  dashboard, rrhh, adelantos, compras                                   │
+│             │  dashboard, rrhh, adelantos, compras  — SOLO LECTURA (nivel «view»)    │
+│ direccion   │  dashboard, dashboard_comercial, panel, bi                             │
 └─────────────┴────────────────────────────────────────────────────────────────────────┘
 ```
+
+Son **11 roles** en `ACCESS_MAP` (`security.py`): `admin`, `manager`, `gerente`, `sales`, `purchases`, `hr`, `operations`, `finance`, `caja`, `director` y `direccion`. Un rol que no figura en el mapa no accede a ningún módulo y cae en `/sin-acceso`. `director` (con «r» final, solo lectura sobre tesorería, compras, gastos y RRHH) y `direccion` (solo paneles) son dos roles distintos.
+
+### Nivel de acceso: «edit» y «view»
+
+`get_user_module_access(modulo, user_id, rol)` devuelve el nivel de un usuario en un módulo:
+
+- `admin`, `manager`, `gerente` (`all`): «edit» en todo.
+- Un módulo que viene del rol: «edit», salvo que el rol esté en `ROLES_SOLO_LECTURA` (hoy solo `director`), en cuyo caso es «view».
+- Un módulo que el rol no trae: el nivel de la excepción por usuario («view» o «edit»), o «none».
+
+Con nivel «view» el servidor deja pasar las lecturas (GET) y rechaza toda escritura (POST, PUT, PATCH, DELETE) con **403**: en la API, JSON `{"error": "Sin permiso de edición en el módulo"}`; en una pantalla, un aviso «Tu acceso a esta sección es solo lectura.». Lo hace `protect_blueprint` (pantallas y `/api/<módulo>` con sesión) y `jwt_modulo(..., 'edit')` (API REST con Bearer); `jwt_o_sesion` solo se usa en lecturas.
+
+Las plantillas leen el nivel con `access_level('modulo')` y `can_edit('modulo')` (contexto Jinja, `app.py`): con nivel «view» no se dibujan los botones de alta, edición, aprobación, pago, anulación ni «Generar».
 
 ---
 
@@ -38,7 +53,7 @@ El campo `role` se almacena en la tabla `users` y se carga en `session["role"]` 
 
 - Acceso a **todos** los módulos y rutas.
 - Acceso a `/admin` — ABM de catálogos (categorías de gasto, proveedores, instrumentos, empleados, productos, ubicaciones, etapas del pipeline).
-- Acceso a `/admin/accesos` — gestión de permisos individuales por usuario (si está implementado).
+- Acceso a `/admin/accesos` — excepciones de módulo por usuario (ver más abajo).
 - **Anulación de movimientos**: directa, 1 solo paso. No requiere autorización de tercero.
 - **Edición de arqueos**: permitida (solo del día actual, requiere justificación).
 - **Autorizar / rechazar** solicitudes de anulación pendientes de otros usuarios.
@@ -61,18 +76,47 @@ El campo `role` se almacena en la tabla `users` y se carga en `session["role"]` 
 - Tesorería: panel, registro de movimientos de caja.
 - Arqueos: apertura y cierre de arqueos.
 - Movimientos: alta de movimientos de ingreso y egreso.
-- Gastos: visualización.
+- Gastos: alta y consulta.
 - **Anulación de movimientos**: requiere flujo de 2 pasos — el usuario solicita la anulación con motivo, y un `admin`/`manager`/`gerente` debe autorizarla desde la misma pantalla.
 - **No puede** editar arqueos, acceder a RRHH, ventas ni administración.
 
-### director (usuario: direccion)
+### director
 
-- Acceso de solo lectura/consulta a: tesorería, arqueos, movimientos, gastos, BI/análisis, panel ejecutivo, dashboard financiero, RRHH (panel y adelantos), compras.
-- **No puede** crear ni editar registros (sin acceso a rutas POST/PUT).
+- **Solo lectura, en el servidor y en la pantalla.** Ve tesorería (movimientos, arqueos, instrumentos, portadores, cta cte Friar), gastos, BI, panel ejecutivo, dashboard financiero, RRHH (panel, empleados, adelantos, liquidaciones, ausentismo) y compras.
+- **Ninguna escritura funciona**: alta de movimientos y arqueos, pagos y liquidaciones de la cta cte Friar, órdenes de compra, cambios de estado y recepciones, registro de gastos, adelantos (solicitar, aprobar, pagar), liquidaciones, ausentismo, asistencia, fichadas, turnos y empleados. Pantalla web y API (sesión o Bearer) responden 403.
+- Las pantallas no muestran los botones de acción (Registrar, Nuevo arqueo, Nuevo registro, Registrar gasto, Nueva solicitud, Aprobar, Subir fichadas, Generar liquidación, Nuevo pago/liquidación Friar, justificar, solicitar anulación). Exportar a Excel y filtrar siguen disponibles.
 - **No tiene acceso** a ventas, stock, CRM ni administración.
-- En la UI, la variable `canEdit` es `false` para este rol — los botones de acción no se renderizan.
+- Antes de este cambio la pantalla de tesorería ocultaba los botones (`canEdit`) pero el servidor aceptaba las escrituras; hoy el servidor las rechaza.
+- Una excepción por usuario (Administración › Accesos) se suma: puede dar «Editar» en un módulo que el rol no trae, y los módulos del rol siguen en «view».
+
+### direccion
+
+- Paneles de consulta: `dashboard`, `dashboard_comercial`, `panel` (panel ejecutivo) y `bi`. No tiene tesorería, compras, RRHH, ventas ni administración.
 
 ---
+
+## Administración › Accesos (excepciones por usuario)
+
+Pantalla `/admin/accesos` (solo `admin`, `manager`, `gerente`). Tabla usuario × 12 módulos (`MANAGED_MODULES`: dashboard, dashboard_comercial, panel, bi, products, locations, stock, crm, compras, rrhh, tesoreria, gastos). Cada celda se guarda en `user_module_permissions` con nivel «view» o «edit» y rige desde el siguiente request.
+
+- Las excepciones **se SUMAN al rol**: dan acceso a un módulo que el rol no trae. Los módulos del rol aparecen fijos («Editar · del rol»; en `director`, el nivel real es «view»).
+- **«Sin acceso» no resta**: solo borra la excepción del usuario y **no quita lo que el rol ya da** (medido con `sales` + crm «Sin acceso» y `hr` + rrhh «Sin acceso»: siguen entrando). La opción de quitar un módulo a un usuario todavía no está construida.
+- Solo se pueden conceder los 12 módulos de la lista; no están `ventas`, `comercial`, `objetivos`, `arqueos`, `movimientos`, `admin` (SabioGo) ni Administración.
+- Los cambios de accesos no quedan en `user_audit_log` (medido: 0 filas tras guardar).
+- Los módulos del rol salen del código (`ACCESS_MAP`); cambiarlos exige un commit y un despliegue.
+
+### ventas / comercial / objetivos frente a crm
+
+Son nombres de módulo distintos en el servidor:
+
+- `crm` protege leads, campañas e interacciones (`blueprints/crm.py`).
+- `ventas` protege las pantallas de ventas (`/ventas`, `/ventas/nuevo`, criterio de clientes).
+- `comercial` protege `/comercial/*` (objetivos, salón, performance, seguimiento). `objetivos` figura en `ACCESS_MAP` de `sales` y en `MODULE_ROUTES`, pero la pantalla `/comercial/objetivos` la guarda `comercial`.
+- `ventas` y `comercial` están en `ACCESS_MAP["sales"]` y **no** en `MANAGED_MODULES`: no se pueden dar como excepción. Una excepción sobre `crm` abre leads y campañas, pero el menú también muestra Ventas, Nueva venta y Objetivos (usa `can_access('crm')`) y el servidor las rechaza (302). Es un desajuste conocido de menú, sin cambios en este corte.
+
+## Cómo se mide el acceso (barrido)
+
+La matriz rol × ruta se obtiene con un barrido reproducible sobre una instancia local con SQLite y datos sintéticos (nunca producción): un usuario por rol, cuatro usuarios con excepciones, y las 258 reglas de `app.url_map` con cada método (GET, POST, PUT, PATCH, DELETE), con sesión web real y con Bearer para `/api/*`. Las escrituras se envían con cuerpo vacío: 200/400/404/500 significan «pasó la guardia» y 302/401/403 «la guardia cortó». El barrido se ejecuta antes y después de cada cambio de permisos y se comparan las celdas; en este corte solo cambiaron 34 celdas, todas escrituras de `director` (de «pasa la guardia» a 403). La prueba automática equivalente es `tests/test_director_solo_lectura.py`.
 
 ## Flujo de anulación de movimientos
 
@@ -100,7 +144,8 @@ Autorizar/Rechazar solicitudes pendientes: solo admin / manager / gerente.
 
 | Mecanismo                | Descripción                                                               |
 |--------------------------|---------------------------------------------------------------------------|
-| `protect_blueprint(bp, module)` | Guard en `before_request` de cada blueprint. Redirige si el rol no tiene el módulo en su ACCESS_MAP. |
+| `protect_blueprint(bp, module)` | Guard en `before_request` de cada blueprint. Redirige si el rol no tiene el módulo en su ACCESS_MAP; con nivel «view» rechaza POST/PUT/PATCH/DELETE con 403. |
+| `jwt_modulo(módulo, 'edit')` / `jwt_o_sesion(módulo)` | Escrituras (y lecturas con sesión) de la API REST (`api_rest.py`): exigen JWT, el módulo y, en escrituras, nivel «edit». |
 | `@admin_required`        | Decorador en rutas `/admin/*`. Verifica `role in ["admin", "manager", "gerente"]`. |
 | `require_admin()`        | Helper en tesorería para edición de arqueos y autorización de anulaciones. |
 | CSRF (`Flask-WTF`)       | Activo en todas las rutas web. Los fetch JS deben incluir `X-CSRFToken` desde la meta tag `csrf-token`. |

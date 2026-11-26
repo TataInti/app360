@@ -38,12 +38,16 @@
             <button class="btn btn-sm btn-outline-secondary" onclick="exportarPagos()">
                 <i class="bi bi-file-earmark-excel"></i> Excel
             </button>
+{% if can_edit('tesoreria') %}
             <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalNuevaLiquidacion">
                 <i class="bi bi-plus-circle"></i> Liquidación
             </button>
+{% endif %}
+{% if can_edit('tesoreria') %}
             <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoPago">
                 <i class="bi bi-plus-circle"></i> Pago
             </button>
+{% endif %}
         </div>
     </header>
 

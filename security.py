@@ -44,6 +44,9 @@ ACCESS_MAP = {
     "direccion": ["dashboard", "dashboard_comercial", "panel", "bi"],
 }
 
+# Roles que ven los módulos de ACCESS_MAP pero no escriben en ellos (nivel "view").
+ROLES_SOLO_LECTURA = frozenset({"director"})
+
 MANAGED_MODULES = {
     "dashboard": "Panel Tesorería",
     "dashboard_comercial": "Panel Ventas",
@@ -616,14 +619,17 @@ def get_user_module_access(module, user_id, role):
     allowed = ACCESS_MAP.get(role, [])
     if "all" in allowed:
         return "edit"
+    nivel_rol = "view" if role in ROLES_SOLO_LECTURA else "edit"
     if module in allowed:
-        return "edit"
+        return nivel_rol
     # Check individual permission
     from models.core.user_permission import UserModulePermission
     perm = UserModulePermission.query.filter_by(
         user_id=user_id, module=module
     ).first()
     if perm:
+        # Las excepciones por usuario se SUMAN al rol: en un rol de solo lectura
+        # la excepción puede dar edición de otro módulo, pero nunca resta.
         return perm.access_level
     return "none"
 

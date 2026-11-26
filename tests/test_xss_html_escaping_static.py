@@ -47,7 +47,7 @@ SAFE_HTML_EXCEPTIONS = {
 
     # RRHH
     "templates/rrhh_adelantos.html": {
-        "!a.aprobado ?": "The nested approve button is fixed markup with an escaped numeric id.",
+        "(PUEDE_EDITAR && !a.aprobado) ?": "The nested approve button is fixed markup with an escaped numeric id.",
         "estadoBadge": "The fragment contains only fixed status badges selected by boolean state.",
     },
     "templates/rrhh_ausentismo.html": {

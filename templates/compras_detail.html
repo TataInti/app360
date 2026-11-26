@@ -47,6 +47,7 @@
             </table>
         </section>
 
+        {% if can_edit('compras') %}
         <section class="mb-4">
             <h2 class="h5">Estado del registro</h2>
             <form action="{{ url_for('compras.compras_change_status', order_id=order.id) }}" method="POST">
@@ -66,6 +67,7 @@
                 {% endcall %}
             </form>
         </section>
+        {% endif %}
 
         <section>
             <h2 class="h5">Items</h2>
@@ -91,6 +93,7 @@
     </div>
 
     <div class="col-12 col-xl-6">
+        {% if can_edit('compras') %}
         <section class="mb-4">
             <h2 class="h5">Registrar recepción</h2>
             <form id="formRecepcion" action="{{ url_for('compras.compras_add_receipt', order_id=order.id) }}" method="POST">
@@ -115,6 +118,7 @@
                 {% endcall %}
             </form>
         </section>
+        {% endif %}
 
         <section>
             <h2 class="h5">Recepciones</h2>
