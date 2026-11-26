@@ -6,7 +6,7 @@ from functools import wraps
 import re
 from decimal import Decimal, InvalidOperation
 from sqlalchemy.exc import IntegrityError
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for
 
 from models import db
 from models.gastos import CategoriaGasto, CategoriaMovimientoAudit, Proveedor
@@ -17,6 +17,7 @@ from models.core import Location, Product, BusinessUnit
 from models.crm import LeadStage
 from models.core.user import User
 from models.core.user_permission import UserModulePermission
+from services import usuarios_admin as ua
 from security import ACCESS_MAP, MANAGED_MODULES, es_ruta_api, get_user_module_access
 
 admin_bp = Blueprint("admin", __name__)
@@ -871,35 +872,17 @@ def api_guardar_accesos(user_id):
     data = request.get_json() or {}
     perms = data.get("permissions", {})
 
-    role_modules = ACCESS_MAP.get(user.role, [])
-    has_all = "all" in role_modules
+    actor = g.get("usuario_sesion")
+    if actor is None:
+        actor = User.query.filter_by(username=session.get("user")).first()
 
     try:
-        for mod, level in perms.items():
-            if mod not in MANAGED_MODULES:
-                continue
-            # Skip modules already inherited from role
-            if has_all or mod in role_modules:
-                continue
-            if level not in ("view", "edit", "none"):
-                continue
-
-            existing = UserModulePermission.query.filter_by(
-                user_id=user_id, module=mod
-            ).first()
-
-            if level == "none":
-                if existing:
-                    db.session.delete(existing)
-            elif existing:
-                existing.access_level = level
-            else:
-                db.session.add(UserModulePermission(
-                    user_id=user_id, module=mod, access_level=level
-                ))
-
+        ua.guardar_accesos_usuario(actor, user, perms if isinstance(perms, dict) else {})
         db.session.commit()
         return jsonify({"success": True})
+    except ua.ErrorUsuarios as error:
+        db.session.rollback()
+        return jsonify({"error": error.mensaje, "codigo": error.codigo}), error.status
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Error en API de administración (%s)", request.endpoint)
