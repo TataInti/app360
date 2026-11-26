@@ -604,6 +604,17 @@
     color: var(--state-error-ink);
 }
 
+.app-access-rrhh-notice {
+    margin: 0.25rem 0 0;
+    color: var(--state-error-ink);
+    font-size: var(--font-size-note);
+    font-weight: 600;
+}
+
+.app-access-rrhh-notice[hidden] {
+    display: none;
+}
+
 .app-access-card {
     max-width: 67.125rem;
     min-width: 0;

@@ -99,13 +99,17 @@ ACCIONES_AUDITADAS = {
     "user_role_changed": "Cambio de rol",
     "user_password_reset": "Restablecimiento de clave",
     "user_unlocked": "Desbloqueo",
+    "user_access_changed": "Acceso modificado",
     "login_ok": "Login correcto",
     "login_failed": "Login fallido",
 }
 ACCIONES_FILTRO = (("todas", "Todas las acciones"), *ACCIONES_AUDITADAS.items())
 # Solo estos datos de contexto entran al detalle de auditoría. Nunca claves, hashes ni tokens.
 CAMPOS_DETALLE_PERMITIDOS = frozenset(
-    {"rol", "vence", "de", "a", "motivo", "canal", "intentos", "cambio_clave_pendiente"}
+    {
+        "rol", "vence", "de", "a", "motivo", "canal", "intentos", "cambio_clave_pendiente",
+        "modulo", "nivel_anterior", "nivel_nuevo",
+    }
 )
 LIMITE_AUDITORIA = 50
 PATRON_FECHA = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
@@ -373,6 +377,46 @@ def registrar_auditoria(actor, accion, target=None, detalle=None):
         extra={"accion": accion, "objetivo": evento.target_username},
     )
     return evento
+
+
+def guardar_accesos_usuario(actor, usuario, permisos):
+    """Guarda las excepciones de módulos de un usuario y audita cada módulo realmente modificado.
+
+    Los permisos individuales se suman a los del rol; «none» retira solo la excepción individual.
+    Las filas de auditoría se escriben en la misma transacción que el cambio: el llamador hace
+    commit una sola vez, y si algo falla deshace todo. Devuelve la cantidad de módulos modificados.
+    """
+    from models.core.user_permission import UserModulePermission
+
+    ok, codigo, mensaje = puede_administrar(actor, usuario)
+    if not ok:
+        raise ErrorUsuarios(codigo, mensaje, 403)
+    modulos_rol = security.ACCESS_MAP.get(usuario.role, [])
+    todo_el_rol = "all" in modulos_rol
+    cambios = 0
+    for modulo, nivel in permisos.items():
+        if modulo not in security.MANAGED_MODULES or nivel not in ("view", "edit", "none"):
+            continue
+        if todo_el_rol or modulo in modulos_rol:
+            continue
+        existente = UserModulePermission.query.filter_by(user_id=usuario.id, module=modulo).first()
+        anterior = existente.access_level if existente else "none"
+        if anterior == nivel:
+            continue
+        if nivel == "none":
+            db.session.delete(existente)
+        elif existente:
+            existente.access_level = nivel
+        else:
+            db.session.add(UserModulePermission(user_id=usuario.id, module=modulo, access_level=nivel))
+        registrar_auditoria(
+            actor,
+            "user_access_changed",
+            usuario,
+            {"modulo": modulo, "nivel_anterior": anterior, "nivel_nuevo": nivel},
+        )
+        cambios += 1
+    return cambios
 
 
 def _error_usuario_existente():
@@ -681,6 +725,9 @@ def _texto_vencimiento(iso):
     return f"Clave temporal válida hasta {_texto_fecha(vence)}"
 
 
+ETIQUETAS_NIVEL_ACCESO = {"none": "Sin acceso", "view": "Ver", "edit": "Editar"}
+
+
 def _texto_detalle(fila):
     """Detalle legible en español, sin JSON crudo. Solo usa los campos permitidos."""
     detalle = fila.detalle if isinstance(fila.detalle, dict) else {}
@@ -689,6 +736,11 @@ def _texto_detalle(fila):
         return f"Rol: {_rol(detalle.get('de'))} → {_rol(detalle.get('a'))}"
     if accion in ("user_created", "user_deactivated", "user_reactivated"):
         return f"Rol: {_rol(detalle.get('rol'))}" if detalle.get("rol") else ""
+    if accion == "user_access_changed":
+        modulo = security.MANAGED_MODULES.get(detalle.get("modulo"), detalle.get("modulo") or "—")
+        anterior = ETIQUETAS_NIVEL_ACCESO.get(detalle.get("nivel_anterior"), "—")
+        nuevo = ETIQUETAS_NIVEL_ACCESO.get(detalle.get("nivel_nuevo"), "—")
+        return f"{modulo}: {anterior} → {nuevo}"
     if accion == "user_password_reset":
         return _texto_vencimiento(detalle.get("vence"))
     if accion == "user_unlocked":

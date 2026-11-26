@@ -84,9 +84,21 @@
         });
     }
 
+    const rrhhNotice = document.getElementById('accessRrhhNotice');
+
+    function refreshRrhhNotice() {
+        if (!rrhhNotice) return;
+        const granting = rows.some(row => {
+            const select = row.querySelector('select.perm-select[name="rrhh"]');
+            return select && select.value !== 'none' && select.value !== states.get(row).original.get('rrhh');
+        });
+        rrhhNotice.hidden = !granting;
+    }
+
     function refreshAllRows() {
         rows.forEach(refreshRow);
         updateControls();
+        refreshRrhhNotice();
     }
 
     function showSummary(message, tone = 'neutral') {
@@ -208,6 +220,7 @@
                 clearSummary();
                 refreshRow(row);
                 updateControls();
+                refreshRrhhNotice();
             });
         });
         row.querySelector('[data-row-retry]')?.addEventListener('click', () => {
