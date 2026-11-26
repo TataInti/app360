@@ -16,7 +16,7 @@
             <button class="btn btn-sm btn-outline-secondary" onclick="exportarMovimientos()">
                 <i class="bi bi-file-earmark-excel"></i> Excel
             </button>
-            {% if session.get('role') != 'director' %}
+            {% if can_edit('tesoreria') %}
             <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoMovimiento">
                 <i class="bi bi-plus-circle"></i> Registrar
             </button>
@@ -121,7 +121,7 @@
 
 <script>
 const userRole = '{{ session.get("role", "") }}';
-const canEdit = (userRole !== 'director');
+const canEdit = {{ 'true' if can_edit('tesoreria') else 'false' }};
 const isAdmin = ['admin', 'manager', 'gerente'].includes(userRole);
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 let movimientosChart = null;

@@ -9,9 +9,11 @@
             <span>Seguimiento mensual de fichadas, faltas y tardanzas por empleado.</span>
         </div>
         <div class="action-bar">
+            {% if can_edit('rrhh') %}
             <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCargar">
                 <i class="bi bi-upload me-1"></i>Subir Fichadas
             </button>
+            {% endif %}
         </div>
     </div>
 
@@ -20,9 +22,11 @@
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-exclamation-triangle-fill"></i>
             <span id="bannerSinAsociarText">Hay fichadas importadas sin asociar a empleados.</span>
+            {% if can_edit('rrhh') %}
             <button class="btn btn-sm btn-outline-warning ms-auto" onclick="asociarFichadas()">
                 <i class="bi bi-link-45deg me-1"></i>Intentar Asociar
             </button>
+            {% endif %}
             <a href="/admin/rrhh" target="_blank" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-gear me-1"></i>Configurar IDs
             </a>
@@ -35,9 +39,11 @@
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-info-circle-fill"></i>
             <span id="bannerSinProcesarText">Hay fichadas asociadas pendientes de procesar contra turnos.</span>
+            {% if can_edit('rrhh') %}
             <button class="btn btn-sm btn-outline-primary ms-auto" onclick="procesarTodas()">
                 <i class="bi bi-gear me-1"></i>Procesar contra Turnos
             </button>
+            {% endif %}
         </div>
     </div>
 
@@ -193,6 +199,7 @@
 </div>
 
 <script>
+const PUEDE_EDITAR = {{ 'true' if can_edit('rrhh') else 'false' }};
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 let periodoActual = '';
 let loteUltimo = '';
@@ -345,7 +352,7 @@ function renderTabla(registros) {
         `${registros.length} días analizados — ${faltas} faltas — ${tardes} tardanzas`;
 
     tbody.innerHTML = registros.map(r => {
-        const canJustify = (r.es_falta || r.es_tarde || r.fichada_faltante) && !r.justificado;
+        const canJustify = PUEDE_EDITAR && (r.es_falta || r.es_tarde || r.fichada_faltante) && !r.justificado;
         return `<tr>
             <td>
                 <button class="btn btn-sm btn-outline-secondary p-0 px-1" style="font-size:0.7rem;"

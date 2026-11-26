@@ -12,9 +12,11 @@
       <a href="/compras/exportar" class="btn btn-outline-secondary btn-sm">
         <i class="bi bi-file-earmark-excel"></i> Exportar
       </a>
+      {% if can_edit('compras') %}
       <a href="/compras/orden-nueva" class="btn btn-primary btn-sm">
         <i class="bi bi-plus-circle"></i> Nuevo registro
       </a>
+      {% endif %}
     </div>
   </div>
 

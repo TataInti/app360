@@ -16,7 +16,7 @@
             <button class="btn btn-sm btn-outline-secondary" onclick="exportarArqueos()">
                 <i class="bi bi-file-earmark-excel"></i> Excel
             </button>
-            {% if session.get('role') != 'director' %}
+            {% if can_edit('tesoreria') %}
             <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoArqueo">
                 <i class="bi bi-plus-circle"></i> Nuevo Arqueo
             </button>

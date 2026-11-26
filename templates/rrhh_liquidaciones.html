@@ -12,9 +12,11 @@
             <button class="btn btn-sm btn-outline-secondary" id="btn-previsualizar" onclick="cargarPreview()">
                 <i class="bi bi-eye"></i> Previsualizar
             </button>
+            {% if can_edit('rrhh') %}
             <button class="btn btn-sm btn-primary" onclick="generarLiquidaciones()" id="btn-generar" disabled>
                 <i class="bi bi-check-circle"></i> Generar
             </button>
+            {% endif %}
             <button class="btn btn-sm btn-outline-secondary" onclick="verHistorial()">
                 <i class="bi bi-calendar"></i> Historial
             </button>

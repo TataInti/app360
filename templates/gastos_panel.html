@@ -32,9 +32,11 @@
             <button class="btn btn-sm btn-outline-secondary" onclick="exportarGastos()">
                 <i class="bi bi-file-earmark-excel"></i> Exportar
             </button>
+            {% if can_edit('gastos') %}
             <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalNuevoGasto">
                 <i class="bi bi-plus-circle"></i> Registrar gasto
             </button>
+            {% endif %}
         </div>
     </header>
 

@@ -13,7 +13,12 @@ load_dotenv()
 
 from config import Config
 from models import db
-from security import guardia_api_admin_sin_sesion, module_allowed, revalidar_sesion_web
+from security import (
+    get_user_module_access,
+    guardia_api_admin_sin_sesion,
+    module_allowed,
+    revalidar_sesion_web,
+)
 from exceptions import AppException
 from extensions import limiter, csrf, migrate
 
@@ -228,10 +233,19 @@ def create_app():
                     exc_info=True,
                 )
 
+        def access_level(module):
+            """'edit', 'view' o 'none' del usuario en sesión para el módulo."""
+            user_id = session.get("user_id")
+            if not role or not module_allowed(module, role, user_id):
+                return "none"
+            return get_user_module_access(module, user_id, role)
+
         return {
             "current_user": username,
             "current_role": role,
             "can_access": can_access,
+            "access_level": access_level,
+            "can_edit": lambda module: access_level(module) == "edit",
             "sabiogo_sync_alert": sabiogo_sync_alert,
             "asset_version": _asset_version,
         }
