@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from functools import wraps
 from decimal import Decimal
 
 from flask import Blueprint, request, jsonify, render_template, session as flask_session
@@ -22,6 +23,7 @@ from models import (
 )
 from security import ACCESS_MAP, protect_blueprint
 from services.sabiogo_service import SabiogoService
+from services.usuarios_admin import ROLES_ADMINISTRACION
 
 comercial_bp = Blueprint("comercial", __name__)
 
@@ -29,6 +31,22 @@ protect_blueprint(comercial_bp, "comercial")
 
 # Roles con administración total (ACCESS_MAP con "all"): no reciben comisiones por defecto.
 ROLES_ADMIN_TOTAL = tuple(sorted(rol for rol, modulos in ACCESS_MAP.items() if "all" in modulos))
+
+
+def comisiones_admin_required(f):
+    """Escribir comisiones es por rol: solo admin, manager y gerente.
+
+    Va además del módulo `comercial`: una excepción individual «Editar» sobre el módulo
+    no habilita a quien no pertenece a administración o gerencia.
+    """
+
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if flask_session.get("role") not in ROLES_ADMINISTRACION:
+            return jsonify({"error": "Sin permiso", "message": "Las comisiones las administran solo administración y gerencia."}), 403
+        return f(*args, **kwargs)
+
+    return decorated
 
 
 # RUTAS WEB
@@ -271,6 +289,7 @@ def comisiones_listar():
 
 
 @comercial_bp.route("/api/comercial/comisiones/calcular", methods=["POST"])
+@comisiones_admin_required
 def comisiones_calcular():
     """Calcular comisiones para un período"""
     data = request.get_json()
@@ -395,6 +414,7 @@ def comisiones_calcular():
 
 
 @comercial_bp.route("/api/comercial/comisiones/<int:comision_id>/pagar", methods=["POST"])
+@comisiones_admin_required
 def comisiones_pagar(comision_id):
     """Marcar comisión como pagada"""
     comision = Comision.query.get_or_404(comision_id)
